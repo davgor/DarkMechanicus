@@ -20,7 +20,7 @@ import { ensureForgeConfig, FORGE_CONFIG, readForgeReference } from '../../core/
 import { requireTracked } from './handlers'
 import { readForgeCheckout } from './forgeCheckout'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
-import { ForgeGit } from './forgeGit'
+import { ForgeGit, type WorldCheckout } from './forgeGit'
 import { createForgeProvisioning, type ForgeProvisioning } from './forgeProvisioning'
 import { bundledRecipebookFile, createForgeProvisioningWork } from './forgeProvisioningWork'
 import { bundledForgeRecipes, verifyForgeScaffold } from './forgeScaffold'
@@ -85,7 +85,7 @@ class ForgeService {
   private readonly last = new Map<string, number>()
   private readonly next = new Map<string, number>()
   private readonly errors = new Map<string, string>()
-  private readonly checking = new Map<string, Promise<void>>()
+  private readonly checking = new Map<string, Promise<WorldCheckout>>()
 
   constructor(private readonly deps: Services) {
     this.git = new ForgeGit(deps.session, deps.runner)
@@ -121,20 +121,20 @@ class ForgeService {
     if (project === undefined) throw new Error('The Forge World no longer maps this ticket project.')
     return project.repository
   }
-  ensure(root: string): Promise<void> {
+  /** The full Forge World check; `checked` is what the running sync has just established, reused instead of asking git again. */
+  ensure(root: string, checked?: WorldCheckout): Promise<WorldCheckout> {
     try { assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root) }
     catch (error) { return Promise.reject(error) }
     const pending = this.checking.get(root)
     if (pending) return pending
     const key = this.rootKey(root)
-    const work = this.git.ensureMain(root)
-      .then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home }))
-      .then(() => {
-        if (key !== undefined && this.rootKey(root) === key) {
-          this.validated.set(root, key)
-          this.notifyMembers(root)
-        }
-      }).finally(() => this.checking.delete(root))
+    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked })).then(checkout => {
+      if (key !== undefined && this.rootKey(root) === key) {
+        this.validated.set(root, key)
+        this.notifyMembers(root)
+      }
+      return checkout
+    }).finally(() => this.checking.delete(root))
     this.checking.set(root, work)
     return work
   }
@@ -224,11 +224,11 @@ class ForgeService {
       this.assertSyncTarget(root, attachmentKey, 'repair')
       pendingMerge = await this.hasPendingMerge(root)
       if (pendingMerge) throw new Error('Finish the Forge World merge commit before syncing.')
-      await this.ensure(root)
+      const checked = await this.ensure(root)
       this.assertSyncTarget(root, attachmentKey)
-      await this.git.sync(root, async () => {
+      await this.git.sync(root, async merged => {
         this.assertSyncTarget(root, attachmentKey)
-        await this.ensure(root)
+        await this.ensure(root, merged)
         for (const project of this.worldAt(root).projects) {
           const member = join(root, project.folder)
           if (this.deps.registry.resolve(member) && existsSync(join(member, '.darkmechanicus/project.json'))) {
@@ -237,7 +237,7 @@ class ForgeService {
             await this.prepareMember(root, member, attachmentKey)
           }
         }
-      }, () => { this.assertSyncTarget(root, attachmentKey); current?.() })
+      }, () => { this.assertSyncTarget(root, attachmentKey); current?.() }, checked)
       this.assertSyncTarget(root, attachmentKey)
       await this.deps.onSynced(root)
       this.assertSyncTarget(root, attachmentKey)

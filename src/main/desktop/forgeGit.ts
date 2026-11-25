@@ -5,6 +5,8 @@ import { createGitRunner, type GitRunner } from '../git/runner'
 import { ensureForgeDirections, FORGE_DIRECTIONS } from './forgeDirections'
 import { FORGE_FILE, githubRemote, parseForge } from './forgeManifest'
 
+const MAIN_REF = 'refs/heads/main'
+
 function privateState(path: string): boolean {
   return /(?:^|\/)\.darkmechanicus\/local(?:\/|$)/i.test(path)
 }
@@ -17,6 +19,45 @@ function inspectEntries(entries: string): void {
       throw new Error('Ticket records and repository directions must be ordinary files.')
     }
   }
+}
+
+/** The stage of a `ls-files --stage` entry, `<mode> <object> <stage>\t<path>`: 0 when merged, 1 to 3 while unmerged. */
+const STAGE = /^[0-7]+ [0-9a-f]+ ([0-3])\t/
+
+/**
+ * `ls-files -t --stage --others --exclude-standard -z`, read as the index (unmerged entries refused, every entry
+ * inspected) and the paths a commit stages: tracked and untracked, without machine-private state. `-t` tags each
+ * untracked path `? ` and each index entry with another letter, so neither is read as the other.
+ */
+function commitCandidates(listing: string): string[] {
+  const index: string[] = []
+  const paths: string[] = []
+  for (const tagged of listing.split('\0').filter(Boolean)) {
+    const entry = tagged.slice(2)
+    if (tagged.startsWith('? ')) {
+      paths.push(entry)
+      continue
+    }
+    if (STAGE.exec(entry)?.[1] !== '0') throw new Error('Forge World has an unresolved merge.')
+    index.push(entry)
+    paths.push(entry.slice(entry.indexOf('\t') + 1))
+  }
+  // A Forge World is its own repository: sync includes its documentation and
+  // every portable project file, including formats added after this client.
+  // Private state is never publishable, even if someone force-staged it.
+  inspectEntries(index.join('\0'))
+  return paths.filter(path => !privateState(path))
+}
+
+/**
+ * What a check of a Forge World checkout established, reused by the rest of one sync instead of asking git again: the
+ * check confirmed the folder is its repository's root and on `main`, and inspected the index and HEAD's tree.
+ */
+export interface WorldCheckout {
+  /** The origin's GitHub repository URL. */
+  url: string
+  /** Commits whose trees were inspected. A commit's tree never changes, so each is inspected once. */
+  inspected: Set<string>
 }
 
 export class ForgeGit {
@@ -35,14 +76,23 @@ export class ForgeGit {
     inspectEntries(tree)
   }
 
-  /** Check imported/staged data before anything treats local hints as machine-owned. */
-  async inspectCheckout(root: string): Promise<void> {
-    const [head, index] = await Promise.all([
-      this.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] }),
-      this.run(root, ['ls-files', '--stage', '-z'])
-    ])
+  /** Check imported/staged data before anything treats local hints as machine-owned. HEAD's commit joins `inspected`. */
+  async inspectCheckout(root: string, inspected = new Set<string>()): Promise<void> {
+    const [, index] = await Promise.all([this.inspectHead(root, inspected), this.run(root, ['ls-files', '--stage', '-z'])])
     inspectEntries(index.stdout)
-    if (head.code === 0) await this.inspectTree(root, 'HEAD')
+  }
+
+  /** Inspects HEAD's tree unless its commit is in `inspected`; nothing while HEAD is unborn. */
+  private async inspectHead(root: string, inspected: Set<string>): Promise<void> {
+    const head = await this.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] })
+    if (head.code === 0) await this.inspectCommit(root, head.stdout.trim(), inspected)
+  }
+
+  /** Inspects the tree of `commit` (a full commit id) unless it is in `inspected`. */
+  private async inspectCommit(root: string, commit: string, inspected: Set<string>): Promise<void> {
+    if (inspected.has(commit)) return
+    await this.inspectTree(root, commit)
+    inspected.add(commit)
   }
 
   private async inspectOutgoing(root: string, range: string) {
@@ -53,15 +103,8 @@ export class ForgeGit {
   }
 
   private async commitRepository(root: string) {
-    const unresolved = (await this.run(root, ['ls-files', '-u'])).stdout !== ''
-    if (unresolved) throw new Error('Forge World has an unresolved merge.')
-    // A Forge World is its own repository: sync includes its documentation and
-    // every portable project file, including formats added after this client.
-    // Private state is never publishable, even if someone force-staged it.
-    inspectEntries((await this.run(root, ['ls-files', '--stage', '-z'])).stdout)
-    const files = (await this.run(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])).stdout
-    const paths = files.split('\0').filter(path => path !== '' && !privateState(path))
-    const pathspec = paths.join('\0') + '\0'
+    const listing = (await this.run(root, ['ls-files', '-t', '--stage', '--others', '--exclude-standard', '-z'])).stdout
+    const pathspec = commitCandidates(listing).join('\0') + '\0'
     await this.run(root, ['--literal-pathspecs', 'add', '-A', '--pathspec-from-file=-', '--pathspec-file-nul'], undefined, { stdin: pathspec })
     inspectEntries((await this.run(root, ['ls-files', '--stage', '-z'])).stdout)
     const changed = (await this.run(root, ['diff', '--cached', '--quiet'], undefined, { acceptExitCodes: [0, 1] })).code === 1
@@ -91,36 +134,60 @@ export class ForgeGit {
     if (main.code === 0) await this.run(root, ['merge', '--no-edit', '-m', 'Recover off-main Forge World work into main', prior])
   }
 
-  async sync(root: string, validate: () => Promise<void>, beforePush?: () => void) {
+  /** What a sync checks first when no Forge World check just did: the root, the manifest, the origin and `main`. */
+  private async checkSyncTarget(root: string): Promise<WorldCheckout> {
     const gitRoot = (await this.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
     if (relative(gitRoot, root) !== '') throw new Error('The Forge World must be the root of its ticket repository.')
     parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
     const url = githubRemote((await this.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
     await this.ensureMain(root)
-    if ((await this.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] })).code === 0) await this.inspectTree(root, 'HEAD')
-    ensureForgeDirections(root)
-    await this.commitRepository(root)
-    const ref = 'refs/heads/main'
-    const hasUpstream = (await this.run(root, ['ls-remote', '--heads', url, ref], url)).stdout.trim() !== ''
-    if (hasUpstream) await this.run(root, ['fetch', '--no-tags', url, ref], url)
-    const [local, upstream] = (await this.run(root, ['rev-parse', 'HEAD', ...(hasUpstream ? ['FETCH_HEAD'] : [])])).stdout.trim().split(/\s+/)
+    return { url, inspected: new Set() }
+  }
+
+  /**
+   * Fetches main from origin and merges it, after inspecting its tree and the history this checkout would publish.
+   * Returns HEAD's commit before the merge and the range of unpublished history. Leaves the index and HEAD's tree inspected.
+   */
+  private async mergeOrigin(root: string, url: string, inspected: Set<string>): Promise<{ local: string; range: string }> {
+    const hasUpstream = (await this.run(root, ['ls-remote', '--heads', url, MAIN_REF], url)).stdout.trim() !== ''
+    if (hasUpstream) await this.run(root, ['fetch', '--no-tags', url, MAIN_REF], url)
+    const [local = '', upstream] = (await this.run(root, ['rev-parse', 'HEAD', ...(hasUpstream ? ['FETCH_HEAD'] : [])])).stdout.trim().split(/\s+/)
     const range = upstream === undefined ? '' : upstream + '..'
-    if (upstream !== undefined) await this.inspectTree(root, upstream)
+    if (upstream !== undefined) await this.inspectCommit(root, upstream, inspected)
     // Reject private unpublished history before opening a merge or invoking validation.
     await this.inspectOutgoing(root, range + local)
-    if (upstream !== undefined) {
+    if (upstream === undefined) {
+      // The commit before this inspected the index it left, and HEAD is `local`.
+      await this.inspectCommit(root, local, inspected)
+    } else {
       await this.run(root, ['merge', '--no-edit', '-m', 'Merge remote main into Forge World main', upstream])
+      await this.inspectCheckout(root, inspected)
     }
-    await this.inspectTree(root, 'HEAD')
-    await validate()
+    return { local, range }
+  }
+
+  /**
+   * Commits, merges main from origin and publishes. `checked` is a Forge World check made just before (its root, origin
+   * and `main` are reused, and the trees it inspected are not inspected again); without one the sync checks them
+   * itself. `validate` gets the checkout as the merge left it, its index and HEAD's tree inspected, for the check it
+   * runs to reuse.
+   */
+  async sync(root: string, validate: (checkout: WorldCheckout) => Promise<void>, beforePush?: () => void, checked?: WorldCheckout) {
+    if (checked !== undefined) parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
+    const { url, inspected } = checked ?? await this.checkSyncTarget(root)
+    await this.inspectHead(root, inspected)
+    ensureForgeDirections(root)
+    await this.commitRepository(root)
+    const { local, range } = await this.mergeOrigin(root, url, inspected)
+    await validate({ url, inspected })
     // Reconciliation/health upgrades can create portable records after merging.
     // Include those writes in this same sync rather than leaving them behind.
     await this.commitRepository(root)
     // Pin the checked object: another local commit may arrive while the network runner queues the push.
     const revision = (await this.run(root, ['rev-parse', 'HEAD'])).stdout.trim()
-    await this.inspectTree(root, revision)
+    await this.inspectCommit(root, revision, inspected)
     if (revision !== local) await this.inspectOutgoing(root, range + revision)
     beforePush?.()
-    await this.run(root, ['push', url, revision + ':' + ref], url, { beforeStart: beforePush })
+    await this.run(root, ['push', url, revision + ':' + MAIN_REF], url, { beforeStart: beforePush })
   }
 }
