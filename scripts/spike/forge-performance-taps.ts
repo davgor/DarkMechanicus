@@ -172,3 +172,30 @@ export function laneDuring(from: number, to: number): { holds: HoldRecord[]; rec
     reconciles: rows.filter((row) => row.kind === 'reconcile').map((row) => ({ mode: row.mode ?? '', ms: row.ms ?? 0, fileReads: row.fileReads ?? { prepared: 0, locked: 0 } }))
   }
 }
+
+/** Local time of day in ms, as `GIT_TRACE` stamps its lines. */
+function timeOfDay(epochMs: number): number {
+  const at = new Date(epochMs)
+  return ((at.getHours() * 60 + at.getMinutes()) * 60 + at.getSeconds()) * 1000 + at.getMilliseconds()
+}
+
+/**
+ * Git processes the desktop ran between `from` and `to` (epoch ms), counted by their first four arguments, from the
+ * `GIT_TRACE` file the profiler names (every git process the app spawns inherits it). Null when no trace was asked for.
+ */
+export function gitRunsDuring(from: number, to: number): Record<string, number> | null {
+  const file = process.env['GIT_TRACE']
+  if (!file || !existsSync(file)) return null
+  const [start, end] = [timeOfDay(from), timeOfDay(to)]
+  const counts: Record<string, number> = {}
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    const match = /^(\d\d):(\d\d):(\d\d)\.(\d{6}) .*trace: built-in: git (.*)$/.exec(line.trimEnd())
+    if (match === null) continue
+    const [, h, m, s, micros, args] = match
+    const at = ((Number(h) * 60 + Number(m)) * 60 + Number(s)) * 1000 + Number(micros) / 1000
+    if (at < start || at > end) continue
+    const command = args!.split(' ').slice(0, 4).join(' ')
+    counts[command] = (counts[command] ?? 0) + 1
+  }
+  return counts
+}

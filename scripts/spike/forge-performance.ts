@@ -70,14 +70,24 @@ function bundleEntries(root: string): string | undefined {
     .outputFiles[0]?.text
 }
 
-/** Runs Electron as Electron (never as Node, whatever the calling shell sets) on the profiler package in `root`. */
-function runProfiler(root: string, configFile: string, userData: string, result: string): void {
-  // The project utilities' sync lanes (DM-963) append their write-lock holds and reconcile reads here; see `laneSince`.
-  const env = {
+/**
+ * The profiler's environment, never Electron-as-Node. The project utilities' sync lanes (DM-963) append their
+ * write-lock holds and reconcile reads to `DM_LANE_OBSERVE_FILE`; see `laneSince`. In revamp mode every git process the
+ * desktop runs logs its arguments to `GIT_TRACE`, which the footer-idle stage counts (c8).
+ */
+function profilerEnv(root: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
     ...process.env, DM_LANE_OBSERVE_FILE: process.env['DM_LANE_OBSERVE_FILE'] ?? join(root, 'lane.jsonl'),
+    ...(mode === 'revamp' ? { GIT_TRACE: process.env['GIT_TRACE'] ?? join(root, 'git-trace.log') } : {}),
     ...(cliPhases ? { DM_CLI_PHASE_LOG: process.env['DM_CLI_PHASE_LOG'] ?? join(root, 'cli-phases.jsonl') } : {})
   }
   delete env['ELECTRON_RUN_AS_NODE']
+  return env
+}
+
+/** Runs Electron as Electron (never as Node, whatever the calling shell sets) on the profiler package in `root`. */
+function runProfiler(root: string, configFile: string, userData: string, result: string): void {
+  const env = profilerEnv(root)
   const child = spawnSync(electron, [root, configFile], {
     env, timeout: mode === 'revamp' ? 3_700_000 : 180_000, windowsHide: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024
   })

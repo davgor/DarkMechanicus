@@ -3,15 +3,15 @@
  * sync, click to paint over CDP, write-lock holds by caller, unchanged-reconcile counters and built-CLI agent latency.
  * Runs inside the profiler's Electron main against the built desktop. Measurement only: no app behaviour is changed.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { once } from 'node:events'
-import { basename } from 'node:path'
+import { basename, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { BrowserWindow } from 'electron'
 import type { ProfileProject } from './forge-performance-fixture'
 import type { OwnerAction, OwnerReply } from './forge-performance-owner'
 import { absoluteNow, cpuSink, holdSummary, latencyStats, outcomeCounts, type HoldRecord } from './forge-performance-sinks'
-import { laneDuring, laneSettled, lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
+import { gitRunsDuring, laneDuring, laneSettled, lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
 
 export interface Reply<T> { ok: boolean; data: T; error?: { code: string; message: string } }
 export interface CliResult { elapsedMs: number; code: number | null; output: unknown }
@@ -441,6 +441,42 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
   })
 }
 
+/** How long the desktop sits idle on the selected 10,000-ticket folder while its footer status refreshes. */
+const FOOTER_IDLE_MS = SMOKE ? 15_000 : 60_000
+
+/** The checkout's index stamp and HEAD as `storage.ts` keys its cached `git status` count (size, mtime, inode; branch and commit). */
+function checkoutStamp(root: string): string {
+  const index = statSync(join(root, '.git', 'index'), { throwIfNoEntry: false })
+  const head = readFileSync(join(root, '.git', 'HEAD'), 'utf8').trim()
+  const ref = head.startsWith('ref: ') ? join(root, '.git', ...head.slice(5).split('/')) : null
+  const commit = ref !== null && existsSync(ref) ? readFileSync(ref, 'utf8').trim() : head
+  return JSON.stringify([index === undefined ? null : [index.size, index.mtimeMs, index.ino], head, commit])
+}
+
+/**
+ * The footer's storage-status refreshes with the desktop idle on `project` (selected in the sidebar) for
+ * `FOOTER_IDLE_MS`: the `getStorageStatus` calls, the git processes the desktop ran (`GIT_TRACE`), and how often the
+ * checkout's index stamp or HEAD changed (sampled every 100 ms). Measurement only.
+ */
+async function footerIdle(deps: RevampDeps, project: ProfileProject): Promise<void> {
+  await clickAt(deps, await center(deps, basename(project.root), '.folder-main', null))
+  await until(() => laneSettled(project.root) || null, 'the last sync to settle')
+  const stamps = [checkoutStamp(project.root)]
+  const from = absoluteNow()
+  const sampler = setInterval(() => {
+    const stamp = checkoutStamp(project.root)
+    if (stamp !== stamps.at(-1)) stamps.push(stamp)
+  }, 100)
+  await delay(FOOTER_IDLE_MS)
+  clearInterval(sampler)
+  const to = absoluteNow()
+  const status = splitWindow(project.root, ['getStorageStatus'], from, to)
+  deps.report('revamp-footer-idle', {
+    tickets: project.tickets, seconds: FOOTER_IDLE_MS / 1000, storageStatusCalls: status.calls, stampChanges: stamps.length - 1,
+    gitRuns: gitRunsDuring(from, to), otherWork: status.otherWork
+  })
+}
+
 /** The matrix for one generated fixture, after the profiler tracked it cold. */
 export async function revampProject(deps: RevampDeps, project: ProfileProject): Promise<void> {
   await js(deps, deps.rendererBundle)
@@ -451,6 +487,7 @@ export async function revampProject(deps: RevampDeps, project: ProfileProject): 
   const epic = await deps.command<{ title: string }>(project, 'getEpic', { epicId: project.sample.epicId })
   if (!epic.ok) throw new Error(JSON.stringify(epic.error))
   await clickToPaint(deps, { root: project.root, folderName: basename(project.root), epicTitle: epic.data.title }, project.tickets)
+  if (project.tickets === 10_000 || SMOKE) await footerIdle(deps, project)
   await holdsAndCounters(deps, project)
   if (project.tickets === 10_000 || SMOKE) {
     await cliWallTimes(deps, project)
