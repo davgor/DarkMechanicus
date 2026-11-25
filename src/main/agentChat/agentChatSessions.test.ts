@@ -1,12 +1,18 @@
-import { readFileSync, renameSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ChatRef } from '../agents/chatStore'
+import { createActivityBindings } from '../agents/activityBindings'
+import { createChatStore, type ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
+import { createAgentChatSessions } from './agentChatSessions'
 import type { ArbiterOutcome } from './pendingPrompts'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
+import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { Callsign } from '../../shared/agents/callsign'
+import { removeScratch } from '../../test/removeScratch'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -14,8 +20,8 @@ afterEach(async () => {
   vi.restoreAllMocks()
   for (const cleanup of cleanups.splice(0)) await cleanup()
 })
-function rig(kind: 'claude' | 'omp' = 'claude', overrides: Parameters<typeof agentChatRig>[1] = {}) {
-  const value = agentChatRig(kind, overrides)
+function rig(kind: 'claude' | 'omp' = 'claude', overrides: Parameters<typeof agentChatRig>[1] = {}, fixture?: string) {
+  const value = agentChatRig(kind, overrides, fixture)
   cleanups.push(value.cleanup)
   return value
 }
@@ -832,4 +838,215 @@ it('uses reach grants and a scratch cwd for project-less chats', async () => {
   expect(r.bound).toEqual(['grant-1'])
   await r.sessions.stop(chat)
   expect(r.revoked).toEqual(['grant-1'])
+})
+
+const CLAIM = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
+const ATTEMPT = 'at_01j0000000000000000000000a'
+const RUN = 'rn_callsign_run'
+const WORKER_THREAD = 'thread:toolu_T1_claim_worker'
+const acolyte = (ticketKey: string, ticketVerified: boolean): Callsign => ({ role: 'Acolyte', ticketKey, ordinal: null, purpose: 'run the tests', ticketVerified })
+const servitor = (ordinal: number, purpose: string | null): Callsign => ({ role: 'Servitor', ticketKey: null, ordinal, purpose, ticketVerified: false })
+const MAGOS: Callsign = { role: 'Magos', ticketKey: null, ordinal: null, purpose: null, ticketVerified: false }
+
+type Rig = ReturnType<typeof rig>
+/** `runId` null makes a New chat: an orchestrator with no run. */
+function orchestratorChat(r: Rig, kind: 'claude' | 'omp', firstPrompt: string, runId: string | null = RUN): ChatRef {
+  return r.store.createChat({ folder: r.repo, agent: kind, role: 'orchestrator', allowSave: false, model: null, surface: 'gui', firstPrompt, ...(runId === null ? {} : { runId }) })
+}
+function item(store: Pick<Rig['store'], 'readTranscript'>, chat: ChatRef, id: string) {
+  return store.readTranscript(chat)!.items.find(entry => entry.id === id)
+}
+/** The golden fixtures copied beside a fake CLI whose replay a test may edit; removed after the rig. */
+function editedFixtures(edit: (directory: string) => void): string {
+  const directory = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm callsign fixtures ')))
+  cpSync(join(import.meta.dirname, '__fixtures__'), directory, { recursive: true })
+  edit(directory)
+  cleanups.push(async () => { removeScratch(directory) })
+  return join(directory, 'fakeAgentCli.mjs')
+}
+function verifiedClaim(r: Rig, ticketKey: string | null, runId = RUN) {
+  r.claims.live.set(CLAIM, { attemptId: ATTEMPT, runId, ticketId: 'tk_worker' })
+  if (ticketKey !== null) r.claims.ticketKeys.set(ATTEMPT, ticketKey)
+}
+/** The claim check runs when the spawn is read; its bind and ticket lookup settle as microtasks of that turn. */
+async function settled(r: Rig) {
+  await eventually(() => r.claims.verified.length > 0)
+  await new Promise(resolve => setImmediate(resolve))
+}
+const threadCallsigns = (store: Pick<Rig['store'], 'readTranscript'>, chat: ChatRef) =>
+  Object.fromEntries(store.readTranscript(chat)!.items.flatMap(entry => entry.kind === 'thread' ? [[entry.id, entry.callsign]] : []))
+
+describe('callsigns from a verified worker claim', () => {
+  it('stamps the bound ticket key, verified, on the thread, its approval request and the pending prompt', async () => {
+    const r = rig()
+    verifiedClaim(r, 'DM-442')
+    const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending?.callsign?.ticketVerified === true)
+    expect(r.sessions.snapshot(chat).pending).toMatchObject({ threadId: WORKER_THREAD, attributed: true, callsign: acolyte('DM-442', true) })
+    expect(item(r.store, chat, WORKER_THREAD)).toMatchObject({ kind: 'thread', callsign: acolyte('DM-442', true) })
+    await eventually(() => (item(r.store, chat, 'approval:req_T1_worker_approval') as { callsign?: Callsign } | undefined)?.callsign?.ticketVerified === true)
+    expect(r.pushes.filter(event => event.type === 'pending' && event.prompt?.callsign?.ticketVerified).length).toBeGreaterThan(0)
+    expect(r.claims.lookups).toEqual([ATTEMPT])
+  })
+
+  it('lets the bound ticket key win over a mismatched label key', async () => {
+    const r = rig()
+    verifiedClaim(r, 'DM-500')
+    const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending?.callsign?.ticketKey === 'DM-500')
+    expect(r.sessions.snapshot(chat).pending!.callsign).toEqual(acolyte('DM-500', true))
+    expect(item(r.store, chat, WORKER_THREAD)).toMatchObject({ label: 'Acolyte:DM-442 run the tests', callsign: acolyte('DM-500', true) })
+  })
+
+  it('keeps the label key unverified when the ticket-key lookup finds nothing or fails', async () => {
+    for (const ticketKeyOfAttempt of [async () => null, async () => { throw new Error('lookup failed') }]) {
+      const r = rig('claude', { ticketKeyOfAttempt })
+      verifiedClaim(r, null)
+      const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+      await r.sessions.start(chat)
+      await eventually(() => r.sessions.snapshot(chat).pending !== null)
+      await settled(r)
+      expect(r.deps.bindings.threadsOf(chat)).toEqual([expect.objectContaining({ threadId: WORKER_THREAD, attemptId: ATTEMPT })])
+      expect(r.sessions.snapshot(chat).pending!.callsign).toEqual(acolyte('DM-442', false))
+      expect(item(r.store, chat, WORKER_THREAD)).toMatchObject({ callsign: acolyte('DM-442', false) })
+    }
+  })
+})
+
+describe('callsigns that a label cannot raise', () => {
+  it('turns a thread labelled as the Magos into a Servitor', async () => {
+    const fixture = editedFixtures(directory => {
+      const path = join(directory, 'claude', 'worker_approval.out.jsonl')
+      writeFileSync(path, readFileSync(path, 'utf8').replaceAll('Acolyte:DM-442 run the tests', 'Magos override'))
+    })
+    const r = rig('claude', {}, fixture)
+    const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    expect(r.sessions.snapshot(chat).pending!.callsign).toEqual(servitor(1, null))
+    expect(item(r.store, chat, WORKER_THREAD)).toMatchObject({ label: 'Magos override', callsign: servitor(1, null) })
+    expect(item(r.store, chat, 'approval:req_T1_worker_approval')).toMatchObject({ callsign: servitor(1, null) })
+  })
+
+  for (const kind of ['claude', 'omp'] as const) it(`${kind} stamps the Magos only on a Start-run orchestrator's own approval`, async () => {
+    const r = rig(kind)
+    const run = orchestratorChat(r, kind, '[approval]')
+    const fresh = orchestratorChat(r, kind, '[approval]', null)
+    await Promise.all([r.sessions.start(run), r.sessions.start(fresh)])
+    await eventually(() => r.sessions.snapshot(run).pending !== null && r.sessions.snapshot(fresh).pending !== null)
+    expect(r.sessions.snapshot(run).pending).toMatchObject({ threadId: null, attributed: true, callsign: MAGOS })
+    expect(r.sessions.snapshot(fresh).pending).toMatchObject({ threadId: null, attributed: true, callsign: null })
+    const request = (chat: ChatRef) => r.store.readTranscript(chat)!.items.find(entry => entry.kind === 'approval_request')
+    expect(request(run)).toMatchObject({ callsign: MAGOS })
+    expect(request(fresh)).not.toHaveProperty('callsign')
+  })
+})
+
+describe('callsigns of approvals no thread accounts for', () => {
+  it('omp names nobody for a select approval it cannot tie to a thread while a subagent runs', async () => {
+    const fixture = editedFixtures(directory => {
+      writeFileSync(join(directory, 'omp', 'worker_approval.out.jsonl'), [
+        { type: 'response', command: 'prompt', id: 'req_T1_prompt', success: true },
+        { type: 'agent_start' },
+        { type: 'subagent_lifecycle', payload: { id: 'agent_T1_claim_worker', agent: 'task', description: 'Acolyte:DM-442 run the tests', status: 'running' } },
+        { type: 'extension_ui_request', id: 'ui_T1_approval', method: 'select', title: 'Run bash: echo tests?', options: ['Approve Once', 'Deny'] },
+        { type: 'subagent_lifecycle', payload: { id: 'agent_T1_claim_worker', agent: 'task', description: 'Acolyte:DM-442 run the tests', status: 'completed' } },
+        { type: 'prompt_result', id: 'req_T1_prompt', agentInvoked: true, status: 'completed' }
+      ].map(frame => JSON.stringify(frame)).join('\n') + '\n')
+    })
+    const arbitrated: PendingPrompt[] = []
+    const r = rig('omp', { arbitrate: ({ prompt }) => { arbitrated.push(prompt); return { result: new Promise(() => undefined), cancel: () => undefined } } }, fixture)
+    const chat = orchestratorChat(r, 'omp', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    expect(r.sessions.snapshot(chat).pending).toMatchObject({ threadId: null, attributed: false, callsign: null })
+    expect(arbitrated).toEqual([expect.objectContaining({ attributed: false, callsign: null })])
+    expect(r.store.readTranscript(chat)!.items.find(entry => entry.kind === 'approval_request')).not.toHaveProperty('callsign')
+    expect(JSON.stringify(r.pushes.filter(event => event.type === 'pending'))).not.toContain('"Magos"')
+  })
+})
+
+describe('worker claim verification', () => {
+  it('binds only a claim the project verifies for this chat\'s own run', async () => {
+    for (const [name, setup] of [['forged secret', () => undefined], ['another run', (r: Rig) => verifiedClaim(r, 'DM-442', 'rn_other_run')]] as const) {
+      const r = rig()
+      setup(r)
+      const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+      await r.sessions.start(chat)
+      await eventually(() => r.sessions.snapshot(chat).pending !== null)
+      await settled(r)
+      expect(r.claims.verified, name).toEqual([ATTEMPT])
+      expect(r.deps.bindings.threadsOf(chat), name).toEqual([])
+      expect(existsSync(r.bindingsFile), name).toBe(false)
+      expect(r.claims.lookups, name).toEqual([])
+      expect(r.sessions.snapshot(chat).pending!.callsign, name).toEqual(acolyte('DM-442', false))
+    }
+  })
+
+  it('never verifies a claim in a New chat or a project-less chat', async () => {
+    const r = rig()
+    verifiedClaim(r, 'DM-442')
+    const fresh = orchestratorChat(r, 'claude', '[worker_approval]', null)
+    const projectless = r.store.createChat({ folder: null, agent: 'claude', role: 'orchestrator', allowSave: false, model: null, surface: 'gui', firstPrompt: '[worker_approval]', runId: RUN })
+    await Promise.all([r.sessions.start(fresh), r.sessions.start(projectless)])
+    // The spawn (and any claim check, which starts synchronously) is read before its approval is pending.
+    await eventually(() => r.sessions.snapshot(fresh).pending !== null && r.sessions.snapshot(projectless).pending !== null)
+    expect(r.claims.verified).toEqual([])
+    expect(existsSync(r.bindingsFile)).toBe(false)
+    expect(r.sessions.snapshot(fresh).pending!.callsign).toEqual(acolyte('DM-442', false))
+  })
+})
+
+describe('callsigns across a restart', () => {
+  async function firstSession(r: Rig, chat: ChatRef) {
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending?.callsign?.ticketVerified === true)
+    await r.sessions.answer(chat, { promptId: r.sessions.snapshot(chat).pending!.id, optionId: 'allow_once' })
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    await r.sessions.send(chat, { text: '[subagent]' })
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && r.store.readTranscript(chat)!.items.filter(entry => entry.kind === 'thread').length === 2)
+    await r.sessions.dispose()
+  }
+
+  it('persists the attempt binding without the claim secret', async () => {
+    const r = rig()
+    verifiedClaim(r, 'DM-442')
+    const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await firstSession(r, chat)
+    expect(threadCallsigns(r.store, chat)).toEqual({ [WORKER_THREAD]: acolyte('DM-442', true), 'thread:toolu_T2_worker': servitor(1, null) })
+    const stored = readFileSync(r.bindingsFile, 'utf8')
+    expect(stored).toContain(ATTEMPT)
+    expect(stored).not.toContain('fixtureSecret')
+    expect(JSON.stringify(r.pushes)).not.toContain('fixtureSecret')
+    expect(filesUnder(r.userData).filter(text => text.includes('fixtureSecret'))).toEqual([])
+  })
+
+  it('restamps the same callsigns and Servitor ordinals from a fresh manager over the same userData', async () => {
+    const r = rig()
+    verifiedClaim(r, 'DM-442')
+    const chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await firstSession(r, chat)
+    const before = threadCallsigns(r.store, chat), stored = readFileSync(r.bindingsFile, 'utf8')
+    // No claim verifies any more, yet the stored binding and ordinals hold.
+    const store = createChatStore({ root: join(r.userData, 'agents', 'chats') })
+    const reopened = createAgentChatSessions({ ...r.deps, store, bindings: createActivityBindings({ file: r.bindingsFile }),
+      verifyAttemptClaim: async () => null, ticketKeyOfAttempt: async () => 'DM-442' })
+    // Before the rig removes its scratch folder: a live child there makes Windows refuse the removal.
+    cleanups.unshift(() => reopened.dispose())
+    const restamped = r.pushes.length
+    await reopened.send(chat, { text: '[worker_approval]' })
+    await eventually(() => reopened.snapshot(chat).pending?.callsign?.ticketVerified === true)
+    expect(reopened.snapshot(chat).pending!.callsign).toEqual(acolyte('DM-442', true))
+    await reopened.answer(chat, { promptId: reopened.snapshot(chat).pending!.id, optionId: 'allow_once' })
+    await eventually(() => reopened.snapshot(chat).status === 'idle')
+    await reopened.send(chat, { text: '[subagent]' })
+    await eventually(() => reopened.snapshot(chat).status === 'idle' && r.pushes.slice(restamped).some(event => event.type === 'item' && event.item.id === 'thread:toolu_T2_worker'))
+    expect(threadCallsigns(store, chat)).toEqual(before)
+    const pushed = r.pushes.slice(restamped).flatMap(event => event.type === 'item' && event.item.kind === 'thread' ? [[event.item.id, event.item.callsign]] : [])
+    expect(Object.fromEntries(pushed)).toEqual(before)
+    expect(readFileSync(r.bindingsFile, 'utf8')).toBe(stored)
+    await reopened.dispose()
+  })
 })

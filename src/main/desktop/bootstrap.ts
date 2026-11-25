@@ -74,7 +74,7 @@ import { createTerminalHandlers, registerTerminalIpc } from '../terminals/termin
 import { removeOmpFolder } from '../terminals/ompSession'
 import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
-import { createAgentChatSessions, type AgentChatSessions } from '../agentChat/agentChatSessions'
+import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
 import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatOwnerDeps, type AgentChatWiring } from '../agentChat/agentChatWiring'
 import { getAgentAuthStatus } from './agentAuth'
@@ -488,7 +488,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
     folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat), assertForgeSetupLaunch
-  }, push)
+  }, push, guiClaims(folders, workspaces, activity))
   recovery = createDesktopToolingRecovery({
     userData: app.getPath('userData'), version: () => app.getVersion(),
     source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
@@ -516,7 +516,8 @@ interface ChatOwners extends ContextTerminals {
 
 /** The terminals first, with a lazy GUI liveness check, then the one GUI session manager over their ownership. */
 function createChatOwners(
-  store: ChatStore, options: Omit<TerminalDeps, 'beforeContextPaste' | 'agentChatLive'>, push: ReturnType<typeof createChatPush>
+  store: ChatStore, options: Omit<TerminalDeps, 'beforeContextPaste' | 'agentChatLive'>, push: ReturnType<typeof createChatPush>,
+  claims: GuiClaimDeps
 ): ChatOwners {
   let context: ContextTerminals | undefined
   const owners = wireAgentChats({
@@ -524,23 +525,28 @@ function createChatOwners(
       context = createContextTerminals(store, { ...options, agentChatLive }, push)
       return context.terminals
     },
-    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned),
+    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, claims),
     push
   })
   if (context === undefined) throw new Error('The chat terminals were not created.')
   return { ...context, owners }
 }
 
+/** How GUI chats bind their threads to verified worker attempts; the ticket-key lookup is wired by the arbiter boot. */
+type GuiClaimDeps = Pick<AgentChatSessionsDeps, 'bindings' | 'verifyAttemptClaim'>
+
 /** The one GUI session manager over the same store, grants and agents as the terminals, and the terminals' ownership. */
 function createGuiChats(
   store: ChatStore,
   deps: Pick<TerminalDeps, 'grants' | 'folders' | 'reachFolders' | 'agents'>,
-  owned: AgentChatOwnerDeps
+  owned: AgentChatOwnerDeps,
+  claims: GuiClaimDeps
 ): AgentChatSessions {
   const awake = createKeepAwake(powerSaveBlocker)
   return createAgentChatSessions({
     ...deps.grants,
     ...owned,
+    ...claims,
     store,
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
@@ -660,6 +666,15 @@ function openDesktopPool(): WorkspacePool {
     authority: currentForgeTransfer,
     onError: (path, error) => logger.error('Workspace error for ' + path, error)
   })
+}
+
+/** GUI chats bind their threads in `activity` to attempts whose claim token the folder's own project verifies, read-only. */
+function guiClaims(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>, activity: ActivityBindings): GuiClaimDeps {
+  return {
+    bindings: activity,
+    // The token stays in main and the project's utility process; it is never logged.
+    verifyAttemptClaim: (folder, token) => desktopWorkspace(folders, workspaces, folder).call('claimedAttempt', token)
+  }
 }
 
 /** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */

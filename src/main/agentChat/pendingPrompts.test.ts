@@ -81,6 +81,46 @@ it('fences a previous arbitration even if a later prompt reuses its id', async (
   expect(registry.snapshot()?.arbitration.state).toBe('deciding')
 })
 
+const LATE_ACOLYTE = { role: 'Acolyte' as const, ticketKey: 'DM-442', ordinal: null, purpose: null, ticketVerified: true }
+
+it('applies a verdict to a prompt whose callsign was restamped mid-decision, without deciding it again', async () => {
+  const job = deferred(), answer = vi.fn(), publish = vi.fn(), arbitrate = vi.fn(() => job)
+  const registry = new PendingPrompts({ publish, answer, arbitrate })
+  registry.update([prompt('first')])
+  registry.update([{ ...prompt('first'), callsign: LATE_ACOLYTE }])
+  expect(arbitrate).toHaveBeenCalledTimes(1)
+  expect(job.cancel).not.toHaveBeenCalled()
+  expect(publish).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'first', callsign: LATE_ACOLYTE, arbitration: { state: 'deciding', reason: null } }))
+  job.resolve({ decision: 'allow_once', reason: 'Routine command' })
+  await Promise.resolve()
+  expect(answer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'first', callsign: LATE_ACOLYTE }), { decision: 'allow_once', reason: 'Routine command' })
+})
+
+for (const path of ['escalate', 'reject'] as const) it(`still escalates (${path}) a prompt restamped mid-decision`, async () => {
+  const job = deferred(), answer = vi.fn()
+  const registry = new PendingPrompts({ publish: vi.fn(), answer, arbitrate: () => job })
+  registry.update([prompt('first')])
+  registry.update([{ ...prompt('first'), callsign: LATE_ACOLYTE }])
+  if (path === 'escalate') job.resolve({ decision: 'escalate', reason: 'Ask the person' })
+  else job.reject(new Error('private failure'))
+  await Promise.resolve(); await Promise.resolve()
+  expect(registry.snapshot()).toMatchObject({ id: 'first', callsign: LATE_ACOLYTE,
+    arbitration: { state: 'escalated', reason: path === 'escalate' ? 'Ask the person' : 'Arbitration failed.' } })
+  expect(answer).not.toHaveBeenCalled()
+})
+
+it('drops the verdict of a restamped prompt once it is replaced by a reused id', async () => {
+  const old = deferred(), next = deferred(), answer = vi.fn()
+  const registry = new PendingPrompts({ publish: vi.fn(), answer, arbitrate: vi.fn().mockReturnValueOnce(old).mockReturnValueOnce(next) })
+  registry.update([prompt('same')])
+  registry.update([{ ...prompt('same'), callsign: LATE_ACOLYTE }])
+  registry.clear(); registry.update([prompt('same')])
+  old.resolve({ decision: 'allow_once', reason: 'Obsolete' })
+  await Promise.resolve()
+  expect(answer).not.toHaveBeenCalled()
+  expect(registry.snapshot()?.arbitration.state).toBe('deciding')
+})
+
 it('keeps a rejected answer pending and prevents reentrant second writes', () => {
   const registry = new PendingPrompts({ publish: vi.fn(), answer: vi.fn() })
   registry.update([prompt('first')])

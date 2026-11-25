@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
 import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type PendingPrompt } from '../../shared/agents/agentChat'
-import type { ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
+import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, type Callsign } from '../../shared/agents/callsign'
+import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
+import type { ActivityBinding, ActivityBindings } from '../agents/activityBindings'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder } from '../agents/launchFolder'
@@ -20,6 +22,7 @@ import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, transl
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
 import { PendingPrompts, type ArbiterOutcome } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
+import type { ThreadClaimEvent } from './translatorEvents'
 
 export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'agentFor' | 'folders' | 'checkAuth' | 'cliFor' | 'runs' | 'issueChatCli' | 'issueReachCli' |
@@ -36,6 +39,15 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   now?: () => string
   startProcess?: typeof startAgentProcess
   arbitrate?: (input: { ref: ChatRef; chat: ChatRecord; agent: AgentView; prompt: PendingPrompt }) => { result: Promise<ArbiterOutcome>; cancel(): void }
+  /** Verified worker attempts of a chat's threads, kept next to the chats; never a claim token. */
+  bindings: Pick<ActivityBindings, 'bind' | 'threadsOf'>
+  /**
+   * A read-only check of a claim token (`<attemptId>.<secret>`) in the folder's project: the attempt and run it is the
+   * live, latest claim of, or null. Omitted, nothing binds. The token is never stored, logged or pushed.
+   */
+  verifyAttemptClaim?: (folder: string, token: string) => Promise<{ attemptId: string; runId: string; ticketId: string } | null>
+  /** The ticket key of a bound attempt; omitted or failing, the thread keeps its unverified label key. */
+  ticketKeyOfAttempt?: (folder: string, attemptId: string) => Promise<string | null>
 }
 
 type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
@@ -90,6 +102,20 @@ interface Entry {
   starting?: Promise<StartResult>
   ending?: Promise<void>
 }
+type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
+/** A chat's thread identities: seeded once from its stored thread items and attempt bindings, so a restart keeps them. */
+interface Callsigns {
+  /** The latest stamped item of each thread. */
+  threads: Map<string, ThreadItem>
+  /** Servitor ordinals, assigned once per thread id in first-seen order. */
+  ordinals: Map<string, number>
+  next: number
+  /** Verified worker attempts by thread id; never a claim token. */
+  attempts: Map<string, string>
+  /** Unstamped approval requests raised inside threads, restamped when their thread's identity resolves. */
+  requests: Map<string, ApprovalRequestItem>
+}
+const ticketKeySchema = callsignSchema.shape.ticketKey
 
 function startsMainTurn(event: OmpEvent): boolean {
   if (event.type !== 'item' || event.item.threadId) return false
@@ -127,6 +153,10 @@ async function boundedShutdown(work: Promise<void>): Promise<void> {
 
 class SessionManager {
   private readonly entries = new Map<string, Entry>()
+  private readonly callsignStates = new Map<string, Callsigns>()
+  /** Ticket-key lookups per folder and attempt, and their settled values. */
+  private readonly ticketKeys = new Map<string, Promise<string | null>>()
+  private readonly resolvedKeys = new Map<string, string | null>()
   private readonly startingEntries = new Map<string, Entry>()
   private readonly cleanup = new Set<Promise<unknown>>()
   private readonly deleting = new Set<string>()
@@ -152,7 +182,7 @@ class SessionManager {
   }
   private emit(entry: Entry, event: OmpEvent): void {
     if (event.type === 'pending') return // The registry publishes only the FIFO head.
-    const safe = mask(event)
+    const safe = mask(this.stamped(entry, event))
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
     if (safe.type === 'status') {
       entry.status = safe.status
@@ -177,6 +207,111 @@ class SessionManager {
   }
   private heldPrompts(entry: Entry): PendingPrompt[] {
     return entry.protocol === 'claude' ? [...entry.claude.pending.values()].map(held => held.prompt) : entry.omp.pending.map(held => held.prompt)
+  }
+  private stampedPrompts(entry: Entry): PendingPrompt[] {
+    return this.heldPrompts(entry).map(prompt => ({ ...prompt, callsign: this.promptCallsign(entry, prompt.threadId, prompt.attributed) }))
+  }
+  private callsigns(entry: Entry): Callsigns {
+    const { chat } = entry
+    const known = this.callsignStates.get(chat.id)
+    if (known) return known
+    const state = this.storedCallsigns(chat)
+    this.callsignStates.set(chat.id, state)
+    if (chat.folder === null) return state
+    for (const binding of this.deps.bindings.threadsOf(chat)) {
+      if (binding.kind !== 'attempt' || binding.threadId === null) continue
+      state.attempts.set(binding.threadId, binding.attemptId)
+      this.lookup(entry, chat.folder, binding.attemptId)
+    }
+    return state
+  }
+  /** The stored thread items and the Servitor ordinals they were stamped with. */
+  private storedCallsigns(chat: ChatRecord): Callsigns {
+    const threads = (this.deps.store.readTranscript(chat)?.items ?? []).filter((item): item is ThreadItem => item.kind === 'thread')
+    const stamped = threads.flatMap(thread => thread.callsign ? [[thread.id, thread.callsign] as const] : [])
+    const ordinals = new Map(stamped.flatMap(([id, callsign]) => callsign.role === 'Servitor' && callsign.ordinal !== null ? [[id, callsign.ordinal]] : []))
+    return { threads: new Map(threads.map(thread => [thread.id, thread])), ordinals,
+      next: nextServitorOrdinal(stamped.map(([, callsign]) => callsign)), attempts: new Map(), requests: new Map() }
+  }
+  /** Records decide identity: the chat's role and run, the verified attempt's ticket key, then the masked label. */
+  private threadCallsign(entry: Entry, threadId: string, label: string): Callsign | null {
+    const state = this.callsigns(entry), attemptId = state.attempts.get(threadId), ordinal = state.ordinals.get(threadId)
+    const boundTicketKey = attemptId === undefined || entry.chat.folder === null ? null
+      : this.resolvedKeys.get(JSON.stringify([entry.chat.folder, attemptId])) ?? null
+    const callsign = resolveCallsign({ chat: entry.chat, threadId, label, boundTicketKey, servitorOrdinal: ordinal ?? state.next })
+    if (callsign !== null && callsign.ordinal !== null && ordinal === undefined) {
+      state.ordinals.set(threadId, callsign.ordinal)
+      state.next++
+    }
+    return callsign
+  }
+  /** A request no thread or quiet main turn accounts for names nobody: never the chat's own, most trusted identity. */
+  private promptCallsign(entry: Entry, threadId: string | null, attributed: boolean): Callsign | null {
+    if (threadId !== null) return this.threadCallsign(entry, threadId, this.callsigns(entry).threads.get(threadId)?.label ?? '')
+    return attributed ? rootCallsignOf(entry.chat) : null
+  }
+  private stamped(entry: Entry, event: OmpEvent): OmpEvent {
+    if (event.type !== 'item') return event
+    const { item } = event
+    if (item.kind === 'thread') {
+      const callsign = this.threadCallsign(entry, item.id, item.label)
+      const thread = callsign ? { ...item, callsign } : item
+      this.callsigns(entry).threads.set(item.id, thread)
+      return { ...event, item: thread }
+    }
+    if (item.kind !== 'approval_request') return event
+    if (item.threadId !== undefined) this.callsigns(entry).requests.set(item.id, item)
+    const held = this.heldPrompts(entry).find(prompt => prompt.id === item.requestId)
+    const callsign = this.promptCallsign(entry, item.threadId ?? null, held?.attributed ?? false)
+    return callsign ? { ...event, item: { ...item, callsign } } : event
+  }
+  /**
+   * Binds a thread to the attempt its spawn prompt claimed, only once the project confirms the token is that attempt's
+   * live, latest claim in this Start-run chat's own run. The token goes nowhere else and is dropped here.
+   */
+  private claim(entry: Entry, event: ThreadClaimEvent): void {
+    const { chat } = entry, verify = this.deps.verifyAttemptClaim
+    if (verify === undefined || chat.folder === null || chat.runId === undefined) return
+    const folder = chat.folder, runId = chat.runId, { threadId, attemptId } = event
+    void verify(folder, event.token).then(found => {
+      if (found?.attemptId !== attemptId || found.runId !== runId) return
+      if (this.deleting.has(chat.id) || this.deps.store.getChat(chat) === null) return
+      const state = this.callsigns(entry)
+      if (state.attempts.has(threadId)) return
+      const binding: ActivityBinding = { chatId: chat.id, folder, threadId, kind: 'attempt', attemptId, role: 'worker' }
+      this.deps.bindings.bind(binding)
+      state.attempts.set(threadId, attemptId)
+      this.lookup(entry, folder, attemptId)
+    }).catch(() => undefined)
+  }
+  /** One ticket-key lookup per attempt; a rejection or malformed key is null, and a found key restamps the attempt's threads. */
+  private lookup(entry: Entry, folder: string, attemptId: string): void {
+    const key = JSON.stringify([folder, attemptId])
+    let lookup = this.ticketKeys.get(key)
+    if (lookup === undefined) {
+      lookup = Promise.resolve()
+        .then(() => this.deps.ticketKeyOfAttempt?.(folder, attemptId) ?? null)
+        .then(value => ticketKeySchema.safeParse(value).success ? value : null, () => null)
+      this.ticketKeys.set(key, lookup)
+      void lookup.then(value => { this.resolvedKeys.set(key, value) })
+    }
+    void lookup.then(value => { if (value !== null) this.restamp(entry, attemptId) }).catch(() => undefined)
+  }
+  /** Re-upserts the attempt's threads and their requests with their new identity, and re-pushes an affected prompt. */
+  private restamp(entry: Entry, attemptId: string): void {
+    const { chat } = entry, state = this.callsignStates.get(chat.id)
+    if (!state || this.deleting.has(chat.id) || this.deps.store.getChat(chat) === null) return
+    const current = this.entries.get(chat.id) ?? entry
+    for (const [threadId, bound] of state.attempts) if (bound === attemptId) this.restampThread(current, state, threadId)
+    current.prompts?.update(this.stampedPrompts(current))
+  }
+  private restampThread(entry: Entry, state: Callsigns, threadId: string): void {
+    const thread = state.threads.get(threadId)
+    if (!thread) return
+    const callsign = this.threadCallsign(entry, threadId, thread.label)
+    if (JSON.stringify(callsign) === JSON.stringify(thread.callsign ?? null)) return
+    this.emit(entry, { type: 'item', item: thread })
+    for (const request of state.requests.values()) if (request.threadId === threadId) this.emit(entry, { type: 'item', item: request })
   }
   private clearPrompts(entry: Entry): void {
     entry.claude.pending.clear()
@@ -281,7 +416,8 @@ class SessionManager {
     const result = translateOmpLine(raw, entry.omp, this.now())
     entry.omp = result.state
     for (const event of result.events) this.emit(entry, event)
-    entry.prompts?.update(this.heldPrompts(entry))
+    entry.prompts?.update(this.stampedPrompts(entry))
+    for (const claim of result.internalEvents) this.claim(entry, claim)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)
@@ -306,7 +442,8 @@ class SessionManager {
     entry.claude = result.state
     this.consumeClaudeQueue(entry, result.events, mainStarted)
     for (const event of result.events) this.emit(entry, event)
-    entry.prompts?.update(this.heldPrompts(entry))
+    entry.prompts?.update(this.stampedPrompts(entry))
+    for (const claim of result.internalEvents) this.claim(entry, claim)
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {
       entry.rejectReady(new Error('The agent rejected protocol initialization.'))
@@ -478,6 +615,8 @@ class SessionManager {
       this.assertCurrent(entry)
       entry.chat = this.chatFor(entry.chat)
       this.entries.set(entry.chat.id, entry)
+      // Seed stored identities and bound attempts' ticket lookups before the process can report threads.
+      this.callsigns(entry)
       return await this.runStart(entry, firstMessage)
     } catch (error) {
       await this.stopEntry(entry)
@@ -518,7 +657,7 @@ class SessionManager {
           this.emit(entry, { ...event, item: { ...event.item, ...provenance } })
         } else this.emit(entry, event)
       }
-      return this.heldPrompts(entry)
+      return this.stampedPrompts(entry)
     })
   }
   private clearInterrupt(entry: Entry): void {
@@ -633,7 +772,7 @@ class SessionManager {
     const chat = this.deps.store.getChat(ref)
     if (chat === null) return remove()
     this.deleting.add(chat.id)
-    try { await this.stop(chat); await remove(); this.entries.delete(chat.id) }
+    try { await this.stop(chat); await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id) }
     finally { this.deleting.delete(chat.id) }
   }
   dispose(): Promise<void> {

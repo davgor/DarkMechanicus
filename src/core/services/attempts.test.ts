@@ -33,7 +33,7 @@ import { openDatabase } from '../db/database'
 import { DomainError } from '../errors'
 import { buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
 import { claimAttachments, createStagedAttachment, getAttachment } from './attachments'
-import { acceptAttempt, failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
+import { acceptAttempt, claimedAttemptOf, failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
 import { listEvents, MAX_EVENT_PAGE } from './events'
 import { attemptView, listAttempts } from './execution'
 import { registerHost } from './hosts'
@@ -908,5 +908,59 @@ describe('claimTicket — packets in a single repository', () => {
       ].sort()
     )
     expect(packet.reporting.instructions).not.toContain('worktree')
+  })
+})
+
+describe('claimedAttemptOf — a read-only claim check', () => {
+  function counts(ctx: Ctx): unknown {
+    return ['attempts', 'events', 'outbox'].map((table) => ctx.db.all(`SELECT * FROM ${table} ORDER BY rowid`))
+  }
+
+  it('names the live attempt, run and ticket of its exact token, and nothing for a forged or malformed one', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const token = claimed.packet.claimToken
+    expect(claimedAttemptOf(ctx, token)).toEqual({ attemptId: claimed.attempt.id, runId, ticketId: tid(1) })
+    expect(claimedAttemptOf(ctx, `${claimed.attempt.id}.forgedSecretAAAA`)).toBeNull()
+    expect(claimedAttemptOf(ctx, claimed.attempt.id)).toBeNull()
+    expect(claimedAttemptOf(ctx, `.${token}`)).toBeNull()
+    expect(claimedAttemptOf(ctx, `at_01j0000000000000000000000a.${token.split('.')[1]}`)).toBeNull()
+  })
+
+  it('refuses a superseded attempt', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    ctx.db.run('UPDATE attempts SET superseded_at = ? WHERE id = ?', ctx.clock.nowIso(), claimed.attempt.id)
+    expect(claimedAttemptOf(ctx, claimed.packet.claimToken)).toBeNull()
+  })
+
+  it('refuses an overdue lease without expiring it, writing an event or queuing history', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    ctx.clock.advanceSeconds(3600)
+    const before = counts(ctx)
+    expect(claimedAttemptOf(ctx, claimed.packet.claimToken)).toBeNull()
+    expect(counts(ctx)).toEqual(before)
+    expect(attemptRow(ctx, claimed.attempt.id).state).toBe('claimed')
+  })
+
+  it('refuses an attempt whose lease was already expired', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    ctx.db.run("UPDATE attempts SET state = 'lease_expired' WHERE id = ?", claimed.attempt.id)
+    expect(claimedAttemptOf(ctx, claimed.packet.claimToken)).toBeNull()
+  })
+
+  it('writes nothing when it verifies a live claim', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const before = counts(ctx)
+    expect(claimedAttemptOf(ctx, claimed.packet.claimToken)).not.toBeNull()
+    expect(counts(ctx)).toEqual(before)
   })
 })
