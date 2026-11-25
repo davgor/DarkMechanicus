@@ -265,7 +265,8 @@ class Pool implements WorkspacePool {
       this.owners.add(entry)
       delete entry.lane.finishedAt
       // An owner opens without reconciling; its open-time reconcile follows on the lane.
-      if (!entry.temporary && !entry.lane.running) queueMicrotask(() => { if (!entry.closing && !this.stopping) this.requestSync(entry, 'heartbeat') })
+      // A reconcile already requested on the lane (a Forge member's import) is this open's reconcile.
+      if (!entry.temporary) queueMicrotask(() => { if (!entry.closing && !this.stopping && !entry.lane.running && !entry.lane.pending) this.requestSync(entry, 'heartbeat') })
     }
     return entry.owner
   }
