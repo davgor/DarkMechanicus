@@ -66,7 +66,9 @@ const expected: Record<string, ChatItem[]> = {
     thread('worker', 'Servitor:READ Read file', 'done'), tool('nestedread', 'Read', { file_path: file }, 'alpha', worker), text('msg_T1_31', 'alpha', worker)],
   approval: [tool('approval', 'Bash', { command: 'echo hello' }, 'hello'), approval],
   approval_chat: [tool('approval', 'Bash', { command: 'echo hello' }, 'hello'), approval],
-  question: [tool('question', 'AskUserQuestion', { questions }, 'SQLite')],
+  question: [tool('question', 'AskUserQuestion', { questions }, 'SQLite'),
+    { kind: 'approval_request', id: 'approval:req_T1_question', at, requestId: 'req_T1_question', category: 'other',
+      tool: 'AskUserQuestion', summary: 'Which database?', input: { questions } }],
   interrupt: [hello, { kind: 'turn_stopped', id: 'stopped:uuid_T1_51', at }],
   error: [{ kind: 'error', id: 'error:uuid_T1_53', at, message: 'Fixture provider failure' }],
   subagent_tree: [
@@ -221,16 +223,25 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
   it('preserves question options and maps multiple answers into the held input', () => {
     const input = { questions: [...questions, { ...questions[0], question: 'Which backup?' }], other: 'held' }
     const result = feed([approvalRequest('question', 'unknown', { tool_name: 'AskUserQuestion', input })])
-    expect(result.items).toEqual([])
-    expect(result.events[0]).toMatchObject({ type: 'pending', prompt: { kind: 'question', options: [
+    expect(result.items).toEqual([expect.objectContaining({ kind: 'approval_request', requestId: 'question', tool: 'AskUserQuestion', category: 'other' })])
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { kind: 'question', options: [
       { id: 'option_0', label: 'SQLite' }, { id: 'option_1', label: 'Postgres' }, { id: 'text', label: 'Other' }
     ] } })
     const answers = { 'Which database?': 'SQLite', 'Which backup?': 'Postgres' }
     const first = encodeClaudeCommand({ type: 'answer', promptId: 'question', optionId: 'option_0' }, result.state, at)
     expect(first.lines).toEqual([])
-    expect(first.events).toMatchObject([{ type: 'pending', prompt: { id: 'question:question:1', title: 'Which backup?' } }])
+    expect(first.events).toMatchObject([
+      { type: 'item', item: { kind: 'approval_decision', requestId: 'question', decision: 'allow_once' } },
+      { type: 'item', item: { kind: 'user_message', text: 'SQLite' } },
+      { type: 'pending', prompt: { id: 'question:question:1', title: 'Which backup?' } },
+      { type: 'item', item: { kind: 'approval_request', requestId: 'question:question:1', summary: 'Which backup?' } }
+    ])
     const last = encodeClaudeCommand({ type: 'answer', promptId: 'question:question:1', optionId: 'option_1' }, first.state, at)
     expect(JSON.parse(last.lines[0])).toEqual({ type: 'control_response', response: { subtype: 'success', request_id: 'question', response: { behavior: 'allow', updatedInput: { ...input, answers } } } })
+    expect(last.events.filter(event => event.type === 'item')).toMatchObject([
+      { item: { kind: 'approval_decision', requestId: 'question:question:1', decision: 'allow_once' } },
+      { item: { kind: 'user_message', text: 'Postgres' } }
+    ])
   })
   it('masks tokens before clipping and across streamed chunk boundaries', () => {
     const claim = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
@@ -347,7 +358,10 @@ it('distinguishes text and Other labels from the explicit custom-answer selector
 
 it('offers only Answer for a text-only question', () => {
   const result = feed([approvalRequest('free', 'unknown', { tool_name: 'AskUserQuestion', input: { questions: [{ question: 'Explain?' }] } })])
-  expect(result.events[0]).toMatchObject({ prompt: { options: [{ id: 'text', label: 'Answer' }] } })
+  expect(result.events).toMatchObject([
+    { type: 'item', item: { kind: 'approval_request', requestId: 'free', category: 'other', tool: 'AskUserQuestion', summary: 'Explain?' } },
+    { type: 'pending', prompt: { id: 'free', kind: 'question', options: [{ id: 'text', label: 'Answer' }] } }
+  ])
   const response = encodeClaudeCommand({ type: 'answer', promptId: 'free', optionId: 'text', text: 'Because' }, result.state, at)
   expect(JSON.parse(response.lines[0]).response.response.updatedInput.answers).toEqual({ 'Explain?': 'Because' })
 })

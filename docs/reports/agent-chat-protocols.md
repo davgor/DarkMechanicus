@@ -197,6 +197,14 @@ answers?: {
 
 I: question-text key → chosen label encoding in the fixture (`{'Which database?':'SQLite'}`), and `question/header/options[].label/description` values. The declaration establishes the map shape, not every serialization detail of multiple selections. Preserve the original input when adding answers.
 
+### Pending prompt ownership (DM-779)
+
+Main replays only the FIFO head of the translator-held queue. Later requests remain held; OMP `cancel` removes its target, and exit clears the queue immediately without changing the process-close/transport/grant cleanup barrier. Unknown, queued or withdrawn ids fail with typed `stale_prompt` and write nothing. There is no timeout answer or remembered host-side `allow_chat` policy.
+
+The optional main-only `arbitrate` dependency receives each newly exposed head, including questions for the later policy gate to escalate. Pending snapshots/pushes expose `deciding`, `off` or `escalated`; a question cannot be answered by an approval verdict. Allow-once/deny verdicts use the same answer encoder as a person, with masked, 500-character-bounded `decidedBy: magos` reasons. A successful person answer cancels arbitration; late results, including those after withdrawal or exit, are fenced out. Renderer answers cannot supply provenance or choose a Magos `allow_chat`.
+
+Approval and question requests are stored as `approval_request`, with translator thread attribution. Question steps store `approval_decision: allow_once` and a `user_message` containing selected labels or free text. OMP `secret` answers exist only in the outgoing CLI frame, never in those user messages. Multi-question steps retain their wire request while exposing distinct prompt ids.
+
 ## Claude CLI → host field inventory
 
 | Event and fields | Evidence / interpretation |

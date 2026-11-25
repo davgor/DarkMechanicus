@@ -64,7 +64,11 @@ const scenarios: Record<string, ChatItem[]> = {
   chunked: [toolItem('call_T1_chunk', 'read', { path: 'a.txt' }, 'alpha\nbeta'), textItem('alpha\nbeta')],
   todo: [textItem('Done')], todo_clear: [textItem('Done')],
   todo_fail: [{ ...toolItem('call_T1_todofail', 'todo', { phases: [] }, 'Invalid phases'), status: 'failed' }, textItem('Done')],
-  question: [textItem('SQLite')],
+  question: [
+    { kind: 'approval_request', id: 'omp:approval:ui_T1_question', at, requestId: 'ui_T1_question', category: 'other', tool: 'ask', summary: 'Which database?' },
+    { kind: 'approval_decision', id: 'omp:decision:ui_T1_question', at, requestId: 'ui_T1_question', decision: 'allow_once', decidedBy: 'person' },
+    textItem('SQLite')
+  ],
   error: [{ kind: 'error', id: 'omp:error:1', at, message: 'Fixture provider failure' }],
   interrupt: [textItem('Partial'), { kind: 'turn_stopped', id: 'omp:stopped:1', at }],
   queued: [textItem('Hello world')],
@@ -128,7 +132,11 @@ describe('OMP golden protocol', () => {
     const { h, input, first, encoded } = replayGolden(name)
     expect(encoded).toEqual(input)
     expect(h.items().filter(item => item.kind !== 'user_message')).toEqual(expected)
-    expect(h.items().filter(item => item.kind === 'user_message')).toEqual([{ kind: 'user_message', id: first.id, at, text: first.message }, ...(name === 'queued' ? [{ kind: 'user_message', id: 'req_T1_followup', at, text: 'Second turn' }] : [])])
+    if (name === 'question') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
+      { kind: 'user_message', id: first.id, at, text: first.message },
+      { kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }
+    ])
+    else expect(h.items().filter(item => item.kind === 'user_message')).toEqual([{ kind: 'user_message', id: first.id, at, text: first.message }, ...(name === 'queued' ? [{ kind: 'user_message', id: 'req_T1_followup', at, text: 'Second turn' }] : [])])
     expect(h.state.skipped).toBe(0)
     expect(h.state.inFlight).toBe(false)
     expect(h.events.at(-1)).toEqual({ type: 'status', status: 'idle' })
@@ -175,6 +183,8 @@ describe('OMP prompts and security', () => {
     expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionId: 'option_0' })).toEqual([])
     expect(h.state.pending[0].prompt.id).toBe('ask:1')
     expect(h.send({ type: 'answer', id: 'b', promptId: 'ask:1', optionId: 'text', text: 'B' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"one","selectedOptions":["A"]},{"id":"two","selectedOptions":[],"customInput":"B"}]}'])
+    expect(h.items().map(item => item.kind)).toEqual(['approval_request', 'approval_decision', 'user_message', 'approval_request', 'approval_decision', 'user_message'])
+    expect(h.items().filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['A', 'B'])
   })
 })
 

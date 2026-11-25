@@ -317,11 +317,13 @@ function requestBase(state: ClaudeProtocolState, body: JsonObject, tool: { id: s
     attributed: threadId !== null || ![...state.threads.values()].some(thread => thread.state === 'running'),
     tool: { name: tool.name, input: summaryInput(tool.input) } }
 }
-function approvalPrompt(context: Reduction, base: Omit<PendingPrompt, 'kind' | 'options'>, suggestions: JsonObject[]): PendingPrompt {
-  const name = string(base.tool?.name)
-  item(context.events, { kind: 'approval_request', id: `approval:${base.id}`, at: context.at, ...scope(base.threadId), requestId: base.id,
+function recordPrompt(context: Reduction, prompt: PendingPrompt): void {
+  const name = string(prompt.tool?.name)
+  item(context.events, { kind: 'approval_request', id: `approval:${prompt.id}`, at: context.at, ...scope(prompt.threadId), requestId: prompt.id,
     category: name === 'Bash' ? 'command' : ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name) ? 'file_edit' : 'other',
-    tool: name, summary: base.title, input: base.tool?.input })
+    tool: name, summary: prompt.title, input: prompt.tool?.input })
+}
+function approvalPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, suggestions: JsonObject[]): PendingPrompt {
   return { ...base, kind: 'approval', options: [{ id: 'allow_once', label: 'Allow once' },
     ...(suggestions.length ? [{ id: 'allow_chat' as const, label: 'Allow for this chat' }] : []), { id: 'deny', label: 'Deny' }] }
 }
@@ -340,8 +342,9 @@ function request(context: Reduction, frame: JsonObject): void {
   const suggestions = objects(body.permission_suggestions)
   const base = requestBase(state, body, { id, name, input })
   const prompt = name === 'AskUserQuestion' ? questionPrompt(base, objects(input.questions)[0])
-    : approvalPrompt(context, base, suggestions)
+    : approvalPrompt(base, suggestions)
   state.pending.set(mask(id), { requestId: id, prompt: mask(prompt), input, suggestions, questionIndex: 0, answers: {} })
+  recordPrompt(context, prompt)
   events.push({ type: 'pending', prompt: mask(prompt) })
 }
 function userResults(context: Reduction, content: unknown[], frame: JsonObject): void {
@@ -521,6 +524,10 @@ function answerQuestion(context: Reduction, held: HeldPrompt, command: Answer): 
   if (!question) return null
   const answer = questionAnswer(held, question, command)
   if (answer === null) return null
+  item(context.events, { kind: 'approval_decision', id: `decision:${command.promptId}`, at: context.at,
+    ...scope(held.prompt.threadId), requestId: command.promptId, decision: 'allow_once', decidedBy: 'person' })
+  item(context.events, { kind: 'user_message', id: `answer:${command.promptId}`, at: context.at,
+    ...scope(held.prompt.threadId), text: answer })
   held.answers = { ...held.answers, [string(question.question)]: answer }
   held.questionIndex++
   if (held.questionIndex < questions.length) {
@@ -528,6 +535,7 @@ function answerQuestion(context: Reduction, held: HeldPrompt, command: Answer): 
     held.prompt = mask(questionPrompt({ ...held.prompt, id: `${held.requestId}:question:${held.questionIndex}` }, questions[held.questionIndex]))
     context.state.pending.set(held.prompt.id, held)
     context.events.push({ type: 'pending', prompt: held.prompt })
+    recordPrompt(context, held.prompt)
     return null
   }
   return { behavior: 'allow', updatedInput: { ...held.input, answers: held.answers } }
@@ -538,7 +546,7 @@ function answerApproval(context: Reduction, held: HeldPrompt, command: Answer): 
     : { behavior: 'allow', updatedInput: held.input,
       ...(command.optionId === 'allow_chat' ? { updatedPermissions: held.suggestions.map(suggestion => ({ ...suggestion, destination: 'session' })) } : {}) }
   item(context.events, { kind: 'approval_decision', id: `decision:${command.promptId}`, at: context.at,
-    ...scope(held.prompt.threadId), requestId: held.requestId, decision: command.optionId as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' })
+    ...scope(held.prompt.threadId), requestId: command.promptId, decision: command.optionId as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' })
   return response
 }
 function encodeAnswer(context: Reduction, command: Answer): string[] {

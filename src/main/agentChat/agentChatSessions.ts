@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import type { AgentChatEvent, AgentChatSnapshot } from '../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentChatSnapshot, PendingPrompt } from '../../shared/agents/agentChat'
 import type { ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
@@ -18,6 +18,7 @@ import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
 import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
+import { PendingPrompts, type ArbiterOutcome } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 
 export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
@@ -30,6 +31,7 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   timers?: { repeat(callback: () => void, ms: number): () => void }
   now?: () => string
   startProcess?: typeof startAgentProcess
+  arbitrate?: (input: { ref: ChatRef; chat: ChatRecord; agent: AgentView; prompt: PendingPrompt }) => { result: Promise<ArbiterOutcome>; cancel(): void }
 }
 
 type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
@@ -37,6 +39,7 @@ export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
   send(ref: ChatRef, input: { text: string }): Promise<void>
   interrupt(ref: ChatRef): Promise<void>
+  answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
   stop(ref: ChatRef): Promise<void>
   deleteChat(ref: ChatRef): Promise<void>
@@ -47,7 +50,7 @@ export interface AgentChatSessions {
 interface Entry {
   chat: ChatRecord
   status: AgentChatSnapshot['status']
-  pending: AgentChatSnapshot['pending']
+  prompts?: PendingPrompts
   todos: Map<string | null, AgentChatSnapshot['todos'][number]['phases']>
   queued: number
   turnActive: boolean
@@ -97,7 +100,7 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   const ready = new Promise<void>((resolve, reject) => { admit = resolve; rejectReady = reject })
   const closed = new Promise<void>((resolve, reject) => { completeClose = resolve; rejectClose = reject })
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
-  return { chat, status: 'starting', pending: null, queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude',
+  return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude',
     claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), grantIds: [], cancelled: false,
     cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose }
 }
@@ -134,6 +137,7 @@ class SessionManager {
     this.deps.onChatChanged?.(entry.chat)
   }
   private emit(entry: Entry, event: OmpEvent): void {
+    if (event.type === 'pending') return // The registry publishes only the FIFO head.
     const safe = mask(event)
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
     if (safe.type === 'status') {
@@ -145,7 +149,6 @@ class SessionManager {
       }
     }
     if (safe.type === 'queued') entry.queued = safe.count
-    if (safe.type === 'pending') entry.pending = safe.prompt
     if (safe.type === 'todos') {
       if (safe.phases.length) entry.todos.set(safe.threadId, safe.phases)
       else entry.todos.delete(safe.threadId)
@@ -155,8 +158,16 @@ class SessionManager {
   snapshot(ref: ChatRef): AgentChatSnapshot {
     const chat = this.chatFor(ref), entry = this.entries.get(chat.id)
     return mask({ items: this.deps.store.readTranscript(chat)?.items ?? [], status: entry?.status ?? 'exited',
-      pending: entry?.pending ?? null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
+      pending: entry?.prompts ? entry.prompts.snapshot() : null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
       todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [] })
+  }
+  private heldPrompts(entry: Entry): PendingPrompt[] {
+    return entry.protocol === 'claude' ? [...entry.claude.pending.values()].map(held => held.prompt) : entry.omp.pending.map(held => held.prompt)
+  }
+  private clearPrompts(entry: Entry): void {
+    entry.claude.pending.clear()
+    entry.omp.pending = []
+    entry.prompts?.clear()
   }
   private tracked<T>(work: Promise<T>): Promise<T> {
     this.cleanup.add(work)
@@ -212,7 +223,7 @@ class SessionManager {
   private awaitCleanup(entry: Entry): Promise<void> {
     if (entry.cleanupComplete) return entry.cleanup!
     entry.stopResult ??= boundedShutdown(this.cleanupEntry(entry)).catch(error => {
-      this.emit(entry, { type: 'pending', prompt: null })
+      this.clearPrompts(entry)
       this.emit(entry, { type: 'status', status: 'failed', detail: message(error) })
       throw error
     })
@@ -221,12 +232,12 @@ class SessionManager {
   private ended(entry: Entry, exit: AgentProcessExit): Promise<void> {
     if (entry.ending) return entry.ending
     this.clearInterrupt(entry)
+    this.clearPrompts(entry)
     entry.release?.()
     entry.release = undefined
     entry.admit()
     entry.ending = (async () => {
       await this.revokeEntry(entry)
-      this.emit(entry, { type: 'pending', prompt: null })
       const detail = Buffer.from(mask(exit.stderr)).subarray(-2048).toString('utf8')
       if (entry.queued) this.emit(entry, { type: 'queued', count: 0 })
       this.emit(entry, { type: 'status', status: entry.interruptFailure ? 'failed' : exit.code === 0 || entry.cancelled ? 'exited' : 'failed',
@@ -243,6 +254,7 @@ class SessionManager {
     this.clearInterrupt(entry)
     entry.cancelled = true
     entry.cancel()
+    this.clearPrompts(entry)
     entry.release?.()
     entry.release = undefined
     return this.awaitCleanup(entry)
@@ -254,6 +266,7 @@ class SessionManager {
     const result = translateOmpLine(raw, entry.omp, this.now())
     entry.omp = result.state
     for (const event of result.events) this.emit(entry, event)
+    entry.prompts?.update(this.heldPrompts(entry))
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)
@@ -278,6 +291,7 @@ class SessionManager {
     entry.claude = result.state
     this.consumeClaudeQueue(entry, result.events, mainStarted)
     for (const event of result.events) this.emit(entry, event)
+    entry.prompts?.update(this.heldPrompts(entry))
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {
       entry.rejectReady(new Error('The agent rejected protocol initialization.'))
@@ -394,6 +408,11 @@ class SessionManager {
     const agent = deps.agentFor(chat.agent)
     if (!agent || (agent.kind !== 'claude' && agent.kind !== 'omp')) throw new Error('This chat has no GUI-capable agent.')
     entry.protocol = agent.kind
+    entry.prompts = new PendingPrompts({
+      publish: prompt => deps.push(mask({ type: 'pending', folder: chat.folder, chatId: chat.id, prompt })),
+      ...(deps.arbitrate ? { arbitrate: prompt => deps.arbitrate!({ ref: { folder: chat.folder, id: chat.id }, chat: entry.chat, agent, prompt }) } : {}),
+      answer: (prompt, verdict) => this.answerEntry(entry, { promptId: prompt.id, optionId: verdict.decision }, { decidedBy: 'magos', reason: verdict.reason })
+    })
     const auth = await this.step(entry, deps.checkAuth(agent.kind, agent.executablePath))
     if (auth.state === 'signed_out') {
       this.emit(entry, { type: 'status', status: 'signed_out', detail: auth.reason })
@@ -457,6 +476,34 @@ class SessionManager {
     if (!entry?.process || entry.ending || entry.cancelled) throw new Error('The agent is not running.')
     this.assertCurrent(entry)
     this.writeTurn(entry, input.text)
+  }
+  async answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void> {
+    const entry = this.entries.get(this.chatFor(ref).id)
+    if (!entry) throw new DomainError('stale_prompt', 'This prompt is no longer pending.')
+    // Renderer callers cannot supply decision provenance.
+    this.answerEntry(entry, input, { decidedBy: 'person' })
+  }
+  private answerEntry(entry: Entry, input: { promptId: string; optionId: string; text?: string },
+    provenance: { decidedBy: 'person' } | { decidedBy: 'magos'; reason: string }): void {
+    if (!entry.process || entry.cancelled || entry.ending || !entry.prompts || this.entries.get(entry.chat.id) !== entry)
+      throw new DomainError('stale_prompt', 'This prompt is no longer pending.')
+    this.assertCurrent(entry)
+    entry.prompts.answer(input.promptId, () => {
+      const encoded = entry.protocol === 'claude'
+        ? encodeClaudeCommand({ type: 'answer', ...input }, entry.claude, this.now())
+        : encodeOmpCommand({ type: 'answer', id: randomUUID(), ...input }, entry.omp, this.now())
+      if (!encoded.events.some(event => event.type === 'item' && event.item.kind === 'approval_decision'))
+        throw new DomainError('invalid_input', 'Choose an offered option and provide a valid answer.')
+      this.write(entry, encoded.lines)
+      if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
+      else entry.omp = encoded.state as OmpState
+      for (const event of encoded.events) {
+        if (event.type === 'item' && event.item.kind === 'approval_decision') {
+          this.emit(entry, { ...event, item: { ...event.item, ...provenance } })
+        } else this.emit(entry, event)
+      }
+      return this.heldPrompts(entry)
+    })
   }
   private clearInterrupt(entry: Entry): void {
     clearTimeout(entry.interruptTimer)
@@ -522,7 +569,7 @@ class SessionManager {
 export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatSessions {
   const manager = new SessionManager(deps)
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
-    send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref),
+    send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: ref => manager.deleteChat(ref), isLive: ref => manager.isLive(ref),
     busy: () => manager.busy(), dispose: () => manager.dispose() }
 }

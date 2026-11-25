@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
+import type { ArbiterOutcome } from './pendingPrompts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -112,6 +113,167 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inpu
     expect(r.pushes.filter(event => event.type === 'queued').map(event => event.count)).toEqual([1, 0])
     expect(r.sessions.snapshot(chat).queued).toBe(0)
   })
+})
+
+for (const kind of ['claude', 'omp'] as const) {
+  for (const scenario of ['approval', 'question'] as const) {
+    const answer = scenario === 'question' ? { optionId: 'text', text: 'Chosen database' } : { optionId: 'allow_once' }
+    const kinds = scenario === 'approval'
+      ? kind === 'claude' ? ['user_message', 'tool_call', 'approval_request', 'approval_decision'] : ['user_message', 'approval_request', 'approval_decision', 'tool_call', 'assistant_text']
+      : kind === 'claude' ? ['user_message', 'tool_call', 'approval_request', 'approval_decision', 'user_message'] : ['user_message', 'approval_request', 'approval_decision', 'user_message', 'assistant_text']
+    const category = scenario === 'approval' && kind === 'claude' ? 'command' : 'other'
+    const tool = scenario === 'question' ? kind === 'claude' ? 'AskUserQuestion' : 'ask' : kind === 'claude' ? 'Bash' : 'OMP'
+    const outputKind = kind === 'claude' ? 'tool_call' : 'assistant_text'
+    const output = kind === 'claude' ? { status: 'completed', resultSummary: scenario === 'question' ? 'SQLite' : 'hello' }
+      : { text: scenario === 'question' ? 'SQLite' : 'hello' }
+    it(`${kind} holds ${scenario} for ten fake minutes, replays it, and records only the accepted answer`, async () => {
+      const r = rig(kind), chat = r.newChat(`[${scenario}]`)
+      await r.sessions.start(chat)
+      await eventually(() => r.sessions.snapshot(chat).pending !== null)
+      const pending = r.sessions.snapshot(chat).pending!
+      const before = [...r.writes]
+      expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'busy', pending: { id: pending.id, arbitration: { state: 'off', reason: null } } })
+      vi.useFakeTimers()
+      await vi.advanceTimersByTimeAsync(600_000)
+      expect(r.writes).toEqual(before)
+      expect(r.sessions.snapshot(chat).pending).toEqual(pending)
+      vi.useRealTimers()
+      await expect(r.sessions.answer(chat, { promptId: 'unknown', optionId: 'allow_once' })).rejects.toMatchObject({ code: 'stale_prompt' })
+      await expect(r.sessions.answer(chat, { promptId: pending.id, optionId: 'invented' })).rejects.toMatchObject({ code: 'invalid_input' })
+      expect(r.writes).toEqual(before)
+      await r.sessions.answer(chat, { promptId: pending.id, ...answer })
+      await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+      const items = r.store.readTranscript(chat)!.items
+      expect(items.map(item => item.kind)).toEqual(kinds)
+      expect(items.find(item => item.kind === 'approval_request')).toMatchObject({ requestId: pending.id, category, tool })
+      expect(items.filter(item => item.kind === 'approval_decision')).toEqual([expect.objectContaining({ requestId: pending.id, decision: 'allow_once', decidedBy: 'person' })])
+      if (scenario === 'question') expect(items.filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['[question]', 'Chosen database'])
+      expect(items.find(item => item.kind === outputKind)).toMatchObject(output)
+      expect(r.sessions.snapshot(chat).pending).toBeNull()
+      const after = [...r.writes]
+      await expect(r.sessions.answer(chat, { promptId: pending.id, optionId: 'deny' })).rejects.toMatchObject({ code: 'stale_prompt' })
+      expect(r.writes).toEqual(after)
+    })
+  }
+
+  it(`${kind} writes the allow_chat golden line but never answers a subsequent approval itself`, async () => {
+    const r = rig(kind), chat = r.newChat('[approval_chat]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    await r.sessions.answer(chat, { promptId: r.sessions.snapshot(chat).pending!.id, optionId: 'allow_chat' })
+    const golden = readFileSync(join(import.meta.dirname, '__fixtures__', kind, 'approval_chat.in.jsonl'), 'utf8').trim().split(/\r?\n/)[1]
+    expect(r.writes.at(-1)).toBe(golden)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_decision')).toEqual([expect.objectContaining({ decision: 'allow_chat', decidedBy: 'person' })])
+    await r.sessions.send(chat, { text: '[approval]' })
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_decision')).toHaveLength(1)
+    await r.sessions.stop(chat)
+    expect(r.sessions.snapshot(chat).pending).toBeNull()
+    expect(r.pushes.filter(event => event.type === 'pending').at(-1)).toMatchObject({ prompt: null })
+  })
+
+  it(`${kind} completes through the optional Magos seam with masked bounded provenance`, async () => {
+    const reason = `dmg_${'a1'.repeat(32)} ${'x'.repeat(600)}`
+    const arbitrate = vi.fn(() => ({ result: Promise.resolve<ArbiterOutcome>({ decision: 'allow_once', reason }), cancel: vi.fn() }))
+    const r = rig(kind, { arbitrate }), chat = r.newChat('[approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    expect(arbitrate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      ref: { folder: chat.folder, id: chat.id }, chat: expect.objectContaining({ id: chat.id }),
+      agent: expect.objectContaining({ kind }), prompt: expect.objectContaining({ arbitration: { state: 'deciding', reason: null } })
+    }))
+    const decisions = r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_decision')
+    expect(decisions).toEqual([expect.objectContaining({ decision: 'allow_once', decidedBy: 'magos', reason: expect.any(String) })])
+    expect(decisions[0].reason).toHaveLength(500)
+    expect(JSON.stringify([r.pushes, decisions])).not.toContain('dmg_')
+  })
+
+  it(`${kind} lets the person win a hanging arbiter and drops its later verdict`, async () => {
+    let resolve!: (verdict: ArbiterOutcome) => void
+    const result = new Promise<ArbiterOutcome>(yes => { resolve = yes }), cancel = vi.fn()
+    const r = rig(kind, { arbitrate: () => ({ result, cancel }) }), chat = r.newChat('[approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const promptId = r.sessions.snapshot(chat).pending!.id
+    expect(r.sessions.snapshot(chat).pending?.arbitration.state).toBe('deciding')
+    await r.sessions.answer(chat, { promptId, optionId: 'allow_once' })
+    expect(cancel).toHaveBeenCalledTimes(1)
+    const writes = [...r.writes]
+    resolve({ decision: 'deny', reason: 'Late verdict' })
+    await Promise.resolve()
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    expect(r.writes).toEqual(writes)
+    expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_decision')).toEqual([expect.objectContaining({ decidedBy: 'person', decision: 'allow_once' })])
+  })
+
+  it(`${kind} does not consume or record a prompt when its transport refuses the answer`, async () => {
+    const r = rig(kind), chat = r.newChat('[approval]'), start = r.deps.startProcess!
+    let refuse = false
+    r.deps.startProcess = spec => { const child = start(spec); return { ...child, write: line => refuse ? false : child.write(line) } }
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const pending = r.sessions.snapshot(chat).pending!, items = r.sessions.snapshot(chat).items
+    refuse = true
+    await expect(r.sessions.answer(chat, { promptId: pending.id, optionId: 'allow_once' })).rejects.toThrow('before accepting input')
+    expect(r.sessions.snapshot(chat)).toMatchObject({ pending, items })
+  })
+}
+
+for (const kind of ['claude', 'omp'] as const) it(`${kind} reconciles injected concurrent prompts FIFO and clears all on native exit`, async () => {
+  const r = rig(kind), chat = r.newChat(), start = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  r.deps.startProcess = spec => { const child = start(spec); return { ...child, onLine: listener => { receive = listener; return child.onLine(listener) } } }
+  await r.sessions.start(chat)
+  for (const id of ['first', 'second', 'third']) receive(JSON.stringify(kind === 'claude'
+    ? { type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: 'Write', input: { file_path: 'a.txt' } } }
+    : { type: 'extension_ui_request', id, method: 'select', options: ['Approve', 'Deny'], title: id }))
+  expect(r.sessions.snapshot(chat).pending?.id).toBe('first')
+  const writes = [...r.writes]
+  await expect(r.sessions.answer(chat, { promptId: 'second', optionId: 'allow_once' })).rejects.toMatchObject({ code: 'stale_prompt' })
+  expect(r.writes).toEqual(writes)
+  if (kind === 'omp') receive(JSON.stringify({ type: 'extension_ui_request', id: 'withdrawal', method: 'cancel', targetId: 'first' }))
+  else await r.sessions.answer(chat, { promptId: 'first', optionId: 'allow_once' })
+  expect(r.sessions.snapshot(chat).pending?.id).toBe('second')
+  await expect(r.sessions.answer(chat, { promptId: 'first', optionId: 'deny' })).rejects.toMatchObject({ code: 'stale_prompt' })
+  await r.sessions.answer(chat, { promptId: 'second', optionId: 'deny' })
+  expect(r.sessions.snapshot(chat).pending?.id).toBe('third')
+  await r.children[0].stop()
+  await eventually(() => !r.sessions.isLive(chat))
+  expect(r.sessions.snapshot(chat).pending).toBeNull()
+  expect(r.pushes.filter(event => event.type === 'pending').at(-1)).toMatchObject({ prompt: null })
+  await expect(r.sessions.answer(chat, { promptId: 'third', optionId: 'allow_once' })).rejects.toMatchObject({ code: 'stale_prompt' })
+})
+
+it('records injected OMP secret questions without persisting or pushing their input', async () => {
+  const r = rig('omp'), chat = r.newChat(), start = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  r.deps.startProcess = spec => { const child = start(spec); return { ...child, onLine: listener => { receive = listener; return child.onLine(listener) } } }
+  await r.sessions.start(chat)
+  receive(JSON.stringify({ type: 'extension_ui_request', id: 'secret', method: 'input', secret: true, title: 'Password' }))
+  await r.sessions.answer(chat, { promptId: 'secret', optionId: 'text', text: 'private-password-value' })
+  expect(r.writes.at(-1)).toBe('{"type":"extension_ui_response","id":"secret","value":"private-password-value"}')
+  expect(r.sessions.snapshot(chat).items.map(item => item.kind)).toEqual(['approval_request', 'approval_decision'])
+  expect(r.sessions.snapshot(chat).items[0]).toMatchObject({ category: 'other', tool: 'input' })
+  expect(JSON.stringify([r.pushes, r.sessions.snapshot(chat), filesUnder(r.userData)])).not.toContain('private-password-value')
+})
+
+it('retains translator thread attribution on injected Claude question requests and answers', async () => {
+  const r = rig('claude'), chat = r.newChat(), start = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  r.deps.startProcess = spec => { const child = start(spec); return { ...child, onLine: listener => { receive = listener; return child.onLine(listener) } } }
+  await r.sessions.start(chat)
+  receive(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'worker', message: { id: 'child-message',
+    content: [{ type: 'tool_use', id: 'child-question', name: 'AskUserQuestion', input: { questions: [{ question: 'Proceed?' }] } }] } }))
+  receive(JSON.stringify({ type: 'control_request', request_id: 'child-request', request: {
+    subtype: 'can_use_tool', tool_name: 'AskUserQuestion', tool_use_id: 'child-question', input: { questions: [{ question: 'Proceed?' }] }
+  } }))
+  expect(r.sessions.snapshot(chat).pending?.threadId).toBe('thread:worker')
+  await r.sessions.answer(chat, { promptId: 'child-request', optionId: 'text', text: 'Proceed' })
+  const records = r.sessions.snapshot(chat).items.filter(item => ['approval_request', 'approval_decision', 'user_message'].includes(item.kind))
+  expect(records.map(item => [item.kind, item.threadId])).toEqual([
+    ['approval_request', 'thread:worker'], ['approval_decision', 'thread:worker'], ['user_message', 'thread:worker']
+  ])
 })
 
 it('consumes a queued Claude error-only turn before accepting a subsequent successful send', async () => {
