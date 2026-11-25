@@ -6,11 +6,13 @@ import { makeBundle, tid } from '../../test/bundles'
 import { createMemoryFs, type FaultSpec, isWithin, type MemoryFs } from '../../test/memoryFs'
 import { createSaveHook, idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { copyTracked, createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
-import { createTestDb } from '../../test/testContext'
+import { createTestCtx, createTestDb } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
-import type { Db } from '../db/database'
+import { type Db, openDatabase, tagTransactions, type TransactionHold } from '../db/database'
+import { migrate } from '../db/migrations'
 import { getMeta } from '../meta'
-import { flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
+import { completeSavedRevision, previewSavedRevision } from '../services/plans'
+import { type FinalizerHooks, flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
 import {
   buildCommentRecord,
@@ -540,6 +542,58 @@ describe('flushOutbox holds the write lock only to rename and record', () => {
     expect(log.events.filter((event) => event.startsWith('rename ')).length).toBe(renames.length)
     expect(Math.max(...log.holds)).toBeLessThan(SLOW_FSYNC_MS)
     expect(log.holds.reduce((sum, hold) => sum + hold, 0)).toBeLessThan(fsyncs.length * SLOW_FSYNC_MS)
+  })
+})
+
+const THOUSAND = Array.from({ length: 1_000 }, (_unused, index) => index + 1)
+
+/** A file database with the `Db` hold observer, a real save hook, and an epic whose 1,000-ticket plan R1 is saved. */
+function observedThousandTicketEpic(dir: string, holds: TransactionHold[]): { env: RepoEnv; hooks: FinalizerHooks } {
+  const db = openDatabase(join(dir, 'state.sqlite'), { synchronous: 'off', onTransaction: (hold) => holds.push(hold) })
+  migrate(db)
+  const base = createRepoEnv()
+  base.db.close()
+  const ctx = createTestCtx({ db, clock: base.clock })
+  const hooks: FinalizerHooks = {
+    onSnapshotSaved: (revisionId) => completeSavedRevision(ctx, revisionId),
+    previewSavedRevision: (revisionId) => previewSavedRevision(ctx, revisionId)
+  }
+  const env: RepoEnv = { ...base, db, hook: createSaveHook(db, base.clock) }
+  insertEpic(db, { id: EPIC })
+  insertRevision(db, { id: R1, epicId: EPIC, number: 1, bundle: makeBundle([THOUSAND]), createdAt: base.clock.nowIso() })
+  insertOutbox(db, { kind: 'snapshot', epicId: EPIC, revisionId: R1 })
+  expect(flushOutbox(env, hooks)).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R1] })
+  return { env, hooks }
+}
+
+describe('flushOutbox holds the write lock briefly for a 1,000-ticket epic save', () => {
+  it('runs the save hook once, at a commit held for less than one fsync, with every fsync before BEGIN', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-hold-'))
+    const holds: TransactionHold[] = []
+    const { env, hooks } = observedThousandTicketEpic(dir, holds)
+    try {
+      const bundle = makeBundle([THOUSAND], [], { rationale: 'Second revision' })
+      insertRevision(env.db, { id: R2, epicId: EPIC, number: 2, bundle, baseRevisionId: R1, createdAt: env.clock.nowIso() })
+      insertOutbox(env.db, { kind: 'snapshot', epicId: EPIC, revisionId: R2 })
+      let saves = 0
+      const counted: FinalizerHooks = { ...hooks, onSnapshotSaved: (revisionId) => { saves += 1; hooks.onSnapshotSaved(revisionId) } }
+      const log: HoldLog = { events: [], holds: [] }
+      holds.length = 0
+      const outcome = tagTransactions('flush', () => flushOutbox({ ...env, db: recordingDb(env.db, log), fs: slowFs(env.fs, log) }, counted))
+      expect(outcome).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R2] })
+      expect(saves).toBe(1)
+      const flushHolds = holds.filter((hold) => hold.tag === 'flush')
+      // One commit: no preview transaction, no re-stage.
+      expect(flushHolds.map((hold) => hold.outcome)).toEqual(['commit'])
+      expect(Math.max(...flushHolds.map((hold) => hold.holdMs))).toBeLessThan(SLOW_FSYNC_MS)
+      for (const span of writeSpans(log.events)) {
+        expect(span.filter((event) => event.startsWith('fsyncFile ') || event.startsWith('writeFile ') || event.includes('.tmp-') && event.startsWith('readFile '))).toEqual([])
+      }
+      expect(log.events.filter((event) => event.startsWith('fsyncFile '))).toHaveLength(4)
+    } finally {
+      env.db.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

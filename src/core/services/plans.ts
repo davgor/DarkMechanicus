@@ -17,7 +17,7 @@ import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
 import { pinPlanWorkflows, plannedWorkflowStandards } from './workflowPolicy'
 import { withRunWarnings } from './runWarnings'
-import { indexDocument } from './searchIndex'
+import { indexDocument, indexDocuments } from './searchIndex'
 import { checkSavedTicketAttachments, claimSavedTicketAttachments } from './ticketAttachments'
 import { assertNoOpenTransfer } from './transferGuard'
 
@@ -464,16 +464,17 @@ function ticketSearchBody(ticket: TicketContent): string {
 }
 
 function indexRevision(ctx: Ctx, epicId: string, bundle: PlanBundle): void {
-  for (const ticket of bundle.tickets) {
-    indexDocument(ctx.db, {
-      docType: 'ticket',
+  indexDocuments(
+    ctx.db,
+    'ticket',
+    bundle.tickets.map((ticket) => ({
       docId: ticket.id,
       epicId,
       ticketId: ticket.id,
       title: `${ticket.key} ${ticket.title}`,
       body: ticketSearchBody(ticket)
-    })
-  }
+    }))
+  )
   const epicBody = searchBody([bundle.epic.intent, ...bundle.epic.successCriteria.map((item) => item.text), bundle.rationale])
   indexDocument(ctx.db, { docType: 'epic', docId: epicId, epicId, title: bundle.epic.title, body: epicBody })
 }
