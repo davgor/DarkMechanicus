@@ -1169,7 +1169,12 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
-  registerSettingsIpc(ipc, createSettingsHandlers(createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })))
+  registerSettingsIpc(ipc, createSettingsHandlers({
+    settings: createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger }),
+    onUnexpectedError: (error) => {
+      logger.error('Settings request failed:', error)
+    }
+  }))
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)

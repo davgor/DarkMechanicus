@@ -4,6 +4,7 @@
  * `settings:*Notifications` channels; loosening a security setting needs the person at a native dialog in main.
  */
 import { z } from 'zod'
+import type { CommandResult } from './api'
 
 /** The events that can raise an OS notification. */
 export const NOTIFICATION_EVENTS = ['approval_needed', 'question', 'checkpoint_ready', 'run_failed', 'run_stalled'] as const
@@ -51,12 +52,15 @@ export const SETTINGS_CHANNELS = {
   setNotifications: 'settings:setNotifications'
 } as const
 
-/** `window.dm.settings`: one invoke per method; main validates `next` and may ask the person to confirm it. */
+/**
+ * `window.dm.settings`: one invoke per method, each answering `{ ok, data }` or `{ ok: false, error }`; main validates
+ * `next` and may ask the person to confirm it.
+ */
 export interface SettingsApi {
-  getNotifications(): Promise<NotificationSettings>
+  getNotifications(): Promise<CommandResult<NotificationSettings>>
   /**
    * Saves and returns the settings. An invalid shape is refused with `invalid_input`; a loosening change the person
    * declines at the native confirmation is refused with `cancelled` and changes nothing.
    */
-  setNotifications(next: NotificationSettings): Promise<NotificationSettings>
+  setNotifications(next: NotificationSettings): Promise<CommandResult<NotificationSettings>>
 }
