@@ -51,7 +51,8 @@ as built.
    reconcile (open and heartbeat).
 2. **Ask git what changed.** When the fingerprint misses, an automatic reconcile takes one
    `git status --porcelain=v2` snapshot (HEAD, branch and paths). Only when HEAD has moved since the stored marker does
-   it run an ancestry check and a diff. It reads only the records those paths name, plus every record in conflict,
+   it run an ancestry check and a diff; a fresh git adapter first runs `git rev-parse` to find the repository, so a
+   reconcile spawns two git processes, or four. It reads only the records those paths name, plus every record in conflict,
    exported since the last reconcile, or left unsettled by it. Anything git cannot vouch for falls back to a full
    read, with a named reason (`gitChanges.ts`, `reconcileScope.ts`). The marker (`reconcile_base_commit`,
    `reconcile_importer_version`, `reconcile_dirty_paths`, capped at 5,000 paths) is written in the reconcile's own
@@ -137,8 +138,8 @@ untrusted-input validation of every imported record and branch-change semantics 
 - **Explicit reconciles read every record.** `Workspace.reconcile()` passes `{ full: true }` for an explicit
   reconcile, so `reconcile_repository` from the CLI or MCP reads everything. The desktop routes its
   `reconcileRepository` command (the Reconcile button and Forge source validation) to the sync lane in `explicit`
-  mode, which is ungated and passes `{ full: true }` as well. Only the automatic heartbeat and member reconciles are
-  git-targeted.
+  mode, which is ungated and passes `{ full: true }` as well. Only the automatic reconciles (at open, on heartbeat and
+  for Forge members) are git-targeted.
 - **The 250 ms hold target is a test, not a lock.** Nothing refuses or times out a long transaction. The `Db` hold
   observer (`onTransaction`, `tagTransactions`) and the pool's slow-operation log (over 1 s) make a regression
   visible.

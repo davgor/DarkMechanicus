@@ -24,20 +24,19 @@ interface StorageDeps {
 
 /** Where the record files a repository-backed project tracks live, relative to the repository root. */
 const RECORDS_PATHSPEC = '.darkmechanicus'
-/** How long a cached `git status` count is served before a call refreshes it in the background. */
-const RECORD_STATUS_MAX_AGE_MS = 10_000
 
 interface RecordStatusEntry {
-  /** The index stamp and HEAD the count was taken at. */
+  /** The index stamp, HEAD and last flush the count was taken at. */
   key: string
-  atMs: number
   count: number | null
 }
 
 /**
  * One workspace's last `git status` count of uncommitted record files. The footer polls the storage status often,
  * and each `git status` would otherwise hold the project's command queue, so a call serves this count and refreshes
- * it in the background once the index or HEAD changed or it is older than `RECORD_STATUS_MAX_AGE_MS`.
+ * it in the background only once the index, HEAD or the database's last flush changed: idle calls never run git.
+ * A flush is how this app writes record files without touching the index, so it is part of the key; an edit made
+ * outside the app that leaves the index and HEAD alone shows up at the next stamp change.
  */
 export interface RecordStatusCache {
   last: RecordStatusEntry | null
@@ -51,11 +50,10 @@ export function createRecordStatusCache(): RecordStatusCache {
 
 function refreshRecordStatus(cache: RecordStatusCache, deps: StorageDeps, key: string): Promise<RecordStatusEntry> {
   if (cache.refreshing !== null) return cache.refreshing
-  // Stamped before git runs: an index or HEAD change while it runs makes the next call refresh again.
-  const atMs = deps.clock.nowMs()
+  // Keyed before git runs: a stamp change while it runs makes the next call refresh again.
   const refreshing = Promise.resolve()
     .then(() => deps.git.countUncommitted(RECORDS_PATHSPEC))
-    .then((count) => (cache.last = { key, atMs, count }))
+    .then((count) => (cache.last = { key, count }))
     .finally(() => {
       cache.refreshing = null
     })
@@ -68,11 +66,12 @@ async function uncommittedRecordFiles(deps: StorageDeps, head: GitHead | null): 
   if (deps.layout.mode === 'db') return null
   const cache = deps.recordStatus
   if (cache === undefined) return deps.git.countUncommitted(RECORDS_PATHSPEC)
-  const key = JSON.stringify([deps.git.indexStamp(), head])
+  const lastFlushAt = deps.db === null ? null : getMeta(deps.db, META_KEYS.lastFlushAt)
+  const key = JSON.stringify([deps.git.indexStamp(), head, lastFlushAt])
   const last = cache.last
   // The first call has nothing to serve, so it waits for git once.
   if (last === null) return (await refreshRecordStatus(cache, deps, key)).count
-  if (last.key !== key || deps.clock.nowMs() - last.atMs > RECORD_STATUS_MAX_AGE_MS) {
+  if (last.key !== key) {
     // A failed refresh keeps the last count, and the next call tries again.
     refreshRecordStatus(cache, deps, key).catch(() => undefined)
   }
