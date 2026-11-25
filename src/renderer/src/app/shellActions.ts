@@ -109,6 +109,8 @@ export interface ShellActions {
   landed(): void
   /** Opens the add-agent pane in place of the folder or epic view. */
   openAddAgent(): void
+  /** Opens the app Settings screen in place of the folder or epic view. */
+  openSettings(): void
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
   changed(path: string): void
@@ -154,7 +156,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -201,6 +203,10 @@ function selectionActions(deps: ShellDeps): SelectionActions {
     openAgent: (agent) => {
       deps.land(null)
       deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'agent', agent } })
+    },
+    openSettings: () => {
+      deps.land(null)
+      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'settings' } })
     },
     changed: (path) => deps.refresh(path)
   }

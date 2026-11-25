@@ -51,6 +51,7 @@ import { useSourceTarget, type SourceTargetModel } from './source/useSourceTarge
 import type { FolderTab } from './app/folderTabs'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
+import { SettingsView } from './settings/SettingsView'
 import { UntrackDialog } from './sidebar/UntrackDialog'
 
 type EpicView = ComponentType<EpicWorkspaceProps>
@@ -287,6 +288,7 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvi
 
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
+  if (view.kind === 'settings') return <SettingsView />
   if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics') && view.folder.forgeParent) {
     return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
@@ -346,6 +348,8 @@ function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
       onOpenMetrics={() => {
         if (folder !== null) shell.actions.selectMetrics(folder.path)
       }}
+      settingsOpen={view.kind === 'settings'}
+      onOpenSettings={shell.actions.openSettings}
       onFlush={() => void shell.actions.flush()}
       onReconcile={() => void shell.actions.reconcile()}
     >

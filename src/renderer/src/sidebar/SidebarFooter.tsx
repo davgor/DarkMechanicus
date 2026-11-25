@@ -16,6 +16,9 @@ interface SidebarFooterProps {
   /** The selected folder's Metrics dashboard is open: its link is the current page. */
   metricsOpen: boolean
   onOpenMetrics(): void
+  /** The app Settings screen is open: its link is the current page. */
+  settingsOpen: boolean
+  onOpenSettings(): void
   onFlush(): void
   onReconcile(): void
   children?: ReactNode
@@ -88,6 +91,12 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
             Flush
           </Button>
         ) : null}
+      </div>
+      <div className="footer-line">
+        <Icon name="settings" size={15} />
+        <button type="button" className="footer-link" aria-current={props.settingsOpen ? 'page' : undefined} onClick={props.onOpenSettings}>
+          Settings
+        </button>
       </div>
       <Notifications />
       <GithubLine />

@@ -157,3 +157,16 @@ it('opens chats of a Forge root without a project database', () => {
   const chat = chatRecord({ id: 'chat_world', folder: world.path })
   expect(chooseView({ loaded: true, folder: world, epicId: null, chatId: chat.id, chats: [chat] })).toEqual({ kind: 'chat', folder: world, chat })
 })
+
+describe('DM-828 c2: the Settings view', () => {
+  it('wins over the folder view, its epic, board and dashboard, and shows with no folder', () => {
+    const pane = { kind: 'settings' } as const
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane })).toEqual({ kind: 'settings' })
+    expect(chooseView({ loaded: true, folder: ready, epicId: 'ep_1', kanban: true, metrics: true, agentPane: pane }).kind).toBe('settings')
+    expect(chooseView({ loaded: true, folder: null, epicId: null, agentPane: pane }).kind).toBe('settings')
+  })
+
+  it('waits for the folders like every other view', () => {
+    expect(chooseView({ loaded: false, folder: null, epicId: null, agentPane: { kind: 'settings' } }).kind).toBe('loading')
+  })
+})

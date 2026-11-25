@@ -27,6 +27,8 @@ export type MainView =
   | { kind: 'agent'; agent: AgentView }
   /** A project-less chat, summoned from an agent's row: tied to no folder. */
   | { kind: 'projectless-chat'; chat: ChatRecord }
+  /** The app Settings screen, opened from the sidebar footer. */
+  | { kind: 'settings' }
 
 interface ViewInput {
   loaded: boolean
@@ -57,6 +59,9 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
   }
   if (pane.kind === 'add') {
     return { kind: 'add-agent' }
+  }
+  if (pane.kind === 'settings') {
+    return { kind: 'settings' }
   }
   if (pane.kind === 'chat') {
     if (projectless === null) {

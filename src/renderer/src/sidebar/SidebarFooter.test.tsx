@@ -37,6 +37,8 @@ function renderFooter(options: Options): Calls {
       busy={options.busy ?? { flush: false, reconcile: false }}
       metricsOpen={false}
       onOpenMetrics={() => undefined}
+      settingsOpen={false}
+      onOpenSettings={() => undefined}
       onFlush={() => {
         calls.flush += 1
       }}
@@ -184,6 +186,8 @@ function renderMetricsLink(options: { ready: boolean; open: boolean }): { opened
       onOpenMetrics={() => {
         calls.opened += 1
       }}
+      settingsOpen={false}
+      onOpenSettings={() => undefined}
       onFlush={() => undefined}
       onReconcile={() => undefined}
     />
@@ -247,5 +251,45 @@ describe('sidebar footer disclosure', () => {
     const bell = notifications.closest('.footer-line')?.firstElementChild
     expect(bell?.getAttribute('data-icon')).toBe('bell')
     expect(bell?.nextElementSibling).toBe(notifications)
+  })
+})
+
+function renderSettingsLink(open: boolean): { opened: number } {
+  const calls = { opened: 0 }
+  renderWithGithub(
+    kit,
+    <SidebarFooter
+      status={sessions({ desktop: 1, orchestrator: 1 })}
+      folderReady={false}
+      busy={{ flush: false, reconcile: false }}
+      metricsOpen={false}
+      onOpenMetrics={() => undefined}
+      settingsOpen={open}
+      onOpenSettings={() => {
+        calls.opened += 1
+      }}
+      onFlush={() => undefined}
+      onReconcile={() => undefined}
+    />
+  )
+  return calls
+}
+
+describe('DM-828 c1: the Settings link', () => {
+  it('calls onOpenSettings once per press, with no folder needed, beside a gear icon', () => {
+    const calls = renderSettingsLink(false)
+    const link = screen.getByRole('button', { name: 'Settings' })
+    expect(link.className).toBe('footer-link')
+    expect(link.closest('.footer-line')?.querySelector('svg')).toBeTruthy()
+    fireEvent.click(link)
+    expect(calls.opened).toBe(1)
+  })
+
+  it('is the current page only while Settings is open', () => {
+    renderSettingsLink(true)
+    expect(screen.getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page')
+    cleanup()
+    renderSettingsLink(false)
+    expect(screen.getByRole('button', { name: 'Settings' }).hasAttribute('aria-current')).toBe(false)
   })
 })

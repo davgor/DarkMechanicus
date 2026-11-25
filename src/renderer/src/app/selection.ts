@@ -3,10 +3,10 @@ import { agentIdSchema } from '../../../shared/desktop/agentKinds'
 import type { AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 
 /**
- * The agents screens that take over the main area: the add-agent pane, one agent's page by its id, or a project-less
- * chat (summoned from an agent's row, tied to no folder) by its id.
+ * The agents screens that take over the main area: the add-agent pane, one agent's page by its id, a project-less
+ * chat (summoned from an agent's row, tied to no folder) by its id, or the app Settings screen.
  */
-export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentId } | { kind: 'chat'; chatId: string }
+export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentId } | { kind: 'chat'; chatId: string } | { kind: 'settings' }
 
 /** What the main area shows: a tracked folder and, optionally, one of its epics or an agents screen. */
 export interface Selection {
@@ -37,6 +37,7 @@ function isAgentPane(value: unknown): value is AgentPane {
   const candidate = value as { kind?: unknown; agent?: unknown; chatId?: unknown }
   return (
     candidate.kind === 'add' ||
+    candidate.kind === 'settings' ||
     (candidate.kind === 'agent' && agentIdSchema.safeParse(candidate.agent).success) ||
     (candidate.kind === 'chat' && chatIdSchema.safeParse(candidate.chatId).success)
   )
@@ -109,13 +110,16 @@ function keptFolderScreens(stored: Selection, folder: TrackedFolderView, chatId:
 }
 
 /**
- * The pane to keep: the add-agent pane always, an agent's page only while that agent is still connected, a
+ * The pane to keep: the add-agent pane and Settings always, an agent's page only while that agent is still connected, a
  * project-less chat only while it is not deleted.
  */
 function resolvePane(pane: AgentPane | undefined, known: KnownData): AgentPane | undefined {
-  if (pane === undefined || pane.kind === 'add') {
-    return pane
-  }
+  if (pane === undefined || pane.kind === 'add' || pane.kind === 'settings') return pane
+  return resolveLivePane(pane, known)
+}
+
+/** An agent's page or a project-less chat, kept only while what it shows still exists (or has not loaded yet). */
+function resolveLivePane(pane: Extract<AgentPane, { kind: 'agent' | 'chat' }>, known: KnownData): AgentPane | undefined {
   if (pane.kind === 'chat') {
     const projectless = known.projectless ?? null
     return projectless === null || projectless.some((chat) => chat.id === pane.chatId) ? pane : undefined

@@ -80,7 +80,7 @@ describe('isSelection with an agents pane', () => {
     const base = { folderPath: '/a', epicId: null }
     expect(isSelection({ ...base, agentPane: null })).toBe(false)
     expect(isSelection({ ...base, agentPane: 'add' })).toBe(false)
-    expect(isSelection({ ...base, agentPane: { kind: 'settings' } })).toBe(false)
+    expect(isSelection({ ...base, agentPane: { kind: 'preferences' } })).toBe(false)
     expect(isSelection({ ...base, agentPane: { kind: 'agent' } })).toBe(false)
     expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: 'gemini' } })).toBe(false)
   })
@@ -252,4 +252,20 @@ it('restores a valid card only with its folder board selection', () => {
   expect(isSelection({ ...stored, kanbanCardId: 123 })).toBe(false)
   expect(isSelection({ ...stored, kanban: undefined })).toBe(false)
   expect(resolveSelection(stored, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+})
+
+describe('DM-828 c2: a stored Settings pane', () => {
+  const settings = { folderPath: '/a', epicId: null, agentPane: { kind: 'settings' } } as const
+
+  it('is a valid stored selection and survives reconciliation, also with no folder', () => {
+    const alpha = folderView({ path: '/a' })
+    const restored: unknown = JSON.parse(JSON.stringify(settings))
+    expect(isSelection(restored)).toBe(true)
+    expect(resolveSelection(settings, [alpha], true, { agents: [] })).toEqual(settings)
+    expect(resolveSelection({ ...settings, folderPath: null }, [], true)).toEqual({ folderPath: null, epicId: null, agentPane: { kind: 'settings' } })
+  })
+
+  it('refuses an unknown pane kind', () => {
+    expect(isSelection({ ...settings, agentPane: { kind: 'preferences' } })).toBe(false)
+  })
 })

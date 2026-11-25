@@ -301,3 +301,23 @@ it('uses one sidebar board quick link and clears a previously open card when it 
   expect(document.querySelectorAll('.kanban-lanes > .kanban-lane')).toHaveLength(4)
   expect(JSON.parse(window.localStorage.getItem('dm.selection') ?? '{}')).toEqual({ folderPath: '/a', epicId: null, kanban: true })
 })
+
+describe('DM-828 c1: the Settings screen from the sidebar footer', () => {
+  it('opens Settings in the main area, marks its link current, and leaves again for a folder', async () => {
+    seed()
+    h.mount()
+    await settle()
+    const link = screen.getByRole('button', { name: 'Settings' })
+    expect(link.hasAttribute('aria-current')).toBe(false)
+    fireEvent.click(link)
+    await settle()
+    const workspace = within(screen.getByRole('main', { name: 'Workspace' }))
+    expect(workspace.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()
+    expect(workspace.getByText('Nothing to set yet.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page')
+    fireEvent.click(sidebar().getByRole('button', { name: /Planning slice/ }))
+    await settle()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Settings' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Settings' }).hasAttribute('aria-current')).toBe(false)
+  })
+})
