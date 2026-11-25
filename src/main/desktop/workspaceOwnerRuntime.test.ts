@@ -163,6 +163,32 @@ it('admits explicit and member syncs under the live Forge move reservation the r
   })
 })
 
+it('keeps serving after a lane reconcile fails with no close awaiting it, and leaves no unhandled rejection', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Failing lane' })
+  const unhandled: unknown[] = []
+  const record = (reason: unknown) => { unhandled.push(reason) }
+  process.on('unhandledRejection', record)
+  try {
+    const failing: SyncLane = {
+      reconcile: async () => { throw new Error('lane worker stopped') },
+      release: async () => undefined,
+      close: async () => undefined
+    }
+    const worker = owner(h.homeDir, 1, failing)
+    const opened = await worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+    if (!opened.ok) throw new Error(opened.error.message)
+    await expect(worker.sync(h.root, 'member', opened.result.binding)).resolves.toMatchObject({ ok: false, error: { message: expect.stringContaining('lane worker stopped') } })
+    // Let every settled promise's handlers run before checking.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(unhandled).toEqual([])
+    await expect(worker.work(h.root, { kind: 'command', name: 'listKanbanCards', input: {} }, opened.result.binding)).resolves.toMatchObject({ ok: true })
+  } finally {
+    process.off('unhandledRejection', record)
+  }
+})
+
 it('uses the first member reconcile on the lane as the cold import instead of consuming it on open', async () => {
   const h = fixture()
   const source = h.open('desktop')

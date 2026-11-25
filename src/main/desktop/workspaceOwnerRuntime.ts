@@ -84,7 +84,8 @@ class WorkspaceOwner {
       const ctx = workspace.ctx()
       if (mode === 'explicit') requireCapability(ctx.session, 'repo.reconcile')
       const reconciled = this.lane.reconcile({ path, home, ownerPid, mode, authority, sessionId: ctx.session.id, machineId: ctx.machineId })
-      this.syncing = reconciled.finally(() => { if (this.syncing === tracked) this.syncing = undefined })
+      // Only a settle marker: the reply handles `reconciled`'s failure, so this copy must never reject unhandled.
+      this.syncing = reconciled.then(() => undefined, () => undefined).finally(() => { if (this.syncing === tracked) this.syncing = undefined })
       const tracked = this.syncing
       return { reconciled }
     })
