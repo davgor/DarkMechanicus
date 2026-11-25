@@ -54,6 +54,16 @@ O: OMPDOC:93,98-108,138,145,178-179. `rpc-ui` is mandatory: `ask` is registered 
 
 Design invariants: pin canonical cwd in main; env-only `DM_SESSION_TOKEN`; mask claim tokens **and** `dmg_` grants before any persistence/IPC, including stderr and status strings; raw JSONL never crosses IPC. These are requirements, not outcomes established by this data-only ticket.
 
+### JSONL process runner (DM-775)
+
+`startAgentProcess` accepts the main-owned executable, argv, cwd and environment. It uses piped stdio without shell command evaluation, hides Windows console windows, and creates a POSIX process group. On Windows a fixed system PowerShell supervisor creates the CLI suspended, assigns it to a non-inheritable kill-on-close Job Object, then resumes it; descendants inherit that ownership from birth. The CLI inherits binary stdio directly, and cwd/environment stay on the process spawn (not serialized into script arguments). The fixed helper source is bundled in the TypeScript module, independent of working directory or source files. `pid` is the owned supervisor PID on Windows; exit code remains the CLI's. Assignment/resume failures terminate the suspended child rather than run it without ownership. `onLine` delivers UTF-8 LF frames with a trailing CR removed and flushes a final unterminated frame. Frames above 8 MiB are discarded through LF with one diagnostic per discarded frame.
+
+The Windows supervisor command is fixed-size. Executable and quoted command-line data travel first on its owned stdin as a `DMJ1` frame: 4-byte magic, two little-endian uint32 UTF-8 byte lengths, then executable and command bytes. Lengths allow the full CreateProcess limit (32,766 UTF-16 code units plus terminator), not an 8 KiB subset. Native exact reads handle short reads without buffering beyond the frame; malformed, oversized, truncated, invalid UTF-8 or NUL-bearing metadata fails before launch. The runner queues metadata before exposing writes/EOF, and the child inherits the remaining pipe bytes unchanged. No launch metadata files, environment keys, or variable command-line encoding are needed.
+
+`onStderr` supplies the current last 64 KiB of diagnostics; `onExit` supplies `{code, signal, stderr}` after both output pipes close, including to late subscribers. All subscriptions return an unsubscribe function. These are main-only raw values: session owners must mask them before persistence or IPC. `write` appends LF and returns false when stdin is closed, including EPIPE; the eventual exit callback retains the real exit code.
+
+`stop` is idempotent: end stdin, escalate a live owned process through `killProcessTree` after 3 seconds, and bound disposal at 5 seconds with a diagnostic if shutdown could not finish. POSIX group cleanup starts immediately on natural exit and its result is retained for later disposal, avoiding a delayed lookup of a reused group ID. On Windows the supervisor terminates its retained job when the CLI exits, including descendants that survive stdin EOF; killing the supervisor also closes the job. This launch-time ownership avoids the unrecoverable ancestry races in stop-time process enumeration. A deadline diagnostic is not proof that an unkillable process has exited.
+
 ## Claude host → CLI
 
 ### Control envelopes and initialization
