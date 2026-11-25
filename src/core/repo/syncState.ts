@@ -6,7 +6,12 @@
 import type { Db } from '../db/database'
 
 /** The tracked hash is the one this machine last exported or imported for the entity. */
-export function matchesSync(db: Db, kind: 'epic' | 'run' | 'kanban_card' | 'metric_observation', entityId: string, hash: string): boolean {
+export function matchesSync(
+  db: Db,
+  kind: 'epic' | 'run' | 'kanban_card' | 'metric_observation' | 'learning_record' | 'learning_integration',
+  entityId: string,
+  hash: string
+): boolean {
   const row = db.get<{ exported_hash: string | null; imported_hash: string | null }>(
     'SELECT exported_hash, imported_hash FROM sync_state WHERE kind = ? AND entity_id = ?',
     kind,

@@ -96,6 +96,8 @@ interface GitHandlerDeps {
   /** Clones into the folder chosen with main's dialog; without it, the clone channels answer that cloning is unavailable. */
   clones?: Cloner
   runner: GitRunner
+  /** The per-repository operation locks; main shares them with learning approval so neither interleaves the other. */
+  operations?: OperationLocks
   /** Told about failures that are not GitErrors (bugs, I/O), so main can log the stack. */
   /** Moves a file to the OS trash (Electron's shell.trashItem). */
   trashItem: TrashItem
@@ -375,8 +377,8 @@ interface Writes {
   folder: WithFolder
 }
 
-function createWrites(target: ResolveTarget, runner: GitRunner, guarded: Guarded): Writes {
-  const locks = createOperationLocks(runner)
+function createWrites(target: ResolveTarget, runner: GitRunner, guarded: Guarded, shared?: OperationLocks): Writes {
+  const locks = shared ?? createOperationLocks(runner)
   const locked: Locked = (folder, work) => locks.run(folder, work)
   const withRequest = requestHandlers(target, guarded)
   return {
@@ -472,7 +474,7 @@ export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
     if (resolved.kind === 'unavailable') throw new Refusal({ code: 'checkout_unavailable', message: resolved.reason })
     return resolved.path
   }
-  const writes = createWrites(target, runner, guarded)
+  const writes = createWrites(target, runner, guarded, deps.operations)
 
   return {
     getTarget: folder => guarded(() => getTarget(folder)),

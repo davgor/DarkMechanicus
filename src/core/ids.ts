@@ -41,7 +41,13 @@ export const ID_PREFIXES = {
   /** A structured improvement experiment written into a sprint retro. */
   experiment: 'xp',
   /** A later status or result of an experiment, stored beside the run's reports. */
-  experimentEvent: 'xe'
+  experimentEvent: 'xe',
+  /** A published learning record (`src/shared/domain/learnings.ts`). */
+  learningRecord: 'lr',
+  // ─── DM-935: learning integration ───
+  /** A recoverable integration that publishes an approved learning card's records (`learning_integrations`). */
+  learningIntegration: 'li'
+  // ─── End DM-935 ───
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

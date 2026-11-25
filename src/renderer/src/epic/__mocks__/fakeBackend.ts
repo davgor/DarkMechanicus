@@ -13,6 +13,7 @@ import type {
   AgentFindResult,
   AgentId,
   AgentView,
+  ApproveLearningCardRequest,
   ClaudeCodeConnectResult,
   CommandInput,
   CommandOutput,
@@ -26,6 +27,7 @@ import type {
   YoloStatus
 } from '../../../../shared/desktop/api'
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
+import type { KanbanCardView } from '../../../../shared/domain/kanban'
 import { isActiveRunState, isOpenAttemptState } from '../../../../shared/domain/status'
 import type {
   AutoRetryView,
@@ -181,6 +183,11 @@ export class FakeBackend implements DmApi {
     } catch (error) {
       return { ok: false, error: { code: 'not_found', message: error instanceof Error ? error.message : String(error) } }
     }
+  }
+
+  /** DM-956: recorded like a command; answers through `failures`/`handlers` under the `approveKanbanCard` name. */
+  approveLearningCard(folder: string, input: ApproveLearningCardRequest): Promise<CommandResult<KanbanCardView>> {
+    return this.command(folder, 'approveKanbanCard', { cardId: input.cardId }) as Promise<CommandResult<KanbanCardView>>
   }
 
   listFolders(): Promise<TrackedFolderView[]> {

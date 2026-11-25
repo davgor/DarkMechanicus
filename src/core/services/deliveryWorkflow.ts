@@ -33,7 +33,11 @@ export function checkTicketDecision(rule: AppliedStandard | undefined, decision:
   if (!integrated || !decision.integration) fail('invalid_input', 'Verify the submitted commits on the epic integration branch before accepting this ticket.')
 }
 
-export function checkKanbanSubmission(rule: AppliedStandard | undefined, evidence: AttemptEvidence, mergedToMain: boolean): void {
+/**
+ * `learningManifestsVerified` (DM-938) is true only for a sprint learning card whose branch manifests were already
+ * verified read-only against Git: that proof replaces the merge to main, and every other requirement still applies.
+ */
+export function checkKanbanSubmission(rule: AppliedStandard | undefined, evidence: AttemptEvidence, mergedToMain: boolean, learningManifestsVerified = false): void {
   if (!rule?.workflow) return
   evidence.standardsRevision = rule.revision
   if (rule.workflow === 'custom') {
@@ -41,6 +45,7 @@ export function checkKanbanSubmission(rule: AppliedStandard | undefined, evidenc
     return
   }
   requirePassedChecks(evidence.checks)
+  if (learningManifestsVerified) return
   if (!mergedToMain || evidence.merge?.branch !== 'main') {
     fail('invalid_input', 'Verify the PR merge on origin/main and provide its green CI evidence before submitting for review.')
   }

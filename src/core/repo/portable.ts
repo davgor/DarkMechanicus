@@ -44,6 +44,21 @@ import { metricObservationSchema } from '../space/contract'
 import { parseScorecardSnapshot } from '../space/snapshot'
 import { ledgerProblem } from '../space/ledger'
 import { assertContained, displayPath } from './paths'
+// DM-935: learning records
+import {
+  LEARNING_EVIDENCE_KINDS,
+  LEARNING_HISTORY_KINDS,
+  LEARNING_INTEGRATION_STATES,
+  LEARNING_LIMITS,
+  learningIntegrationFailureSchema,
+  learningIntegrationManifestSchema,
+  type LearningDraft,
+  type LearningRecord,
+  learningRecordSchema,
+  type LearningSourceKind
+} from '../../shared/domain/learnings'
+import { LEARNING_DISPOSITIONS } from '../../shared/domain/kanban'
+import { loadRow as loadLearningRow, toLearningView } from '../services/learnings'
 import type { FsAdapter, RepoLayout } from './types'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
@@ -268,6 +283,36 @@ const attemptOutputs = z.strictObject({
 
 import { deliveryIntegration, deliveryMerge, sprintDeployment } from '../deliveryEvidenceSchema'
 
+const commitId = z.string().regex(/^[0-9a-f]{7,64}$/)
+
+/** DM-938: what a sprint learning card's submission records under `evidence.learning` (`LearningSubmissionEvidence`). */
+const learningSubmissionEvidence = z.strictObject({
+  snapshotHash: sha256,
+  dispositions: z
+    .array(
+      z.strictObject({
+        kind: z.enum(LEARNING_EVIDENCE_KINDS as [LearningSourceKind, ...LearningSourceKind[]]),
+        sourceId: z.string().min(1).max(LEARNING_LIMITS.sourceIdChars),
+        disposition: z.enum(LEARNING_DISPOSITIONS),
+        reason: shortText
+      })
+    )
+    .max(2_000),
+  draftsHash: sha256,
+  manifests: z
+    .array(
+      z.strictObject({
+        repo: z.string().min(1).max(255).nullable(),
+        base: commitId,
+        branch: z.string().min(1).max(255),
+        commit: commitId,
+        passed: z.boolean(),
+        checks: z.array(z.strictObject({ name: shortText, status: z.enum(['passed', 'failed', 'skipped']), detail: markdown })).max(LIMITS.listItems)
+      })
+    )
+    .max(100)
+})
+
 const attemptEvidence = z.strictObject({
   standardsRevision: z.number().int().positive().optional(),
   merge: deliveryMerge.optional(),
@@ -275,7 +320,9 @@ const attemptEvidence = z.strictObject({
   criteria: criterionResults.default([]),
   notes: markdown.default(''),
   // No default: evidence written before attachments existed must parse and re-export byte for byte.
-  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional(),
+  // No default either: only a sprint learning card's submission carries it.
+  learning: learningSubmissionEvidence.optional()
 })
 
 const attemptFailure = z.strictObject({
@@ -1351,3 +1398,180 @@ export function buildObservationRecord(db: Db, observationId: string): MetricObs
   const record = readObservationRecord(db, observationId) ?? fail('not_found', `Metric observation ${observationId} does not exist.`)
   return exportable(metricObservationRecord, record, `metric observation ${observationId}`)
 }
+
+// ─── DM-935: learning records and learning integration recovery manifests ──────────────────────────────────────────
+//
+// `learnings/records/<learningId>.json` holds one published learning: its immutable definition and source, its current
+// lifecycle, the revision management names, and its whole append-only history. `learnings/integrations/<id>.json`
+// holds one integration's recovery manifest and state. Neither file grants anything: importing a manifest never
+// creates a learning, and only a record file (published by an approved card on some machine) brings one in.
+
+/** A learning file is a few kilobytes; even a long history stays far below this. */
+export const MAX_LEARNING_RECORD_BYTES = 1024 * 1024
+
+const learningHistoryEntry = z.strictObject({
+  kind: z.enum(LEARNING_HISTORY_KINDS),
+  relatedId: idOf('learningRecord').nullable(),
+  reason: shortText.min(1),
+  revision: positiveInt,
+  actor: kanbanActor,
+  at: isoTime
+})
+type LearningHistoryEntry = z.infer<typeof learningHistoryEntry>
+
+/** The draft fields of a record: what `definitionHash` is the content hash of. */
+export function learningDefinition(learning: LearningRecord): LearningDraft {
+  const { title, rule, check, applicability, evidence, replaces } = learning
+  return { title, rule, check, applicability, evidence, replaces }
+}
+
+const RETIRING_KINDS: readonly LearningHistoryEntry['kind'][] = ['retired', 'replaced']
+const LINKED_KINDS: readonly LearningHistoryEntry['kind'][] = ['replaced', 'created_by_replacement']
+
+/** The rules a learning file's history must keep with its record; an empty list means it is consistent. */
+function learningFileProblems(file: { learning: LearningRecord; definitionHash: string; revision: number; history: LearningHistoryEntry[] }): string[] {
+  const { learning, history } = file
+  const [first] = history
+  const last = history.at(-1)
+  const retiring = history.filter((entry) => RETIRING_KINDS.includes(entry.kind))
+  const rules: [broken: boolean, message: string][] = [
+    [contentHash(learningDefinition(learning)) !== file.definitionHash, 'definitionHash is not the content hash of the definition'],
+    [first === undefined || first.revision !== 1 || !['published', 'created_by_replacement'].includes(first.kind), 'history must begin with the publication at revision 1'],
+    [history.some((entry, index) => index > 0 && entry.revision < (history[index - 1]?.revision ?? 0)), 'history revisions must not decrease'],
+    [last?.revision !== file.revision, 'revision must be the revision of the last history entry'],
+    [history.some((entry) => LINKED_KINDS.includes(entry.kind) !== (entry.relatedId !== null)), 'only replacement history entries name a related learning'],
+    [history.some((entry, index) => index > 0 && entry.kind === 'created_by_replacement'), 'only the first history entry can create a learning'],
+    [history.some((entry) => entry.kind === 'created_by_replacement' && entry.relatedId !== learning.replaces), 'a replacement must name the learning it replaces'],
+    [learning.state === 'active' && retiring.length > 0, 'an active learning has no retirement in its history'],
+    [learning.state === 'retired' && (retiring.length !== 1 || !RETIRING_KINDS.includes(last?.kind ?? 'published')), 'a retired learning ends its history with one retirement'],
+    [retiring.some((entry) => entry.relatedId !== learning.replacedBy), 'the retirement must name the learning that replaced it']
+  ]
+  return rules.filter(([broken]) => broken).map(([, message]) => message)
+}
+
+export const learningRecordFile = z
+  .strictObject({
+    format: z.literal('darkmechanicus.learning'),
+    formatVersion: z.literal(1),
+    learning: learningRecordSchema,
+    /** Content hash of the definition (the draft fields): the same on every machine, whatever the file's formatting. */
+    definitionHash: sha256,
+    /** The revision a retirement or replacement names; the revision of the last history entry. */
+    revision: positiveInt,
+    history: z.array(learningHistoryEntry).min(1).max(1_000)
+  })
+  .superRefine((file, ctx) => {
+    for (const message of learningFileProblems(file)) ctx.addIssue({ code: 'custom', path: ['history'], message })
+  })
+export type LearningRecordFile = z.infer<typeof learningRecordFile>
+
+const LEARNING_FAILED_STATES: readonly string[] = ['conflicted', 'aborted']
+
+export const learningIntegrationRecord = z
+  .strictObject({
+    format: z.literal('darkmechanicus.learning-integration'),
+    formatVersion: z.literal(1),
+    id: idOf('learningIntegration'),
+    cardId: idOf('kanbanCard'),
+    attemptId: idOf('kanbanAttempt'),
+    state: z.enum(LEARNING_INTEGRATION_STATES),
+    manifest: learningIntegrationManifestSchema,
+    manifestHash: sha256,
+    failure: learningIntegrationFailureSchema.nullable(),
+    revision: positiveInt,
+    createdAt: isoTime,
+    updatedAt: isoTime
+  })
+  .superRefine((record, ctx) => {
+    if (contentHash(record.manifest) !== record.manifestHash) {
+      ctx.addIssue({ code: 'custom', path: ['manifestHash'], message: 'manifestHash is not the content hash of the manifest' })
+    }
+    if (record.manifest.cardId !== record.cardId || record.manifest.attemptId !== record.attemptId) {
+      ctx.addIssue({ code: 'custom', path: ['manifest'], message: 'The manifest names another card or attempt' })
+    }
+    if (record.failure !== null && !LEARNING_FAILED_STATES.includes(record.state)) {
+      ctx.addIssue({ code: 'custom', path: ['failure'], message: 'Only a conflicted or aborted integration records a failure' })
+    }
+  })
+export type LearningIntegrationRecord = z.infer<typeof learningIntegrationRecord>
+
+/** Change-detection hash of one learning record file's text. */
+export function trackedLearningRecordHash(text: string): string {
+  return contentHash(['learning-record', normalizeNewlines(text)])
+}
+
+/** Change-detection hash of one learning integration file's text. */
+export function trackedLearningIntegrationHash(text: string): string {
+  return contentHash(['learning-integration', normalizeNewlines(text)])
+}
+
+interface LearningEventRow {
+  kind: LearningHistoryEntry['kind']
+  related_id: string | null
+  reason: string
+  revision: number
+  actor_role: string
+  actor_label: string
+  at: string
+}
+
+/** A stored learning's history in its record shape, oldest first. */
+export function storedLearningHistory(db: Db, learningId: string): LearningHistoryEntry[] {
+  return db
+    .all<LearningEventRow>('SELECT kind, related_id, reason, revision, actor_role, actor_label, at FROM learning_events WHERE learning_id = ? ORDER BY seq', learningId)
+    .map((row) => ({
+      kind: row.kind,
+      relatedId: row.related_id,
+      reason: row.reason,
+      revision: row.revision,
+      actor: { role: row.actor_role, label: row.actor_label } as LearningHistoryEntry['actor'],
+      at: row.at
+    }))
+}
+
+export function buildLearningRecordFile(db: Db, learningId: string): LearningRecordFile {
+  const { revision, definitionHash, ...learning } = toLearningView(loadLearningRow(db, learningId))
+  const record = { format: 'darkmechanicus.learning', formatVersion: 1, learning, definitionHash, revision, history: storedLearningHistory(db, learningId) }
+  return exportable(learningRecordFile, record, `learning ${learningId}`)
+}
+
+interface LearningIntegrationRow {
+  id: string
+  card_id: string
+  attempt_id: string
+  state: string
+  manifest_json: string
+  manifest_hash: string
+  failure_json: string | null
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+/** An integration row in its record shape, not validated; null when absent. */
+export function readLearningIntegrationRecord(db: Db, integrationId: string): Record<string, unknown> | null {
+  const row = db.get<LearningIntegrationRow>('SELECT * FROM learning_integrations WHERE id = ?', integrationId)
+  if (row === undefined) {
+    return null
+  }
+  return {
+    format: 'darkmechanicus.learning-integration',
+    formatVersion: 1,
+    id: row.id,
+    cardId: row.card_id,
+    attemptId: row.attempt_id,
+    state: row.state,
+    manifest: parseJson<unknown>(row.manifest_json, null),
+    manifestHash: row.manifest_hash,
+    failure: parseJson<unknown>(row.failure_json, null),
+    revision: row.revision,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+export function buildLearningIntegrationRecord(db: Db, integrationId: string): LearningIntegrationRecord {
+  const record = readLearningIntegrationRecord(db, integrationId) ?? fail('not_found', `Learning integration ${integrationId} does not exist.`)
+  return exportable(learningIntegrationRecord, record, `learning integration ${integrationId}`)
+}
+// ─── End DM-935 ───

@@ -43,6 +43,7 @@ import type {
   KanbanBoardView,
   KanbanCardView,
   KanbanMessageView,
+  KanbanLearningSubmission,
   KanbanPacket
 } from './kanban'
 import type { WorkStatus } from './status'
@@ -57,6 +58,15 @@ import type {
   ReadAgentInboxInput,
   SendAgentMessageInput
 } from './agentMail'
+import type {
+  LearningDetailView,
+  LearningView,
+  ListLearningsInput,
+  ReplaceLearningInput,
+  ReplaceLearningResultView,
+  RetireLearningInput,
+  StagedLearningDraftsView
+} from './learnings'
 import type {
   GetPlannedBaselinesInput,
   GetRunMetricsInput,
@@ -414,6 +424,8 @@ export interface SubmitKanbanCardInput {
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
   evidence?: AttemptEvidenceSubmission
+  /** DM-938: required on a sprint learning card (packet `learning`), refused on any other card. */
+  learning?: KanbanLearningSubmission
   idempotencyKey?: string
 }
 
@@ -892,6 +904,21 @@ export interface CommandApi {
   acknowledgeAgentMessages(input: { messageIds: string[] }): Promise<AcknowledgeAgentMessagesResult>
   /** The pending count and one ascending page of unacknowledged message metadata, without bodies. */
   getAgentMailStatus(input: AgentMailWindow): Promise<AgentMailStatusPage>
+
+  // Published learnings (src/shared/domain/learnings.ts). Every role reads; retiring and replacing are the person's.
+  /** Stored learnings, newest first: active by default; `query` searches content, source links and history. */
+  listLearnings(input: ListLearningsInput): Promise<LearningView[]>
+  /** One learning with its append-only history. */
+  getLearning(input: { learningId: string }): Promise<LearningDetailView>
+  /** DM-943: the drafts a learning card's attempt staged for review, their hash and the evidence they cite verbatim. */
+  getStagedLearningDrafts(input: { attemptId: string }): Promise<StagedLearningDraftsView>
+  /** Human-only: retires an active learning at `expectedRevision` with a reason; a stale revision fails with `conflict`. */
+  retireLearning(input: RetireLearningInput): Promise<LearningView>
+  /**
+   * Human-only: a new active learning with the given content, the predecessor's evidence and source and a link to it;
+   * the predecessor is retired with the reason and a link to its successor. A stale revision fails with `conflict`.
+   */
+  replaceLearning(input: ReplaceLearningInput): Promise<ReplaceLearningResultView>
 }
 
 export type CommandName = keyof CommandApi

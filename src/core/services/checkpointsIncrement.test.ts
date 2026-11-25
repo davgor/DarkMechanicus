@@ -247,4 +247,13 @@ describe('increment_merged gate in a folder of repositories', () => {
       detail: 'No sprint increments named yet: submit DM-3 with increments, one { repo, branch, commit } per touched repository'
     })
   })
+
+  it('stays unmet when the sprint touched no repository, even with named increments', () => {
+    const ctx = createTestCtx({ repositories: ['alpha', 'beta'] })
+    const run = seedRun(ctx, { bundle: plan() })
+    acceptTickets(ctx, run, [1, 2])
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'submitted' })
+    storeVerdicts(ctx, node, [{ repo: 'alpha' }])
+    expect(incrementGate(ctx, run)).toMatchObject({ met: false, detail: 'The sprint touched no repository: no accepted work ticket names one' })
+  })
 })

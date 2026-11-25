@@ -63,6 +63,11 @@ import {
 import { OVERHEAD_KINDS } from '../shared/domain/metrics'
 import { DEFECT_ATTRIBUTIONS, DEFECT_EVENTS, DISCOVERY_PHASES } from '../shared/domain/performance'
 import { HUMAN_RATING_RANGE, MAX_RESCUE_MINUTES, MIN_FEEDBACK_MINUTES } from '../shared/domain/spaceSignals'
+import { learningReasonSchema, learningReplacementContentSchema } from '../shared/domain/learnings'
+// ─── DM-938 ───
+import { LEARNING_DISPOSITIONS } from '../shared/domain/kanban'
+import { LEARNING_EVIDENCE_KINDS, LEARNING_LIMITS, learningDraftSchema, type LearningSourceKind } from '../shared/domain/learnings'
+// ─── End of DM-938 ───
 
 /**
  * Input schemas for every command that takes input. The Workspace parses raw MCP/IPC payloads
@@ -185,6 +190,31 @@ const cutoff = z.iso.datetime({ offset: true }).optional()
 const reportRevisionRef = { reportId: stableId, reportRevision: z.number().int().min(1).max(1_000_000_000).optional() }
 /** The person a desktop entry names (the desktop session's label when absent). */
 const person = z.string().min(1).max(200).optional()
+
+// ─── DM-938: a sprint learning card's submission ───
+/** Snapshot items one learning card can disposition; generous, since a sprint's evidence is not otherwise capped. */
+const LEARNING_DISPOSITIONS_MAX = 2_000
+/** Drafts one learning card may propose, as `stageLearningDrafts` allows. */
+const LEARNING_DRAFTS_MAX = 20
+const learningSubmission = z.strictObject({
+  dispositions: z
+    .array(
+      z.strictObject({
+        kind: z.enum(LEARNING_EVIDENCE_KINDS as [LearningSourceKind, ...LearningSourceKind[]]),
+        sourceId: z.string().min(1).max(LEARNING_LIMITS.sourceIdChars),
+        disposition: z.enum(LEARNING_DISPOSITIONS),
+        reason: z.string().max(LIMITS.shortText).refine((text) => text.trim() !== '', 'A disposition needs a reason')
+      })
+    )
+    .max(LEARNING_DISPOSITIONS_MAX)
+    .describe('Exactly one per item of the packet learning.snapshot: learning, duplicate or not_reusable, each with its reason.'),
+  drafts: z.array(learningDraftSchema).max(LEARNING_DRAFTS_MAX).describe('Proposed learnings, staged for review; cite only items disposed as learning.'),
+  manifests: z
+    .array(z.strictObject({ repo: z.string().min(1).max(255).nullable(), base: commitHash, branch: z.string().min(1).max(255), commit: commitHash }))
+    .max(100)
+    .describe('One per learning.branches entry: the repository (null in a single repository), base commit, isolated branch and its tip commit.')
+})
+// ─── End of DM-938 ───
 
 export const COMMAND_SCHEMAS = {
   askHuman: z.strictObject({
@@ -338,6 +368,8 @@ export const COMMAND_SCHEMAS = {
     claimToken,
     outputs: attemptOutputsInput,
     evidence: attemptEvidenceInput.optional(),
+    // DM-938: required on a sprint learning card, refused on any other card.
+    learning: learningSubmission.optional(),
     idempotencyKey
   }),
   failKanbanCard: z.strictObject({
@@ -621,6 +653,22 @@ export const COMMAND_SCHEMAS = {
   acknowledgeAgentMessages: z.strictObject({
     messageIds: z.array(stableId).min(1).max(AGENT_MAIL_LIMITS.ackBatch).describe('1 to 100 ids of messages in your own inbox; all or none are acknowledged.')
   }),
-  getAgentMailStatus: z.strictObject(mailWindow)
+  getAgentMailStatus: z.strictObject(mailWindow),
+  // Learnings: reads for every role; retirement and replacement name the revision they read and always say why.
+  listLearnings: z.strictObject({
+    state: z.enum(['active', 'retired', 'all']).optional(),
+    query: z.string().max(LIMITS.shortText).optional(),
+    limit: z.number().int().min(1).max(200).optional()
+  }),
+  getLearning: z.strictObject({ learningId: stableId }),
+  getStagedLearningDrafts: z.strictObject({ attemptId: stableId }),
+  retireLearning: z.strictObject({ learningId: stableId, expectedRevision: revision, reason: learningReasonSchema, idempotencyKey }),
+  replaceLearning: z.strictObject({
+    learningId: stableId,
+    expectedRevision: revision,
+    reason: learningReasonSchema,
+    replacement: learningReplacementContentSchema,
+    idempotencyKey
+  })
 }
 

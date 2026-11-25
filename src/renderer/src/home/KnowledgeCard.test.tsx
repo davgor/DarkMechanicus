@@ -23,7 +23,7 @@ const folder = folderView({ path: '/a', name: 'alpha' })
 async function renderCard(): Promise<void> {
   render(
     <ToastProvider scheduler={new ManualScheduler()}>
-      <KnowledgeCard folder={folder} />
+      <KnowledgeCard folder={folder} onOpenLearnings={() => undefined} />
     </ToastProvider>
   )
   await settle()
@@ -149,7 +149,7 @@ describe('KnowledgeCard folder switch', () => {
     const scheduler = new ManualScheduler()
     const tree = (path: string): JSX.Element => (
       <ToastProvider scheduler={scheduler}>
-        <KnowledgeCard folder={folderView({ path, name: path })} />
+        <KnowledgeCard folder={folderView({ path, name: path })} onOpenLearnings={() => undefined} />
       </ToastProvider>
     )
     const withRepoCount = (count: number): KnowledgeStatusView =>

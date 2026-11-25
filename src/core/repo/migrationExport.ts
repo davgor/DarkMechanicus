@@ -10,7 +10,9 @@ import {
   buildCommentRecord, buildEpicPointerRecord, buildEpicStateRecord, buildKanbanCardRecord,
   buildKanbanEventRecord, buildObservationRecord, buildProfileRecord, buildRunHistoryRecord, buildSnapshotRecord,
   trackedCommentHash, trackedEpicHash, trackedKanbanCardHash, trackedKanbanEventHash, trackedObservationHash, trackedProfileHash,
-  trackedRunHash, scorecardRecordTexts
+  trackedRunHash, scorecardRecordTexts,
+  // DM-935
+  buildLearningIntegrationRecord, buildLearningRecordFile, trackedLearningIntegrationHash, trackedLearningRecordHash
 } from './portable'
 import type { FsAdapter, RepoLayout } from './types'
 
@@ -90,6 +92,18 @@ function exportOtherRecords(writer: MigrationExporter, savedEpics: ReadonlySet<s
   }
 }
 
+/** DM-935: every learning with its history, and every integration's recovery manifest. */
+function exportLearnings(writer: MigrationExporter): void {
+  const { db } = writer.deps
+  const { paths } = writer
+  for (const row of db.all<{ id: string }>('SELECT id FROM learning_records ORDER BY id')) {
+    writer.synced('learning_record', row.id, trackedLearningRecordHash(writer.write(paths.learningRecordFile(row.id), buildLearningRecordFile(db, row.id))))
+  }
+  for (const row of db.all<{ id: string }>('SELECT id FROM learning_integrations ORDER BY id')) {
+    writer.synced('learning_integration', row.id, trackedLearningIntegrationHash(writer.write(paths.learningIntegrationFile(row.id), buildLearningIntegrationRecord(db, row.id))))
+  }
+}
+
 function exportImages(writer: MigrationExporter, savedEpics: ReadonlySet<string>): void {
   const { db } = writer.deps
   const { paths } = writer
@@ -116,6 +130,7 @@ export function exportMigrationRecords(deps: ExportDeps): ReadonlySet<string> {
   const writer = new MigrationExporter(deps)
   const savedEpics = exportEpics(writer)
   exportOtherRecords(writer, savedEpics)
+  exportLearnings(writer)
   exportImages(writer, savedEpics)
   assertRecoveredArchiveBounds(deps)
   return writer.exported

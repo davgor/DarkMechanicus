@@ -342,3 +342,13 @@ describe('DM-171 c1: a submitted attempt’s claim is stale', () => {
     })
   })
 })
+
+describe('a delta report is identified by its eventId alone', () => {
+  it('refuses a delta report that also names a sequence, and stores nothing', async () => {
+    const worker = harness.open('worker')
+    const refused = worker.recordAttemptMetrics({ attemptId: alpha.id, claimToken: alpha.token, reports: [usage({ eventId: 'seq-1', sequence: 3 })] })
+    await expect(refused).rejects.toMatchObject({ code: 'invalid_input', message: expect.stringContaining('A delta report is identified by its eventId, not a sequence') })
+    const stored = await worker.recordAttemptMetrics({ attemptId: alpha.id, claimToken: alpha.token, reports: [usage({ eventId: 'seq-1' })] })
+    expect(stored.created).toHaveLength(1)
+  })
+})

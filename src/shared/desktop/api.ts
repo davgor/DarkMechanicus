@@ -8,6 +8,7 @@ import type { TerminalColors } from '../agents/terminalColors'
 import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
+import type { KanbanCardView } from '../domain/kanban'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { ForgeSetupApi } from './forgeSetup'
@@ -183,6 +184,13 @@ export type CommandOutput<K extends CommandName> = Awaited<ReturnType<CommandApi
 
 export type CommandResult<T> = { ok: true; data: T } | { ok: false; error: DomainErrorShape }
 
+/** DM-956: the exact learning card approval the person reviewed: card, submitted attempt and staged drafts hash. */
+export interface ApproveLearningCardRequest {
+  cardId: string
+  attemptId: string
+  draftsHash: string
+}
+
 export interface McpConfigView {
   command: string
   args: string[]
@@ -288,6 +296,12 @@ export interface DmApi {
     name: K,
     input: CommandInput<K>
   ): Promise<CommandResult<CommandOutput<K>>>
+  /**
+   * DM-956: the person's one approval of a sprint learning card in Ready for review: the exact reviewed card, attempt
+   * and staged drafts hash. Main integrates every repository, then approves the card to Done and publishes its
+   * learnings; resolves to the Done card. A conflict leaves the card in Ready for review and publishes nothing.
+   */
+  approveLearningCard(folder: string, input: ApproveLearningCardRequest): Promise<CommandResult<KanbanCardView>>
   getMcpConfig(folder: string): Promise<McpConfigView>
   installSkills(folder: string): Promise<{ written: string[] }>
   connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult>
@@ -421,6 +435,12 @@ const DESKTOP_COMMANDS = [
   'listProfiles',
   'getProfile',
   'saveProfile',
+  // Published learnings: the person reads, retires and replaces them; agents only read them.
+  'listLearnings',
+  'getLearning',
+  'getStagedLearningDrafts',
+  'retireLearning',
+  'replaceLearning',
   'queueRun',
   'getRun',
   'getReadyTickets',

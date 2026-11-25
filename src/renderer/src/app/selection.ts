@@ -22,6 +22,10 @@ export interface Selection {
   kanbanCardId?: string
   /** The folder's Metrics dashboard, shown in place of its home; absent means no dashboard. Only set with `epicId` null, no chat and no board. */
   metrics?: true
+  /** The folder's Learnings (Knowledge → Learnings), shown in place of its home; absent means not shown. Only set with `epicId` null, no chat, board or dashboard. */
+  learnings?: true
+  /** The learning open in the Learnings detail pane. Only set with `learnings`. */
+  learningId?: string
 }
 
 export const EMPTY_SELECTION: Selection = { folderPath: null, epicId: null }
@@ -42,20 +46,38 @@ function isAgentPane(value: unknown): value is AgentPane {
   )
 }
 
-type StoredShape = { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown; kanbanCardId?: unknown; metrics?: unknown }
+type StoredShape = {
+  folderPath?: unknown
+  epicId?: unknown
+  agentPane?: unknown
+  chatId?: unknown
+  kanban?: unknown
+  kanbanCardId?: unknown
+  metrics?: unknown
+  learnings?: unknown
+  learningId?: unknown
+}
 
 function hasValidCard(candidate: StoredShape): boolean {
   return candidate.kanbanCardId === undefined || (candidate.kanban === true && typeof candidate.kanbanCardId === 'string')
 }
 
-/** The screens a stored selection may name over its folder are well formed: an agents screen, a chat, the board, the dashboard. */
+function hasValidLearnings(candidate: StoredShape): boolean {
+  return (
+    (candidate.learnings === undefined || candidate.learnings === true) &&
+    (candidate.learningId === undefined || (candidate.learnings === true && typeof candidate.learningId === 'string'))
+  )
+}
+
+/** The screens a stored selection may name over its folder are well formed: an agents screen, a chat, the board, the dashboard, the learnings. */
 function hasValidScreens(candidate: StoredShape): boolean {
   return (
     (candidate.agentPane === undefined || isAgentPane(candidate.agentPane)) &&
     (candidate.chatId === undefined || typeof candidate.chatId === 'string') &&
     (candidate.kanban === undefined || candidate.kanban === true) &&
     hasValidCard(candidate) &&
-    (candidate.metrics === undefined || candidate.metrics === true)
+    (candidate.metrics === undefined || candidate.metrics === true) &&
+    hasValidLearnings(candidate)
   )
 }
 
@@ -104,7 +126,8 @@ function keptFolderScreens(stored: Selection, folder: TrackedFolderView, chatId:
     ...base,
     epicId: stored.epicId,
     ...(stored.kanban === true ? { kanban: true as const, ...(stored.kanbanCardId === undefined ? {} : { kanbanCardId: stored.kanbanCardId }) } : {}),
-    ...(stored.metrics === true ? { metrics: true as const } : {})
+    ...(stored.metrics === true ? { metrics: true as const } : {}),
+    ...(stored.learnings === true ? { learnings: true as const, ...(stored.learningId === undefined ? {} : { learningId: stored.learningId }) } : {})
   }
 }
 

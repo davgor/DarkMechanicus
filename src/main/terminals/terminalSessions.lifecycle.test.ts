@@ -16,7 +16,8 @@ import type { FakePty } from './__mocks__/fakePtyHost'
 import { CUSTOM_AGENT, claudeSessionFile, eventually, recorder, sessionIdNumber, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 import type { TerminalEvent } from './terminalSessions'
 
-const HOUR = 60 * 60_000
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 const OLD_SESSION = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
@@ -236,6 +237,21 @@ describe('terminal sessions: no idle stop', () => {
 
     expect([pty.kills, rig.revoked, exitOf(heard.events)]).toEqual([0, [], undefined])
     expect(rig.renewed).toEqual(Array.from({ length: 240 }, () => 'gr_1'))
+  })
+
+  it('still checks its folder every minute after 10 idle days: untracking it then stops the PTY within a minute', async () => {
+    const chat = rig.newChat()
+    const heard = recorder()
+    const { pty } = await startTerminal(rig, chat, heard.listener)
+
+    rig.clock.advance(10 * DAY)
+    expect([rig.killed, rig.revoked, rig.renewed.length]).toEqual([[], [], 240])
+    rig.tracked.delete(rig.repo)
+    rig.clock.advance(MINUTE - 1)
+    expect(rig.killed).toEqual([])
+    rig.clock.advance(1)
+
+    expect([rig.killed.map((tree) => tree.pid), rig.revoked]).toEqual([[pty.pid], ['gr_1']])
   })
 
   it('renews nothing once the PTY has exited, and leaves no timer behind', async () => {

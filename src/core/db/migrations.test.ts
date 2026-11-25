@@ -1,7 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { LEARNING_HISTORY_KINDS, LEARNING_INTEGRATION_OPEN_STATES, LEARNING_INTEGRATION_STATES, LEARNING_STATES } from '../../shared/domain/learnings'
 import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/status'
+import { doneCard, kanbanSessions } from '../../test/kanbanFixtures'
+import { createRepoEnv, createStubGit, importerDeps, initProject } from '../../test/repoEnv'
 import { thrownBy } from '../../test/thrownBy'
+import { contentHash, prettyJson } from '../canonical'
 import { DomainError } from '../errors'
+import { reconcileRepository } from '../repo/importer'
+import { ownedPaths } from '../repo/paths'
+import { buildKanbanCardRecord, buildKanbanEventRecord, buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
 import { type Db, openDatabase } from './database'
 import { MIGRATIONS, migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
 
@@ -79,7 +89,7 @@ it('retires legacy holds, restores the prior run state and credits an open lease
   vi.useFakeTimers({ toFake: ['Date'] })
   try {
     vi.setSystemTime(new Date(migrationTime))
-    expect(migrate(db)).toEqual({ from: 28, to: 29 })
+    expect(migrate(db, MIGRATIONS.filter(migration => migration.version <= 29))).toEqual({ from: 28, to: 29 })
     expect(db.all('SELECT id,state,pause_reason,paused_at FROM runs ORDER BY id')).toEqual([
       { id: 'original', state: 'awaiting_checkpoint', pause_reason: null, paused_at: null },
       { id: 'orphan', state: 'paused', pause_reason: null, paused_at: heldAt },
@@ -87,7 +97,7 @@ it('retires legacy holds, restores the prior run state and credits an open lease
     ])
     expect(db.get('SELECT lease_expires_at FROM attempts WHERE id = ?', 'attempt')).toEqual({ lease_expires_at: '2026-11-23T12:09:00.000Z' })
     expect(db.get('SELECT lease_expires_at FROM kanban_attempts WHERE id = ?', 'renewed')).toEqual({ lease_expires_at: expires })
-    expect(migrate(db)).toEqual({ from: 29, to: 29 })
+    expect(migrate(db, MIGRATIONS.filter(migration => migration.version <= 29))).toEqual({ from: 29, to: 29 })
     expect(db.all('SELECT attempt_id,kind,granted_at,ms FROM legacy_tooling_lease_credits')).toEqual([
       { attempt_id: 'attempt', kind: 'run', granted_at: heartbeat, ms: 180_000 }
     ])
@@ -119,6 +129,11 @@ const EXPECTED_TABLES = [
   'kanban_attempts',
   'kanban_cards',
   'kanban_events',
+  'learning_events',
+  'learning_integrations',
+  'learning_publications',
+  'learning_records',
+  'learning_stagings',
   'legacy_tooling_lease_credits',
   'meta',
   'metric_observations',
@@ -131,6 +146,7 @@ const EXPECTED_TABLES = [
   'save_permission_requests',
   'search_index',
   'sessions',
+  'sprint_learning_cards',
   'sprint_reports',
   'sync_state',
   'ticket_status',
@@ -179,6 +195,11 @@ describe('the indexes a fresh database ends up with', () => {
       'kanban_attempts_one_open_per_card',
       'kanban_cards_open_lanes',
       'kanban_events_card',
+      'learning_events_learning',
+      'learning_integrations_one_open_per_card',
+      'learning_records_replaced_once',
+      'learning_records_source',
+      'learning_records_state',
       'metric_observations_attempt',
       'metric_observations_epic',
       'metric_observations_recorded',
@@ -1445,3 +1466,356 @@ describe('v24 save permission compatibility', () => {
     expect(db.all('SELECT * FROM save_permission_requests')).toEqual([])
   })
 })
+
+const LEGACY_DIR = fileURLToPath(new URL('../repo/__mocks__/legacy/', import.meta.url))
+const LEGACY_EPIC = 'ep_01m3txy30qavmd5wewct90804g'
+const LEGACY_REVISION = 'rv_01m3txzpv9ws6fbj6p211ghkn9'
+const LEGACY_RUN = 'rn_01m3txzt9wj79mxsq50f5ktf1q'
+const LEGACY_COPIED = ['epics', 'plan_revisions', 'ticket_status', 'runs', 'attempts', 'sprint_reports', 'checkpoints',
+  'kanban_cards', 'kanban_attempts', 'kanban_events', 'outbox', 'sync_state']
+const LEARNING_HASH = `sha256:${'b'.repeat(64)}`
+
+const legacyText = (...parts: string[]): string => readFileSync(join(LEGACY_DIR, ...parts), 'utf8').replace(/\r\n/g, '\n')
+
+/** A v29 database holding an imported legacy run and an approved Kanban card, as an installed build left it. */
+function v29WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
+  const source = createRepoEnv({ root: '/legacy' })
+  initProject(source)
+  const paths = ownedPaths(source.layout)
+  source.fs.put(join(source.layout.dmDir, 'project.json'), legacyText('project.json'))
+  source.fs.put(paths.epicPointerFile(LEGACY_EPIC), legacyText('epics', LEGACY_EPIC, 'current.json'))
+  source.fs.put(paths.epicStateFile(LEGACY_EPIC), legacyText('epics', LEGACY_EPIC, 'state.json'))
+  source.fs.put(paths.snapshotFile(LEGACY_EPIC, LEGACY_REVISION), legacyText('epics', LEGACY_EPIC, 'snapshots', `${LEGACY_REVISION}.json`))
+  source.fs.put(paths.runHistoryFile(LEGACY_RUN), legacyText('history', LEGACY_RUN, 'run.json'))
+  reconcileRepository(importerDeps(source, createStubGit()))
+  const cardId = doneCard(kanbanSessions(source), 'Keep the upload test stable').cardId
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 29))
+  for (const table of LEGACY_COPIED) {
+    for (const row of source.db.all<Record<string, string | number | null>>(`SELECT * FROM ${table}`)) {
+      const columns = Object.keys(row)
+      db.run(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`, ...columns.map((column) => row[column]))
+    }
+  }
+  source.db.close()
+  const eventIds = db.all<{ id: string }>('SELECT id FROM kanban_events ORDER BY id').map((row) => row.id)
+  return { db, cardId, eventIds }
+}
+
+function recordHashes(db: Db, cardId: string, eventIds: string[]): string[] {
+  return [
+    contentHash(buildRunHistoryRecord(db, LEGACY_RUN)),
+    contentHash(buildSnapshotRecord(db, LEGACY_REVISION)),
+    contentHash(buildKanbanCardRecord(db, cardId, { generation: 1 })),
+    ...eventIds.map((eventId) => contentHash(buildKanbanEventRecord(db, eventId)))
+  ]
+}
+
+function schemaOf(db: Db): unknown[] {
+  return db.all("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name")
+}
+
+function insertLearning(db: Db, spec: { id: string; state?: string; replaces?: string | null; replacedBy?: string | null; retiredAt?: string | null }): void {
+  db.run(
+    `INSERT INTO learning_records (id, run_id, sprint_id, card_id, attempt_id, definition_json, definition_hash, state,
+       replaces_id, replaced_by_id, created_at, retired_at)
+     VALUES (?, 'rn1', 'sp1', 'kc1', 'ka1', '{}', ?, ?, ?, ?, 't', ?)`,
+    spec.id, LEARNING_HASH, spec.state ?? 'active', spec.replaces ?? null, spec.replacedBy ?? null, spec.retiredAt ?? null
+  )
+}
+
+function insertGeneratedCard(db: Db, cardId: string, runId: string, sprintId: string): void {
+  db.run(
+    `INSERT INTO sprint_learning_cards (card_id, epic_id, run_id, sprint_id, report_id, evidence_hash, created_at)
+     VALUES (?, 'ep1', ?, ?, 'rp1', ?, 't')`,
+    cardId, runId, sprintId, LEARNING_HASH
+  )
+}
+
+describe('v30 learning storage upgrade', () => {
+  it('upgrades a v29 database without changing a row, or the hash of a Kanban, plan or run record', () => {
+    const { db, cardId, eventIds } = v29WithRecords()
+    const rows = JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))
+    const hashes = recordHashes(db, cardId, eventIds)
+    expect(eventIds.length).toBeGreaterThan(0)
+    expect(migrate(db)).toEqual({ from: 29, to: SCHEMA_VERSION })
+    expect(JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))).toBe(rows)
+    expect(recordHashes(db, cardId, eventIds)).toEqual(hashes)
+    expect(prettyJson(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(legacyText('history', LEGACY_RUN, 'run.json'))
+    expect(db.all('PRAGMA foreign_key_check')).toEqual([])
+    for (const table of ['learning_records', 'sprint_learning_cards', 'learning_integrations']) {
+      expect(db.all(`SELECT * FROM ${table}`)).toEqual([])
+    }
+  })
+
+  it('leaves an upgraded database with exactly the schema of a clean install', () => {
+    const upgraded = freshDb()
+    migrate(upgraded, MIGRATIONS.filter((migration) => migration.version <= 29))
+    migrate(upgraded)
+    expect(schemaOf(upgraded)).toEqual(schemaOf(migratedDb()))
+  })
+
+  it('links one generated learning card per run and sprint, and a card to one run and sprint', () => {
+    const db = migratedDb()
+    insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
+    expect(() => insertGeneratedCard(db, 'kc2', 'rn1', 'sp1')).toThrow(/UNIQUE constraint failed: sprint_learning_cards.run_id, sprint_learning_cards.sprint_id/)
+    expect(() => insertGeneratedCard(db, 'kc1', 'rn1', 'sp2')).toThrow(/UNIQUE constraint failed: sprint_learning_cards.card_id/)
+    insertGeneratedCard(db, 'kc2', 'rn1', 'sp2')
+    insertGeneratedCard(db, 'kc3', 'rn2', 'sp1')
+    expect(db.all('SELECT card_id FROM sprint_learning_cards ORDER BY card_id')).toEqual([{ card_id: 'kc1' }, { card_id: 'kc2' }, { card_id: 'kc3' }])
+  })
+})
+
+describe('v30 learning storage invariants', () => {
+  it('keeps a learning record definition and source immutable while its lifecycle changes', () => {
+    const db = migratedDb()
+    insertLearning(db, { id: 'lr1' })
+    for (const column of ['definition_json', 'run_id', 'card_id', 'attempt_id', 'definition_hash']) {
+      expect(() => db.run(`UPDATE learning_records SET ${column} = 'changed' WHERE id = 'lr1'`)).toThrow('immutable')
+    }
+    db.run("UPDATE learning_records SET state = 'retired', retired_at = 't2', retired_reason = 'Stale', revision = 2 WHERE id = 'lr1'")
+    expect(db.get('SELECT state, retired_reason, revision FROM learning_records')).toEqual({ state: 'retired', retired_reason: 'Stale', revision: 2 })
+  })
+
+  it('refuses lifecycle states and links that break the record invariants', () => {
+    const db = migratedDb()
+    expect(() => insertLearning(db, { id: 'lr0', state: 'draft' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertLearning(db, { id: 'lr0', state: 'retired' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertLearning(db, { id: 'lr0', retiredAt: 't' })).toThrow(/CHECK constraint failed/)
+    // BEFORE INSERT triggers run ahead of CHECK constraints, so the cycle guard is what refuses a self-replacement.
+    expect(() => insertLearning(db, { id: 'lr0', replaces: 'lr0' })).toThrow('A learning replacement chain cannot form a cycle')
+    expect(() => insertLearning(db, { id: 'lr0', replaces: 'missing' })).toThrow(/FOREIGN KEY constraint failed/)
+    insertLearning(db, { id: 'lr1' })
+    insertLearning(db, { id: 'lr2', replaces: 'lr1' })
+    expect(() => insertLearning(db, { id: 'lr3', replaces: 'lr1' })).toThrow(/UNIQUE constraint failed: learning_records.replaces_id/)
+    expect(() => db.run("UPDATE learning_records SET replaced_by_id = 'lr1' WHERE id = 'lr1'")).toThrow(/CHECK constraint failed/)
+    expect(() => db.run("UPDATE learning_records SET replaced_by_id = 'lr2' WHERE id = 'lr1'")).toThrow(/CHECK constraint failed/)
+    db.run("UPDATE learning_records SET state = 'retired', retired_at = 't2', replaced_by_id = 'lr2' WHERE id = 'lr1'")
+    expect(db.all('SELECT id, state, replaces_id, replaced_by_id FROM learning_records ORDER BY id')).toEqual([
+      { id: 'lr1', state: 'retired', replaces_id: null, replaced_by_id: 'lr2' },
+      { id: 'lr2', state: 'active', replaces_id: 'lr1', replaced_by_id: null }
+    ])
+  })
+
+  it('refuses a replacement that would close a cycle, even with foreign keys deferred as an import does', () => {
+    const db = migratedDb()
+    db.exec('PRAGMA foreign_keys = OFF')
+    insertLearning(db, { id: 'a', replaces: 'c' })
+    insertLearning(db, { id: 'b', replaces: 'a' })
+    expect(() => insertLearning(db, { id: 'c', replaces: 'b' })).toThrow('A learning replacement chain cannot form a cycle')
+    db.exec('PRAGMA foreign_keys = ON')
+    expect(db.all('SELECT id FROM learning_records ORDER BY id')).toEqual([{ id: 'a' }, { id: 'b' }])
+  })
+})
+
+describe('v30 learning integration storage', () => {
+  it('allows one open integration per card and keeps finished ones as history', () => {
+    const db = migratedDb()
+    const insert = (id: string, state: string): void => {
+      db.run(
+        `INSERT INTO learning_integrations (id, card_id, attempt_id, state, manifest_json, manifest_hash, created_at, updated_at)
+         VALUES (?, 'kc1', 'ka1', ?, '{}', ?, 't', 't')`,
+        id, state, LEARNING_HASH
+      )
+    }
+    insert('li1', 'conflicted')
+    insert('li2', 'aborted')
+    insert('li3', 'prepared')
+    expect(() => insert('li4', 'integrating')).toThrow(/UNIQUE constraint failed: learning_integrations.card_id/)
+    expect(() => insert('li5', 'merged')).toThrow(/CHECK constraint failed/)
+    db.run("UPDATE learning_integrations SET state = 'published' WHERE id = 'li3'")
+    insert('li6', 'prepared')
+    expect(db.all("SELECT id FROM learning_integrations WHERE state IN ('prepared','integrating','integrated')")).toEqual([{ id: 'li6' }])
+  })
+
+  it('names the same lifecycle and integration states as the shared contract', () => {
+    const db = migratedDb()
+    const sql = db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'learning_integrations'")?.sql ?? ''
+    expect(sql).toContain(`state IN (${LEARNING_INTEGRATION_STATES.map((state) => `'${state}'`).join(',')})`)
+    const index = db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'learning_integrations_one_open_per_card'")?.sql ?? ''
+    expect(index).toContain(`state IN (${LEARNING_INTEGRATION_OPEN_STATES.map((state) => `'${state}'`).join(',')})`)
+    const records = db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'learning_records'")?.sql ?? ''
+    expect(records).toContain(`state IN (${LEARNING_STATES.map((state) => `'${state}'`).join(',')})`)
+  })
+})
+
+describe('v31 learning history upgrade', () => {
+  it('upgrades a v30 database with learnings without changing a row, and matches a clean install', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 30))
+    insertLearning(db, { id: 'lr1' })
+    insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
+    const before = JSON.stringify(['learning_records', 'sprint_learning_cards', 'learning_integrations'].map((table) => db.all(`SELECT * FROM ${table}`)))
+    expect(migrate(db)).toEqual({ from: 30, to: SCHEMA_VERSION })
+    expect(JSON.stringify(['learning_records', 'sprint_learning_cards', 'learning_integrations'].map((table) => db.all(`SELECT * FROM ${table}`)))).toBe(before)
+    expect(db.all('SELECT * FROM learning_events')).toEqual([])
+    expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))
+  })
+
+  it('keeps learning history append-only, linked to stored learnings, with a related learning exactly for replacements', () => {
+    const db = migratedDb()
+    insertLearning(db, { id: 'lr1' })
+    insertLearning(db, { id: 'lr2', replaces: 'lr1' })
+    const append = (kind: string, learningId: string, related: string | null): void => {
+      db.run(
+        `INSERT INTO learning_events (learning_id, kind, related_id, reason, revision, actor_role, actor_label, run_id, sprint_id, card_id, attempt_id, at)
+         VALUES (?, ?, ?, 'why', 1, 'desktop', 'person', 'rn1', 'sp1', 'kc1', 'ka1', 't')`,
+        learningId, kind, related
+      )
+    }
+    append('published', 'lr1', null)
+    append('replaced', 'lr1', 'lr2')
+    append('created_by_replacement', 'lr2', 'lr1')
+    expect(() => append('edited', 'lr1', null)).toThrow(/CHECK constraint failed/)
+    expect(() => append('replaced', 'lr1', null)).toThrow(/CHECK constraint failed/)
+    expect(() => append('retired', 'lr1', 'lr2')).toThrow(/CHECK constraint failed/)
+    expect(() => append('retired', 'missing', null)).toThrow(/FOREIGN KEY constraint failed/)
+    expect(() => db.run("UPDATE learning_events SET reason = 'changed'")).toThrow('Learning history is append-only')
+    expect(() => db.run('DELETE FROM learning_events WHERE seq = 1')).toThrow('Learning history is append-only')
+    expect(db.all('SELECT learning_id, kind, related_id FROM learning_events ORDER BY seq')).toEqual([
+      { learning_id: 'lr1', kind: 'published', related_id: null },
+      { learning_id: 'lr1', kind: 'replaced', related_id: 'lr2' },
+      { learning_id: 'lr2', kind: 'created_by_replacement', related_id: 'lr1' }
+    ])
+  })
+
+  it('names the same history kinds as the shared contract', () => {
+    const sql = migratedDb().get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'learning_events'")?.sql ?? ''
+    expect(sql).toContain(`kind IN (${LEARNING_HISTORY_KINDS.map((kind) => `'${kind}'`).join(',')})`)
+  })
+})
+
+function stageDrafts(db: Db, attemptId: string, drafts = '[]'): void {
+  db.run(
+    `INSERT INTO learning_stagings (attempt_id, card_id, run_id, sprint_id, snapshot_hash, drafts_json, drafts_hash, evidence_json,
+       staged_by_role, staged_by_label, staged_at)
+     VALUES (?, 'kc1', 'rn1', 'sp1', ?, ?, ?, '[]', 'worker', 'agent', 't')
+     ON CONFLICT (attempt_id) DO UPDATE SET drafts_json = excluded.drafts_json`,
+    attemptId, LEARNING_HASH, drafts, LEARNING_HASH
+  )
+}
+
+function insertPublication(db: Db, attemptId: string, cardId = 'kc1'): void {
+  db.run(
+    `INSERT INTO learning_publications (attempt_id, card_id, run_id, sprint_id, drafts_hash, evidence_json, record_ids_json,
+       published_by_role, published_by_label, published_at)
+     VALUES (?, ?, 'rn1', 'sp1', ?, '[]', '[]', 'desktop', 'person', 't')`,
+    attemptId, cardId, LEARNING_HASH
+  )
+}
+
+describe('v32 learning publication storage', () => {
+  const stage = stageDrafts
+  const publish = insertPublication
+
+  it('upgrades a v31 database with learnings and history without changing a row, and matches a clean install', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 31))
+    insertLearning(db, { id: 'lr1' })
+    insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
+    db.run(
+      `INSERT INTO learning_events (learning_id, kind, reason, revision, actor_role, actor_label, run_id, sprint_id, card_id, attempt_id, at)
+       VALUES ('lr1', 'published', 'why', 1, 'desktop', 'person', 'rn1', 'sp1', 'kc1', 'ka1', 't')`
+    )
+    const tables = ['learning_records', 'learning_events', 'sprint_learning_cards', 'learning_integrations']
+    const before = JSON.stringify(tables.map((table) => db.all(`SELECT * FROM ${table}`)))
+    expect(migrate(db)).toEqual({ from: 31, to: SCHEMA_VERSION })
+    expect(JSON.stringify(tables.map((table) => db.all(`SELECT * FROM ${table}`)))).toBe(before)
+    expect(db.all('SELECT * FROM learning_stagings')).toEqual([])
+    expect(db.all('SELECT * FROM learning_publications')).toEqual([])
+    expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))
+  })
+
+  it('lets an attempt restage until it is published, then freezes its drafts and the publication', () => {
+    const db = migratedDb()
+    stage(db, 'ka1')
+    stage(db, 'ka1', '[{"title":"restaged"}]')
+    expect(db.get('SELECT drafts_json FROM learning_stagings')).toEqual({ drafts_json: '[{"title":"restaged"}]' })
+    publish(db, 'ka1')
+    expect(() => stage(db, 'ka1', '[]')).toThrow('Published learning drafts are immutable')
+    expect(() => db.run("DELETE FROM learning_stagings WHERE attempt_id = 'ka1'")).toThrow('Published learning drafts are immutable')
+    expect(() => db.run("UPDATE learning_publications SET record_ids_json = '[\"lr1\"]'")).toThrow('A learning publication is immutable')
+    expect(() => db.run('DELETE FROM learning_publications')).toThrow('A learning publication is immutable')
+    expect(() => publish(db, 'ka1', 'kc2')).toThrow(/UNIQUE constraint failed: learning_publications.attempt_id/)
+    expect(() => publish(db, 'ka2')).toThrow(/UNIQUE constraint failed: learning_publications.card_id/)
+    stage(db, 'ka3')
+    db.run("DELETE FROM learning_stagings WHERE attempt_id = 'ka3'")
+    expect(db.all('SELECT attempt_id FROM learning_stagings')).toEqual([{ attempt_id: 'ka1' }])
+  })
+})
+
+// ─── DM-935: v34 learning kinds in the outbox and sync state ───
+describe('v34 learning record kinds', () => {
+  function v32Db(): Db {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 32))
+    return db
+  }
+
+  it('upgrades a v32 database keeping every outbox and sync state row, the outbox id sequence and its index', () => {
+    const db = v32Db()
+    db.run(
+      `INSERT INTO outbox (kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at)
+       VALUES ('snapshot', 'ep1', NULL, 'rv1', NULL, 'pending', 0, NULL, 't'),
+              ('metric_observation', NULL, NULL, NULL, 'mo1', 'failed', 5, 'disk full', 't'),
+              ('kanban_card', NULL, NULL, NULL, 'kc1', 'done', 1, NULL, 't')`
+    )
+    db.run('DELETE FROM outbox WHERE id = 3')
+    db.run(
+      `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+       VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('metric_observation', 'mo1', NULL, 0, 'sha256:c', NULL, 't2')`
+    )
+    expect(() => db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('learning_record', 'lr1', 'pending', 't')")).toThrow(/CHECK constraint failed/)
+    expect(migrate(db)).toEqual({ from: 32, to: SCHEMA_VERSION })
+    expect(outboxRows(db)).toEqual([
+      { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },
+      { id: 2, kind: 'metric_observation', epic_id: null, run_id: null, revision_id: null, entity_id: 'mo1', state: 'failed', attempts: 5, last_error: 'disk full' }
+    ])
+    expect(db.all('SELECT * FROM sync_state ORDER BY kind')).toEqual([
+      { kind: 'epic', entity_id: 'ep1', exported_hash: 'sha256:a', generation: 4, imported_hash: 'sha256:b', conflict: 'diverged', updated_at: 't1' },
+      { kind: 'metric_observation', entity_id: 'mo1', exported_hash: null, generation: 0, imported_hash: 'sha256:c', conflict: null, updated_at: 't2' }
+    ])
+    // The id deleted before the upgrade is never handed out again.
+    expect(db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('learning_record', 'lr1', 'pending', 't')").lastInsertRowid).toBe(4)
+    expect(objectNames(db, 'index')).toContain('outbox_state')
+  })
+
+  it('builds the same schema on upgrade as on a clean install', () => {
+    const upgraded = v32Db()
+    migrate(upgraded)
+    expect(schemaOf(upgraded)).toEqual(schemaOf(migratedDb()))
+  })
+
+  it.each(['learning_record', 'learning_integration'])('accepts outbox entries and sync state of kind %s, and still rejects unknown kinds', (kind) => {
+    const db = migratedDb()
+    db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES (?, 'x1', 'pending', 't')", kind)
+    db.run("INSERT INTO sync_state (kind, entity_id, updated_at) VALUES (?, 'x1', 't')", kind)
+    expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM outbox WHERE kind = ?', kind)?.n).toBe(1)
+    expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_state WHERE kind = ?', kind)?.n).toBe(1)
+    expect(() => db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('learning_event', 'x', 'pending', 't')")).toThrow(/CHECK constraint failed/)
+    expect(() => db.run("INSERT INTO sync_state (kind, entity_id, updated_at) VALUES ('learning_event', 'x', 't')")).toThrow(/CHECK constraint failed/)
+  })
+})
+// ─── End DM-935 ───
+
+// ─── DM-950: v35 machine-local integration authority ───
+describe('v35 learning integration authority', () => {
+  it('upgrades a v34 database keeping every integration, each inert, and builds the clean-install schema', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 34))
+    db.run(
+      `INSERT INTO learning_integrations (id, card_id, attempt_id, state, manifest_json, manifest_hash, failure_json, revision, created_at, updated_at)
+       VALUES ('li1', 'kc1', 'ka1', 'integrating', '{"a":1}', 'sha256:a', NULL, 3, 't1', 't2'),
+              ('li2', 'kc2', 'ka2', 'aborted', '{"b":2}', 'sha256:b', '{"code":"x","message":"y"}', 2, 't3', 't4')`
+    )
+    const before = db.all('SELECT * FROM learning_integrations ORDER BY id')
+    expect(migrate(db)).toEqual({ from: 34, to: SCHEMA_VERSION })
+    // Named columns: a cached `SELECT *` statement would keep the pre-upgrade column list.
+    expect(db.all('SELECT learning_integrations.*, owner_machine_id, superseded_by FROM learning_integrations ORDER BY id')).toEqual(
+      before.map((row) => ({ ...(row as Record<string, unknown>), owner_machine_id: null, superseded_by: null }))
+    )
+    expect(objectNames(db, 'index')).toContain('learning_integrations_one_open_per_card')
+    expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))
+  })
+})
+// ─── End DM-950 ───

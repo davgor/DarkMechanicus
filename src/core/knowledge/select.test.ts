@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { LearningView } from '../../shared/domain/learnings'
 import type { KnowledgeFact, KnowledgeLayer } from './fact'
-import { DEFAULT_CONTEXT_BUDGET, selectFacts } from './select'
+import { DEFAULT_CONTEXT_BUDGET, DEFAULT_LEARNING_BUDGET, selectFacts, selectLearnings } from './select'
 
 interface Spec {
   layer?: KnowledgeLayer
@@ -116,5 +117,104 @@ describe('selectFacts budget and determinism', () => {
       expect(selectFacts(shuffled, query)).toEqual(expected)
     }
     expect(ids(expected.facts)).toEqual(['d', 'f', 'b', 'e'])
+  })
+})
+
+// DM-936: published learnings, selected beside the facts within their own budget.
+const SOURCE = {
+  runId: 'rn_00000000000000000000000001',
+  sprintId: 'sp_00000000000000000000000001',
+  cardId: 'kc_00000000000000000000000001',
+  attemptId: 'ka_00000000000000000000000001'
+}
+
+interface LearningSpec {
+  roles?: ('orchestrator' | 'worker')[]
+  events?: LearningView['applicability']['events']
+  paths?: string[]
+  retired?: boolean
+  replacedBy?: string | null
+  createdAt?: string
+  rule?: string
+}
+
+const RETIREMENT = { state: 'retired', retiredAt: '2026-01-02T00:00:00.000Z', retiredReason: 'Obsolete' } as const
+const ACTIVE = { state: 'active', retiredAt: null, retiredReason: null } as const
+
+function learning(id: string, spec: LearningSpec = {}): LearningView {
+  return {
+    formatVersion: 1,
+    id,
+    title: `Learning ${id}`,
+    rule: spec.rule ?? 'Do the thing.',
+    check: 'Evidence shows it.',
+    applicability: { roles: spec.roles ?? ['worker'], events: spec.events ?? [], paths: spec.paths ?? [] },
+    evidence: [{ kind: 'rejected_attempt', sourceId: 'at_x', contentHash: `sha256:${'a'.repeat(64)}` }],
+    replaces: null,
+    source: SOURCE,
+    ...(spec.retired === true ? RETIREMENT : ACTIVE),
+    replacedBy: spec.replacedBy ?? null,
+    createdAt: spec.createdAt ?? '2026-01-01T00:00:00.000Z',
+    revision: 1,
+    definitionHash: `sha256:${'b'.repeat(64)}`
+  }
+}
+
+const workerQuery = { role: 'worker', event: 'ticket.claimed', paths: ['src/core/db/migrations.ts'], budgetTokens: DEFAULT_LEARNING_BUDGET }
+const learningIds = (result: { learnings: { id: string }[] }) => result.learnings.map((item) => item.id)
+
+describe('selectLearnings scope', () => {
+  it('keeps only active learnings for the role whose events and paths match, path-scoped first', () => {
+    const all = [
+      learning('lr_any'),
+      learning('lr_path', { paths: ['src/core/db/**'] }),
+      learning('lr_event', { events: ['ticket.claimed'] }),
+      learning('lr_wrong_event', { events: ['attempt.rejected'] }),
+      learning('lr_wrong_path', { paths: ['src/renderer/**'] }),
+      learning('lr_orchestrator', { roles: ['orchestrator'] }),
+      learning('lr_retired', { retired: true }),
+      learning('lr_replaced', { retired: true, replacedBy: 'lr_path' })
+    ]
+    const result = selectLearnings(all, workerQuery)
+    expect(learningIds(result)).toEqual(['lr_path', 'lr_event', 'lr_any'])
+    expect(result.omitted).toEqual([])
+  })
+
+  it('selects orchestrator learnings for the event, and none scoped to an event when the query names none', () => {
+    const all = [learning('lr_o', { roles: ['orchestrator'], events: ['attempt.rejected'] }), learning('lr_w')]
+    expect(learningIds(selectLearnings(all, { role: 'orchestrator', event: 'attempt.rejected', budgetTokens: 600 }))).toEqual(['lr_o'])
+    expect(learningIds(selectLearnings(all, { role: 'orchestrator', budgetTokens: 600 }))).toEqual([])
+  })
+
+  it('leaves the facts selection unchanged: learnings never enter selectFacts', () => {
+    const facts = [make('a', { roles: ['worker'] })]
+    const before = selectFacts(facts, { role: 'worker', event: 'ticket.claimed', budgetTokens: 10 })
+    expect(ids(before.facts)).toEqual(['a'])
+  })
+})
+
+describe('selectLearnings budget and shape', () => {
+  it('fills its own budget and reports what it left out, newest first among equals', () => {
+    const long = 'x'.repeat(400)
+    const all = [
+      learning('lr_old', { rule: long, createdAt: '2026-01-01T00:00:00.000Z' }),
+      learning('lr_new', { rule: long, createdAt: '2026-01-03T00:00:00.000Z' }),
+      learning('lr_mid', { rule: long, createdAt: '2026-01-02T00:00:00.000Z' })
+    ]
+    const tokens = Math.ceil(('Learning lr_old'.length + long.length + 'Evidence shows it.'.length) / 4)
+    const result = selectLearnings(all, { ...workerQuery, budgetTokens: tokens * 2 })
+    expect(learningIds(result)).toEqual(['lr_new', 'lr_mid'])
+    expect(result.omitted).toEqual([{ id: 'lr_old', title: 'Learning lr_old', tokens }])
+    expect(result.usedTokens).toBe(tokens * 2)
+  })
+
+  it('carries text and provenance only: no applicability, lifecycle or authority field', () => {
+    const [item] = selectLearnings([learning('lr_a')], workerQuery).learnings
+    expect(item).toEqual({ id: 'lr_a', title: 'Learning lr_a', rule: 'Do the thing.', check: 'Evidence shows it.', source: SOURCE })
+  })
+
+  it('orders learnings equal in scope and age by id', () => {
+    const all = [learning('lr_c'), learning('lr_a'), learning('lr_b')]
+    expect(learningIds(selectLearnings(all, workerQuery))).toEqual(['lr_a', 'lr_b', 'lr_c'])
   })
 })

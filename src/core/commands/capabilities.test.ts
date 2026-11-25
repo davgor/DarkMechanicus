@@ -198,7 +198,17 @@ const PROBES: Record<CommandName, unknown> = {
   sendAgentMessage: { to: probeId('mailEndpoint'), clientMessageId: 'probe-1', body: 'probe' },
   readAgentInbox: {},
   acknowledgeAgentMessages: { messageIds: [probeId('mailMessage')] },
-  getAgentMailStatus: {}
+  getAgentMailStatus: {},
+  listLearnings: { state: 'all', query: 'probe' },
+  getLearning: { learningId: probeId('learningRecord') },
+  getStagedLearningDrafts: { attemptId: CARD_ATTEMPT },
+  retireLearning: { learningId: probeId('learningRecord'), expectedRevision: 1, reason: 'Probe retirement' },
+  replaceLearning: {
+    learningId: probeId('learningRecord'),
+    expectedRevision: 1,
+    reason: 'Probe replacement',
+    replacement: { title: 'Probe', rule: 'Probe rule', check: 'Probe check', applicability: { roles: ['worker'], events: [], paths: [] } }
+  }
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]
@@ -308,7 +318,9 @@ describe('COMMAND_CAPABILITIES', () => {
       'recordEscapedDefects',
       'recordHumanFeedback',
       'renewGrant',
+      'replaceLearning',
       'resolveEpicConflict',
+      'retireLearning',
       'revokeGrant',
       'switchStorageMode'
     ])

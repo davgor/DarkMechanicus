@@ -22,6 +22,15 @@ import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, cl
 import { findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { bindChatMailbox, deleteChatMailbox, hasMailbox, mailboxName, provisionAll, type MailboxChat } from '../agents/chatMailboxOperations'
+import {
+  finishLearningApproval,
+  learningApprovalState,
+  recordLearningIntegrationConflict,
+  recordLearningIntegrationPlan,
+  recordLearningIntegrationReceipt
+} from '../../core/services/learningApproval'
+import { listLocalPendingLearningIntegrations, prepareLearningIntegration } from '../../core/services/learningIntegrations'
+import type { LearningIntegrationConflict, LearningIntegrationPlan, LearningIntegrationReceipt } from '../../shared/git/learningIntegration'
 
 function sameProject(workspace: Workspace, projectId: string): Ctx {
   const ctx = workspace.ctx()
@@ -212,10 +221,35 @@ function correctionOperations(workspace: Workspace, ctx: Context) {
   }
 }
 
+/**
+ * DM-956: the core steps of one learning card approval, for main's coordinator (`src/main/kanban/approveLearningCard.ts`).
+ * Each mutation is flushed before it returns, so its portable record is written before the next native step runs.
+ */
+function learningApprovalOperations(workspace: Workspace, ctx: Context) {
+  async function flushed<T>(value: T): Promise<T> {
+    await workspace.flushPortableState()
+    return value
+  }
+  return {
+    async prepareLearningApproval(input: { cardId: string; attemptId: string; draftsHash: string }) {
+      const prepared = await prepareLearningIntegration(ctx(), input)
+      return flushed(learningApprovalState(ctx(), prepared.id))
+    },
+    learningApprovalOwned: (integrationId: string) => listLocalPendingLearningIntegrations(ctx()).some(operation => operation.id === integrationId),
+    pendingLearningApprovals: () => listLocalPendingLearningIntegrations(ctx()).map(operation => learningApprovalState(ctx(), operation.id)),
+    recordLearningPlan: (integrationId: string, plan: LearningIntegrationPlan) => flushed(recordLearningIntegrationPlan(ctx(), integrationId, plan)),
+    recordLearningReceipt: (integrationId: string, receipt: LearningIntegrationReceipt) =>
+      flushed(recordLearningIntegrationReceipt(ctx(), integrationId, receipt)),
+    recordLearningConflict: (integrationId: string, conflicts: readonly LearningIntegrationConflict[]) =>
+      flushed(recordLearningIntegrationConflict(ctx(), integrationId, conflicts)),
+    finishLearningApproval: (integrationId: string) => flushed(finishLearningApproval(ctx(), integrationId))
+  }
+}
+
 function workspaceOperations(workspace: Workspace, home: string) {
   const ctx = () => workspace.ctx()
   return { ...mailboxOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
-    ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx) }
+    ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx), ...learningApprovalOperations(workspace, ctx) }
 }
 
 type Tail<F> = F extends (ctx: Ctx, ...args: infer Args) => unknown ? Args : never

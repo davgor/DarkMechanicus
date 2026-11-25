@@ -21,13 +21,16 @@ const desktop = vi.hoisted(() => ({
   fork: vi.fn(),
   getFocusedWindow: vi.fn(),
   showOpenDialog: vi.fn(),
+  showMessageBox: vi.fn(),
   registerProtocol: vi.fn(),
   writeClipboard: vi.fn(),
   openExternal: vi.fn(),
   startPty: vi.fn(),
   keepAwake: vi.fn<() => number>(() => { throw new Error('Unexpected terminal start') }),
   send: vi.fn(),
-  closedWindowSend: vi.fn()
+  closedWindowSend: vi.fn(),
+  packaged: vi.fn(() => false),
+  encryption: vi.fn(() => false)
 }))
 
 vi.mock('electron', () => ({
@@ -35,7 +38,7 @@ vi.mock('electron', () => ({
     getPath: (kind: 'home' | 'userData') => desktop[kind],
     getAppPath: () => desktop.appPath,
     getVersion: () => '1.0.0-test',
-    isPackaged: false
+    get isPackaged() { return desktop.packaged() }
   },
   BrowserWindow: {
     getFocusedWindow: desktop.getFocusedWindow,
@@ -45,11 +48,15 @@ vi.mock('electron', () => ({
     ]
   },
   clipboard: { writeText: desktop.writeClipboard },
-  dialog: { showOpenDialog: desktop.showOpenDialog },
+  dialog: { showOpenDialog: desktop.showOpenDialog, showMessageBox: desktop.showMessageBox },
   net: { fetch: () => { throw new Error('Unexpected network operation') } },
   powerSaveBlocker: { start: desktop.keepAwake, stop: () => undefined },
   protocol: { handle: desktop.registerProtocol },
-  safeStorage: { isEncryptionAvailable: () => false },
+  safeStorage: {
+    isEncryptionAvailable: desktop.encryption,
+    getSelectedStorageBackend: () => 'gnome_libsecret',
+    decryptString: (data: Buffer) => data.toString('utf8')
+  },
   shell: { openExternal: desktop.openExternal },
   utilityProcess: { fork: desktop.fork }
 }))
@@ -85,15 +92,22 @@ afterEach(async () => {
   }
 })
 
-async function bridgeFixture() {
-  vi.resetModules()
+/** A scratch home with an empty `user-data`, or the same home again when the app restarts over it. */
+function bridgeHome(home?: string): string {
+  if (home !== undefined) return home
   const scratch = scratchDir('dm-bridge-')
   cleanups.push(scratch.cleanup)
-  const userData = join(scratch.path, 'user-data')
-  const appPath = join(scratch.path, 'app')
-  mkdirSync(userData)
-  Object.assign(desktop, { home: scratch.path, userData, appPath })
-  vi.stubEnv('DARKMECHANICUS_HOME', join(scratch.path, 'state'))
+  mkdirSync(join(scratch.path, 'user-data'))
+  return scratch.path
+}
+
+async function bridgeFixture(home?: string) {
+  vi.resetModules()
+  const root = bridgeHome(home)
+  const userData = join(root, 'user-data')
+  const appPath = join(root, 'app')
+  Object.assign(desktop, { home: root, userData, appPath })
+  vi.stubEnv('DARKMECHANICUS_HOME', join(root, 'state'))
   const { serveWorkspaceOwner } = await import('./workspaceOwnerRuntime')
   const owners: InProcessUtility[] = []
   desktop.fork.mockImplementation((_file: string, [generation, pid, home, version]: string[]) => {
@@ -125,7 +139,7 @@ async function bridgeFixture() {
     return data(invoke<CommandResult<T>>('dm:command', folder, name, input))
   }
   return {
-    root: scratch.path, owners, invoke, bridge, finish, command,
+    root, owners, invoke, bridge, finish, command,
     attach: async (url: string) => {
       const handler = desktop.registerProtocol.mock.calls.find(([scheme]) => scheme === ATTACHMENT_SCHEME)?.[1] as
         ((request: Request) => Promise<Response>) | undefined
@@ -347,4 +361,19 @@ it('dispatches the configured member host ahead of the world default from the bo
   } finally {
     for (const session of host.spawns) if (!session.exited) session.exit()
   }
+})
+
+it('recovers learning approvals at startup only in set-up folders, opening no owner for an uninitialized one', async () => {
+  const first = await bridgeFixture()
+  const project = await track(first, 'approvals')
+  await first.command(project.path, 'initializeRepository', { name: 'Approvals' })
+  const lazy = await track(first, 'lazy')
+  await first.finish()
+
+  const restarted = await bridgeFixture(first.root)
+  await vi.waitFor(() => expect(restarted.owners.flatMap(postedNames)).toContain('pendingLearningApprovals'))
+  expect(restarted.owners).toHaveLength(1)
+  expect(postedNames(restarted.owners[0]!)).toEqual(['pendingLearningApprovals'])
+  expect(existsSync(join(lazy.path, '.darkmechanicus'))).toBe(false)
+  expect(restarted.bridge.chats.busy()).toBe(false)
 })

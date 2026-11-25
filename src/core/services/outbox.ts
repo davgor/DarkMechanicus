@@ -10,6 +10,9 @@ export type OutboxKind =
   | 'kanban_event'
   | 'attachment'
   | 'metric_observation'
+  // DM-935: a learning with its history, and a learning integration recovery manifest.
+  | 'learning_record'
+  | 'learning_integration'
 
 /** Kanban records belong to no epic: an epic-scoped flush never writes them, and they never hold an epic's export back. */
 export const KANBAN_OUTBOX_KINDS: readonly OutboxKind[] = ['kanban_card', 'kanban_event']
