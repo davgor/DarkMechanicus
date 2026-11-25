@@ -128,7 +128,7 @@ function mapPath(path: string, records: TrackedRecords): PathVerdict {
 
 /** Whether the stored marker is current: present, written by this importer, on the branch checked out now. */
 function markerFallback(marker: ReconcileMarker, recordedBranch: string | null, branch: string | null): FullReason | null {
-  if (marker.baseCommit === null || marker.importerVersion === null || marker.dirtyPaths === null) return 'no_marker'
+  if (marker.baseCommit === null || marker.importerVersion === null) return 'no_marker'
   if (marker.importerVersion !== IMPORTER_VERSION) return 'importer_version'
   const recorded = recordedBranch === '' ? null : recordedBranch
   return recordedBranch === null || recorded !== branch ? 'branch_changed' : null
@@ -142,26 +142,32 @@ function historyFallback(input: TrackedChangesInput, head: string): FullReason |
   return input.diff.ok ? null : input.diff.reason
 }
 
-/** The first reason the marker cannot be trusted as a starting point, or null. */
-function fallback(input: TrackedChangesInput): FullReason | null {
+/**
+ * The changes the diff, the status and the paths dirty at the last reconcile name, or the first reason the marker
+ * cannot be trusted as a starting point.
+ */
+function changes(input: TrackedChangesInput): GitPathChange[] | FullReason {
   const { status } = input
   if (!status.ok) return status.reason
   if (status.head === null) return 'unborn_head'
-  return markerFallback(input.marker, input.recordedBranch, status.branch) ?? historyFallback(input, status.head)
+  const dirtyPaths = input.marker.dirtyPaths
+  if (dirtyPaths === null) return 'no_marker'
+  const reason = markerFallback(input.marker, input.recordedBranch, status.branch) ?? historyFallback(input, status.head)
+  if (reason !== null) return reason
+  return [
+    ...(input.diff?.ok === true ? input.diff.paths : []),
+    ...status.paths,
+    ...dirtyPaths.map((path) => ({ status: '', path }))
+  ]
 }
 
-/** The records the diff, the status and the paths dirty at the last reconcile name, or why they cannot be mapped. */
-function changedRecords(input: TrackedChangesInput): TrackedRecords | FullReason {
+/** The records `changed` names, or why they cannot be mapped. */
+function changedRecords(changed: GitPathChange[]): TrackedRecords | FullReason {
   const records: TrackedRecords = {
     epics: new Set(), runs: new Set(), kanbanCards: new Set(), profiles: new Set(),
     projectObservations: false, recoveredAttachments: false
   }
-  const changes: GitPathChange[] = [
-    ...(input.diff?.ok === true ? input.diff.paths : []),
-    ...(input.status.ok ? input.status.paths : []),
-    ...(input.marker.dirtyPaths ?? []).map((path) => ({ status: '', path }))
-  ]
-  for (const change of changes) {
+  for (const change of changed) {
     const verdict = mapPath(change.path, records)
     if (typeof verdict === 'object') return verdict.reason
     if (verdict === 'mapped' && change.status === '!') return 'ignored_path'
@@ -179,7 +185,8 @@ function addRecheck(records: TrackedRecords, recheck: RecheckRecords = {}): void
 
 /** The records changed since the last reconcile, or `full` with the reason a targeted read would not be exact. */
 export function trackedChanges(input: TrackedChangesInput): TrackedChanges {
-  const records = fallback(input) ?? changedRecords(input)
+  const changed = changes(input)
+  const records = typeof changed === 'string' ? changed : changedRecords(changed)
   if (typeof records === 'string') return { kind: 'full', reason: records }
   addRecheck(records, input.recheck)
   return { kind: 'targeted', ...records }

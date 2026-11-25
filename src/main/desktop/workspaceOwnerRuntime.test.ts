@@ -106,6 +106,17 @@ it('lazily initializes the requested project and refuses a different path or inj
   expect(worker.observed.every(response => response.generation === 4)).toBe(true)
 })
 
+it('answers a heartbeat on an uninitialized folder without reconciling, and refuses a sync once closed', async () => {
+  const h = fixture()
+  const held = heldLane()
+  const worker = owner(h.homeDir, 1, held.lane)
+  await expect(worker.sync(h.root, 'heartbeat')).resolves.toMatchObject({ ok: true, result: { value: { result: null, hasLocalCache: false } } })
+  expect(held.entered).toEqual([])
+  expect(existsSync(resolveLayout(h.root).dbFile)).toBe(false)
+  await expect(worker.close()).resolves.toMatchObject({ ok: true })
+  await expect(worker.sync(h.root, 'heartbeat')).resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'This project worker is closed.' } })
+})
+
 it('never uses a stale durable binding after reopening a replacement checkout', async () => {
   const h = fixture()
   const first = owner(h.homeDir)
