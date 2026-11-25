@@ -383,6 +383,12 @@ OMP's synthesized message/error/stopped IDs carry a fresh process-generation nam
 
 A shutdown deadline remains a failure for its original caller. Cleanup has a separate completion barrier: the retained transport's `stop()` must complete, close must arrive, and grant revocation must succeed before ownership is released. This also applies to natural exits, whose close notification can precede process-tree cleanup. Only that composite success permits later stop/restart/delete operations to recover from an expired deadline; rejected transport cleanup or revocation remains failed. A failed disposal permits a later explicit disposal check, while the manager remains closed to new starts.
 
+`send(ref, {text})` lazily starts a stopped GUI owner through that same cleanup barrier and uses the persisted session's `--resume` launch. Each accepted transport write is immediately echoed as one masked `user_message`; rejected writes produce no echo or queue mutation. Claude sends another user line while busy and counts it until the next main response starts; OMP uses `follow_up` and its `queue_update` events are authoritative. Snapshots retain the current queue count.
+
+`interrupt(ref)` writes Claude's control interrupt or OMP's abort without stopping an idle chat. A turn completion cancels the five-second watchdog. If the original turn does not finish, the watchdog forces the retained process-tree owner to stop immediately, keeps the chat failed and resumable, and still waits for the original composite cleanup barrier. Repeated interrupts do not extend the deadline. The main-only transport's `stop({force:true})` also escalates an already-pending graceful stop without changing its promise or looking up an ended process again; ordinary stop retains its three-second escalation.
+
+Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identity/persistence mode; ordinary golden replay remains byte-for-byte unchanged. `[hung]` emits its first turn frame but never completes or acknowledges interrupt, providing a real-child watchdog test without network or credentials.
+
 ## Arbiter (not GUI launch configuration)
 
 Claude arbiter argv contract:

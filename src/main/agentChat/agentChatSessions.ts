@@ -35,6 +35,8 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
 type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
 export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
+  send(ref: ChatRef, input: { text: string }): Promise<void>
+  interrupt(ref: ChatRef): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
   stop(ref: ChatRef): Promise<void>
   deleteChat(ref: ChatRef): Promise<void>
@@ -47,6 +49,10 @@ interface Entry {
   status: AgentChatSnapshot['status']
   pending: AgentChatSnapshot['pending']
   todos: Map<string | null, AgentChatSnapshot['todos'][number]['phases']>
+  queued: number
+  turnActive: boolean
+  interruptTimer?: NodeJS.Timeout
+  interruptFailure?: string
   process?: AgentProcess
   protocol: 'claude' | 'omp'
   claude: ClaudeProtocolState
@@ -86,7 +92,7 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   const ready = new Promise<void>((resolve, reject) => { admit = resolve; rejectReady = reject })
   const closed = new Promise<void>((resolve, reject) => { completeClose = resolve; rejectClose = reject })
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
-  return { chat, status: 'starting', pending: null, todos: previous?.todos ?? new Map(), protocol: 'claude',
+  return { chat, status: 'starting', pending: null, queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude',
     claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), grantIds: [], cancelled: false,
     cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose }
 }
@@ -125,7 +131,15 @@ class SessionManager {
   private emit(entry: Entry, event: OmpEvent): void {
     const safe = mask(event)
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
-    if (safe.type === 'status') entry.status = safe.status
+    if (safe.type === 'status') {
+      entry.status = safe.status
+      if (safe.status === 'busy' && entry.protocol === 'omp') entry.turnActive = true
+      if (safe.status === 'idle') {
+        entry.turnActive = false
+        this.clearInterrupt(entry)
+      }
+    }
+    if (safe.type === 'queued') entry.queued = safe.count
     if (safe.type === 'pending') entry.pending = safe.prompt
     if (safe.type === 'todos') {
       if (safe.phases.length) entry.todos.set(safe.threadId, safe.phases)
@@ -136,7 +150,7 @@ class SessionManager {
   snapshot(ref: ChatRef): AgentChatSnapshot {
     const chat = this.chatFor(ref), entry = this.entries.get(chat.id)
     return mask({ items: this.deps.store.readTranscript(chat)?.items ?? [], status: entry?.status ?? 'exited',
-      pending: entry?.pending ?? null, queued: 0, surface: chat.surface ?? 'terminal',
+      pending: entry?.pending ?? null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
       todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [] })
   }
   private tracked<T>(work: Promise<T>): Promise<T> {
@@ -201,6 +215,7 @@ class SessionManager {
   }
   private ended(entry: Entry, exit: AgentProcessExit): Promise<void> {
     if (entry.ending) return entry.ending
+    this.clearInterrupt(entry)
     entry.release?.()
     entry.release = undefined
     entry.admit()
@@ -208,7 +223,9 @@ class SessionManager {
       await this.revokeEntry(entry)
       this.emit(entry, { type: 'pending', prompt: null })
       const detail = Buffer.from(mask(exit.stderr)).subarray(-2048).toString('utf8')
-      this.emit(entry, { type: 'status', status: exit.code === 0 || entry.cancelled ? 'exited' : 'failed', ...(detail ? { detail } : {}) })
+      if (entry.queued) this.emit(entry, { type: 'queued', count: 0 })
+      this.emit(entry, { type: 'status', status: entry.interruptFailure ? 'failed' : exit.code === 0 || entry.cancelled ? 'exited' : 'failed',
+        ...(entry.interruptFailure ? { detail: entry.interruptFailure } : detail ? { detail } : {}) })
     })()
     void entry.ending.then(entry.completeClose, entry.rejectClose)
     // Natural close can precede the transport's retained process-tree cleanup.
@@ -218,6 +235,7 @@ class SessionManager {
     return entry.ending
   }
   private stopEntry(entry: Entry): Promise<void> {
+    this.clearInterrupt(entry)
     entry.cancelled = true
     entry.cancel()
     entry.release?.()
@@ -240,7 +258,15 @@ class SessionManager {
   }
   private claudeLine(entry: Entry, raw: string): void {
     const result = translateClaudeLine(raw, entry.claude, this.now())
+    const mainStarted = result.state.activeMessages.get(null) !== entry.claude.activeMessages.get(null)
+      || result.events.some(event => event.type === 'item' && event.item.kind === 'assistant_text' && !event.item.threadId)
     entry.claude = result.state
+    // Claude has no queue-update stream: consume a queued user line only when its main turn starts.
+    if (!entry.turnActive && entry.queued > 0 && mainStarted) {
+      entry.turnActive = true
+      this.emit(entry, { type: 'queued', count: entry.queued - 1 })
+      this.emit(entry, { type: 'status', status: 'busy' })
+    }
     for (const event of result.events) this.emit(entry, event)
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {
@@ -330,18 +356,22 @@ class SessionManager {
     const text = firstMessage ?? chat.firstPrompt
     if (text === undefined) return
     if (chat.firstPrompt !== undefined) this.update(entry, { firstPromptDelivery: 'uncertain' })
-    this.writeFirstTurn(entry, text)
+    this.writeTurn(entry, text)
     this.update(entry, { kickoffSent: true, ...(chat.firstPrompt === undefined ? {} : { firstPromptDelivery: 'submitted' }) })
   }
-  private writeFirstTurn(entry: Entry, text: string): void {
+  private writeTurn(entry: Entry, text: string): void {
+    const queued = entry.turnActive || entry.queued > 0
     const encoded = entry.protocol === 'claude'
       ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID() }, entry.claude, this.now())
       : encodeOmpCommand({ type: 'send', text, id: randomUUID() }, entry.omp, this.now())
     if (!encoded.lines.length) throw new Error('The agent did not initialize its input protocol.')
+    this.write(entry, encoded.lines)
     if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
     else entry.omp = encoded.state as OmpState
-    this.write(entry, encoded.lines)
+    if (!queued) entry.turnActive = true
     for (const event of encoded.events) this.emit(entry, event)
+    if (entry.protocol === 'claude' && queued) this.emit(entry, { type: 'queued', count: entry.queued + 1 })
+    if (entry.status !== 'busy') this.emit(entry, { type: 'status', status: 'busy' })
   }
   private async bind(entry: Entry): Promise<void> {
     const { chat } = entry, generation = randomUUID()
@@ -410,6 +440,39 @@ class SessionManager {
       return { ...this.snapshot(entry.chat), status: 'failed' }
     }
   }
+  async send(ref: ChatRef, input: { text: string }): Promise<void> {
+    const result = await this.start(ref)
+    if ('code' in result) throw new Error('The chat is running in a terminal.')
+    const entry = this.entries.get(this.chatFor(ref).id)
+    if (!entry?.process || entry.ending || entry.cancelled) throw new Error('The agent is not running.')
+    this.assertCurrent(entry)
+    this.writeTurn(entry, input.text)
+  }
+  private clearInterrupt(entry: Entry): void {
+    clearTimeout(entry.interruptTimer)
+    entry.interruptTimer = undefined
+  }
+  async interrupt(ref: ChatRef): Promise<void> {
+    const chat = this.chatFor(ref)
+    this.assertOpen(chat)
+    const entry = this.entries.get(chat.id)
+    if (!entry?.process || entry.cancelled || entry.ending || !entry.turnActive || entry.interruptTimer) return
+    this.assertCurrent(entry)
+    const encoded = entry.protocol === 'claude'
+      ? encodeClaudeCommand({ type: 'interrupt', requestId: randomUUID() }, entry.claude, this.now())
+      : encodeOmpCommand({ type: 'interrupt', id: randomUUID() }, entry.omp, this.now())
+    this.write(entry, encoded.lines)
+    if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
+    else entry.omp = encoded.state as OmpState
+    entry.interruptTimer = setTimeout(() => {
+      entry.interruptFailure = 'The agent did not end its turn within 5 seconds of interrupt.'
+      this.emit(entry, { type: 'status', status: 'failed', detail: entry.interruptFailure })
+      // Escalate this retained owner, then join the unchanged close/revocation/transport barrier.
+      void entry.process?.stop({ force: true }).catch(() => undefined)
+      void this.stopEntry(entry).catch(() => undefined)
+    }, 5000)
+    entry.interruptTimer.unref()
+  }
   async stop(ref: ChatRef): Promise<void> {
     const id = this.chatFor(ref).id
     const entries = new Set([this.entries.get(id), this.startingEntries.get(id)])
@@ -449,6 +512,7 @@ class SessionManager {
 export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatSessions {
   const manager = new SessionManager(deps)
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
+    send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref),
     stop: ref => manager.stop(ref), deleteChat: ref => manager.deleteChat(ref), isLive: ref => manager.isLive(ref),
     busy: () => manager.busy(), dispose: () => manager.dispose() }
 }

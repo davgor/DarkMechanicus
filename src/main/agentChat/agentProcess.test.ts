@@ -364,3 +364,40 @@ it('escalates at exactly 3 seconds, shares stop calls and bounds a stuck kill at
   expect(vi.getTimerCount()).toBe(0)
   finish()
 })
+
+for (const gracefulFirst of [false, true]) it(`force-stops immediately and retains cleanup (graceful first: ${gracefulFirst})`, async () => {
+  vi.useFakeTimers()
+  const { runner, child, finish } = stub()
+  // The repository's ES library predates Promise.withResolvers.
+  let release!: (result: boolean) => void
+  const cleanup = new Promise<boolean>(resolve => { release = resolve })
+  const kill = vi.spyOn(processTree, 'killProcessTree').mockReturnValue(cleanup)
+  const graceful = gracefulFirst ? runner.stop() : undefined
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(kill).not.toHaveBeenCalled()
+  const stopped = runner.stop({ force: true })
+  if (graceful) expect(stopped).toBe(graceful)
+  expect(kill).toHaveBeenCalledExactlyOnceWith(child)
+  expect(runner.stop({ force: true })).toBe(stopped)
+  let settled = false
+  void stopped.then(() => { settled = true })
+  finish()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(settled).toBe(false)
+  release(true)
+  await stopped
+  expect(settled).toBe(true)
+  expect(kill).toHaveBeenCalledTimes(1)
+  expect(runner.stop({ force: true })).toBe(stopped)
+  expect(kill).toHaveBeenCalledTimes(1)
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('never initiates a force kill for an already ended process', async () => {
+  const { runner, finish } = stub()
+  const kill = vi.spyOn(processTree, 'killProcessTree').mockResolvedValue(true)
+  finish()
+  const naturalCleanupCalls = kill.mock.calls.length
+  await runner.stop({ force: true })
+  expect(kill).toHaveBeenCalledTimes(naturalCleanupCalls)
+})

@@ -34,7 +34,7 @@ function nativeFixture() {
   mkdirSync(repo); mkdirSync(userData)
   const executable = fakeAgentShim(join(root, 'agent with spaces'), fakeAgentFixture)
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, APPDATA: root,
-    FAKE_AGENT_LOG: join(root, 'agent.jsonl') }
+    FAKE_AGENT_LOG: join(root, 'agent.jsonl'), FAKE_AGENT_SESSION_FILES: '1' }
   const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
   env[pathKey] = `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${env[pathKey] ?? ''}`
   const store = createChatStore({ root: join(userData, 'agents', 'chats') })
@@ -47,7 +47,7 @@ function recordingChild(spec: Parameters<typeof startAgentProcess>[0], children:
   children.push(child)
   return { pid: child.pid, write: line => { writes.push(line); return child.write(line) },
     onLine: listener => child.onLine(listener), onStderr: listener => child.onStderr(listener),
-    onExit: listener => child.onExit(listener), stop: () => child.stop() }
+    onExit: listener => child.onExit(listener), stop: options => child.stop(options) }
 }
 
 export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Partial<AgentChatSessionsDeps> = {}) {

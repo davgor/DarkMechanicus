@@ -24,7 +24,7 @@ export interface AgentProcess {
   onLine(cb: (line: string) => void): () => void
   onStderr(cb: (tail: string) => void): () => void
   onExit(cb: (exit: AgentProcessExit) => void): () => void
-  stop(): Promise<void>
+  stop(options?: { force?: boolean }): Promise<void>
 }
 
 type Spawn = (file: string, args: string[], options: SpawnOptions) => ChildProcess
@@ -203,7 +203,9 @@ class JsonlProcess implements AgentProcess {
     return () => { this.exits.delete(cb) }
   }
 
-  stop(): Promise<void> {
+  stop(options: { force?: boolean } = {}): Promise<void> {
+    // Escalate even when a graceful stop is already pending; never look up an ended PID again.
+    if (options.force && !this.ended) void this.killTree()
     this.stopping ??= this.shutdown()
     return this.stopping
   }

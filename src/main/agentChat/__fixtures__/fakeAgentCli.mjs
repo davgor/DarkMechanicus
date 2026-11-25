@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Offline CLI for protocol, process, session and packaged-app tests. Golden JSONL is authoritative. */
+import { randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -26,15 +27,30 @@ const log = (extra = {}) => {
     })}\n`)
   }
 }
-const emit = (value) => process.stdout.write(`${typeof value === 'string' ? value : JSON.stringify(value)}\n`)
+let sessionIdentity
+const emit = (value) => {
+  const line = typeof value === 'string' ? value : JSON.stringify(value)
+  process.stdout.write(`${sessionIdentity ? line.replace(/session_T\d+/g, sessionIdentity) : line}\n`)
+}
 const crash = () => {
   process.stderr.write('fake-agent crash\n')
   process.exitCode = 3
 }
 
 
+function persistSessionIdentity() {
+  if (process.env.FAKE_AGENT_SESSION_FILES !== '1') return
+  sessionIdentity = argv.includes('--session-id') ? option('--session-id') : argv.includes('--resume') ? option('--resume') : randomUUID()
+  if (mode === 'omp' && argv.includes('--session-dir')) {
+    const directory = option('--session-dir')
+    mkdirSync(directory, { recursive: true })
+    appendFileSync(join(directory, `2026-01-01T00-00-00Z_${sessionIdentity}.jsonl`), `${JSON.stringify({ type: 'session', id: sessionIdentity })}\n`)
+  }
+}
+
 function runInteractive() {
   const sessionId = argv.includes('--session-id') ? option('--session-id') : argv.includes('--resume') ? option('--resume') : 'session_T1'
+  persistSessionIdentity()
   if (argv.includes('--session-id')) {
     const config = process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
     const project = join(resolve(config), 'projects', process.cwd().replace(/[^a-zA-Z0-9]/g, '-'))
@@ -87,7 +103,7 @@ function scenario(prompt) {
   const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+)\]/g)].map((match) => match[1])
   if (mode === 'omp' && keywords.includes('tasks')) return 'todo'
   if (mode === 'claude' && keywords.includes('todo_clear')) return 'text'
-  return keywords.find((key) => ['slow', 'leak'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? 'text'
+  return keywords.find((key) => ['slow', 'hung', 'leak'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? 'text'
 }
 
 function leakToken(lines) {
@@ -135,6 +151,7 @@ class ProtocolReplay {
       }
       if (!this.emitFrame(this.active.lines[this.active.index])) return
       this.active.index++
+      if (this.active.hung) return
       if (this.active.slow && this.active.index < this.active.lines.length) {
         this.timer = setTimeout(() => this.pump(), 200)
         return
@@ -202,11 +219,11 @@ class ProtocolReplay {
     const prompt = typeof content === 'string' ? content : JSON.stringify(content)
     if (prompt?.includes('[crash]')) { crash(); this.stop(); return }
     const name = scenario(prompt)
-    const replay = { slow: 'text', leak: 'tool' }[name] ?? name
+    const replay = { slow: 'text', hung: 'text', leak: 'tool' }[name] ?? name
     let lines = this.turnLines(replay, message)
     if (name === 'leak') lines = leakToken(lines)
     this.tailQueries.clear()
-    this.active = { lines, index: 0, waiting: null, slow: name === 'slow', promptId: message.id, tails: tailBindings(replay, this.turn) }
+    this.active = { lines, index: 0, waiting: null, slow: name === 'slow', hung: name === 'hung', promptId: message.id, tails: tailBindings(replay, this.turn) }
     this.pump()
   }
 
@@ -234,7 +251,7 @@ class ProtocolReplay {
   }
 
   interrupt(message) {
-    if (!this.active) return
+    if (!this.active || this.active.hung) return
     clearTimeout(this.timer)
     const lines = renumber(fixture('interrupt'), this.turn)
     const tail = lines.findIndex((line) => {
