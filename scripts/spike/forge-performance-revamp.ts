@@ -160,8 +160,10 @@ const PLAN_CONTENT = { selector: '.react-flow__node .pg-card', text: null }
 /** A click that paints nothing within this long is a failure, reported with what the page shows. */
 const PAINT_LIMIT_MS = 30_000
 
+interface Click { point: { x: number; y: number }; content: { selector: string; text: string | null }; commands: readonly string[] }
+
 /** Arms the paint watch for `content` (a selector and optional exact text), clicks `point` and times click to paint. */
-async function timedClick(deps: RevampDeps, target: PaintTarget, point: { x: number; y: number }, content: { selector: string; text: string | null }, commands: readonly string[]): Promise<ClickSample> {
+async function timedClick(deps: RevampDeps, target: PaintTarget, { point, content, commands }: Click): Promise<ClickSample> {
   await js(deps, `dmRevamp.arm(${JSON.stringify(content.selector)}, ${JSON.stringify(content.text)})`)
   await clickAt(deps, point)
   const paint = await Promise.race([
@@ -183,7 +185,7 @@ async function planClick(deps: RevampDeps, target: PaintTarget): Promise<ClickSa
   await reloadShell(deps)
   const row = await revealEpic(deps, target)
   await quiet()
-  return timedClick(deps, target, row, PLAN_CONTENT, VIEW_COMMANDS.plan)
+  return timedClick(deps, target, { point: row, content: PLAN_CONTENT, commands: VIEW_COMMANDS.plan })
 }
 
 /**
@@ -212,7 +214,7 @@ async function revealEpic(deps: RevampDeps, target: PaintTarget): Promise<{ x: n
 
 async function ticketClicks(deps: RevampDeps, target: PaintTarget): Promise<ClickSample[]> {
   // Open the epic (untimed: planClicks times this) so its graph's ticket nodes can be clicked.
-  await timedClick(deps, target, await revealEpic(deps, target), PLAN_CONTENT, VIEW_COMMANDS.plan)
+  await timedClick(deps, target, { point: await revealEpic(deps, target), content: PLAN_CONTENT, commands: VIEW_COMMANDS.plan })
   const samples: ClickSample[] = []
   let last = ''
   for (let index = 0; index < ITERATIONS; index += 1) {
@@ -220,7 +222,7 @@ async function ticketClicks(deps: RevampDeps, target: PaintTarget): Promise<Clic
       .find((row) => row.id !== last), 'a visible ticket node')
     last = ticket.id
     await quiet()
-    samples.push(await timedClick(deps, target, ticket, { selector: '.tp .tp-title', text: ticket.title }, ['getTicket']))
+    samples.push(await timedClick(deps, target, { point: ticket, content: { selector: '.tp .tp-title', text: ticket.title }, commands: ['getTicket'] }))
   }
   return samples
 }
