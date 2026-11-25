@@ -60,8 +60,13 @@ export function pendingForgeForce(home: string, source: string): boolean {
   return existsSync(file) && JSON.parse(readFileSync(file, 'utf8')).force === true
 }
 
+/** The file whose content is a source folder's Forge binding epoch. */
+export function forgeBindingFile(home: string, source: string): string {
+  return stateFile(home, source, 'link')
+}
+
 export function forgeBindingEpoch(fs: FsAdapter, home: string, source: string): string | null {
-  const file = stateFile(home, source, 'link')
+  const file = forgeBindingFile(home, source)
   return fs.exists(file) ? contentHash(fs.readFile(file)) : null
 }
 
@@ -143,6 +148,13 @@ export function assertForgeTransferIdle(fs: FsAdapter, home: string, source: str
     fail('conflict', 'Forge World conversion is pending. Resume it before opening the destination.')
   }
   if (!ownsSource && isRetiredSource(fs, home, source)) fail('conflict', 'This ticket store moved to a Forge World. Reconnect before continuing.')
+}
+
+/** The storage fence every write transaction of a ticket store checks under the writer lock: its Forge binding is the one it opened with. */
+export function assertForgeStorage(fs: FsAdapter, home: string, root: string, epoch: string | null): void {
+  assertForgeTransferIdle(fs, home, root)
+  if (forgeBindingEpoch(fs, home, root) !== epoch) fail('conflict', 'Ticket storage changed. Reconnect before continuing.')
+  if (boundForgeRoot(fs, home, root) !== root) fail('conflict', 'Reconnect to the Forge World ticket store.')
 }
 
 function isRetiredSource(fs: FsAdapter, home: string, source: string): boolean {

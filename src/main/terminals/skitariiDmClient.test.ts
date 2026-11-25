@@ -27,6 +27,8 @@ import {
   type DmMailStatusPage
 } from '../../../resources/skitarii/extension/dmClient'
 import { attachDmClient, type OmpApi } from '../../../resources/skitarii/extension/index'
+import { DM_WRITER_BUSY } from '../../../resources/skitarii/extension/dmDiagnostics'
+import { STANDARDS_LIFETIME_MS } from '../../../resources/skitarii/extension/projectStandards'
 import type * as Shared from '../../shared/domain/agentMail'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
@@ -545,6 +547,42 @@ describe('the DM client run (dm_call): its bound', () => {
     await client.cancelAll()
     expect(await call).toMatchObject({ ok: false, error: { code: 'cancelled' } })
     expectAllGone(deps.children)
+  })
+})
+
+describe('the DM client run: an absolute lifetime', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('kills a child that reports writer contention every second at the standards read’s absolute 30 s, while an agent’s call keeps renewing', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const standards = hungChild()
+    const agent = hungChild()
+    const children = [standards, agent]
+    const client = createDmClient({ ...realDeps(), spawn: vi.fn(() => children.shift()!) })
+    const busy = setInterval(() => {
+      standards.emit('message', DM_WRITER_BUSY)
+      agent.emit('message', DM_WRITER_BUSY)
+    }, 1_000)
+    let settled: unknown = null
+    void client.run('get_project', {}, undefined, { lifetimeMs: STANDARDS_LIFETIME_MS }).then((result) => (settled = result))
+    let agentSettled: unknown = null
+    void client.run('get_project', {}).then((result) => (agentSettled = result))
+    await vi.advanceTimersByTimeAsync(STANDARDS_LIFETIME_MS - 1)
+    expect(standards.kill).not.toHaveBeenCalled()
+    expect(settled).toBeNull()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(standards.kill).toHaveBeenCalledWith('SIGKILL')
+    await vi.waitFor(() => expect(settled).toMatchObject({ ok: false, error: { source: 'client', code: 'timeout' } }))
+    // Without a lifetime, contention keeps renewing DM_RUN_LIMITS' watchdog as before.
+    await vi.advanceTimersByTimeAsync(DM_RUN_LIMITS.timeoutMs * 2)
+    expect(agent.kill).not.toHaveBeenCalled()
+    expect(agentSettled).toBeNull()
+    clearInterval(busy)
+    await vi.advanceTimersByTimeAsync(DM_RUN_LIMITS.timeoutMs)
+    expect(agent.kill).toHaveBeenCalledWith('SIGKILL')
+    await vi.waitFor(() => expect(agentSettled).toMatchObject({ ok: false, error: { source: 'client', code: 'timeout' } }))
   })
 })
 

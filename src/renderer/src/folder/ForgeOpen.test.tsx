@@ -38,7 +38,7 @@ it('keeps a ready local editor editable while fetching and after the remote fail
   fireEvent.change(draft, { target: { value: 'Work in progress' } })
   reply = { ...ready, syncing: true }
   await h.poll()
-  expect(screen.getByRole('status').textContent).toContain('in the background')
+  expect(screen.getByRole('status').textContent).toBe('Syncing…')
   expect(screen.getByRole('textbox', { name: 'Ticket draft' })).toBe(draft)
   fireEvent.change(draft, { target: { value: 'Still editing during sync' } })
   reply = { ...ready, error: 'Forge remote is offline' }
@@ -49,12 +49,31 @@ it('keeps a ready local editor editable while fetching and after the remote fail
   const manualSync = deferred()
   h.sync.mockImplementationOnce(() => manualSync.promise)
   fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
-  expect(screen.getByRole('status').textContent).toContain('in the background')
+  expect(screen.getByRole('status').textContent).toBe('Syncing…')
   expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull()
   expect(h.sync).toHaveBeenCalledExactlyOnceWith('/world')
   manualSync.resolve()
   await settle()
   expect(draft.value).toBe('Still editing during sync')
+})
+
+it('shows a ready member under a Syncing badge until its reconcile finishes and nothing for a cold member', async () => {
+  let reply: ForgeMemberStatus = { ...ready, syncing: true }
+  const h = harness(async () => reply)
+  const warm = render(h.show('/world', '/world/member', 'Ticket draft'))
+  const draft = await screen.findByRole('textbox', { name: 'Ticket draft' })
+  expect(screen.getByRole('status').textContent).toBe('Syncing…')
+  reply = ready
+  await h.poll()
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Ticket draft' })).toBe(draft)
+  warm.unmount()
+  reply = { readiness: 'preparing', syncing: false, error: null }
+  render(h.show('/world', '/world/cold', 'Cold draft'))
+  await settle()
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('Preparing local Forge World tickets…')
+  expect(h.sync).not.toHaveBeenCalled()
 })
 
 it('renders a warmed member on revisit while its local status rechecks', async () => {

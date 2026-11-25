@@ -21,6 +21,7 @@ import type { StartOrchestrator, StartRunChoice, TransferChats } from './orchest
 import { failureOf, type Failure, type Runner } from './runner'
 import { createTransferActions, type TransferActions } from './transferActions'
 import { saveOutcome } from './validationView'
+import { loadDraft } from './workspaceLoad'
 import type { WorkspaceAction, WorkspaceState } from './workspaceState'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; failure: Failure }
@@ -173,7 +174,12 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
   const epicId = deps.epicId
   return {
     async editDraft() {
-      if (deps.getState().data?.epic.hasDraft === true) {
+      const data = deps.getState().data
+      if (data?.epic.hasDraft === true) {
+        // The load skips an unchanged draft unless it is shown: read it now, then show it whole.
+        if (data.draft === null && !(await readSkippedDraft(deps))) {
+          return
+        }
         deps.dispatch({ type: 'show_view', view: 'draft' })
         return
       }
@@ -371,6 +377,23 @@ function checkpointActions(
       const result = await perform(deps, () => deps.runner('authorizeAutoContinue', { runId: run.id, enabled }))
       feedback(deps, result, enabled ? 'Automatic continuation allowed for this run.' : 'Automatic continuation turned off.')
     }
+  }
+}
+
+/**
+ * Reads the unchanged draft the load skipped into the workspace; false (with a banner) when it cannot be read. A
+ * read changes nothing, so unlike `perform` it does not reload.
+ */
+async function readSkippedDraft(deps: ActionDeps): Promise<boolean> {
+  deps.dispatch({ type: 'busy', value: true })
+  try {
+    deps.dispatch({ type: 'draft_loaded', draft: await loadDraft(deps.runner, deps.epicId) })
+    return true
+  } catch (error: unknown) {
+    deps.dispatch({ type: 'banner', text: failureOf(error).message })
+    return false
+  } finally {
+    deps.dispatch({ type: 'busy', value: false })
   }
 }
 

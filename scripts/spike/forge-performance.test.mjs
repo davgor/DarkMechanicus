@@ -8,6 +8,7 @@ import { ownedPaths } from '../../src/core/repo/paths'
 import { parseRecord, snapshotRecord } from '../../src/core/repo/portable'
 import { openWorkspace } from '../../src/core/workspace'
 import { seedProject, withFixture } from './forge-performance-fixture'
+import { cpuSink, holdSummary, latencyStats, outcomeCounts } from './forge-performance-sinks'
 
 it('shards at the portable bundle limit and cold-imports completed revisions, history and evidence', () => {
   let created
@@ -143,4 +144,39 @@ it('retains native probe evidence from distinct main, renderer and utility proce
     expect(rendererLoop.count).toBeGreaterThan(0)
     expect(ipc).not.toHaveLength(0)
   }
+})
+
+it('summarizes view latency samples as parseable p50, p95 and max records', () => {
+  const samples = Array.from({ length: 30 }, (_, index) => index + 1)
+  const row = JSON.parse(JSON.stringify({ stage: 'revamp-view', view: 'plan', condition: 'idle', endToEnd: latencyStats(samples) }))
+  expect(row.endToEnd).toEqual({ count: 30, p50Ms: 15, p95Ms: 29, maxMs: 30, minMs: 1, meanMs: 15.5 })
+  expect(latencyStats([])).toEqual({ count: 0, p50Ms: 0, p95Ms: 0, maxMs: 0, minMs: 0, meanMs: 0 })
+})
+
+it('counts every CLI call result under its error code or ok', () => {
+  const counts = outcomeCounts([{ ok: true }, { ok: false, code: 'busy' }, { ok: false, code: 'busy' }, { ok: false, code: null }, { ok: true }])
+  expect(JSON.parse(JSON.stringify(counts))).toEqual({ ok: 2, busy: 2, no_json: 1 })
+})
+
+it('groups write-lock holds by caller tag with hold and acquire statistics', () => {
+  const summary = holdSummary([
+    { tag: 'reconcile', outcome: 'commit', acquireMs: 1, holdMs: 40 },
+    { tag: 'flush', outcome: 'commit', acquireMs: 0, holdMs: 5 },
+    { tag: 'flush', outcome: 'rollback', acquireMs: 2, holdMs: 7 },
+    { tag: null, outcome: 'commit', acquireMs: 0, holdMs: 1 }
+  ])
+  const parsed = JSON.parse(JSON.stringify(summary))
+  expect(Object.keys(parsed).sort()).toEqual(['flush', 'reconcile', 'untagged'])
+  expect(parsed.flush).toMatchObject({ transactions: 2, rollbacks: 1, hold: { count: 2, maxMs: 7 }, acquire: { maxMs: 2 } })
+  expect(parsed.reconcile.hold).toMatchObject({ p50Ms: 40, p95Ms: 40, maxMs: 40 })
+})
+
+it('samples host CPU busy percentage as a parseable record', async () => {
+  const sink = cpuSink(20)
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  const row = JSON.parse(JSON.stringify(sink.read()))
+  sink.close()
+  expect(row.samples).toBeGreaterThan(0)
+  expect(row.meanBusyPct).toBeGreaterThanOrEqual(0)
+  expect(row.maxBusyPct).toBeLessThanOrEqual(100)
 })

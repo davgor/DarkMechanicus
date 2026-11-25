@@ -15,18 +15,17 @@ function pinnedRevision(epic: EpicDetailView, run: RunView | null): string | nul
   return lagging ? run.revisionId : null
 }
 
-async function loadPlans(runner: Runner, epic: EpicDetailView): Promise<Pick<WorkspaceData, 'saved' | 'draft' | 'run'>> {
-  const epicId = epic.id
-  const [current, draft, run] = await Promise.all([
-    epic.currentRevisionId === null ? null : runner('getPlan', { epicId, view: 'saved' }),
-    epic.hasDraft ? runner('getPlan', { epicId, view: 'draft' }) : null,
-    runner('getRun', { epicId })
+/** The draft's plan, its ticket list and its validation, read together. */
+export async function loadDraft(runner: Runner, epicId: string): Promise<Pick<WorkspaceData, 'draft' | 'draftTickets' | 'validation'>> {
+  const [draft, draftTickets, validation] = await Promise.all([
+    runner('getPlan', { epicId, view: 'draft' }),
+    runner('listTickets', { epicId, view: 'draft' }),
+    runner('validatePlan', { epicId, view: 'draft' })
   ])
-  const pinned = pinnedRevision(epic, run)
-  // The Saved view overlays run state, so it shows the revision that run is actually executing.
-  const saved = pinned === null ? current : await runner('getPlan', { epicId, view: 'saved', revisionId: pinned })
-  return { saved, draft, run }
+  return { draft, draftTickets, validation }
 }
+
+const NO_DRAFT: Pick<WorkspaceData, 'draft' | 'draftTickets' | 'validation'> = { draft: null, draftTickets: [], validation: null }
 
 function loadCheckpoint(runner: Runner, run: RunView | null): Promise<CheckpointView | null> | null {
   if (run === null || !CHECKPOINT_STATES.has(run.state)) {
@@ -56,28 +55,47 @@ export async function loadOverview(runner: Runner, epicId: string, run: RunView 
   return { bundle, reports: reports.filter((report): report is SprintReportView => report !== null) }
 }
 
-/** Loads the active workspace. The completed run's report is read when opened. */
-export async function loadWorkspace(runner: Runner, epicId: string): Promise<WorkspaceData> {
-  const epic = await runner('getEpic', { epicId })
-  const { saved, draft, run } = await loadPlans(runner, epic)
+/** Every read that needs only the epic, in one parallel round. */
+function loadAfterEpic(runner: Runner, epic: EpicDetailView, readDraft: boolean) {
+  const epicId = epic.id
+  const saved = epic.currentRevisionId !== null
   // A transfer needs a saved plan, and a completed epic has none open (a verified one is in its outcome).
-  const transferable = epic.currentRevisionId !== null && epic.status !== 'completed'
-  const [checkpoint, savedTickets, draftTickets, validation, transfer] = await Promise.all([
-    loadCheckpoint(runner, run),
-    saved === null ? [] : runner('listTickets', { epicId, view: 'saved' }),
-    draft === null ? [] : runner('listTickets', { epicId, view: 'draft' }),
-    draft === null ? null : runner('validatePlan', { epicId, view: 'draft' }),
+  const transferable = saved && epic.status !== 'completed'
+  return Promise.all([
+    saved ? runner('getPlan', { epicId, view: 'saved' }) : null,
+    runner('getRun', { epicId }),
+    saved ? runner('listTickets', { epicId, view: 'saved' }) : [],
+    readDraft ? loadDraft(runner, epicId) : NO_DRAFT,
     transferable ? runner('getTransfer', { epicId }) : null
+  ])
+}
+
+/**
+ * Loads the active workspace. The completed run's report is read when opened.
+ *
+ * After the epic, every read whose input is known runs in one parallel round; only the checkpoint and a pinned
+ * revision wait for the run. A draft that holds no change from the saved plan (`draftChanged` false) is read only
+ * when `wantsDraft` says it is shown; otherwise its plan, tickets and validation are not transferred at all.
+ * `wantsDraft` is asked once the epic arrives, so it sees a view chosen meanwhile.
+ */
+export async function loadWorkspace(runner: Runner, epicId: string, wantsDraft: () => boolean = () => false): Promise<WorkspaceData> {
+  const epic = await runner('getEpic', { epicId })
+  const [current, run, savedTickets, drafted, transfer] = await loadAfterEpic(runner, epic, epic.hasDraft && (epic.draftChanged || wantsDraft()))
+  const pinned = pinnedRevision(epic, run)
+  // The Saved view overlays run state, so it shows the revision that run is actually executing.
+  const [saved, checkpoint] = await Promise.all([
+    pinned === null ? current : runner('getPlan', { epicId, view: 'saved', revisionId: pinned }),
+    loadCheckpoint(runner, run)
   ])
   return {
     epic,
     saved,
-    draft,
+    draft: drafted.draft,
     run,
     checkpoint: checkpoint ?? run?.checkpoint ?? null,
     savedTickets,
-    draftTickets,
-    validation,
+    draftTickets: drafted.draftTickets,
+    validation: drafted.validation,
     transfer
   }
 }

@@ -151,11 +151,8 @@ function grantOperations(workspace: Workspace, ctx: Context) {
 function forgeOperations(workspace: Workspace, ctx: Context, home: string) {
   return {
     initialized: () => workspace.isInitialized(),
-    async reconcileMember() {
-      const hasLocalCache = hasValidatedRepositoryCache(ctx().db)
-      const result = await workspace.reconcileRepository()
-      return { result, hasLocalCache }
-    },
+    /** Machine-local proof, read before this owner reconciles, that the member already holds a validated import. */
+    hasValidatedCache: () => hasValidatedRepositoryCache(ctx().db),
     checkStorageIdle(force: boolean) {
       const context = ctx()
       if (force) assertForgeForceSafe(context.db)

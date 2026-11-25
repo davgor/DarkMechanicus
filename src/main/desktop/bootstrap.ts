@@ -555,7 +555,8 @@ function openDesktopPool(): WorkspacePool {
     open: generation => openUtilityWorkspace(generation, home, app.getVersion()),
     canonical: path => boundForgeRoot(nodeFs, home, realpathSync.native(path)),
     authority: currentForgeTransfer,
-    onError: (path, error) => logger.error('Workspace error for ' + path, error)
+    onError: (path, error) => logger.error('Workspace error for ' + path, error),
+    slowLog: logger
   })
 }
 

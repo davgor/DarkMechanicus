@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 
 export type SqlValue = null | number | bigint | string | Uint8Array
@@ -39,6 +40,40 @@ export interface OpenDatabaseOptions {
   synchronous?: 'full' | 'off'
   /** Open an existing database without permission to create or mutate it. */
   readOnly?: boolean
+  /**
+   * Measurement only: called once per depth-0 write transaction after its COMMIT or ROLLBACK returns. Nested
+   * savepoints and read snapshots are not reported. Absent (the default), nothing is timed or recorded. The observer
+   * cannot change the transaction: it runs after the outcome is final and anything it throws is ignored.
+   */
+  onTransaction?: TransactionObserver
+}
+
+/** The caller a write transaction is attributed to; see `tagTransactions`. */
+type TransactionTag = 'reconcile' | 'flush' | 'command'
+
+export interface TransactionHold {
+  /** The innermost `tagTransactions` scope active when the transaction began; null outside any scope. */
+  tag: TransactionTag | null
+  outcome: 'commit' | 'rollback'
+  /** Milliseconds spent acquiring `BEGIN IMMEDIATE`, including SQLite busy waits and begin retries. */
+  acquireMs: number
+  /** Milliseconds the write lock was held: from `BEGIN IMMEDIATE` returning to `COMMIT`/`ROLLBACK` returning. */
+  holdMs: number
+}
+
+export type TransactionObserver = (hold: TransactionHold) => void
+
+const transactionTags = new AsyncLocalStorage<TransactionTag>()
+/** Open connections with an observer; while zero, `tagTransactions` only calls `fn`. */
+let observedConnections = 0
+
+/**
+ * Attributes the depth-0 write transactions `fn` begins (synchronously or across its awaits) to `tag`, for a
+ * connection opened with `onTransaction`. It never changes what `fn` does or returns, and costs one comparison while
+ * no observed connection is open.
+ */
+export function tagTransactions<T>(tag: TransactionTag, fn: () => T): T {
+  return observedConnections === 0 ? fn() : transactionTags.run(tag, fn)
 }
 
 export const DEFAULT_BUSY_TIMEOUT_MS = 5_000
@@ -72,10 +107,12 @@ class SqliteDb implements Db {
   private readonly busyTimeoutMs: number
   private readonly contentionDeadline: number | undefined
   private activeBusyTimeoutMs = -1
+  private readonly onTransaction: TransactionObserver | undefined
 
   constructor(path: string, options: OpenDatabaseOptions) {
     this.path = path
     this.onWriterBusy = options.onWriterBusy
+    this.onTransaction = options.onTransaction
     this.busyTimeoutMs = Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))
     this.contentionDeadline = options.contentionTimeoutMs === undefined ? undefined : performance.now() + options.contentionTimeoutMs
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
@@ -87,6 +124,7 @@ class SqliteDb implements Db {
       this.db.close()
       throw error
     }
+    if (this.onTransaction) observedConnections += 1
   }
 
   private configureBusyTimeout(): void {
@@ -170,10 +208,16 @@ class SqliteDb implements Db {
 
   tx<T>(fn: () => T, mode?: 'read'): T {
     const savepoint = this.depth > 0 ? `sp_${this.depth}` : null
+    let observed: ObservedHold | undefined
     if (savepoint) {
       this.db.exec(`SAVEPOINT ${savepoint}`)
     } else if (mode === 'read') {
       this.db.exec('BEGIN')
+    } else if (this.onTransaction) {
+      const requested = performance.now()
+      this.begin()
+      const began = performance.now()
+      observed = { tag: transactionTags.getStore() ?? null, acquireMs: began - requested, began, outcome: 'rollback' }
     } else {
       this.begin()
     }
@@ -181,19 +225,38 @@ class SqliteDb implements Db {
     try {
       const result = fn()
       this.exec(savepoint ? `RELEASE ${savepoint}` : 'COMMIT')
+      if (observed) observed.outcome = 'commit'
       return result
     } catch (error: unknown) {
       this.rollback(savepoint)
       throw error
     } finally {
       this.depth -= 1
+      if (observed) this.report(observed)
+    }
+  }
+
+  private report({ tag, outcome, acquireMs, began }: ObservedHold): void {
+    const holdMs = performance.now() - began
+    try {
+      this.onTransaction?.({ tag, outcome, acquireMs, holdMs })
+    } catch {
+      // Measurement never changes a transaction's outcome.
     }
   }
 
   close(): void {
     this.statements.clear()
     this.db.close()
+    if (this.onTransaction) observedConnections -= 1
   }
+}
+
+interface ObservedHold {
+  tag: TransactionTag | null
+  outcome: TransactionHold['outcome']
+  acquireMs: number
+  began: number
 }
 
 export function openDatabase(path: string, options: OpenDatabaseOptions = {}): Db {
@@ -201,13 +264,14 @@ export function openDatabase(path: string, options: OpenDatabaseOptions = {}): D
 }
 
 /** Check a workspace's storage fence after acquiring its write lock, including callers
- * that retained a context across asynchronous verification or waited behind another process. */
+ * that retained a context across asynchronous verification or waited behind another process.
+ * Only a depth-0 transaction checks: a nested savepoint already runs under a checked one. */
 export function guardTransactions(db: Db, guard: () => void): Db {
   return {
     path: db.path,
     get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
     inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
-    tx: (fn, mode) => db.tx(() => { guard(); return fn() }, mode)
+    tx: (fn, mode) => (db.inTransaction() ? db.tx(fn, mode) : db.tx(() => { guard(); return fn() }, mode))
   }
 }
 
