@@ -189,11 +189,14 @@ it('persists a switch to the terminal that already owns the chat once, without s
   expect(changed).toHaveBeenCalledExactlyOnceWith(chat)
 })
 
-for (const kind of ['claude', 'omp'] as const) it(`refuses GUI start and switch for a ${kind} Forge setup chat without side effects`, async () => {
+const TERMINAL_ONLY = [
+  ['Forge setup', { forgeSetup: { intentId: '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f', mode: 'onboarding', stepId: '7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d' } }],
+  ['tooling repair', { repairIncidentId: 'ti_repair_fixture' }]
+] as const
+for (const [label, tag] of TERMINAL_ONLY) for (const kind of ['claude', 'omp'] as const) it(`refuses GUI start and switch for a ${kind} ${label} chat without side effects`, async () => {
   const changed = vi.fn(), stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => {}), confirm = vi.fn(async () => true)
   const r = rig(kind, { onChatChanged: changed, stopTerminal })
-  const forgeSetup = { intentId: '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f', mode: 'onboarding', stepId: '7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d' } as const
-  const chat = r.store.createChat({ folder: r.repo, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'terminal', forgeSetup })
+  const chat = r.store.createChat({ folder: r.repo, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'terminal', ...tag })
   const write = vi.spyOn(r.store, 'updateChat')
   await expect(r.sessions.start(chat)).rejects.toMatchObject({ code: 'unsupported' })
   await expect(r.sessions.send(chat, { text: 'start anyway' })).rejects.toMatchObject({ code: 'unsupported' })
@@ -260,7 +263,9 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} confirmed termi
 })
 
 function liveTerminalRig() {
-  const changed = vi.fn(), stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => {})
+  const changed = vi.fn()
+  // A successful stop of the confirmed owner leaves no terminal of the chat live.
+  const stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => { r.state.terminalLive = false })
   const r = rig('claude', { onChatChanged: changed, stopTerminal })
   const chat = r.store.updateChat(r.newChat(), { surface: 'terminal' })
   r.state.terminalLive = true
@@ -328,6 +333,16 @@ describe('live terminal confirmation outcomes', () => {
     await expect(r.sessions.setSurface(chat, 'gui', async () => true)).rejects.toThrow('process tree did not stop')
     expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }), 'terminal-1')
     expect([write.mock.calls, changed.mock.calls, r.store.getChat(chat)!.surface]).toEqual([[], [], 'terminal'])
+  })
+
+  it('refuses to persist the GUI while an earlier fenced terminal owner keeps the chat live after the confirmed stop', async () => {
+    const { r, chat, changed, stopTerminal, write } = liveTerminalRig()
+    // The confirmed owner retires, but an earlier owner whose cleanup failed is still fenced.
+    stopTerminal.mockImplementationOnce(async () => {})
+    await expect(r.sessions.setSurface(chat, 'gui', async () => true)).rejects.toMatchObject({ code: 'busy' })
+    expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }), 'terminal-1')
+    expect([write.mock.calls, changed.mock.calls, r.pushes, r.children, r.store.getChat(chat)!.surface]).toEqual([[], [], [], [], 'terminal'])
+    expect([r.state.terminalLive, r.sessions.isLive(chat)]).toEqual([true, false])
   })
 
   it('switches an exited terminal without asking or stopping anything', async () => {

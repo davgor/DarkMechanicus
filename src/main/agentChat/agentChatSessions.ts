@@ -551,9 +551,13 @@ class SessionManager {
     if (!entry || entry.cleanupComplete) return false
     return entry.turnActive || entry.queued > 0 || Boolean(entry.prompts?.snapshot())
   }
-  /** Forge setup keeps the terminal's setup-action gate, no-new-session rule and checkout verification. */
+  /**
+   * Forge setup keeps the terminal's setup-action gate, no-new-session rule and checkout verification; tooling repair
+   * keeps the terminal's live-caller handoff and repair-checkout verification.
+   */
   private assertGuiCapable(chat: ChatRecord): void {
     if (chat.forgeSetup !== undefined) throw new DomainError('unsupported', 'Forge setup conversations run only in the terminal.')
+    if (chat.repairIncidentId !== undefined) throw new DomainError('unsupported', 'Tooling repair conversations run only in the terminal.')
   }
   private assertSurfaceAllowed(chat: ChatRecord, surface: 'gui' | 'terminal'): void {
     this.assertOpen(chat)
@@ -608,6 +612,8 @@ class SessionManager {
     try {
       await this.retireOwner(chat, surface, generation)
       if (this.closing || this.deleting.has(chat.id)) throw new Error('The chat is stopping.')
+      // An earlier owner still fenced by a failed cleanup keeps the terminal live: the GUI must not take over yet.
+      if (surface === 'gui' && this.deps.terminalLive(chat)) throw new DomainError('busy', 'An earlier terminal for this chat is still stopping.')
       this.deps.store.updateChat(this.chatFor(ref), { surface })
       this.deps.onChatChanged?.(ref)
       return this.snapshot(ref)
