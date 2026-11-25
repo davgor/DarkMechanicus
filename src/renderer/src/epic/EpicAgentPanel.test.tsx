@@ -151,4 +151,24 @@ describe('EpicAgentPanel: terminal chat', () => {
     await waitFor(() => expect(backend.agentChat.callsOf('setSurface')).toEqual([[{ folder: FOLDER, chatId: 'chat_orch', surface: 'gui' }]]))
     await waitFor(() => expect(orchestration.chatsChanged.count).toBe(1))
   })
+
+  it('shows a terminal owner’s worker thread read-only with its terminal actions and never sends', async () => {
+    const backend = backendWith()
+    if (backend.agentChat.snapshotResult.ok) {
+      backend.agentChat.snapshotResult = { ok: true, data: { ...backend.agentChat.snapshotResult.data, surface: 'terminal' } }
+    }
+    const terminal = { ...orchestrator, surface: 'terminal' as const }
+    const { orchestration } = openAgent(backend, [terminal])
+    const stage = await agentStage()
+    fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
+    const view = within(stage).getByRole('region', { name: 'Acolyte:DM-201 thread' })
+    expect(within(view).getByText('Worker is editing files')).toBeTruthy()
+    expect(within(view).queryByRole('button', { name: 'Send' })).toBeNull()
+    expect(within(view).queryByRole('textbox')).toBeNull()
+    fireEvent.click(within(view).getByRole('button', { name: 'Open terminal' }))
+    expect(orchestration.openedChats).toEqual(['chat_orch'])
+    expect(within(view).getByRole('button', { name: 'Switch to GUI' })).toBeTruthy()
+    expect(backend.agentChat.callsOf('send')).toEqual([])
+    expect(backend.agentChat.callsOf('start')).toEqual([])
+  })
 })

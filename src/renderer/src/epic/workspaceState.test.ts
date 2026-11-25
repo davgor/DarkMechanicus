@@ -217,6 +217,16 @@ describe('agent layout transitions', () => {
     const open = workspaceReducer(state, { type: 'open_checkpoint' })
     expect([open.layout, open.checkpointOpen, open.scorecardOpen]).toEqual([layout === 'agent' ? 'graph' : layout, true, false])
   })
+
+  it('selects an agent chat or one of its threads, and a missing thread selects the chat itself', () => {
+    const thread = workspaceReducer(loaded(), { type: 'select_agent', chatId: 'chat_orch', threadId: 'th_1' })
+    expect([thread.agentChatId, thread.agentThreadId]).toEqual(['chat_orch', 'th_1'])
+    const root = workspaceReducer(thread, { type: 'select_agent', chatId: 'chat_plan' })
+    expect([root.agentChatId, root.agentThreadId]).toEqual(['chat_plan', null])
+    const cleared = workspaceReducer(thread, { type: 'select_agent', chatId: 'chat_orch', threadId: null })
+    expect([cleared.agentChatId, cleared.agentThreadId]).toEqual(['chat_orch', null])
+    expect({ ...thread, agentChatId: null, agentThreadId: null }).toEqual(loaded())
+  })
 })
 
 describe('workspace feedback', () => {

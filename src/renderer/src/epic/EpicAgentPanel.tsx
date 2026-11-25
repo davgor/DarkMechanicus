@@ -75,8 +75,11 @@ function NoAgents({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   )
 }
 
-/** A chat continued in its terminal: the epic has no terminal kit, so it links to the chat or switches it to the GUI. */
-function TerminalChat({ ws, chat, name }: { ws: WorkspaceHandle; chat: ChatRecord; name: string }): JSX.Element {
+/**
+ * A terminal chat's actions: the epic has no terminal kit, so it links to the chat or switches it to the GUI. Main
+ * owns the switch (it refuses while the terminal is live), so the epic never talks to the chat's GUI process directly.
+ */
+function SurfaceActions({ ws, chat }: { ws: WorkspaceHandle; chat: ChatRecord }): JSX.Element {
   const [switching, setSwitching] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   async function switchToGui(): Promise<void> {
@@ -93,22 +96,34 @@ function TerminalChat({ ws, chat, name }: { ws: WorkspaceHandle; chat: ChatRecor
     }
   }
   return (
-    <section className="eap-terminal" aria-label={`${name} chat`}>
-      <h2>{chat.title}</h2>
-      <p className="ew-empty">This chat runs in a terminal.</p>
+    <>
       <div className="eap-actions">
         <button className="btn" type="button" onClick={() => ws.orchestration.onOpenChat(chat.id)}>Open terminal</button>
         <button className="btn btn-primary" type="button" disabled={switching} onClick={() => void switchToGui()}>Switch to GUI</button>
       </div>
       {problem !== null && <p role="alert" className="ew-notice-error">{problem}</p>}
+    </>
+  )
+}
+
+function TerminalChat({ ws, chat, name }: { ws: WorkspaceHandle; chat: ChatRecord; name: string }): JSX.Element {
+  return (
+    <section className="eap-terminal" aria-label={`${name} chat`}>
+      <h2>{chat.title}</h2>
+      <p className="ew-empty">This chat runs in a terminal.</p>
+      <SurfaceActions ws={ws} chat={chat} />
     </section>
   )
 }
 
-/** A subagent's thread, read-only, and a composer whose message the owning chat passes to it. */
-function ThreadView({ ws, ownerId, ownerName, threadId, name, items }: {
+/**
+ * A subagent's thread, read-only. The relay composer is offered only while the owning chat runs in the GUI: sending
+ * to a terminal chat's GUI bridge would start a hidden process behind its terminal, so a terminal owner offers its
+ * terminal and the switch to the GUI instead.
+ */
+function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
   ws: WorkspaceHandle
-  ownerId: string
+  owner: ChatRecord
   ownerName: string
   threadId: string
   name: string
@@ -122,7 +137,12 @@ function ThreadView({ ws, ownerId, ownerName, threadId, name, items }: {
         {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
         <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />
       </div>
-      <RelayComposer folder={ws.folder.path} ownerId={ownerId} ownerName={ownerName} threadId={threadId} name={name} />
+      {owner.surface === 'gui'
+        ? <RelayComposer folder={ws.folder.path} ownerId={owner.id} ownerName={ownerName} threadId={threadId} name={name} />
+        : <div className="eap-terminal">
+          <p className="ew-empty">{ownerName} runs in a terminal. Message this worker there, or switch {ownerName} to the GUI.</p>
+          <SurfaceActions ws={ws} chat={owner} />
+        </div>}
     </section>
   )
 }
@@ -199,7 +219,7 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
   const name = named(chat.id) ?? chat.title
   if (threadId !== null) {
-    return <ThreadView ws={ws} ownerId={chat.id} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'} items={items} />
+    return <ThreadView ws={ws} owner={chat} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'} items={items} />
   }
   if (chat.surface === 'gui') return <AgentChat folder={ws.folder.path} chatId={chat.id} agentLabel={name} />
   return <TerminalChat ws={ws} chat={chat} name={name} />
@@ -213,9 +233,11 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const fallbackId = defaultAgentChatId(chats, run)
   const chat = chats.find((item) => item.id === ws.state.agentChatId) ?? chats.find((item) => item.id === fallbackId)
   const lead = activeOrchestratorId(chats, run)
+  // Only chats still subscribed feed the tree; a chat no longer watched would otherwise stay frozen as it was.
+  const watched = useMemo(() => new Map([...transcripts].filter(([id]) => id === lead || id === chat?.id)), [transcripts, lead, chat?.id])
   const nodes = useMemo(() => epicAgentNodes({
-    chats, run, epicId: ws.epicId, transcripts, savedTickets: ws.data.savedTickets
-  }), [chats, run, ws.epicId, transcripts, ws.data.savedTickets])
+    chats, run, epicId: ws.epicId, transcripts: watched, savedTickets: ws.data.savedTickets
+  }), [chats, run, ws.epicId, watched, ws.data.savedTickets])
   if (chat === undefined) {
     return <section aria-label="Agent chat" className="eap"><NoAgents ws={ws} /></section>
   }
@@ -229,7 +251,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}
       {chat.id !== lead && <TranscriptFeed folder={folder} chatId={chat.id} onLoaded={onLoaded} />}
       <div className="eap-centre">
-        <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={transcripts.get(chat.id)?.items ?? []} />
+        <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
         tabs={railTabs(nodes, threadId ?? chat.id, onSelect, ws.now)} />
