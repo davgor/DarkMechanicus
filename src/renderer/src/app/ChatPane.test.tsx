@@ -1,16 +1,31 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../../shared/agents/chat'
+import { agentChatScenarios } from '../agentChat/__mocks__/agentChatScenario'
 import { AppHarness } from '../__mocks__/appHarness'
 import { FakeTerminals } from '../__mocks__/fakeTerminals'
 import { agentView, chatRecord, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
+import type * as ShellActionsModule from './shellActions'
+
+const landedCalls = vi.hoisted(() => ({ count: 0 }))
+vi.mock('./shellActions', async (importOriginal) => {
+  const actual = await importOriginal<typeof ShellActionsModule>()
+  return {
+    ...actual,
+    createShellActions: (deps: Parameters<typeof actual.createShellActions>[0]) => {
+      const actions = actual.createShellActions(deps)
+      return { ...actions, landed: () => { landedCalls.count++; actions.landed() } }
+    }
+  }
+})
 
 let h: AppHarness
 let terminals: FakeTerminals
 beforeEach(() => {
   window.localStorage.clear()
+  landedCalls.count = 0
   h = new AppHarness()
   terminals = new FakeTerminals()
   h.dm.terminals = terminals
@@ -97,3 +112,43 @@ for (const folder of ['/a', null]) {
     })
   })
 }
+
+describe('ChatPane thread landings', () => {
+  const EPIC = 'ep_01k8zq2a3b4c5d6e7f8g9h0j1k'
+
+  async function land(surface: 'gui' | 'terminal', threadId: string): Promise<void> {
+    h.dm.chats.chats = [chatRecord({ id: 'chat_land', title: 'Landing', folder: '/a', agent: 'claude', surface })]
+    h.dm.agentChat.snapshotResult = { ok: true, data: agentChatScenarios.tree.snapshot }
+    window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: EPIC }))
+    h.mount()
+    await settle()
+    act(() => h.epicProps.at(-1)!.orchestration.onOpenChat('chat_land', threadId))
+    await settle()
+  }
+
+  it('reveals the landed thread in a GUI chat, then calls landed once', async () => {
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      await land('gui', 'th-review')
+      const expanded = (label: string) => within(screen.getByRole('listitem', { name: `Thread: ${label}` }))
+        .getAllByRole('button')[0].getAttribute('aria-expanded')
+      expect(expanded('Acolyte:DM-2 Fix lint')).toBe('true')
+      expect(expanded('Inquisitor:DM-2 Review diff')).toBe('true')
+      expect(expanded('Acolyte:DM-1 Add retry banner')).toBe('false')
+      expect(scroll).toHaveBeenCalledTimes(1)
+      expect(landedCalls.count).toBe(1)
+      expect(terminals.calls).toEqual([])
+      expect(screen.getByRole('button', { name: 'Agents 4 threads', pressed: false })).toBeTruthy()
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('acknowledges a terminal chat’s landing at once', async () => {
+    await land('terminal', 'th-review')
+    expect(landedCalls.count).toBe(1)
+    expect(screen.getByTestId('terminal-host')).toBeTruthy()
+    expect(terminals.calls).toEqual([['/a', 'chat_land']])
+  })
+})

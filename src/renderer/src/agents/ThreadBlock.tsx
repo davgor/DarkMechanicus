@@ -1,7 +1,8 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../components/Icon'
 import { StatePill } from '../components/StatePill'
 import { Hourglass } from './Hourglass'
+import { RevealThreadContext } from './revealThread'
 import { threadStateView, type ThreadNode, type TreeRow } from './threadModel'
 
 interface ThreadBlockProps {
@@ -17,9 +18,21 @@ interface ThreadBlockProps {
 export const ThreadBlock = memo(function ThreadBlock({ node, renderRow }: ThreadBlockProps): JSX.Element {
   const { item } = node
   const [open, setOpen] = useState(false)
+  const reveal = useContext(RevealThreadContext)
+  const element = useRef<HTMLLIElement>(null)
+  const scrolled = useRef<number | null>(null)
+  const onPath = reveal.path.has(item.id)
+  useEffect(() => {
+    if (!onPath) return
+    setOpen(true)
+    if (reveal.target === item.id && scrolled.current !== reveal.nonce) {
+      scrolled.current = reveal.nonce
+      element.current?.scrollIntoView?.({ block: 'nearest' })
+    }
+  }, [onPath, reveal.target, reveal.nonce, item.id])
   const state = threadStateView(item.state)
   return (
-    <li className="chat-thread" data-state={item.state} aria-label={`Thread: ${item.label}`}>
+    <li ref={element} className="chat-thread" data-state={item.state} data-thread-id={item.id} aria-label={`Thread: ${item.label}`}>
       <div className="chat-thread-head">
         <button type="button" className="chat-thread-toggle" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={14} />

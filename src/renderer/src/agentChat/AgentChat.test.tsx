@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentChatEvent } from '../../../shared/agents/agentChat'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
@@ -251,4 +251,83 @@ it('clears local draft and error state when selecting another chat', async () =>
   view.rerender(<AgentChat folder={null} chatId="other-chat" agentLabel="Worker" api={view.api} />)
   await settle()
   expect(screen.getByRole('textbox')).toHaveProperty('value', '')
+})
+
+async function mountTree(rail: 'none' | 'toggle', chatId = 'fixture-chat') {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: agentChatScenarios.tree.snapshot }
+  const view = render(<AgentChat folder={null} chatId={chatId} agentLabel="Claude Code" api={api} rail={rail} />)
+  await settle()
+  return { ...view, api }
+}
+
+const level = (name: string) => screen.getByRole('treeitem', { name }).getAttribute('aria-level')
+
+describe('Agents rail', () => {
+  beforeEach(() => window.localStorage.clear())
+
+  it('offers no Agents button with the default rail', async () => {
+    await mountTree('none')
+    expect(screen.queryByRole('button', { name: /^Agents/ })).toBe(null)
+    expect(screen.queryByRole('complementary', { name: 'Chat agents' })).toBe(null)
+  })
+
+  it('opens a named, nested tree of the chat’s subagents', async () => {
+    await mountTree('toggle')
+    const toggle = screen.getByRole('button', { name: /^Agents/ })
+    expect(toggle.textContent).toBe('Agents 4')
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('complementary', { name: 'Chat agents' })).toBe(null)
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    const rail = screen.getByRole('complementary', { name: 'Chat agents' })
+    expect(document.getElementById(toggle.getAttribute('aria-controls')!)?.contains(rail)).toBe(true)
+    const names = () => within(rail).getAllByRole('treeitem').map((item) => item.getAttribute('aria-label'))
+    expect(names()).toEqual(['Claude Code', 'Acolyte:DM-2', 'Inquisitor:DM-2', 'Servitor-1', 'Finished 1'])
+    expect([level('Claude Code'), level('Acolyte:DM-2'), level('Inquisitor:DM-2'), level('Servitor-1'), level('Finished 1')])
+      .toEqual(['1', '2', '3', '2', '2'])
+    fireEvent.click(within(screen.getByRole('treeitem', { name: 'Finished 1' })).getByText('Finished 1'))
+    expect(names()).toEqual(['Claude Code', 'Acolyte:DM-2', 'Inquisitor:DM-2', 'Servitor-1', 'Finished 1', 'Acolyte:DM-1'])
+    expect(level('Acolyte:DM-1')).toBe('3')
+    fireEvent.click(toggle)
+    expect(screen.queryByRole('complementary', { name: 'Chat agents' })).toBe(null)
+  })
+})
+
+describe('Agents rail selection and memory', () => {
+  beforeEach(() => window.localStorage.clear())
+
+  it('reveals a nested subagent’s thread and every enclosing block, scrolling once', async () => {
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      await mountTree('toggle')
+      const thread = (label: string) => screen.getByRole('listitem', { name: `Thread: ${label}` })
+      const expanded = (label: string) => within(thread(label)).getAllByRole('button')[0].getAttribute('aria-expanded')
+      expect(expanded('Acolyte:DM-2 Fix lint')).toBe('false')
+      fireEvent.click(screen.getByRole('button', { name: /^Agents/ }))
+      const inquisitor = screen.getByRole('treeitem', { name: 'Inquisitor:DM-2' })
+      fireEvent.click(inquisitor.querySelector('.at-row')!)
+      expect(expanded('Acolyte:DM-2 Fix lint')).toBe('true')
+      expect(expanded('Inquisitor:DM-2 Review diff')).toBe('true')
+      expect(expanded('Acolyte:DM-1 Add retry banner')).toBe('false')
+      expect(inquisitor.getAttribute('aria-selected')).toBe('true')
+      expect(scroll.mock.contexts).toEqual([thread('Inquisitor:DM-2 Review diff')])
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('remembers the open rail for the same chat id only', async () => {
+    const first = await mountTree('toggle')
+    fireEvent.click(screen.getByRole('button', { name: /^Agents/ }))
+    first.unmount()
+    const again = await mountTree('toggle')
+    expect(screen.getByRole('complementary', { name: 'Chat agents' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Agents/ }).getAttribute('aria-pressed')).toBe('true')
+    again.rerender(<AgentChat folder={null} chatId="other-chat" agentLabel="Claude Code" api={again.api} rail="toggle" />)
+    await settle()
+    expect(screen.queryByRole('complementary', { name: 'Chat agents' })).toBe(null)
+    expect(screen.getByRole('button', { name: /^Agents/ }).getAttribute('aria-pressed')).toBe('false')
+  })
 })

@@ -1,12 +1,14 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
+import { RevealThreadContext } from '../agents/revealThread'
 import type { Scheduler } from '../app/scheduler'
 import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { TurnActivityLine } from './TurnActivityLine'
+import { ChatAgentsRail, useChatRailOpen, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat } from './useAgentChat'
 import { withoutTodoCalls } from './todoPanelModel'
@@ -20,6 +22,14 @@ interface Props {
   agentLabel: string
   api?: AgentChatApi
   scheduler?: Scheduler
+  /** `toggle` offers an Agents rail listing this chat's subagents; the epic panel keeps the default `none`. */
+  rail?: 'none' | 'toggle'
+  /** The chat record's role and run, which alone can name the tree's root. */
+  chat?: RailChat
+  /** A thread (a `thread` item's id) to open and scroll to once the chat has loaded. */
+  revealThreadId?: string | null
+  /** Called once the requested thread was revealed. */
+  onRevealed?(): void
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -58,13 +68,19 @@ function useChatCommand(): ChatCommand {
   return { error, acting, run }
 }
 
-function ChatView({ folder, chatId, agentLabel, api, scheduler }: Props): JSX.Element {
+const ORDINARY_CHAT: RailChat = { role: 'worker' }
+
+function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed }: Props): JSX.Element {
   const { state, send, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
   const command = useChatCommand()
+  const agents = useChatRailOpen(chatId)
+  const { reveal, show } = useThreadReveal(state, revealThreadId, onRevealed)
+  const railId = useId()
   const busy = state.status === 'busy'
   function stop(): void {
     if (busy) void command.run(interrupt)
   }
+  const showRail = rail === 'toggle' && agents.open
   return (
     <section className="agent-chat" aria-label={`${agentLabel} chat`} onKeyDown={(event) => {
       if (event.key === 'Escape' && busy) {
@@ -73,27 +89,43 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler }: Props): JSX.El
       }
     }}>
       <ChatHeader state={state} agentLabel={agentLabel} acting={command.acting}
-        terminal={() => { void command.run(() => setSurface('terminal')) }} />
-      {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
-      <Messages state={state} folder={folder} agentLabel={agentLabel} />
-      <TurnActivityLine state={state} stop={stop} acting={command.acting} />
-      <PendingPromptCard prompt={state.pending} answer={answer} />
-      <TodoCard chatId={chatId} state={state} />
-      <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
-        queued={state.queued} command={command} send={send} stop={stop} />
+        terminal={() => { void command.run(() => setSurface('terminal')) }}
+        agents={rail === 'toggle' ? { open: agents.open, toggle: agents.toggle, controls: railId } : null} />
+      <div className="agent-chat-body">
+        <div className="agent-chat-main">
+          {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
+          <RevealThreadContext.Provider value={reveal}>
+            <Messages state={state} folder={folder} agentLabel={agentLabel} />
+          </RevealThreadContext.Provider>
+          <TurnActivityLine state={state} stop={stop} acting={command.acting} />
+          <PendingPromptCard prompt={state.pending} answer={answer} />
+          <TodoCard chatId={chatId} state={state} />
+          <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
+            queued={state.queued} command={command} send={send} stop={stop} />
+        </div>
+        {showRail && <div id={railId} className="agent-chat-rail">
+          <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} selected={reveal.target} select={show} />
+        </div>}
+      </div>
     </section>
   )
 }
 
-function ChatHeader({ state, agentLabel, acting, terminal }: {
+function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   state: ChatState; agentLabel: string; acting: boolean; terminal: () => void
+  agents: { open: boolean; toggle(): void; controls: string } | null
 }): JSX.Element {
   const disabled = state.status !== 'idle' || state.pending !== null || acting
   const status = state.status === 'busy' ? 'working' : state.status === 'signed_out' ? 'signed out' : state.status ?? 'starting'
+  const threads = state.items.filter((item) => item.kind === 'thread').length
   return (
     <header className="agent-chat-header">
       <h2>{agentLabel}</h2>
       <span className="agent-chat-status" role="status">{status}</span>
+      {agents && <button className="btn btn-sm agent-chat-agents" type="button" aria-pressed={agents.open}
+        aria-controls={agents.controls} onClick={agents.toggle}>
+        Agents <span className="chat-chip" aria-label={`${threads} threads`}>{threads}</span>
+      </button>}
       <span title={disabled ? 'Terminal is available when the agent is idle with no pending prompt or command.' : 'Continue this session in Terminal'}>
         <button className="btn btn-sm" type="button" disabled={disabled} onClick={terminal}>Terminal</button>
       </span>

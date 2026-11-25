@@ -141,12 +141,16 @@ interface ChatPaneProps {
 /** The persisted surface owns the pane; a surface command waits for the chats_changed record push. */
 function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
-  const landing = threadLandingFor(shell.landing, chat.id) !== null
+  const threadId = threadLandingFor(shell.landing, chat.id)?.threadId ?? null
+  const gui = chat.surface === 'gui'
+  // A GUI chat acknowledges the landing once it revealed the thread; a terminal has nothing to reveal.
   useEffect(() => {
-    if (landing) actions.current.landed()
-  }, [actions, landing])
-  if (chat.surface === 'gui') {
-    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler} />
+    if (threadId !== null && !gui) actions.current.landed()
+  }, [actions, threadId, gui])
+  const onRevealed = useCallback(() => actions.current.landed(), [actions])
+  if (gui) {
+    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler}
+      rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} />
   }
   return (
     <TerminalPane

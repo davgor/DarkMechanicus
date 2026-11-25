@@ -1,4 +1,5 @@
 import type { AgentChatEvent, AgentChatSnapshot, AgentTodoPhase } from '../../../../shared/agents/agentChat'
+import type { Callsign } from '../../../../shared/agents/callsign'
 import type { ChatItem } from '../../../../shared/agents/chat'
 
 const ref = { folder: null, chatId: 'fixture-chat' }
@@ -10,6 +11,25 @@ const conversation: ChatItem[] = [
   { id: 'assistant', at, kind: 'assistant_text', text: 'I will inspect the **chat view**.' }
 ]
 const tool: ChatItem = { id: 'tool', at, kind: 'tool_call', name: 'Read', input: { path: 'src/renderer/src/agentChat/AgentChat.tsx' }, status: 'running', resultSummary: null }
+
+const stamp = (role: Callsign['role'], ticketKey: string | null, ordinal: number | null = null): Callsign =>
+  ({ role, ticketKey, ordinal, purpose: null, ticketVerified: false })
+/** Two Acolytes, an Inquisitor inside the DM-2 thread and an unnamed helper; each thread ran one tool. */
+const treeItems: ChatItem[] = [
+  ...conversation,
+  { id: 'spawn-dm1', at, kind: 'tool_call', name: 'Task', input: { description: 'Add retry banner' }, status: 'completed', resultSummary: 'Worker finished' },
+  { id: 'th-dm1', at, kind: 'thread', parentItemId: 'spawn-dm1', label: 'Acolyte:DM-1 Add retry banner', state: 'done', callsign: stamp('Acolyte', 'DM-1') },
+  { id: 'dm1-edit', at, kind: 'tool_call', threadId: 'th-dm1', name: 'Edit', input: { path: 'src/banner.tsx' }, status: 'completed', resultSummary: 'Edited' },
+  { id: 'spawn-dm2', at, kind: 'tool_call', name: 'Task', input: { description: 'Fix lint' }, status: 'running', resultSummary: null },
+  { id: 'th-dm2', at, kind: 'thread', parentItemId: 'spawn-dm2', label: 'Acolyte:DM-2 Fix lint', state: 'running', callsign: stamp('Acolyte', 'DM-2') },
+  { id: 'dm2-lint', at, kind: 'tool_call', threadId: 'th-dm2', name: 'Bash', input: { command: 'npm run lint' }, status: 'completed', resultSummary: 'Clean' },
+  { id: 'spawn-review', at, kind: 'tool_call', threadId: 'th-dm2', name: 'Task', input: { description: 'Review diff' }, status: 'running', resultSummary: null },
+  { id: 'th-review', at, kind: 'thread', threadId: 'th-dm2', parentItemId: 'spawn-review', label: 'Inquisitor:DM-2 Review diff', state: 'running', callsign: stamp('Inquisitor', 'DM-2') },
+  { id: 'review-read', at, kind: 'tool_call', threadId: 'th-review', name: 'Read', input: { path: 'src/lint.ts' }, status: 'running', resultSummary: null },
+  { id: 'spawn-look', at, kind: 'tool_call', name: 'Task', input: { description: 'look around' }, status: 'running', resultSummary: null },
+  { id: 'th-look', at, kind: 'thread', parentItemId: 'spawn-look', label: 'look around', state: 'running', callsign: stamp('Servitor', null, 1) },
+  { id: 'look-glob', at, kind: 'tool_call', threadId: 'th-look', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }
+]
 
 const todoPhases: AgentTodoPhase[] = [
   { name: 'Inspect', tasks: [
@@ -25,8 +45,9 @@ const todoPhases: AgentTodoPhase[] = [
   ] }
 ]
 /** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
+export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
   empty: { snapshot: empty, events: [], commit: [] },
+  tree: { snapshot: { ...empty, status: 'busy', items: treeItems }, events: [], commit: [] },
   stalled: {
     snapshot: { ...empty, status: 'busy', items: conversation },
     events: [], commit: [], advanceMs: 31_000
