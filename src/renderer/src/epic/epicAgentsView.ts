@@ -45,7 +45,7 @@ export function defaultAgentChatId(chats: readonly ChatRecord[], run: RunView | 
 }
 
 /** What the chat is to the epic, shown under its name. */
-export function chatKindLabel(chat: ChatRecord, run: RunView | null): string {
+function chatKindLabel(chat: ChatRecord, run: RunView | null): string {
   if (chat.transferEpicId !== undefined) return 'Transfer'
   if (chat.conversation !== undefined) return 'Conversation'
   if (chat.role === 'planner') return 'Planner'
