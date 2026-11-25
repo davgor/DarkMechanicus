@@ -251,3 +251,10 @@ describe('Reconcile gate', () => {
     expect(observeReconcileInputs(deps).current()).toBe(true)
   })
 })
+
+describe('Workspace guards beside the reconcile path', () => {
+  it('refuses a Forge conversion outside the desktop app', () => {
+    const agent = harness.open('orchestrator')
+    expect(() => agent.exportForge?.('Member')).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+  })
+})
