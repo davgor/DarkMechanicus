@@ -1112,6 +1112,35 @@ function backingOff(deps: FinalizerDeps, entry: OutboxRow, mode: FlushMode): boo
   return mode === 'scheduled' && entry.next_attempt_at !== null && isBefore(deps.clock.nowIso(), entry.next_attempt_at)
 }
 
+/** What a reconcile applied, as `ReconcileResultView` names it. */
+export interface ReconciledRecords {
+  imported: readonly string[]
+  branchChanged: boolean
+}
+
+/** The ids a reconcile result names an entry's records by: epic, run, comment, `profile:<name>`, `kanban:<cardId>`. */
+function reconciledIds(entry: OutboxRow): string[] {
+  const ids = [entry.epic_id, entry.run_id, entry.entity_id, entry.card_id === null ? null : `kanban:${entry.card_id}`]
+  ids.push(entry.kind === 'profile' && entry.entity_id !== null ? `profile:${entry.entity_id}` : null)
+  return ids.filter((id) => id !== null)
+}
+
+/**
+ * Inside a reconcile's transaction, with what it applied: an entry waiting out its backoff whose records the reconcile
+ * imported (every waiting entry, once it acknowledged a branch change) is retried by the next scheduled flush at once.
+ * A failure the reconcile clears (records not in this checkout, records not imported yet) then neither waits out its
+ * delay nor holds back the records queued after it. Records it found unchanged keep their backoff: nothing about
+ * them changed, so a failure writing them (a full disk, a locked file) is no likelier to clear.
+ */
+export function releaseBackoff(db: Db, result: ReconciledRecords): void {
+  const imported = new Set(result.imported)
+  for (const entry of queuedAfter(db, 0, undefined)) {
+    if (entry.next_attempt_at !== null && (result.branchChanged || reconciledIds(entry).some((id) => imported.has(id)))) {
+      db.run('UPDATE outbox SET next_attempt_at = NULL WHERE id = ?', entry.id)
+    }
+  }
+}
+
 /** Tidies the export intent of a committed epic export; only a top-level commit is final. */
 function afterCommit(deps: FinalizerDeps, entry: OutboxRow): void {
   // Inside an outer transaction the row binding still covers a rollback.

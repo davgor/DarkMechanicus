@@ -309,7 +309,9 @@ describe('flushOutbox failures at the commit, after staging', () => {
     expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
     expect(flush(env).savedRevisionIds).toEqual([R2])
   })
+})
 
+describe('flushOutbox restores replaced files under the write lock', () => {
   it('puts the replaced files back before releasing the lock, so another connection exporting the entry next keeps its export', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-restore-'))
     const base = createRepoEnv()
