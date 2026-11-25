@@ -30,7 +30,7 @@ import { TransferredPanel, TransferStrip } from './LinearTransfer'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
 import { OrchestratorMessages } from './OrchestratorMessages'
-import type { OrchestrationHost } from './orchestration'
+import { isEpicChat, isGuiChat, type OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
 import { failureOf } from './runner'
 import { StartRunDialog } from './StartRunDialog'
@@ -295,6 +295,11 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       onSelectTicket={(id) => ws.dispatch({ type: 'select_ticket', ticketId: id })}
       onReview={(input) => ws.actions.review(input)}
       onOpenChat={ws.orchestration.onOpenChat}
+      agentTab={{
+        isGui: (chatId) => isGuiChat(ws.orchestration.chats, chatId),
+        inEpic: (chatId) => isEpicChat(ws.orchestration.chats, ws.data.run, ws.epicId, chatId),
+        open: (chatId, threadId) => ws.dispatch({ type: 'open_agent', chatId, threadId })
+      }}
       onDelete={() => deleteTicketFromPlan(ws, ticketId, key)}
     />
   )
@@ -381,7 +386,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         <SidePanel ws={ws} />
       </div>
       {draft ? <ValidationPanel ws={ws} saveUnavailable={header.actions.saveUnavailable} /> : <AttemptsStrip ws={ws} />}
-      <OrchestratorMessages ws={ws} />
+      {ws.state.layout === 'agent' ? null : <OrchestratorMessages ws={ws} />}
       <Toast ws={ws} />
       <StartRunHost ws={ws} />
       <TransferHost ws={ws} />

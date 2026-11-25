@@ -56,6 +56,21 @@ describe('epic workspace: Agent report navigation', () => {
   })
 })
 
+describe('epic workspace: Orchestrator messages beside the Agent stage', () => {
+  it('hides the bottom Orchestrator messages section in the agent layout and shows it in graph and list', async () => {
+    renderWorkspace(new FakeBackend())
+    await screen.findByRole('group', { name: 'View' })
+    expect(screen.getByRole('region', { name: 'Orchestrator messages' })).toBeTruthy()
+    fireEvent.click(button('Agent'))
+    expect(screen.getByRole('region', { name: 'Agent chat' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Orchestrator messages' })).toBeNull()
+    fireEvent.click(button('Graph'))
+    expect(screen.getByRole('region', { name: 'Orchestrator messages' })).toBeTruthy()
+    fireEvent.click(button('List'))
+    expect(screen.getByRole('region', { name: 'Orchestrator messages' })).toBeTruthy()
+  })
+})
+
 describe('epic workspace: Agent stage switching', () => {
 
   it('swaps Agent with Graph, List and Scorecard without leaving other stages mounted', async () => {

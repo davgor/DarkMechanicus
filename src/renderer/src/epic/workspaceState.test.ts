@@ -227,6 +227,22 @@ describe('agent layout transitions', () => {
     expect([cleared.agentChatId, cleared.agentThreadId]).toEqual(['chat_orch', null])
     expect({ ...thread, agentChatId: null, agentThreadId: null }).toEqual(loaded())
   })
+
+  it('opens a chat in the Agent stage from a link, from any layout, report or scorecard', () => {
+    const scorecard = workspaceReducer(workspaceReducer(loaded(), { type: 'open_checkpoint' }), { type: 'open_scorecard' })
+    const opened = workspaceReducer(scorecard, { type: 'open_agent', chatId: 'chat_orch' })
+    expect([opened.layout, opened.agentChatId, opened.agentThreadId, opened.checkpointOpen, opened.scorecardOpen])
+      .toEqual(['agent', 'chat_orch', null, false, false])
+    const list = workspaceReducer(workspaceReducer(loaded(), { type: 'show_layout', layout: 'list' }), { type: 'select_agent', chatId: 'chat_plan', threadId: 'th_9' })
+    const fromList = workspaceReducer(list, { type: 'open_agent', chatId: 'chat_orch', threadId: null })
+    expect([fromList.layout, fromList.agentChatId, fromList.agentThreadId]).toEqual(['agent', 'chat_orch', null])
+  })
+
+  it('opens one of a chat’s threads when the link names it', () => {
+    const thread = workspaceReducer(loaded(), { type: 'open_agent', chatId: 'chat_orch', threadId: 'th_1' })
+    expect([thread.layout, thread.agentChatId, thread.agentThreadId]).toEqual(['agent', 'chat_orch', 'th_1'])
+    expect({ ...thread, layout: 'graph', agentChatId: null, agentThreadId: null }).toEqual(loaded())
+  })
 })
 
 describe('workspace feedback', () => {

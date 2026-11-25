@@ -91,7 +91,7 @@ function AdoptLine({ ws, notice }: { ws: WorkspaceHandle; notice: AdoptNotice })
   )
 }
 
-/** Which chat is orchestrating the run, with a link to it; or that a queued run waits for an orchestrator. */
+/** Which chat is orchestrating the run, with a link that shows it in the Agent tab; or that a queued run waits for an orchestrator. */
 function OrchestratorLine({ ws, note }: { ws: WorkspaceHandle; note: OrchestratorNote }): JSX.Element {
   if (note.kind === 'waiting') {
     return <p className="ew-bar-note">{note.text}</p>
@@ -99,7 +99,7 @@ function OrchestratorLine({ ws, note }: { ws: WorkspaceHandle; note: Orchestrato
   return (
     <p className="ew-bar-note">
       <span>{note.text}</span>
-      <button type="button" className="ew-link" onClick={() => ws.orchestration.onOpenChat(note.chatId)}>
+      <button type="button" className="ew-link" onClick={() => ws.dispatch({ type: 'open_agent', chatId: note.chatId })}>
         {note.link}
       </button>
     </p>
@@ -107,8 +107,8 @@ function OrchestratorLine({ ws, note }: { ws: WorkspaceHandle; note: Orchestrato
 }
 
 /**
- * A run paused because its orchestrator's agent signed out: says so, links the orchestrator chat, and offers
- * Sign in right here (or Check again for a state that could not be told). Resume waits for the agent.
+ * A run paused because its orchestrator's agent signed out: says so, links the orchestrator chat (shown in the Agent
+ * tab), and offers Sign in right here (or Check again for a state that could not be told). Resume waits for the agent.
  */
 function SignedOutLine({ ws, note }: { ws: WorkspaceHandle; note: SignedOutNote }): JSX.Element {
   const host = ws.orchestration
@@ -117,7 +117,7 @@ function SignedOutLine({ ws, note }: { ws: WorkspaceHandle; note: SignedOutNote 
     <div className="ew-bar-note ew-bar-signin">
       <span>{note.text}</span>
       {chat === null ? null : (
-        <button type="button" className="ew-link" onClick={() => host.onOpenChat(chat.id)}>
+        <button type="button" className="ew-link" onClick={() => ws.dispatch({ type: 'open_agent', chatId: chat.id })}>
           {chat.title}
         </button>
       )}

@@ -15,6 +15,13 @@ import { ATTEMPT_LABELS, ATTEMPT_TONES } from '../graph/ticketStates'
 import { activityItems, attemptWindow, clockTime, endedSummary, latestAttemptId, type ActivityItem } from './activityView'
 import { useFollowScroll } from './useFollowScroll'
 
+/** Inside an epic: which chats run in the GUI, which the epic's Agent tab lists, and how to show one (or one of its threads) there. */
+export interface AgentTabLink {
+  isGui(chatId: string): boolean
+  inEpic(chatId: string): boolean
+  open(chatId: string, threadId: string | null): void
+}
+
 interface ActivityTabProps {
   /** The tracked folder the attempt belongs to. */
   folderPath: string
@@ -25,6 +32,8 @@ interface ActivityTabProps {
   onChoose(attemptId: string): void
   /** Opens a chat; with a thread (a `thread` item's id) the chat opens with that thread expanded. */
   onOpenChat(chatId: string, threadId?: string): void
+  /** Inside an epic, a chat the epic lists opens in its Agent tab (one bound by grant only when it runs in the GUI); absent, every chat is opened by `onOpenChat`. */
+  agentTab?: AgentTabLink
   scheduler: Scheduler
 }
 
@@ -53,13 +62,16 @@ function AttemptPicker(props: { attempts: AttemptView[]; shown: string; onChoose
   )
 }
 
+/** A link in the attempt heading to the chat the attempt is worked in. */
+interface ChatLink {
+  label: 'Open chat' | 'Open terminal'
+  open(): void
+}
+
 interface HeadingProps {
   attempt: AttemptView | undefined
   view: AttemptTimelineView | null
-  /** Opens the chat the attempt's worker runs in; null when the attempt is not worked in a chat. */
-  onOpenChat: (() => void) | null
-  /** Opens the chat whose terminal claimed the attempt (bound by grant); null when none is known. */
-  onOpenTerminal: (() => void) | null
+  links: ChatLink[]
 }
 
 function Heading(props: HeadingProps): JSX.Element {
@@ -70,18 +82,38 @@ function Heading(props: HeadingProps): JSX.Element {
       <span className="ew-mono">{attempt === undefined ? 'Attempt' : `Attempt #${attempt.number}`}</span>
       {state === undefined ? null : <StatePill tone={ATTEMPT_TONES[state]} label={ATTEMPT_LABELS[state].toUpperCase()} />}
       {view?.isLive === true ? <span className="ew-muted tp-activity-live">Updating live</span> : null}
-      {props.onOpenChat === null ? null : (
-        <button type="button" className="ew-link tp-activity-open" onClick={props.onOpenChat}>
-          Open chat
+      {props.links.map((link, index) => (
+        <button key={index} type="button" className="ew-link tp-activity-open" onClick={link.open}>
+          {link.label}
         </button>
-      )}
-      {props.onOpenTerminal === null ? null : (
-        <button type="button" className="ew-link tp-activity-open" onClick={props.onOpenTerminal}>
-          Open terminal
-        </button>
-      )}
+      ))}
     </div>
   )
+}
+
+type LinkProps = Pick<TimelineProps, 'onOpenChat' | 'agentTab'>
+
+/** The chat whose thread the attempt's worker runs in (an old chat's item-based binding); one the epic lists opens in its Agent tab. */
+function threadLink(thread: BoundThread, { onOpenChat, agentTab }: LinkProps): ChatLink {
+  const open = agentTab?.inEpic(thread.chatId) === true
+    ? () => agentTab.open(thread.chatId, thread.threadId)
+    : () => onOpenChat(thread.chatId, thread.threadId ?? undefined)
+  return { label: 'Open chat', open }
+}
+
+/**
+ * The chat whose session claimed the attempt (bound by grant): Open terminal, or inside an epic, Open chat for a GUI
+ * chat (unless the thread link already opens it), shown in the Agent tab when the epic lists it.
+ */
+function grantLink(chatId: string, thread: BoundThread | null, { onOpenChat, agentTab }: LinkProps): ChatLink | null {
+  if (agentTab?.isGui(chatId) !== true) return { label: 'Open terminal', open: () => onOpenChat(chatId) }
+  if (chatId === thread?.chatId) return null
+  return { label: 'Open chat', open: agentTab.inEpic(chatId) ? () => agentTab.open(chatId, null) : () => onOpenChat(chatId) }
+}
+
+function chatLinks(thread: BoundThread | null, terminal: string | null, props: LinkProps): ChatLink[] {
+  const links = [thread === null ? null : threadLink(thread, props), terminal === null ? null : grantLink(terminal, thread, props)]
+  return links.filter((link): link is ChatLink => link !== null)
 }
 
 function Row({ item }: { item: ActivityItem }): JSX.Element {
@@ -173,6 +205,7 @@ interface TimelineProps {
   attemptId: string
   attempt: AttemptView | undefined
   onOpenChat(chatId: string, threadId?: string): void
+  agentTab: AgentTabLink | undefined
   scheduler: Scheduler
 }
 
@@ -199,8 +232,8 @@ function LogOf({ view, thread }: { view: AttemptTimelineView; thread: BoundThrea
  * Follows one attempt: its history, then each new entry while it is open; polling stops when it closes. An
  * attempt whose worker runs in a chat thread (an old chat's item-based binding) also shows that thread, merged in,
  * with a link to the chat; an attempt claimed from a chat's terminal gets an Open terminal link to that chat, found
- * by grant. Both lookups are asked again as the timeline moves until they find their chat. Any other attempt shows
- * the timeline alone.
+ * by grant (inside an epic, a GUI chat found that way gets Open chat, to the Agent tab). Both lookups are asked again
+ * as the timeline moves until they find their chat. Any other attempt shows the timeline alone.
  */
 function Timeline(props: TimelineProps): JSX.Element {
   const [error, setError] = useState<string | null>(null)
@@ -213,11 +246,9 @@ function Timeline(props: TimelineProps): JSX.Element {
   useEffect(() => setError(null), [view])
   const thread = useBoundThread({ folder: props.folderPath, attemptId: props.attemptId }, view?.cursor)
   const terminal = useBoundTerminal({ folder: props.folderPath, attemptId: props.attemptId }, view?.cursor)
-  const open = thread === null ? null : () => props.onOpenChat(thread.chatId, thread.threadId ?? undefined)
-  const openTerminal = terminal === null ? null : () => props.onOpenChat(terminal)
   return (
     <>
-      <Heading attempt={props.attempt} view={view} onOpenChat={open} onOpenTerminal={openTerminal} />
+      <Heading attempt={props.attempt} view={view} links={chatLinks(thread, terminal, props)} />
       {error === null ? null : <p role="alert" className="tp-error">{error}</p>}
       {view === null && error === null ? <p className="ew-muted">Loading activity…</p> : null}
       {view === null ? null : <LogOf view={view} thread={thread} />}
@@ -241,6 +272,7 @@ export function ActivityTab(props: ActivityTabProps): JSX.Element {
         attemptId={shown}
         attempt={props.attempts.find((item) => item.id === shown)}
         onOpenChat={props.onOpenChat}
+        agentTab={props.agentTab}
         scheduler={props.scheduler}
       />
     </section>

@@ -99,6 +99,8 @@ export type WorkspaceAction =
   | { type: 'select_ticket'; ticketId: string | null }
   /** Show an epic chat, or one of its subagent threads, in the Agent stage. */
   | { type: 'select_agent'; chatId: string; threadId?: string | null }
+  /** An "Open chat" link inside the epic: show the Agent stage with that chat, or one of its threads, selected. */
+  | { type: 'open_agent'; chatId: string; threadId?: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
   /** Select the ticket and show its Scorecard tab, on one run's grade when named. */
@@ -215,6 +217,14 @@ const HANDLERS: Handlers = {
   }),
   select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
   select_agent: (state, action) => ({ ...state, agentChatId: action.chatId, agentThreadId: action.threadId ?? null }),
+  open_agent: (state, action) => ({
+    ...state,
+    layout: 'agent',
+    agentChatId: action.chatId,
+    agentThreadId: action.threadId ?? null,
+    checkpointOpen: false,
+    scorecardOpen: false
+  }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
   open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
   open_checkpoint: (state) => ({ ...state, layout: state.layout === 'agent' ? 'graph' : state.layout, checkpointOpen: true, scorecardOpen: false }),
