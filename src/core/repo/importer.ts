@@ -19,8 +19,8 @@ import { canonicalJson, contentHash } from '../canonical'
 import type { Clock } from '../clock'
 import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
-import { getMeta, META_KEYS, setMeta } from '../meta'
-import { rememberValidatedRepositoryCache } from './validatedCache'
+import { getMeta, META_KEYS, readReconcileMarker, setMeta } from '../meta'
+import { hasValidatedRepositoryCache, rememberValidatedRepositoryCache } from './validatedCache'
 import { correctionHolderProblem, type CorrectionHolder, crossRepoEvidenceProblem } from '../plan/corrections'
 import { resultProblem, type ScorecardLookup, sourceProblem } from '../plan/experiments'
 import { validatePlan } from '../plan/graph'
@@ -34,13 +34,13 @@ import { readProject } from './initialize'
 import { releaseBackoff } from './finalizer'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import { applyAttachmentFiles, insertOwnedRow, prepareAttachmentFiles, registerEvidenceAttachments, registerTicketAttachments } from './attachmentImport'
-import { applyCard, type KanbanScan, scanKanban, storeKanbanConflicts } from './kanbanImport'
-import { applyObservations, scanObservations } from './observationImport'
+import { applyCard, type KanbanScan, kanbanConflictsStored, scanKanban, storeKanbanConflicts } from './kanbanImport'
+import { applyObservations, type ObservationScope, observationsSettled, scanObservations } from './observationImport'
 import { databaseRevision, observeRepository } from './reconcilePreparation'
 import type { ReconcileGate } from './reconcileFingerprint'
 import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
 import { applyRecoveredAttachments, prepareRecoveredAttachments } from './recoveredAttachments'
-import { applyProfile, type ProfileScan, scanProfiles, storeProfileConflicts } from './profileImport'
+import { applyProfile, type ProfileScan, profileConflictsStored, scanProfiles, storeProfileConflicts } from './profileImport'
 import {
   buildRunHistoryRecord,
   type CommentRecord,
@@ -65,7 +65,7 @@ import {
   trackedRunHash
 } from './portable'
 import { hasPendingEpicChanges, matchesSync } from './syncState'
-import type { TrackedRecords } from './gitChanges'
+import { IMPORTER_VERSION, type TrackedRecords } from './gitChanges'
 import type { FsAdapter, GitAdapter, RepoLayout } from './types'
 
 export interface ImporterDeps {
@@ -1722,9 +1722,14 @@ function unsettledRecords(deps: ImporterDeps, context: ApplyContext, rejectedPat
  * Whether the conflicts and rejections differ from those the previous reconcile reported (stored
  * as a digest in meta), so a file that stays rejected is not recorded again on every heartbeat.
  */
+function problemsDigest(result: ReconcileResultView): string {
+  const { conflicts, profileConflicts, kanbanConflicts, rejected } = result
+  return contentHash({ conflicts, profileConflicts, kanbanConflicts, rejected })
+}
+
 function problemsChanged(db: Db, result: ReconcileResultView): boolean {
   const { conflicts, profileConflicts, kanbanConflicts, rejected } = result
-  const digest = contentHash({ conflicts, profileConflicts, kanbanConflicts, rejected })
+  const digest = problemsDigest(result)
   const previous = getMeta(db, META_KEYS.reconcileProblems)
   if (previous === digest) return false
   setMeta(db, META_KEYS.reconcileProblems, digest)
@@ -1761,14 +1766,23 @@ function registerAttachments(deps: ImporterDeps, now: string, imported: { runs: 
   }
 }
 
-/**
- * Imports `recovered-attachments/`. An archive only fills a row without bytes, so a targeted reconcile reads the folder
- * only when git reports it or such a row waits.
- */
-function recoverAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): { rejected: { path: string; message: string }[]; changed: boolean } {
-  const read = targeted === null || targeted.recoveredAttachments ||
+/** An archive only fills a row without bytes, so a targeted reconcile reads `recovered-attachments/` only when git reports it or such a row waits. */
+function readsRecoveredAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): boolean {
+  return targeted === null || targeted.recoveredAttachments ||
     deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
-  return read ? applyRecoveredAttachments(deps, prepareRecoveredAttachments(deps)) : { rejected: [], changed: false }
+}
+
+/** Imports `recovered-attachments/` when `readsRecoveredAttachments`. */
+function recoverAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): { rejected: { path: string; message: string }[]; changed: boolean } {
+  return readsRecoveredAttachments(deps, targeted) ? applyRecoveredAttachments(deps, prepareRecoveredAttachments(deps)) : { rejected: [], changed: false }
+}
+
+function observationScope(targeted: TrackedRecords | null): ObservationScope | undefined {
+  return targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics }
+}
+
+function heldEpics(db: Db): string[] {
+  return db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
 }
 
 /** Applies staged profiles, each under its own transaction so one the database refuses is reported without undoing the others. */
@@ -1804,9 +1818,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
   // After epics and runs, so an observation of a run imported now resolves.
   const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
-  const observationScope = targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics }
-  const heldEpics = deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
-  const observationOutcome = applyObservations(deps, scanObservations(deps, heldEpics, observationScope), now)
+  const observationOutcome = applyObservations(deps, scanObservations(deps, heldEpics(deps.db), observationScope(targeted)), now)
   registerAttachments(deps, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key: string) => key.slice('kanban:'.length)), epics: staged.savedEpics })
   const recovered = recoverAttachments(deps, targeted)
   const attachmentOutcome = applyAttachmentFiles(deps, prepareAttachmentFiles(deps))
@@ -1856,6 +1868,75 @@ function nothingToReconcile(): ReconcileResultView {
     branchChanged: false,
     pausedRuns: []
   }
+}
+
+/**
+ * Whether `storeConflicts` would leave `sync_state` as it is: every conflict is stored with its message, and each stored
+ * conflict it clears first is one it sets again with the same message.
+ */
+function conflictsStored(db: Db, conflicts: Conflict[], unchanged: string[]): boolean {
+  const kept = new Set(conflicts.map((conflict) => JSON.stringify([conflict.kind, conflict.entityId, conflict.message])))
+  const cleared = db.all<{ kind: string; entity_id: string; conflict: string }>(
+    `SELECT kind, entity_id, conflict FROM sync_state WHERE conflict IS NOT NULL AND (
+       (kind = 'epic' AND substr(conflict, 1, ?) = ?)
+       OR (kind IN ('epic', 'run', 'comment') AND entity_id IN (SELECT value FROM json_each(?)))
+       OR (kind = 'profile' AND 'profile:' || entity_id IN (SELECT value FROM json_each(?)))
+     )`,
+    TRANSFER_HOLD_PREFIX.length, TRANSFER_HOLD_PREFIX, JSON.stringify(unchanged), JSON.stringify(unchanged)
+  )
+  return cleared.every((row) => kept.has(JSON.stringify([row.kind, row.entity_id, row.conflict]))) && conflicts.every((conflict) =>
+    db.get('SELECT 1 FROM sync_state WHERE kind = ? AND entity_id = ? AND conflict = ?', conflict.kind, conflict.entityId, conflict.message) !== undefined)
+}
+
+/**
+ * Whether the meta an apply keeps is already what it would write: the project, the checkout branch, the attachment
+ * registration, and the marker's commit and importer version. The marker advances only when HEAD moved or inside a write
+ * that happens anyway; the dirty paths it keeps are re-read by the next reconcile, which is safe while nothing changed.
+ */
+function bookkeepingCurrent(db: Db, scope: ReconcileScope): boolean {
+  if (getMeta(db, META_KEYS.projectId) === null || getMeta(db, META_KEYS.checkoutBranch) === null) return false
+  if (getMeta(db, META_KEYS.attachmentRegistration) !== '1') return false
+  const marker = readReconcileMarker(db)
+  if (scope.head === null || scope.statusPaths === null) return marker.baseCommit === null && marker.importerVersion === null && marker.dirtyPaths === null
+  return marker.baseCommit === scope.head && marker.importerVersion === IMPORTER_VERSION
+}
+
+/**
+ * The result of a prepared reconcile that would write nothing, or null when applying it would write: it imports nothing,
+ * stores or clears no conflict, finds the problems the last reconcile recorded, and has no observation, recovered archive
+ * or attachment image to apply. Such a reconcile takes no write transaction: `last_reconcile_at`, the marker and the
+ * fingerprint stay as the last write left them (`recheckRecords` then re-reads a longer export window, which is safe).
+ * Reads only; run in a read snapshot.
+ */
+function unchangedResult(deps: ImporterDeps, context: ApplyContext): ReconcileResultView | null {
+  const { db } = deps
+  const { plan, profiles, kanban, scope } = context
+  const staged = plan.epics.length + plan.runs.length + plan.eventMerges.length + plan.comments.length + plan.syncedComments.length +
+    profiles.staged.length + kanban.cards.length
+  if (staged > 0 || context.branchChanged || !bookkeepingCurrent(db, scope)) return null
+  if (!conflictsStored(db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged]) || !profileConflictsStored(db, profiles) ||
+    !kanbanConflictsStored(db, kanban.conflicts)) return null
+  const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
+  const observationRejected = observationsSettled(db, scanObservations(deps, heldEpics(db), observationScope(targeted)))
+  if (observationRejected === null) return null
+  const recovered = readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] }
+  if (recovered.pending.length > 0) return null
+  const attachments = prepareAttachmentFiles(deps)
+  if (attachments.updates.length > 0) return null
+  const result: ReconcileResultView = {
+    imported: [],
+    unchanged: [...plan.unchanged, ...profiles.unchanged, ...kanban.unchanged],
+    conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
+    profileConflicts: profiles.conflicts,
+    kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
+    rejected: [...plan.rejected, ...profiles.rejected, ...kanban.rejected, ...observationRejected, ...attachments.rejected, ...recovered.rejected],
+    branchChanged: false,
+    pausedRuns: []
+  }
+  if (problemsDigest(result) !== getMeta(db, META_KEYS.reconcileProblems)) return null
+  const clean = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length + result.rejected.length === 0
+  if (getMeta(db, META_KEYS.validatedRepositoryCache) !== '1' && (clean || hasValidatedRepositoryCache(db))) return null
+  return result
 }
 
 function prepare(deps: ImporterDeps, full: boolean): { context: ApplyContext; identity: string } {
@@ -1913,6 +1994,12 @@ export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate, op
   const revision = databaseRevision(deps.db)
   const observed = observeRepository(deps.fs)
   const prepared = prepare({ ...deps, fs: observed.fs }, full)
+  // A reconcile that would write nothing (the fingerprint included) takes no write transaction at all.
+  const unchanged = deps.db.tx(() => {
+    const result = unchangedResult({ ...deps, fs: observed.fs }, prepared.context)
+    return result === null || gate?.stale?.(result) === true ? null : result
+  }, 'read')
+  if (unchanged !== null) return unchanged
   return deps.db.tx(() => {
     if (gate?.current() === true) return nothingToReconcile()
     const identity = JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()])

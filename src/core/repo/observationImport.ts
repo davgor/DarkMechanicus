@@ -252,6 +252,21 @@ export function observationsPending(db: Db, scan: ObservationScan): boolean {
 }
 
 /**
+ * The rejections applying the scan would report when it would write nothing, or null when some file is new here or
+ * only needs marking synced. Mirrors `applyObservations`, reading only.
+ */
+export function observationsSettled(db: Db, scan: ObservationScan): Rejection[] | null {
+  const held = new Set(db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id))
+  const rejected = [...scan.rejected]
+  for (const file of singleFiles(scan.files.filter((item) => item.epicId === null || held.has(item.epicId)), rejected)) {
+    const plan = planFile(db, file)
+    if (plan.kind !== 'rejected') return null
+    rejected.push({ path: file.path, message: plan.message })
+  }
+  return rejected
+}
+
+/**
  * Applies scanned observation files, each in its own transaction; only files of the project level or of an epic held
  * here are considered (a folder read for an epic that was not applied waits for it). Returns the ids imported and the
  * files rejected (bad, conflicting, or naming a record this database does not hold).

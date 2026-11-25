@@ -39,12 +39,14 @@ interface FingerprintDeps {
   schemaVersion?: number
 }
 
-/** How `reconcileRepository` consults the fingerprint; both run under the writer lock. */
+/** How `reconcileRepository` consults the fingerprint; `current` and `applied` run under the writer lock. */
 export interface ReconcileGate {
   /** True when a session already reconciled these exact inputs cleanly: nothing is applied. */
   current(): boolean
   /** Records (or clears) the fingerprint for the result just applied. */
   applied(result: ReconcileResultView): void
+  /** Whether `applied` would change the stored fingerprint (absent: it never does); read in a snapshot. */
+  stale?(result: ReconcileResultView): boolean
 }
 
 function addTree(deps: FingerprintDeps, dir: string, hash: Hash): void {
@@ -102,19 +104,21 @@ function fingerprint(db: Db, tracked: string): string {
 /**
  * Reads the tracked inputs now, before any scan. `current` compares them and the local state with the fingerprint the
  * last clean reconcile recorded, touching no table when the tracked part already differs; `applied` records the
- * fingerprint after a clean reconcile and clears it after any other.
+ * fingerprint after a clean reconcile and clears it after any other; `stale` says whether `applied` would change it.
  */
 export function observeReconcileInputs(deps: FingerprintDeps): ReconcileGate {
   const tracked = trackedInputs(deps)
+  const recorded = (result: ReconcileResultView): string => {
+    const clean = [result.conflicts, result.profileConflicts, result.kanbanConflicts, result.rejected].every((list) => list.length === 0)
+    return tracked !== null && clean ? fingerprint(deps.db, tracked) : ''
+  }
   return {
     current: () => {
       const stored = getMeta(deps.db, META_KEYS.reconcileFingerprint)
       return tracked !== null && stored !== null && stored.startsWith(`${tracked}:`) && stored === fingerprint(deps.db, tracked)
     },
-    applied: (result) => {
-      const clean = [result.conflicts, result.profileConflicts, result.kanbanConflicts, result.rejected].every((list) => list.length === 0)
-      setMeta(deps.db, META_KEYS.reconcileFingerprint, tracked !== null && clean ? fingerprint(deps.db, tracked) : '')
-    }
+    applied: (result) => setMeta(deps.db, META_KEYS.reconcileFingerprint, recorded(result)),
+    stale: (result) => getMeta(deps.db, META_KEYS.reconcileFingerprint) !== recorded(result)
   }
 }
 
