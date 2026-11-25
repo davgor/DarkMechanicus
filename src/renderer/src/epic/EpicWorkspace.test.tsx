@@ -64,7 +64,7 @@ describe('epic workspace: Agent stage switching', () => {
     for (const name of ['Graph', 'List']) {
       fireEvent.click(button('Agent'))
       expect(button('Agent').getAttribute('aria-pressed')).toBe('true')
-      expect(screen.getByRole('region', { name: 'Agent chat' }).textContent).toBe('No agents yet')
+      expect(within(screen.getByRole('region', { name: 'Agent chat' })).getByText('No agents yet')).toBeTruthy()
       expect(screen.queryByLabelText('Plan graph')).toBeNull()
       expect(screen.queryByLabelText('Plan list')).toBeNull()
       fireEvent.click(button(name))

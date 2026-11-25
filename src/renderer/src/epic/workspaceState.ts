@@ -54,6 +54,10 @@ export interface WorkspaceState {
   chosenView: PlanViewKind | null
   layout: 'graph' | 'list' | 'agent'
   selectedTicketId: string | null
+  /** The epic chat the Agent stage shows; null leaves it to the default (the active run's orchestrator, else the newest chat). */
+  agentChatId: string | null
+  /** A subagent thread of `agentChatId` shown read-only with the relay composer; null shows the chat itself. */
+  agentThreadId: string | null
   /**
    * Set when the person opened the live activity of an attempt (the hourglass, the attempts strip): the ticket panel
    * shows its Activity tab for that attempt. A new object per request, so asking again brings the tab back.
@@ -93,6 +97,8 @@ export type WorkspaceAction =
   | { type: 'draft_closed' }
   | { type: 'show_layout'; layout: 'graph' | 'list' | 'agent' }
   | { type: 'select_ticket'; ticketId: string | null }
+  /** Show an epic chat, or one of its subagent threads, in the Agent stage. */
+  | { type: 'select_agent'; chatId: string; threadId?: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
   /** Select the ticket and show its Scorecard tab, on one run's grade when named. */
@@ -120,6 +126,8 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     chosenView,
     layout: 'graph',
     selectedTicketId: null,
+    agentChatId: null,
+    agentThreadId: null,
     activity: null,
     ticketScorecard: null,
     checkpointOpen: false,
@@ -206,6 +214,7 @@ const HANDLERS: Handlers = {
     scorecardOpen: false
   }),
   select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
+  select_agent: (state, action) => ({ ...state, agentChatId: action.chatId, agentThreadId: action.threadId ?? null }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
   open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
   open_checkpoint: (state) => ({ ...state, layout: state.layout === 'agent' ? 'graph' : state.layout, checkpointOpen: true, scorecardOpen: false }),

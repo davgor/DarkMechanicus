@@ -56,6 +56,8 @@ describe('workspace loading', () => {
       chosenView: null,
       layout: 'graph',
       selectedTicketId: null,
+      agentChatId: null,
+      agentThreadId: null,
       activity: null,
       ticketScorecard: null,
       checkpointOpen: false,

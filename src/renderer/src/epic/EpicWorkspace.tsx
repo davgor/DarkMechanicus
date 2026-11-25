@@ -23,6 +23,7 @@ import { useNow } from './clock'
 import { deleteTicketFromPlan } from './deletion'
 import { DraftBar } from './DraftBar'
 import { EpicScorecard } from './EpicScorecard'
+import { EpicAgentPanel } from './EpicAgentPanel'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
 import { TransferredPanel, TransferStrip } from './LinearTransfer'
@@ -210,7 +211,7 @@ function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | 
     return <EpicScorecard ws={ws} />
   }
   if (ws.state.layout === 'agent') {
-    return <section aria-label="Agent chat" className="ew-agent-stage"><p className="ew-empty">No agents yet</p></section>
+    return <EpicAgentPanel ws={ws} />
   }
   const review = reviewStage(ws)
   if (review !== null) {
