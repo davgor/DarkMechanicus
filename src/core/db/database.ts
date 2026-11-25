@@ -49,7 +49,7 @@ export interface OpenDatabaseOptions {
 }
 
 /** The caller a write transaction is attributed to; see `tagTransactions`. */
-export type TransactionTag = 'reconcile' | 'flush' | 'command'
+type TransactionTag = 'reconcile' | 'flush' | 'command'
 
 export interface TransactionHold {
   /** The innermost `tagTransactions` scope active when the transaction began; null outside any scope. */

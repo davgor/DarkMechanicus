@@ -17,13 +17,13 @@ import { IMPORTER_VERSION, type RecheckRecords, type TrackedChanges, trackedChan
 import type { GitAdapter, GitStatusPaths } from './types'
 
 /** Why every record is read although git could have said what changed. */
-export type ScopeFullReason =
+type ScopeFullReason =
   /** The caller asked for a full reconcile (the desktop's explicit Reconcile, Forge validation, tests). */
   | 'requested'
   /** An epic or Kanban card was deleted here since the last reconcile: a restored folder must come back as a full read brings it. */
   | 'record_deleted'
 
-export type ScopeChanges = TrackedChanges | { kind: 'full'; reason: ScopeFullReason }
+type ScopeChanges = TrackedChanges | { kind: 'full'; reason: ScopeFullReason }
 
 /** What one reconcile reads, and what the status it started from said (null when git could not say). */
 export interface ReconcileScope {
@@ -139,7 +139,7 @@ export function reconcileScope(deps: { db: Db; git: GitAdapter }, full: boolean)
 }
 
 /** What the reconcile left unsettled, by record, plus the paths it rejected (as results show them). */
-export interface Unsettled {
+interface Unsettled {
   epics: Iterable<string>
   runs: Iterable<string>
   kanbanCards: Iterable<string>

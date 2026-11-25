@@ -246,11 +246,6 @@ export function scanObservations(deps: ObservationImportDeps, epicIds: string[],
   return { files, rejected, folders }
 }
 
-/** Whether applying the scan would write anything: some file is new here, or only needs marking synced. */
-export function observationsPending(db: Db, scan: ObservationScan): boolean {
-  return singleFiles(scan.files, []).some((file) => planFile(db, file).kind !== 'rejected')
-}
-
 /**
  * The rejections applying the scan would report when it would write nothing, or null when some file is new here or
  * only needs marking synced. Mirrors `applyObservations`, reading only.
