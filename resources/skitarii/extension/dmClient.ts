@@ -187,7 +187,7 @@ export type DmClientError = { source: 'client'; code: DmClientErrorCode; message
 export type DmCallResult<T> = { ok: true; data: T; warning?: typeof SESSION_AUDIT_BUSY } | { ok: false; error: DmClientError }
 
 /** A `run` caller's own bounds. An agent's `dm_call` passes none, so it keeps `DM_RUN_LIMITS` exactly. */
-export interface DmRunOptions {
+interface DmRunOptions {
   /** Kills the child and settles `timeout` this long after it starts, however often writer contention renews the watchdog. */
   lifetimeMs?: number
 }

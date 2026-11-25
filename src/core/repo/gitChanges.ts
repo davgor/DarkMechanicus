@@ -16,7 +16,7 @@ import type { GitDiffPaths, GitPathChange, GitStatusPaths } from './types'
 export const IMPORTER_VERSION = 1
 
 /** Why every record has to be read. */
-export type FullReason =
+type FullReason =
   /** No marker is stored (or it is malformed or its dirty-path list was over the limit). */
   | 'no_marker'
   /** The marker was stored by another `IMPORTER_VERSION`. */

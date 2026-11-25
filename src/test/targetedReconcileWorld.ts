@@ -16,15 +16,15 @@ import { gitIn, scratchDir } from './gitScratch'
 import { createRepoEnv, initProject, type RepoEnv } from './repoEnv'
 import { createTestClock, createTestDb, type TestClock } from './testContext'
 
-export const TARGET_MACHINE = 'mc_0000000000000000000000000t'
+const TARGET_MACHINE = 'mc_0000000000000000000000000t'
 
 /** An `FsAdapter` over the real disk that records every file body read below `.darkmechanicus/`. */
-export interface CountingFs extends FsAdapter {
+interface CountingFs extends FsAdapter {
   /** Paths relative to `.darkmechanicus/`, forward slashes, in read order. */
   reads: string[]
 }
 
-export function countingFs(dmDir: string): CountingFs {
+function countingFs(dmDir: string): CountingFs {
   const reads: string[] = []
   const note = (path: string): void => {
     const rel = relative(dmDir, path)
