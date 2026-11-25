@@ -11,11 +11,11 @@ export const NOTIFICATION_EVENTS = ['approval_needed', 'question', 'checkpoint_r
 type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number]
 
 /** One always-ask pattern: a tool, command or approval kind the Magos arbiter never decides on its own. */
-export const alwaysAskEntrySchema = z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_.:*-]+$/)
+const alwaysAskEntrySchema = z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_.:*-]+$/)
 
 export const ALWAYS_ASK_LIMIT = 50
 
-export const arbitrationSettingsSchema = z.strictObject({
+const arbitrationSettingsSchema = z.strictObject({
   enabled: z.boolean(),
   alwaysAsk: z.array(alwaysAskEntrySchema).max(ALWAYS_ASK_LIMIT),
   autoHandleNotes: z.string().max(4000)

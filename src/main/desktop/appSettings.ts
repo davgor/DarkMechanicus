@@ -19,11 +19,12 @@ import {
   ALWAYS_ASK_LIMIT,
   DEFAULT_NOTIFICATION_SETTINGS,
   NOTIFICATION_EVENTS,
-  alwaysAskEntrySchema,
-  arbitrationSettingsSchema,
   notificationSettingsSchema,
   type NotificationSettings
 } from '../../shared/desktop/notificationSettings'
+
+const arbitrationSettingsSchema = notificationSettingsSchema.shape.arbitration
+const alwaysAskEntrySchema = arbitrationSettingsSchema.shape.alwaysAsk.element
 
 const KEY = 'notificationSettings'
 
