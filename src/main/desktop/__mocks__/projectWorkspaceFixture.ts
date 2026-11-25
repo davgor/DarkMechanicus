@@ -1,9 +1,10 @@
 /** Synchronous SQLite fixtures through the production queue and operation allow-list. */
 import type { Workspace } from '../../../core/workspace'
 import { currentForgeTransfer, withForgeOwnerAuthority } from '../../../core/repo/forgeBinding'
-import type { OwnerTransport, ProjectWorkspace } from '../workspaceClient'
+import type { OwnerTransport, ProjectWorkspace, Work } from '../workspaceClient'
 import { workspaceClient } from '../workspaceClient'
 import { runWorkspaceOperation } from '../workspaceOperations'
+import { defersOpenReconcile } from '../workspaceOwnerRuntime'
 import { createWorkspacePool, type WorkspacePool } from '../workspacePool'
 
 type TestWorkspace = ProjectWorkspace & Workspace
@@ -14,12 +15,13 @@ export function testWorkspace(workspace: Workspace, home = ''): TestWorkspace {
   return Object.assign({}, workspace, client)
 }
 
-export function createTestWorkspacePool(open: (path: string) => Workspace, home = ''): TestWorkspacePool {
+/** `open` receives whether the production owner would defer its open-time import for the first work it runs. */
+export function createTestWorkspacePool(open: (path: string, deferOpenReconcile: boolean) => Workspace, home = ''): TestWorkspacePool {
   const stores = new Map<string, Workspace>()
-  function store(path: string): Workspace {
+  function store(path: string, work?: Work): Workspace {
     const known = stores.get(path)
     if (known) return known
-    const workspace = open(path)
+    const workspace = open(path, work !== undefined && defersOpenReconcile(work))
     stores.set(path, workspace)
     return workspace
   }
@@ -28,7 +30,7 @@ export function createTestWorkspacePool(open: (path: string) => Workspace, home 
     return {
       async run(repo, work, authority) {
         path = repo
-        return { value: await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, () => runWorkspaceOperation(store(repo), work, home)), binding: repo }
+        return { value: await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, () => runWorkspaceOperation(store(repo, work), work, home)), binding: repo }
       },
       async close() {
         if (path === undefined) return
