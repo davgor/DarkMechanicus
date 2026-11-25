@@ -203,15 +203,115 @@ it('refuses a held prompt even when a main-turn result has already reported idle
   expect(r.revoked).toEqual([])
 })
 
-it('does not mistake a live terminal with unknown activity for an idle owner', async () => {
-  const changed = vi.fn(), stopTerminal = vi.fn(async () => {}), r = rig('claude', { onChatChanged: changed, stopTerminal })
-  const chat = r.newChat()
-  r.store.updateChat(chat, { surface: 'terminal' })
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} confirmed terminal handoff`, () => {
+  it('stops only the confirmed live owner before one persisted change and resumes the same session', async () => {
+    const order: string[] = [], cleanup = gate<void>(), r = rig(kind), chat = r.newChat()
+    await r.sessions.start(chat)
+    await eventually(() => r.store.getChat(chat)!.sessionId !== null)
+    const session = r.store.getChat(chat)!.sessionId
+    await r.sessions.setSurface(chat, 'terminal')
+    r.state.terminalLive = true
+    r.deps.onChatChanged = ref => { order.push(`changed:${r.store.getChat(ref)!.surface}`) }
+    r.deps.stopTerminal = async (_, generation) => {
+      order.push(`stop:${generation}`)
+      await cleanup.promise
+      r.state.terminalLive = false
+      order.push('closed+killed+revoked')
+    }
+    const confirm = vi.fn(async () => { order.push('confirm'); return true })
+    const switching = r.sessions.setSurface(chat, 'gui', confirm)
+    await eventually(() => order.includes('stop:terminal-1'))
+    expect(r.store.getChat(chat)!.surface).toBe('terminal')
+    expect(r.sessions.isLive(chat)).toBe(true)
+    await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'busy' })
+    cleanup.open()
+    expect(await switching).toMatchObject({ surface: 'gui' })
+    expect(order).toEqual(['confirm', 'stop:terminal-1', 'closed+killed+revoked', 'changed:gui'])
+    expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }))
+    await r.sessions.start(chat)
+    const launches = readFileSync(r.env.FAKE_AGENT_LOG!, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line)).filter(row => row.mode === kind)
+    expect(launches.map(row => row.argv.slice(-2))[1]).toEqual(['--resume', session])
+    expect([r.children.length, r.store.getChat(chat)!.sessionId]).toEqual([2, session])
+  })
+})
+
+function liveTerminalRig() {
+  const changed = vi.fn(), stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => {})
+  const r = rig('claude', { onChatChanged: changed, stopTerminal })
+  const chat = r.store.updateChat(r.newChat(), { surface: 'terminal' })
   r.state.terminalLive = true
-  await expect(r.sessions.setSurface(chat, 'gui')).rejects.toMatchObject({ code: 'busy' })
-  expect(changed).not.toHaveBeenCalled()
-  expect(stopTerminal).not.toHaveBeenCalled()
-  expect(r.store.getChat(chat)!.surface).toBe('terminal')
+  const write = vi.spyOn(r.store, 'updateChat')
+  const unchanged = () => {
+    expect([write.mock.calls, changed.mock.calls, r.revoked, r.children]).toEqual([[], [], [], []])
+    expect([r.store.getChat(chat)!.surface, r.state.terminalLive, r.sessions.isLive(chat)]).toEqual(['terminal', true, false])
+  }
+  return { r, chat, changed, stopTerminal, write, unchanged }
+}
+
+describe('live terminal confirmation refusals', () => {
+  it('refuses a missing confirmation, as for automatic callers, without stopping, writing or pushing', async () => {
+    const { r, chat, stopTerminal, unchanged } = liveTerminalRig()
+    await expect(r.sessions.setSurface(chat, 'gui')).rejects.toMatchObject({ code: 'busy' })
+    expect(stopTerminal).not.toHaveBeenCalled()
+    unchanged()
+  })
+
+  it('changes nothing when the confirmation is declined, throws or rejects', async () => {
+    const { r, chat, stopTerminal, unchanged } = liveTerminalRig()
+    const answers: (() => Promise<boolean>)[] = [async () => false, async () => { throw new Error('dialog failed') }, () => Promise.reject(new Error('dialog closed'))]
+    await expect(r.sessions.setSurface(chat, 'gui', answers[0])).rejects.toMatchObject({ code: 'cancelled' })
+    await expect(r.sessions.setSurface(chat, 'gui', answers[1])).rejects.toThrow('dialog failed')
+    await expect(r.sessions.setSurface(chat, 'gui', answers[2])).rejects.toThrow('dialog closed')
+    expect(stopTerminal).not.toHaveBeenCalled()
+    unchanged()
+  })
+
+  for (const change of ['replaced', 'exited'] as const) it(`invalidates an approval when the owner is ${change} while the dialog waits`, async () => {
+    const { r, chat, stopTerminal, unchanged } = liveTerminalRig(), answer = gate<boolean>()
+    const switching = r.sessions.setSurface(chat, 'gui', () => answer.promise)
+    if (change === 'replaced') r.state.terminalGeneration = 'terminal-2'
+    else r.deps.terminalOwner = () => null
+    answer.open(true)
+    await expect(switching).rejects.toMatchObject({ code: 'busy' })
+    expect(stopTerminal).not.toHaveBeenCalled()
+    unchanged()
+  })
+
+  it('refuses a starting or retiring terminal that has no confirmable owner without asking', async () => {
+    const { r, chat, stopTerminal, unchanged } = liveTerminalRig(), confirm = vi.fn(async () => true)
+    r.deps.terminalOwner = () => null
+    await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'busy' })
+    expect([confirm.mock.calls, stopTerminal.mock.calls]).toEqual([[], []])
+    unchanged()
+  })
+})
+
+describe('live terminal confirmation outcomes', () => {
+  it('asks once for duplicate concurrent requests without reserving ownership, then pushes once', async () => {
+    const { r, chat, changed, stopTerminal } = liveTerminalRig(), answer = gate<boolean>(), confirm = vi.fn(() => answer.promise)
+    const first = r.sessions.setSurface(chat, 'gui', confirm)
+    await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'busy' })
+    expect([confirm.mock.calls.length, r.sessions.isLive(chat), r.state.terminalLive]).toEqual([1, false, true])
+    answer.open(true)
+    expect(await first).toMatchObject({ surface: 'gui' })
+    expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }), 'terminal-1')
+    expect(changed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }))
+  })
+
+  it('keeps the surface and pushes nothing when terminal cleanup fails', async () => {
+    const { r, chat, changed, stopTerminal, write } = liveTerminalRig()
+    stopTerminal.mockRejectedValueOnce(new Error('The terminal process tree did not stop.'))
+    await expect(r.sessions.setSurface(chat, 'gui', async () => true)).rejects.toThrow('process tree did not stop')
+    expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: chat.id }), 'terminal-1')
+    expect([write.mock.calls, changed.mock.calls, r.store.getChat(chat)!.surface]).toEqual([[], [], 'terminal'])
+  })
+
+  it('switches an exited terminal without asking or stopping anything', async () => {
+    const { r, chat, changed, stopTerminal } = liveTerminalRig(), confirm = vi.fn(async () => true)
+    r.state.terminalLive = false
+    expect(await r.sessions.setSurface(chat, 'gui', confirm)).toMatchObject({ surface: 'gui' })
+    expect([confirm.mock.calls, stopTerminal.mock.calls, changed.mock.calls.length]).toEqual([[], [], 1])
+  })
 })
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI input`, () => {

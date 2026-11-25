@@ -57,7 +57,7 @@ export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Parti
   const intervals = new Map<number, Set<() => void>>()
   const token = `dmg_${'a1'.repeat(32)}`
   const agent = builtInAgent(kind, { executablePath: executable })
-  const state = { signedOut: false, terminalLive: false, awake: 0, grantCount: 0, tracked: true, pauses: [] as string[] }
+  const state = { signedOut: false, terminalLive: false, terminalGeneration: 'terminal-1', awake: 0, grantCount: 0, tracked: true, pauses: [] as string[] }
   const cliFor = (folder: string | null) => buildCliConfig({ execPath: process.execPath, appPath: root, repoPath: folder })
   const deps: AgentChatSessionsDeps = {
     store, agentFor: () => agent, folders: { trackedFolder: path => state.tracked ? path : null },
@@ -80,6 +80,7 @@ export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Parti
     keepAwake: () => { state.awake++; return () => { state.awake-- } },
     userData, ompExtension: join(root, 'extension.ts'), platform: process.platform, env,
     terminalLive: () => state.terminalLive,
+    terminalOwner: () => state.terminalLive ? state.terminalGeneration : null,
     stopTerminal: async () => { state.terminalLive = false },
     push: event => { pushes.push(event) },
     timers: { repeat: (callback, ms) => {

@@ -27,8 +27,10 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'ompExtension' | 'platform' | 'env' | 'newSessionId' | 'bindChatGrant' | 'onChatChanged'> {
   store: Pick<ChatStore, 'getChat' | 'updateChat' | 'appendItems' | 'readTranscript' | 'deleteChat'>
   terminalLive(ref: ChatRef): boolean
-  /** Stops the terminal and waits for process close, tree cleanup and grant revocation. */
-  stopTerminal(ref: ChatRef): Promise<void>
+  /** The live terminal owner's generation; null when no PTY runs. */
+  terminalOwner(ref: ChatRef): string | null
+  /** Stops only that owner generation and waits for process close, tree cleanup and grant revocation. */
+  stopTerminal(ref: ChatRef, generation: string): Promise<void>
   push(event: AgentChatEvent): void
   timers?: { repeat(callback: () => void, ms: number): () => void }
   now?: () => string
@@ -36,6 +38,7 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   arbitrate?: (input: { ref: ChatRef; chat: ChatRecord; agent: AgentView; prompt: PendingPrompt }) => { result: Promise<ArbiterOutcome>; cancel(): void }
 }
 
+type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
 type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
 export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
@@ -43,7 +46,11 @@ export interface AgentChatSessions {
   interrupt(ref: ChatRef): Promise<void>
   answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
-  setSurface(ref: ChatRef, surface: 'gui' | 'terminal'): Promise<AgentChatSnapshot>
+  /**
+   * A live terminal switches to the GUI only after `confirmTerminalStop` (Main-only, per call) resolves true for the
+   * same owner generation; omitted, it refuses `busy`. Nothing renderer-supplied can stand in for it.
+   */
+  setSurface(ref: ChatRef, surface: 'gui' | 'terminal', confirmTerminalStop?: ConfirmTerminalStop): Promise<AgentChatSnapshot>
   stop(ref: ChatRef): Promise<void>
   deleteChat(ref: ChatRef): Promise<void>
   isLive(ref: ChatRef): boolean
@@ -123,6 +130,8 @@ class SessionManager {
   private readonly cleanup = new Set<Promise<unknown>>()
   private readonly deleting = new Set<string>()
   private readonly switching = new Set<string>()
+  /** Surface requests awaiting confirmation: refuses duplicates without reserving either owner. */
+  private readonly confirming = new Set<string>()
   private closing = false
   private disposing?: Promise<void>
 
@@ -535,31 +544,69 @@ class SessionManager {
     }, 5000)
     entry.interruptTimer.unref()
   }
-  private surfaceBusy(chat: ChatRecord): boolean {
-    if (this.startingEntries.has(chat.id) || this.deps.terminalLive(chat)) return true
+  private guiBusy(chat: ChatRecord): boolean {
+    if (this.startingEntries.has(chat.id)) return true
     const entry = this.entries.get(chat.id)
     if (!entry || entry.cleanupComplete) return false
     return entry.turnActive || entry.queued > 0 || Boolean(entry.prompts?.snapshot())
   }
   private assertSurfaceAllowed(chat: ChatRecord, surface: 'gui' | 'terminal'): void {
     this.assertOpen(chat)
+    if (this.confirming.has(chat.id)) throw new DomainError('busy', 'A surface switch is already awaiting confirmation.')
     const agent = this.deps.agentFor(chat.agent)
     if (surface === 'gui' && !GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind)) {
       throw new DomainError('unsupported', 'This agent has no GUI protocol.')
     }
-    if (this.surfaceBusy(chat)) throw new DomainError('busy', 'Wait for the current turn and pending prompts before switching surfaces.')
+    if (this.guiBusy(chat)) throw new DomainError('busy', 'Wait for the current turn and pending prompts before switching surfaces.')
   }
-  async setSurface(ref: ChatRef, surface: 'gui' | 'terminal'): Promise<AgentChatSnapshot> {
+  /** The terminal generation a switch to the GUI must retire; null when no terminal runs. Never inferred idle. */
+  private terminalGeneration(chat: ChatRecord, surface: 'gui' | 'terminal'): string | null {
+    const live = this.deps.terminalLive(chat)
+    if (surface === 'terminal') {
+      if (live) throw new DomainError('busy', 'The terminal already owns this chat.')
+      return null
+    }
+    const generation = this.deps.terminalOwner(chat)
+    // A starting or still-retiring terminal has no confirmable owner.
+    if (generation === null && live) throw new DomainError('busy', 'The terminal is starting or still stopping.')
+    return generation
+  }
+  /** Holds only a duplicate-request lock while asking; a missing callback, refusal or failure changes nothing. */
+  private async confirmStop(chat: ChatRecord, confirm?: ConfirmTerminalStop): Promise<void> {
+    if (!confirm) throw new DomainError('busy', 'The terminal is running; stopping it needs explicit confirmation.')
+    this.confirming.add(chat.id)
+    let confirmed: boolean
+    try { confirmed = await confirm(chat) } finally { this.confirming.delete(chat.id) }
+    if (confirmed !== true) throw new DomainError('cancelled', 'The terminal was left running.')
+  }
+  /** An approval names one owner: a replaced, exited or stopping terminal invalidates it. */
+  private assertConfirmedOwner(ref: ChatRef, generation: string): void {
+    const current = this.chatFor(ref)
+    this.assertSurfaceAllowed(current, 'gui')
+    if (this.deps.terminalOwner(current) !== generation) {
+      throw new DomainError('busy', 'The terminal changed while the switch awaited confirmation; nothing was stopped.')
+    }
+  }
+  /** Retires only the owner being replaced: the GUI process for the terminal, or the confirmed terminal generation. */
+  private retireOwner(chat: ChatRecord, surface: 'gui' | 'terminal', generation: string | null): Promise<void> {
+    if (surface === 'terminal') return this.stop(chat)
+    return generation === null ? Promise.resolve() : this.deps.stopTerminal(chat, generation)
+  }
+  async setSurface(ref: ChatRef, surface: 'gui' | 'terminal', confirm?: ConfirmTerminalStop): Promise<AgentChatSnapshot> {
     const chat = this.chatFor(ref)
     this.assertSurfaceAllowed(chat, surface)
     if ((chat.surface ?? 'terminal') === surface) return this.snapshot(chat)
+    const generation = this.terminalGeneration(chat, surface)
+    if (generation !== null) {
+      await this.confirmStop(chat, confirm)
+      this.assertConfirmedOwner(ref, generation)
+    }
+    // Reserved synchronously after the final ownership check, through cleanup and persistence.
     this.switching.add(chat.id)
     try {
-      await this.stop(chat)
-      await this.deps.stopTerminal(chat)
+      await this.retireOwner(chat, surface, generation)
       if (this.closing || this.deleting.has(chat.id)) throw new Error('The chat is stopping.')
-      const current = this.chatFor(ref)
-      this.deps.store.updateChat(current, { surface })
+      this.deps.store.updateChat(this.chatFor(ref), { surface })
       this.deps.onChatChanged?.(ref)
       return this.snapshot(ref)
     } finally {
@@ -607,6 +654,6 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
     send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: ref => manager.deleteChat(ref), isLive: ref => manager.isLive(ref),
-    setSurface: (ref, surface) => manager.setSurface(ref, surface),
+    setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
     busy: () => manager.busy(), dispose: () => manager.dispose() }
 }

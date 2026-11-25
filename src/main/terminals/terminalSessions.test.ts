@@ -98,20 +98,38 @@ describe('terminal sessions: surface ownership', () => {
     expect(rig.sessions.isLive(chat)).toBe(false)
   })
 
-  it('reserves ownership during authentication and releases it after cancellation', async () => {
+  it('reserves ownership during authentication, offers no owner to stop, and releases it after cancellation', async () => {
     const auth = rig.holdAuth(), chat = rig.newChat()
     expect(await rig.sessions.attach(chat)).toEqual({ state: 'checking' })
     expect(rig.sessions.isLive(chat)).toBe(true)
-    await rig.sessions.stop(chat)
+    expect(rig.sessions.owner(chat)).toBeNull()
+    await expect(rig.sessions.stop(chat, 'unconfirmed')).rejects.toMatchObject({ code: 'busy' })
+    await rig.sessions.endAgent(chat.agent)
     expect(rig.sessions.isLive(chat)).toBe(false)
     auth.open({ state: 'signed_in', reason: 'Fixture auth.' })
     expect(rig.host.spawns).toHaveLength(0)
   })
+
+  it('refuses an approval for an exited or replaced owner without touching the current one', async () => {
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    const approved = rig.sessions.owner(chat)!
+    first.pty.exit()
+    await settle()
+    await expect(rig.sessions.stop(chat, approved)).rejects.toMatchObject({ code: 'busy' })
+    const second = await startTerminal(rig, chat), current = rig.sessions.owner(chat)
+    expect(current).not.toBeNull()
+    expect(current).not.toBe(approved)
+    await expect(rig.sessions.stop(chat, approved)).rejects.toMatchObject({ code: 'busy' })
+    expect(rig.sessions.owner(chat)).toBe(current)
+    expect(rig.killed.map(tree => tree.pid)).not.toContain(second.pid)
+    expect(rig.revoked).not.toContain('gr_2')
+    rig.sessions.write(chat.id, 'still live')
+    expect(second.pty.written).toContain('still live')
+  })
 })
 
-describe('terminal sessions: surface cleanup', () => {
-
-  it('retains ownership after PTY close until both tree cleanup and revocation settle', async () => {
+describe('terminal sessions: confirmed surface handoff', () => {
+  it('freezes the named owner and retains ownership until close, tree cleanup and revocation settle', async () => {
     rig.cleanup()
     const kill = gate<boolean>(), revoke = gate<void>()
     rig = terminalRig({ deps: () => ({ killTree: tree => { tree.kill(); return kill.promise },
@@ -119,29 +137,39 @@ describe('terminal sessions: surface cleanup', () => {
     const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
     const sessionId = rig.store.getChat(chat)!.sessionId
     let stopped = false
-    const stopping = rig.sessions.stop(chat).then(() => { stopped = true })
+    const stopping = rig.sessions.stop(chat, rig.sessions.owner(chat)!).then(() => { stopped = true })
+    expect([rig.sessions.owner(chat), pty.kills]).toEqual([null, 1])
+    rig.sessions.write(chat.id, 'late input')
+    expect(pty.written).not.toContain('late input')
     pty.exit()
     await settle()
-    expect(rig.sessions.isLive(chat)).toBe(true)
-    expect(stopped).toBe(false)
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy' })
+    await expect(rig.sessions.attach(chat)).rejects.toMatchObject({ code: 'busy' })
+    expect([rig.sessions.isLive(chat), stopped]).toEqual([true, false])
     kill.open(true)
     await settle()
-    expect(rig.sessions.isLive(chat)).toBe(true)
+    expect([rig.sessions.isLive(chat), stopped]).toEqual([true, false])
     revoke.open()
     await stopping
     expect(rig.sessions.isLive(chat)).toBe(false)
+    expect(rig.host.spawns).toHaveLength(1)
     expect(rig.store.getChat(chat)!.sessionId).toBe(sessionId)
-    expect(rig.store.getChat(chat)).not.toBeNull()
   })
+})
 
-  it('does not release a failed terminal cleanup as a successful handoff', async () => {
+describe('terminal sessions: failed surface handoff', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`keeps a confirmed handoff fenced when ${failure} cleanup fails`, async () => {
     rig.cleanup()
-    rig = terminalRig({ deps: () => ({ killTree: async tree => { tree.kill(); return false } }) })
+    rig = terminalRig({ deps: () => failure === 'kill'
+      ? { killTree: async tree => { tree.kill(); return false } }
+      : { revokeChatGrant: async () => { throw new Error('revocation failed') } } })
     const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
-    const stopping = rig.sessions.stop(chat)
+    const stopping = rig.sessions.stop(chat, rig.sessions.owner(chat)!)
     pty.exit()
-    await expect(stopping).rejects.toThrow('process tree did not stop')
-    expect(rig.sessions.isLive(chat)).toBe(true)
+    await expect(stopping).rejects.toThrow(failure === 'kill' ? 'process tree did not stop' : 'revocation failed')
+    expect([rig.sessions.isLive(chat), rig.sessions.owner(chat)]).toEqual([true, null])
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy' })
+    expect(rig.host.spawns).toHaveLength(1)
   })
 })
 

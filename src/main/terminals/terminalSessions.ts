@@ -126,6 +126,7 @@ const BRACKETED_PASTE_ON = '\x1b[?2004h'
 
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
+const SWITCHING = 'The chat is switching to the GUI, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
 const UNTRACKED = "The chat's folder was untracked, so its terminal was stopped."
 
@@ -212,8 +213,13 @@ export interface TerminalSessions {
   isRunning(chatId: string): boolean
   /** Includes a reserved start and cleanup: neither surface may overlap the other's ownership. */
   isLive(ref: ChatRef): boolean
-  /** Retires only this owner; preserves the chat and its vendor session for a surface handoff. */
-  stop(ref: ChatRef): Promise<void>
+  /** The running owner's launch generation, which a confirmed surface switch must name; null when no PTY runs. */
+  owner(ref: ChatRef): string | null
+  /**
+   * Freezes exactly the `generation` owner (no input, no restart), then joins its close, tree kill and grant revocation.
+   * A replaced or exited owner refuses `busy` untouched; a failed cleanup keeps the chat fenced. The vendor session is kept.
+   */
+  stop(ref: ChatRef, generation: string): Promise<void>
   busy(): boolean
   /** Quit: see the module comment. */
   dispose(): Promise<void>
@@ -368,6 +374,8 @@ interface Live {
   killing?: Promise<unknown>
   retirement?: Promise<void>
   revocationError?: unknown
+  /** Stopped for a confirmed surface switch: the chat stays fenced until this owner has fully retired. */
+  handoff?: boolean
   /** Ends the folder watch, the grant's renewal, the hold that keeps the computer awake, and the wait for the pastes. */
   stopWatch: () => void
 }
@@ -550,13 +558,17 @@ function stop(manager: Manager, live: Live, message: string): Promise<unknown> {
   return killTree(manager, live)
 }
 
-/** Retains the old owner's identity until all three independently completing barriers have settled. */
+/** Retains the old owner's identity until all three independently completing barriers have settled; a failed kill or revocation fails at once. */
 function retire(manager: Manager, live: Live): Promise<void> {
   if (live.retirement) return live.retirement
   manager.retiring.add(live)
-  live.retirement = Promise.all([killTree(manager, live), live.closed, live.revoke()]).then(([killed]) => {
-    if (killed !== true) throw new Error('The terminal process tree did not stop.')
+  const killed = killTree(manager, live).then(result => {
+    if (result !== true) throw new Error('The terminal process tree did not stop.')
+  })
+  const revoked = live.revoke().then(() => {
     if (live.revocationError !== undefined) throw live.revocationError
+  })
+  live.retirement = Promise.all([killed, live.closed, revoked]).then(() => {
     manager.retiring.delete(live)
   })
   void live.retirement.catch(manager.onError)
@@ -1310,12 +1322,18 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
 
 function refuseSetupStart(manager: Manager, chat: ChatRecord, options: AttachOptions & Partial<StartOptions>): { state: 'refused'; message: string } | undefined {
   if (manager.deps.agentChatLive(chat)) throw new DomainError('busy_elsewhere', 'The chat is running in the GUI.')
+  assertNotHandingOff(manager, chat.id)
   if (chat.forgeSetup?.mode === 'execution' && options.forgeSetupAuthorization === undefined) {
     return { state: 'refused', message: 'This installer conversation starts only from the explicit setup action.' }
   }
   if (chat.forgeSetup !== undefined && options.newSession === true) {
     return { state: 'refused', message: 'This Forge conversation is bound to its original setup receipt.' }
   }
+}
+
+/** A terminal stopped for a confirmed surface switch refuses every restart until it has fully retired. */
+function assertNotHandingOff(manager: Manager, chatId: string): void {
+  if ([...manager.retiring].some(live => live.handoff === true && live.chat.id === chatId)) throw new DomainError('busy', SWITCHING)
 }
 
 /** The running PTY's snapshot, with `listener` subscribed at the same point of the output. */
@@ -1402,6 +1420,7 @@ async function start(manager: Manager, ref: ChatRef, options: StartOptions): Pro
   if (chat === null) {
     return { state: 'refused', message: noChat(ref) }
   }
+  assertNotHandingOff(manager, chat.id)
   const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, options)
   if (!('kind' in entry)) {
     return entry
@@ -1486,15 +1505,17 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
-/** A surface handoff waits for close, tree cleanup and revocation to be confirmed. */
-async function stopTerminal(manager: Manager, ref: ChatRef): Promise<void> {
+/** A confirmed surface handoff: validates and freezes only the named owner at once, then joins its close, tree kill and revocation. */
+async function stopTerminal(manager: Manager, ref: ChatRef, generation: string): Promise<void> {
   const chat = manager.deps.store.getChat(ref)
   if (chat === null) throw new DomainError('not_found', noChat(ref))
-  const entry = manager.entries.get(chat.id)
-  const stopped = entry ? await endEntry(manager, entry, 'The chat is switching surfaces.') : null
-  const retiring = [...manager.retiring].filter(live => live.chat.id === chat.id)
-  if (stopped !== null && !retiring.includes(stopped.live)) retiring.push(stopped.live)
-  await Promise.all(retiring.map(live => retire(manager, live)))
+  const live = runningTerminal(manager, chat.id)
+  if (live === null || live.stopMessage !== null || live.generation !== generation) {
+    throw new DomainError('busy', 'The terminal changed after the switch was confirmed; nothing was stopped.')
+  }
+  live.handoff = true
+  void stop(manager, live, SWITCHING)
+  await retire(manager, live)
 }
 
 /** `TerminalSessions.deleteChat`. */
@@ -1561,6 +1582,20 @@ function runningTerminal(manager: Manager, chatId: string): Live | null {
   return entry?.kind === 'live' && !entry.exited ? entry : null
 }
 
+/** Typed input for the running PTY; a PTY frozen for a surface handoff takes none. */
+function writeRunning(manager: Manager, chatId: string, data: string): void {
+  const live = runningTerminal(manager, chatId)
+  if (live !== null && live.handoff !== true) {
+    writeInput(manager, live, data)
+  }
+}
+
+function owner(manager: Manager, ref: ChatRef): string | null {
+  const chat = manager.deps.store.getChat(ref)
+  const live = chat === null ? null : runningTerminal(manager, chat.id)
+  return live !== null && live.stopMessage === null ? live.generation : null
+}
+
 function pasteIfRunning(manager: Manager, ref: ChatRef, text: string): void {
   if (manager.closing) return
   const chat = manager.deps.store.getChat(ref)
@@ -1597,12 +1632,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
     start: (ref, options) => start(manager, ref, options),
     detach: (chatId, listener) => { manager.listeners.get(chatId)?.delete(listener) },
-    write: (chatId, data) => {
-      const live = runningTerminal(manager, chatId)
-      if (live !== null) {
-        writeInput(manager, live, data)
-      }
-    },
+    write: (chatId, data) => writeRunning(manager, chatId, data),
     paste: (ref, text, contextId) => paste(manager, ref, text, contextId),
     resize: (chatId, cols, rows) => {
       const live = runningTerminal(manager, chatId)
@@ -1618,7 +1648,8 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     activeChats: () => activeChats(manager),
     isRunning: (chatId) => runningTerminal(manager, chatId) !== null,
     isLive: ref => isLive(manager, ref),
-    stop: ref => stopTerminal(manager, ref),
+    owner: ref => owner(manager, ref),
+    stop: (ref, generation) => stopTerminal(manager, ref, generation),
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
   }
