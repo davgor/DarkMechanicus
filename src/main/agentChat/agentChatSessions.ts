@@ -77,6 +77,11 @@ interface Entry {
   ending?: Promise<void>
 }
 
+function startsMainTurn(event: OmpEvent): boolean {
+  if (event.type !== 'item' || event.item.threadId) return false
+  return event.item.kind === 'assistant_text' || event.item.kind === 'tool_call' && event.item.status === 'running'
+}
+
 const repeat = (callback: () => void, ms: number): (() => void) => {
   const timer = setInterval(callback, ms)
   timer.unref()
@@ -256,17 +261,22 @@ class SessionManager {
     this.write(entry, init.lines)
     if (entry.omp.initialized) entry.admit()
   }
+  private consumeClaudeQueue(entry: Entry, events: OmpEvent[], mainStarted: boolean): void {
+    if (entry.turnActive || entry.queued === 0) return
+    // A valid terminal result can be the only evidence of an output-free queued turn.
+    const ended = events.some(event => event.type === 'status' && event.status === 'idle')
+    if (!mainStarted && !ended) return
+    entry.turnActive = true
+    // The CLI's explicit result count already describes the queue after this turn.
+    if (!events.some(event => event.type === 'queued')) this.emit(entry, { type: 'queued', count: entry.queued - 1 })
+    if (!ended) this.emit(entry, { type: 'status', status: 'busy' })
+  }
   private claudeLine(entry: Entry, raw: string): void {
     const result = translateClaudeLine(raw, entry.claude, this.now())
     const mainStarted = result.state.activeMessages.get(null) !== entry.claude.activeMessages.get(null)
-      || result.events.some(event => event.type === 'item' && event.item.kind === 'assistant_text' && !event.item.threadId)
+      || result.events.some(startsMainTurn)
     entry.claude = result.state
-    // Claude has no queue-update stream: consume a queued user line only when its main turn starts.
-    if (!entry.turnActive && entry.queued > 0 && mainStarted) {
-      entry.turnActive = true
-      this.emit(entry, { type: 'queued', count: entry.queued - 1 })
-      this.emit(entry, { type: 'status', status: 'busy' })
-    }
+    this.consumeClaudeQueue(entry, result.events, mainStarted)
     for (const event of result.events) this.emit(entry, event)
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {

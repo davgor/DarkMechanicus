@@ -114,6 +114,69 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inpu
   })
 })
 
+it('consumes a queued Claude error-only turn before accepting a subsequent successful send', async () => {
+  const r = rig('claude'), chat = r.newChat()
+  await r.sessions.send(chat, { text: '[slow]' })
+  await r.sessions.send(chat, { text: '[error]' })
+  expect(r.sessions.snapshot(chat).queued).toBe(1)
+  expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['[slow]', '[error]'])
+  await eventually(() => r.sessions.snapshot(chat).status === 'idle' && r.sessions.snapshot(chat).items.some(item => item.kind === 'error'))
+  expect(r.sessions.snapshot(chat).queued).toBe(0)
+  expect(r.pushes.filter(event => event.type === 'queued').map(event => event.count)).toEqual([1, 0])
+  expect(r.store.readTranscript(chat)!.items).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: 'error', message: 'Fixture provider failure' })
+  ]))
+  await r.sessions.send(chat, { text: '[text] after error' })
+  expect(r.sessions.snapshot(chat).queued).toBe(0)
+  expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['[slow]', '[error]', '[text] after error'])
+  await eventually(() => r.sessions.snapshot(chat).status === 'idle' && r.sessions.snapshot(chat).items.filter(item => item.kind === 'assistant_text').length === 2)
+  expect(r.pushes.filter(event => event.type === 'queued').map(event => event.count)).toEqual([1, 0])
+})
+
+it('consumes multiple Claude queued turns once across errors, tools and streamed text', async () => {
+  const r = rig('claude'), chat = r.newChat()
+  for (const text of ['[slow]', '[error]', '[tool]', '[text]']) await r.sessions.send(chat, { text })
+  expect(r.sessions.snapshot(chat).queued).toBe(3)
+  await eventually(() => r.sessions.snapshot(chat).status === 'idle' && r.sessions.snapshot(chat).items.filter(item => item.kind === 'assistant_text').length === 3)
+  expect(r.pushes.filter(event => event.type === 'queued').map(event => event.count)).toEqual([1, 2, 3, 2, 1, 0])
+  expect(r.sessions.snapshot(chat).queued).toBe(0)
+  expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'error')).toHaveLength(1)
+  expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'tool_call')).toEqual([
+    expect.objectContaining({ name: 'Read', status: 'completed' })
+  ])
+})
+
+for (const explicit of [false, true]) it(`handles output-free Claude results and tool/subagent traffic (explicit queue: ${explicit})`, async () => {
+  const r = rig('claude'), chat = r.newChat(), start = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  const nativeLines: string[] = []
+  r.deps.startProcess = spec => {
+    const child = start(spec)
+    return { ...child, onLine: listener => {
+      receive = listener
+      return child.onLine(raw => { nativeLines.push(raw); listener(raw) })
+    } }
+  }
+  for (const text of ['[hung]', '[error]', '[tool]']) await r.sessions.send(chat, { text })
+  await eventually(() => nativeLines.some(raw => raw.includes('msg_T1_text')))
+  const frame = (value: object) => receive(JSON.stringify(value))
+  frame({ type: 'result', uuid: 'first-result', is_error: false, queued_turn_count: 2 })
+  expect(r.sessions.snapshot(chat).queued).toBe(2)
+  frame({ type: 'result', uuid: 'queued-empty-result', is_error: explicit, errors: ['No assistant output'],
+    ...(explicit ? { queued_turn_count: 1 } : {}) })
+  expect(r.sessions.snapshot(chat).queued).toBe(1)
+  frame({ type: 'assistant', uuid: 'child-text', parent_tool_use_id: 'background-worker',
+    message: { id: 'child-message', content: [{ type: 'text', text: 'Background progress' }] } })
+  expect(r.sessions.snapshot(chat).queued).toBe(1)
+  frame({ type: 'assistant', uuid: 'main-tool', parent_tool_use_id: null,
+    message: { id: 'main-tool-only', content: [{ type: 'tool_use', id: 'main-read', name: 'Read', input: { file_path: 'a.txt' } }] } })
+  expect(r.sessions.snapshot(chat)).toMatchObject({ queued: 0, status: 'busy' })
+  frame({ type: 'result', uuid: 'tool-result', is_error: false })
+  expect(r.sessions.snapshot(chat)).toMatchObject({ queued: 0, status: 'idle' })
+  expect(r.pushes.filter(event => event.type === 'queued').map(event => event.count)).toEqual([1, 2, 2, 1, 0])
+  expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'user_message')).toHaveLength(3)
+})
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI interrupt and resume`, () => {
 
   it('interrupts slow work and cancels its deadline before a later turn', async () => {
