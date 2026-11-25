@@ -130,6 +130,37 @@ Changed-epic reconcile (the sync's import) and the command with its flush, per f
 - **CLI agents are slow even with no errors.** A lone built `dm call` takes about 240 ms. Twelve looping agents during a sync complete only 221 calls in 60 s, about 3.5 to 4 s p50 per call and up to 12.7 s. Every call returned `ok`, with no `busy` and no `internal` codes.
 - **Click to paint is under 0.3 s.** On the fixtures the plan open is dominated by the 1.1 MB `listTickets` payload and its rendering. On the real store copy the plan payload is 4.2 MB, and the owner run accounts for 93 ms of the 253 ms p50.
 
+## DM-969: one-pass epic and ticket open
+
+Before and after on the same host and harness, each a full `revamp` matrix with the DarkMechanicus member copied (tracked files plus a read-only `VACUUM INTO` snapshot). Before: `b7e91ec1` (sprint head), 2026-11-25 05:09Z, [`dm969-before.jsonl`](forge-performance-data/dm969-before.jsonl). After: `678d0ee6`, 2026-11-25 05:31Z, [`dm969-after.jsonl`](forge-performance-data/dm969-after.jsonl). The host was shared with other workers, so compare the CPU column too.
+
+An earlier after-run at `678d0ee6` (05:21Z) completed the 100 and 1,000-ticket fixtures and then stopped in the 10,000-ticket *ticket during a sync* scenario with the harness's own `A sync did not import its changed epic state.` Its rows are kept in [`dm969-after-failed-run.jsonl`](forge-performance-data/dm969-after-failed-run.jsonl). That check is on the sync's import, which this ticket does not touch (no reconcile, export or queue change); the cause was not diagnosed here.
+
+### What dominated (measured first)
+
+- **Fixtures:** render. On 10,000 tickets the plan click to paint was 293 ms p50, of which 208 ms was from the last reply to the paint; the 1.1 MB `listTickets` plus plan payload and its rendering, not the owner (54 ms) or the queue (20 ms).
+- **Real store copy (134-ticket epic):** a 4.2 MB payload. Per read: `getPlan` saved 1.2 MB (the bundle's tickets), `getTransfer` 1.1 MB (the transfer packet the saved plan builds), `getRun` 0.6 MB, `getCheckpoint` 80 KB. That epic has no draft, so no draft read was in its open; the draft skip saves the draft plan, tickets and validation (another plan-sized transfer) for epics with an unchanged draft.
+- **History:** the ticket panel read the epic's whole log in pages; with the `ticketId` filter the store copy's busiest ticket reads 217 of 4,180 events in 0.6 ms through the existing `events_epic (epic_id, seq)` index, so no new index or migration.
+
+### Click to paint (built desktop over CDP, 30 clicks each), p50 / p95 / max ms
+
+| Tickets | View | Before | After | Render before → after (p50) | Owner run before → after (p50) | CPU busy before / after |
+|---:|---|---|---|---|---|---|
+| 100 | plan | 39.1 / 61.2 / 83.9 | 36.9 / 42 / 86.9 | 22.4 → 22.7 | 13.4 → 11.9 | 31 % / 27 % |
+| 100 | ticket | 14 / 19.9 / 23.3 | 10.6 / 17 / 18.3 | 8.4 → 6.7 | 3.8 → 3.3 | 25 % / 14 % |
+| 1,000 | plan | 219.6 / 263.1 / 289.9 | 186 / 198.6 / 210.2 | 160 → 148.2 | 41 → 34.7 | 36 % / 39 % |
+| 1,000 | ticket | 64.7 / 82.2 / 82.5 | 51.8 / 62.3 / 65 | 49.6 → 41.4 | 10.2 → 7.5 | 32 % / 26 % |
+| 10,000 | plan | 292.9 / 402.5 / 542.2 | 183.9 / 197.7 / 200.1 | 207.8 → 141.1 | 54.4 → 34.9 | 57 % / 30 % |
+| 10,000 | ticket | 68.2 / 94.3 / 97.5 | 34.6 / 40.1 / 45.5 | 53.6 → 24.3 | 10.9 → 7.7 | 36 % / 20 % |
+| real store copy | plan | 301.3 / 371.2 / 372.2 | 256.8 / 275.1 / 300.2 | 100 → 76.4 | 106 → 88 | 35 % / 27 % |
+| real store copy | ticket | 43.7 / 55.9 / 59.2 | 31.3 / 40.6 / 44.8 | 27.2 → 17.7 | 13.1 → 11.9 | 23 % / 15 % |
+
+Every row is under 500 ms p95. The plan's queue wait rose on the fixtures (10,000: 19.5 → 34.8 ms p50) because its reads now arrive in the owner together instead of in three rounds; the end-to-end time still fell. The before run's host was busier on the 10,000 rows (57 % mean CPU against 30 %), so part of that row's gain is load, not code.
+
+Renderer view loads on 10,000 tickets (production IPC, p50 / p95 ms): plan idle 88.8 / 114.2 → 54.3 / 61.9, ticket idle 18.1 / 25.4 → 14.5 / 17.9; during a sync plan 633 / 691 → 433 / 485, ticket 478 / 613 → 389 / 429 (sync rows remain dominated by queue wait behind the reconcile, which is other tickets' scope).
+
+Render was the largest share on the fixtures, but no single component hotspot was isolated in this ticket: the plan render fell with the smaller, single-round load, and no component change (step 5) was made.
+
 ## How to rerun
 
 From a clean worktree of the revision under test: `npm run build`, then `env -u ELECTRON_RUN_AS_NODE node --import tsx scripts/spike/forge-performance.ts revamp <new.jsonl> [<project to copy>]`. Give the project argument only when the harness should copy a real store; it is copied, never opened in place. `DM_REVAMP_SMOKE=1` runs a quick shake-out instead: the 100-ticket fixture with 3 samples and a 10-second agent run. The smoke scale is not a measurement.

@@ -1,11 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { AsyncResource } from 'node:async_hooks'
 import { EventEmitter } from 'node:events'
-import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHarness } from '../../test/workspaceHarness'
 import { gitIn } from '../../test/gitScratch'
 import { resolveLayout } from '../../core/repo/layout'
+import { nodeFs } from '../../core/repo/nodeFs'
+import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { inThreadLane, type SyncLane } from './syncLane'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
@@ -369,4 +371,76 @@ it('publishes a confirmed storage change under its new binding and rejects the o
   const read: Work = { kind: 'command', name: 'getStorageStatus', input: undefined }
   await expect(worker.work(h.root, read, original.result.binding)).resolves.toMatchObject({ ok: false, error: { details: { bindingChanged: true } } })
   await expect(worker.work(h.root, read, moved.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { storage: { mode: 'db' } } } })
+})
+
+/** Ages a file past the owner's settle window, so its stamp may be trusted. */
+function settle(file: string): void {
+  const past = new Date(Date.now() - 60_000)
+  utimesSync(file, past, past)
+}
+
+async function warmOwner(name: string) {
+  const h = fixture()
+  const worker = owner(h.homeDir)
+  const initialized = await worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name } })
+  if (!initialized.ok || initialized.result.binding === undefined) throw new Error('Failed to initialize the fixture')
+  const projectFile = resolveLayout(h.root).projectFile
+  settle(projectFile)
+  const read: Work = { kind: 'native', name: 'initialized', args: [] }
+  await expect(worker.work(h.root, read, initialized.result.binding)).resolves.toMatchObject({ ok: true })
+  return { h, worker, read, projectFile, binding: initialized.result.binding }
+}
+
+// The operation itself (a reconcile, say) reads what it needs; the owner's own identity check reads nothing.
+it('checks identity without reading an unchanged project.json once its stamp is known', async () => {
+  const { h, worker, read, projectFile, binding } = await warmOwner('Stamped')
+  const stacks: string[] = []
+  const original = nodeFs.readFile
+  const reads = vi.spyOn(nodeFs, 'readFile').mockImplementation((path) => { const stack = new Error().stack ?? ''; if (path === projectFile && stack.includes('workspaceOwnerRuntime.ts')) stacks.push(stack); return original(path) })
+  try {
+    await expect(worker.work(h.root, read, binding)).resolves.toMatchObject({ ok: true, result: { binding } })
+    await expect(worker.work(h.root, { kind: 'heartbeat' }, binding)).resolves.toMatchObject({ ok: true, result: { binding } })
+    expect(stacks).toEqual([])
+  } finally { reads.mockRestore() }
+})
+
+it('still rejects a changed project, a hard-linked database, a new binding and a moved folder on a warm owner', async () => {
+  const changed = await warmOwner('Project change')
+  const replacement = JSON.parse(readFileSync(changed.projectFile, 'utf8'))
+  replacement.projectId = 'pj_00000000000000000000000998'
+  writeFileSync(changed.projectFile + '.new', JSON.stringify(replacement))
+  renameSync(changed.projectFile + '.new', changed.projectFile)
+  settle(changed.projectFile)
+  await expect(changed.worker.work(changed.h.root, changed.read, changed.binding))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
+
+  const linked = await warmOwner('Linked later')
+  linkSync(resolveLayout(linked.h.root).dbFile, join(linked.h.homeDir, 'linked-later.sqlite'))
+  await expect(linked.worker.work(linked.h.root, linked.read, linked.binding))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The project database has unexpected hard links.' } })
+
+  const bound = await warmOwner('Bound later')
+  const member = join(bound.h.homeDir, 'member')
+  mkdirSync(member)
+  bindForge(bound.h.homeDir, bound.h.root, member, '')
+  await expect(bound.worker.work(bound.h.root, bound.read, bound.binding))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
+
+  // Windows refuses to rename a folder whose database is open, so the folder's real path moves instead.
+  const moved = await warmOwner('Moved later')
+  const elsewhere = vi.spyOn(realpathSync, 'native').mockImplementationOnce(() => moved.h.root + '-elsewhere')
+  try {
+    await expect(moved.worker.work(moved.h.root, moved.read, moved.binding))
+      .resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The tracked folder moved.' } })
+  } finally { elsewhere.mockRestore() }
+})
+
+it('rejects a storage change made outside a warm owner', async () => {
+  const { h, worker, read, binding } = await warmOwner('Mode change')
+  // A database-only project file in the home directory switches the folder's storage mode.
+  const dbProject = dbProjectDir(h.root, h.homeDir)
+  mkdirSync(dbProject, { recursive: true })
+  writeFileSync(join(dbProject, 'project.json'), readFileSync(resolveLayout(h.root).projectFile, 'utf8'))
+  await expect(worker.work(h.root, read, binding))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
 })

@@ -839,6 +839,8 @@ export interface CommandApi {
     limit?: number
     epicId?: string
     runId?: string
+    /** Only this ticket's events (the ticket History tab). */
+    ticketId?: string
   }): Promise<EventsPage>
 
   // Activity timelines

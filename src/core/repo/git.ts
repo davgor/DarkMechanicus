@@ -329,36 +329,53 @@ function belowPrefix(paths: GitPathChange[], prefix: string): GitPathChange[] | 
   return relative
 }
 
-/** `diffPaths` and `statusPaths`: git run in `.darkmechanicus/` below `root`, without git's optional index lock. */
+/**
+ * `diffPaths`, `statusPaths` and `isAncestorSync`: git run synchronously (a reconcile runs inside synchronous opens and
+ * transactions), in `.darkmechanicus/` below `root` for the paths, without git's optional index lock.
+ */
 function recordPathQueries(
   root: string,
   fs: FsAdapter,
-  output: (args: string[]) => Promise<string | null>
-): Pick<GitAdapter, 'diffPaths' | 'statusPaths'> {
-  const inDmDir = (args: string[]): Promise<string | null> => output(['--no-optional-locks', '-C', DM_DIR, ...args])
+  runSync: RunGitSync
+): Pick<GitAdapter, 'diffPaths' | 'statusPaths' | 'isAncestorSync'> {
+  const inDmDir = (args: string[]): string | null => {
+    const result = runSync(['--no-optional-locks', '-C', DM_DIR, ...args])
+    return result.code === 0 ? result.stdout : null
+  }
   /** Why a git command run in `.darkmechanicus/` failed: no repository holds it, or git itself failed. */
   const failure = (): { ok: false; reason: GitPathsFailure } => {
     const inRepository = ancestorsOf(resolve(root, DM_DIR)).some((dir) => fs.exists(join(dir, '.git')))
     return { ok: false, reason: inRepository ? 'git_failed' : 'not_work_tree' }
   }
+  // Where `.darkmechanicus/` sits in its work tree does not move while this adapter lives: asked once it is known.
+  let knownPrefix: string | null = null
+  /** The work-tree prefix of `.darkmechanicus/`; `outside` when git says it is in no work tree, null when git failed. */
+  const workTreePrefix = (): string | 'outside' | null => {
+    if (knownPrefix !== null) return knownPrefix
+    const where = inDmDir(['rev-parse', '--is-inside-work-tree', '--show-prefix'])
+    if (where === null) return null
+    const [inside, prefix = ''] = where.split(/\r?\n/)
+    return inside === 'true' ? prefix : 'outside'
+  }
   return {
-    diffPaths: async (from, to) => {
-      const text = await inDmDir(['diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', safeArg(from), safeArg(to), '--', '.'])
+    diffPaths: (from, to) => {
+      const text = inDmDir(['diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', safeArg(from), safeArg(to), '--', '.'])
       const paths = text === null ? null : parseNameStatus(text)
       return paths === null ? failure() : { ok: true, paths }
     },
-    statusPaths: async () => {
-      const [where, text] = await Promise.all([
-        inDmDir(['rev-parse', '--is-inside-work-tree', '--show-prefix']),
-        inDmDir(['status', '--porcelain=v2', '-z', '--branch', '--no-renames', '-uall', '--ignored=matching', '--', '.'])
-      ])
-      const [inside, prefix = ''] = (where ?? '').split(/\r?\n/)
-      if (where !== null && inside !== 'true') {
-        return { ok: false, reason: 'not_work_tree' }
-      }
+    statusPaths: () => {
+      const prefix = workTreePrefix()
+      if (prefix === 'outside') return { ok: false, reason: 'not_work_tree' }
+      const text = inDmDir(['status', '--porcelain=v2', '-z', '--branch', '--no-renames', '-uall', '--ignored=matching', '--', '.'])
       const status = text === null ? null : parseStatusV2(text)
-      const paths = status === null || where === null ? null : belowPrefix(status.paths, prefix)
-      return status === null || paths === null ? failure() : { ok: true, head: status.head, branch: status.branch, paths }
+      const paths = status === null || prefix === null ? null : belowPrefix(status.paths, prefix)
+      if (status === null || paths === null || prefix === null) return failure()
+      knownPrefix = prefix
+      return { ok: true, head: status.head, branch: status.branch, paths }
+    },
+    isAncestorSync: (ancestor, descendant) => {
+      const result = runSync(['merge-base', '--is-ancestor', safeArg(ancestor), safeArg(descendant)])
+      return result.code === 0 ? true : result.code === 1 ? false : null
     }
   }
 }
@@ -418,7 +435,7 @@ export function createGitAdapter(
       const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
       return text === null ? null : parseCommitLine(text)
     },
-    ...recordPathQueries(root, fs, output),
+    ...recordPathQueries(root, fs, runSync),
     branchCommit: (name) => readBranchCommit(fs, root, runSync, name)
   }
 }

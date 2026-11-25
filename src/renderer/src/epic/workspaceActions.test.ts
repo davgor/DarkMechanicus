@@ -116,6 +116,19 @@ describe('draft lifecycle actions (1)', () => {
     expect([failing.state().view, failing.state().banner]).toEqual(['saved', 'Completed epics are read-only.'])
   })
 
+  it('reads an unchanged draft the load skipped before showing it, and stays on Saved when that read fails', async () => {
+    const skipped = harness({ draft: null, draftTickets: [], validation: null })
+    await skipped.actions.editDraft()
+    expect(skipped.backend.names()).toEqual(['getPlan', 'listTickets', 'validatePlan'])
+    expect(skipped.backend.inputs('getPlan')).toEqual([{ epicId: 'ep_1', view: 'draft' }])
+    expect([skipped.state().view, skipped.state().data?.draft?.draftRevision, skipped.state().data?.draftTickets.length]).toEqual(['draft', 7, 11])
+    expect(skipped.state().validation?.warnings.length).toBe(1)
+    const failing = harness({ draft: null, draftTickets: [], validation: null })
+    failing.backend.fail('getPlan', 'internal', 'Database is locked.')
+    await failing.actions.editDraft()
+    expect([failing.state().view, failing.state().banner, failing.state().data?.draft]).toEqual(['saved', 'Database is locked.', null])
+  })
+
   it('discards the draft with its expected revision', async () => {
     const h = harness()
     h.dispatch({ type: 'show_view', view: 'draft' })
