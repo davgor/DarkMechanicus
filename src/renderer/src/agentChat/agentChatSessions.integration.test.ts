@@ -35,6 +35,19 @@ function controlledClose() {
   }
   return { start, children, release, observed, stopped }
 }
+function controlledShutdown() {
+  const close = controlledClose(), transport = gate<Error | undefined>(), called = gate<void>()
+  const start: typeof startAgentProcess = spec => {
+    const child = close.start(spec)
+    return { ...child, stop: async () => {
+      called.resolve()
+      await child.stop()
+      const failure = await transport.promise
+      if (failure) throw failure
+    } }
+  }
+  return { ...close, start, transport, called }
+}
 
 it('retains OMP responses across process restarts and a reopened store in the real renderer reducer', async () => {
   const r = agentChatRig('omp'), chat = r.newChat('[text]')
@@ -242,4 +255,124 @@ it('does not recover ownership or deletion when grant revocation failed despite 
   expect(r.store.getChat(chat)).not.toBeNull()
   expect(close.children).toHaveLength(1)
   expect(revocations).toBe(1)
+})
+
+const completionOrders = [
+  ['transport', 'close', 'grant'], ['transport', 'grant', 'close'],
+  ['close', 'transport', 'grant'], ['close', 'grant', 'transport'],
+  ['grant', 'transport', 'close'], ['grant', 'close', 'transport'],
+] as const
+const shutdownOperations = ['stop', 'deleteChat', 'dispose', 'restart'] as const
+it.each(completionOrders.flatMap(order => shutdownOperations.map(operation => ({ order, operation }))))(
+  '$operation joins all three cleanup barriers in order $order', async ({ order, operation }) => {
+    const close = controlledShutdown(), grant = gate<void>()
+    const r = agentChatRig('claude', { startProcess: close.start, revokeChatGrant: async () => grant.promise })
+    cleanups.push(async () => { close.release.resolve(); grant.resolve(); close.transport.resolve(undefined); await r.cleanup() })
+    const chat = r.newChat()
+    await r.sessions.start(chat)
+    const original = r.sessions.stop(chat)
+    await close.observed.promise
+    let settled = false
+    const later = (operation === 'restart'
+      ? Promise.all([r.sessions.start(chat), r.sessions.start(chat)])
+      : operation === 'dispose' ? r.sessions.dispose() : r.sessions[operation](chat))
+      .then(result => { settled = true; return result })
+    const release = { transport: () => close.transport.resolve(undefined), close: () => close.release.resolve(), grant: () => grant.resolve() }
+    for (const barrier of order.slice(0, 2)) {
+      release[barrier]()
+      await new Promise(setImmediate)
+      expect(settled).toBe(false)
+      expect(r.sessions.isLive(chat)).toBe(true)
+      expect(r.store.getChat(chat)).not.toBeNull()
+      expect(close.children).toHaveLength(1)
+    }
+    release[order[2]]()
+    await original
+    await later
+    if (operation === 'restart') {
+      expect(close.children).toHaveLength(2)
+      expect(r.bound).toEqual(['grant-1', 'grant-2'])
+    } else if (operation === 'deleteChat') expect(r.store.getChat(chat)).toBeNull()
+    else expect(r.sessions.isLive(chat)).toBe(false)
+    if (operation === 'dispose') await expect(r.sessions.start(chat)).rejects.toThrow('The chat is stopping.')
+    expect(() => process.kill(close.children[0].pid!, 0)).toThrow()
+  },
+)
+
+it('retains the natural-exit transport until its stop completion before replacing the owner', async () => {
+  const close = controlledShutdown(), r = agentChatRig('claude', { startProcess: close.start })
+  cleanups.push(async () => { close.release.resolve(); close.transport.resolve(undefined); await r.cleanup() })
+  const chat = r.newChat()
+  await r.sessions.start(chat)
+  await close.children[0].stop()
+  await close.observed.promise
+  close.release.resolve()
+  await close.called.promise
+  await eventually(() => r.revoked.length === 1)
+  let settled = false
+  const restarting = Promise.all([r.sessions.start(chat), r.sessions.start(chat)]).then(() => { settled = true })
+  await new Promise(setImmediate)
+  expect(settled).toBe(false)
+  expect(r.sessions.isLive(chat)).toBe(true)
+  expect(close.children).toHaveLength(1)
+  close.transport.resolve(undefined)
+  await restarting
+  expect(close.children).toHaveLength(2)
+  expect(r.bound).toEqual(['grant-1', 'grant-2'])
+})
+
+it('keeps transport-stop failure authoritative after successful close and revocation', async () => {
+  const close = controlledShutdown(), failure = new Error('Transport tree cleanup failed')
+  const r = agentChatRig('claude', { startProcess: close.start })
+  cleanups.push(async () => { close.release.resolve(); close.transport.resolve(failure); await close.children[0].stop(); await r.sessions.dispose().catch(() => undefined); removeScratch(r.root) })
+  const chat = r.newChat()
+  await r.sessions.start(chat)
+  const original = r.sessions.stop(chat)
+  await close.observed.promise
+  close.release.resolve()
+  await eventually(() => r.revoked.length === 1)
+  close.transport.resolve(failure)
+  await expect(original).rejects.toBe(failure)
+  await expect(r.sessions.stop(chat)).rejects.toBe(failure)
+  expect(await r.sessions.start(chat)).toMatchObject({ status: 'failed' })
+  await expect(r.sessions.deleteChat(chat)).rejects.toBe(failure)
+  await expect(r.sessions.dispose()).rejects.toBe(failure)
+  expect(r.sessions.isLive(chat)).toBe(true)
+  expect(r.store.getChat(chat)).not.toBeNull()
+  expect(close.children).toHaveLength(1)
+})
+
+it.each(['stop', 'dispose'] as const)('%s preserves its transport deadline failure but recovers after proven late completion', async operation => {
+  const close = controlledShutdown(), r = agentChatRig('claude', { startProcess: close.start })
+  cleanups.push(async () => { close.release.resolve(); close.transport.resolve(undefined); await r.cleanup() })
+  const chat = r.newChat()
+  await r.sessions.start(chat)
+  close.release.resolve()
+  const original = operation === 'dispose' ? r.sessions.dispose() : r.sessions.stop(chat)
+  const failure: unknown = await original.catch(error => error)
+  await expect(original).rejects.toThrow('shutdown did not complete within 5 seconds')
+  expect(r.revoked).toEqual(['grant-1'])
+  expect(r.sessions.isLive(chat)).toBe(true)
+  await expect(r.sessions.stop(chat)).rejects.toThrow('shutdown did not complete within 5 seconds')
+  await expect(r.sessions.deleteChat(chat)).rejects.toThrow('shutdown did not complete within 5 seconds')
+  expect(r.store.getChat(chat)).not.toBeNull()
+  if (operation === 'stop') {
+    expect(await Promise.all([r.sessions.start(chat), r.sessions.start(chat)])).toEqual([
+      expect.objectContaining({ status: 'failed' }), expect.objectContaining({ status: 'failed' }),
+    ])
+    expect(close.children).toHaveLength(1)
+  }
+  close.transport.resolve(undefined)
+  await eventually(() => !r.sessions.isLive(chat))
+  await expect(r.sessions.stop(chat)).resolves.toBeUndefined()
+  if (operation === 'stop') {
+    await Promise.all([r.sessions.start(chat), r.sessions.start(chat)])
+    expect(close.children).toHaveLength(2)
+    await r.sessions.deleteChat(chat)
+    expect(r.store.getChat(chat)).toBeNull()
+  }
+  await expect(r.sessions.dispose()).resolves.toBeUndefined()
+  await expect(original).rejects.toBe(failure)
+  if (operation === 'dispose') await expect(r.sessions.start(chat)).rejects.toThrow('The chat is stopping.')
+  for (const child of close.children) expect(() => process.kill(child.pid!, 0)).toThrow()
 })

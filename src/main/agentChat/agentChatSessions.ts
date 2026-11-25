@@ -63,7 +63,10 @@ interface Entry {
   completeClose(): void
   rejectClose(error: unknown): void
   revoking?: Promise<void>
-  stopping?: Promise<void>
+  transportStopped?: Promise<void>
+  cleanup?: Promise<void>
+  cleanupComplete?: boolean
+  stopResult?: Promise<void>
   starting?: Promise<StartResult>
   ending?: Promise<void>
 }
@@ -174,10 +177,27 @@ class SessionManager {
     entry.revoking ??= this.revoke(entry.grantIds.splice(0))
     return entry.revoking
   }
-  private completeCleanup(entry: Entry): void {
-    entry.completeClose()
-    // Existing callers keep their rejected deadline promise; later operations use confirmed cleanup.
-    entry.stopping = entry.closed
+  private cleanupEntry(entry: Entry): Promise<void> {
+    if (entry.cleanup) return entry.cleanup
+    const child = entry.process
+    const revoke = this.revokeEntry(entry)
+    // Defer invocation so even a synchronous close callback sees the installed composite barrier.
+    entry.transportStopped = Promise.resolve().then(() => child?.stop())
+    if (!child) void revoke.then(entry.completeClose, entry.rejectClose)
+    entry.cleanup = Promise.all([entry.transportStopped, entry.closed, revoke]).then(() => {
+      entry.cleanupComplete = true
+      entry.process = undefined
+    })
+    return entry.cleanup
+  }
+  private awaitCleanup(entry: Entry): Promise<void> {
+    if (entry.cleanupComplete) return entry.cleanup!
+    entry.stopResult ??= boundedShutdown(this.cleanupEntry(entry)).catch(error => {
+      this.emit(entry, { type: 'pending', prompt: null })
+      this.emit(entry, { type: 'status', status: 'failed', detail: message(error) })
+      throw error
+    })
+    return entry.stopResult
   }
   private ended(entry: Entry, exit: AgentProcessExit): Promise<void> {
     if (entry.ending) return entry.ending
@@ -186,32 +206,23 @@ class SessionManager {
     entry.admit()
     entry.ending = (async () => {
       await this.revokeEntry(entry)
-      entry.process = undefined
       this.emit(entry, { type: 'pending', prompt: null })
       const detail = Buffer.from(mask(exit.stderr)).subarray(-2048).toString('utf8')
       this.emit(entry, { type: 'status', status: exit.code === 0 || entry.cancelled ? 'exited' : 'failed', ...(detail ? { detail } : {}) })
     })()
-    void entry.ending.then(() => this.completeCleanup(entry), entry.rejectClose)
+    void entry.ending.then(entry.completeClose, entry.rejectClose)
+    // Natural close can precede the transport's retained process-tree cleanup.
+    void this.awaitCleanup(entry).catch(() => undefined)
     // Auth may require user/network time; it must never hold process shutdown open.
     void entry.ending.then(() => this.pauseIfSignedOut(entry)).catch(() => undefined)
     return entry.ending
   }
   private stopEntry(entry: Entry): Promise<void> {
-    if (entry.stopping) return entry.stopping
     entry.cancelled = true
     entry.cancel()
     entry.release?.()
     entry.release = undefined
-    const revoke = this.revokeEntry(entry)
-    const work = entry.process
-      ? Promise.all([entry.process.stop(), entry.closed, revoke]).then(() => undefined)
-      : revoke.then(() => this.completeCleanup(entry))
-    entry.stopping = boundedShutdown(work).catch(error => {
-      this.emit(entry, { type: 'pending', prompt: null })
-      this.emit(entry, { type: 'status', status: 'failed', detail: message(error) })
-      throw error
-    })
-    return entry.stopping
+    return this.awaitCleanup(entry)
   }
   private write(entry: Entry, lines: readonly string[]): void {
     for (const line of lines) if (!entry.process?.write(line)) throw new Error('The agent exited before accepting input.')
@@ -388,8 +399,7 @@ class SessionManager {
     // Ensure start() installs the shared promise before auth, callbacks or notifications can re-enter.
     await Promise.resolve()
     try {
-      if (previous?.stopping) await this.step(entry, previous.stopping)
-      else if (previous?.ending) await this.step(entry, previous.closed)
+      if (previous?.cleanup) await this.step(entry, this.awaitCleanup(previous))
       this.assertCurrent(entry)
       entry.chat = this.chatFor(entry.chat)
       this.entries.set(entry.chat.id, entry)
