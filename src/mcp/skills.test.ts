@@ -168,16 +168,19 @@ describe('SKILLS_VERSION', () => {
 })
 
 describe('the worker-relay marker', () => {
-  it('moved past 1.14.0 when the guides started defining the worker-relay marker', () => {
+  const marker = '[Message from the person for your worker subagent, thread <id>]'
+
+  it('moved past 1.14.0 when the guides started defining the worker-relay marker text', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
+    expect(orchestratorFactBodies('orchestrator.worker-relay').join('\n')).toContain(marker)
+    expect(skill('worker').body).toContain(marker)
   })
 
-  it('defines the worker-relay marker for the orchestrator and the worker', () => {
-    const marker = '[Message from the person for your worker subagent, thread <id>]'
-    expect(orchestratorFactBodies('orchestrator.worker-relay').join('\n')).toContain(marker)
+  it('tells the orchestrator to pass the marked message on and the worker to treat it as the person relayed', () => {
+    expect(orchestratorFactBodies('orchestrator.worker-relay').join('\n')).toMatch(/Pass the text to that worker now, then post its answer/)
     expect(skill('orchestrator').body).toContain('`orchestrator.worker-relay`')
-    expect(skill('worker').body).toContain(marker)
+    expect(skill('worker').body).toMatch(/person's own words, relayed to you by the orchestrator/)
   })
 })
 
