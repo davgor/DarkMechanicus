@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import measured from '../../assets/chamber/props.json'
 import {
   applyChamberEvent, BUBBLE_MAX_CHARS, clipDuration, createChamber, DEFAULT_CLIP_TIMINGS, MAGOS_ID,
   staticChamber, stepChamber, type ChamberEvent, type ChamberState
 } from './chamberState'
 import type { PacketEffect } from './effects'
-import { chamberLayout, type ChamberLayout, type Size } from './layout'
+import { chamberLayout, type ChamberLayout, type ChamberPropMetrics, type Size } from './layout'
 import { PROPS, ROOMS } from './testFixtures'
 
 const STEP = 16
@@ -299,9 +300,12 @@ describe('run-state theatrics: kill, warning and bounds', () => {
     expect(state.warning).toBe(false)
   })
 
-  it.each(ROOMS.flatMap((size) => [6, 24].map((count): [Size, number] => [size, count])))(
-    'keeps every acolyte inside the room through orders, ending and kill at %o with %i acolytes', (size, count) => {
-      const layout = chamberLayout(size, PROPS, count)
+  const metrics = [['fixture', PROPS], ['props.json', measured]] as const
+  it.each(metrics.flatMap(([source, props]) => ROOMS.flatMap((size) =>
+    [6, 24].map((count): [string, ChamberPropMetrics, Size, number] => [source, props, size, count]))))(
+    'keeps every acolyte inside the room through orders, ending and kill (%s) at %o with %i acolytes',
+    (_source, props, size, count) => {
+      const layout = chamberLayout(size, props, count)
       let state = populate(count + size.width, count, layout, 1000)
       state = apply(state, layout, ...ids(count).filter((_, index) => index % 2 === 0)
         .map((id): ChamberEvent => ({ type: 'working', id, on: true })), { type: 'orderSent', to: 'all', orderId: 'o' })
