@@ -23,7 +23,9 @@ import type { DesktopHandlers } from '../main/desktop/handlers'
 import type { KnowledgeHandlers } from '../main/desktop/knowledgeHandlers'
 import { registerSourceCheckoutIpc, type SourceCheckoutHandlers } from '../main/desktop/sourceCheckoutIpc'
 import { registerSettingsIpc, type SettingsHandlers } from '../main/desktop/settingsIpc'
+import { registerNotifyIpc, type NotifyHandlers } from '../main/notify/notifyIpc'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../shared/desktop/notificationSettings'
+import { NOTIFICATION_CHANNELS, type NotificationsApi } from '../shared/desktop/notifications'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
 import { registerGithubIpc } from '../main/github/ipc'
@@ -131,6 +133,7 @@ beforeAll(async () => {
   registerYoloIpc(recorder(true), recordingHandlers<YoloHandlers>())
   registerSourceCheckoutIpc(recorder(true), recordingHandlers<SourceCheckoutHandlers>())
   registerSettingsIpc(recorder(true), recordingHandlers<SettingsHandlers>())
+  registerNotifyIpc(recorder(true), recordingHandlers<NotifyHandlers>())
   registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
@@ -227,7 +230,8 @@ describe('preload bridge subscriptions', () => {
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
       'dm.onFoldersChanged': 'forge:foldersChanged',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
-      'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL
+      'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL,
+      'dm.notifications.onNavigate': NOTIFICATION_CHANNELS.navigate
     }
     const methods = [...bridge.exposed].flatMap(([key, api]) => methodsOf(api, key))
     const subscriptions = methods.filter(([path]) => isSubscription(path))
@@ -237,7 +241,9 @@ describe('preload bridge subscriptions', () => {
       const unsubscribe = subscribe((...args: unknown[]) => received.push(args)) as () => void
       const listeners = bridge.listeners.get(expected[path])
       expect(listeners?.size, path).toBe(1)
-      const payload = path === 'dm.agentChat.onEvent' ? { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' } : { payload: path }
+      const payload = path === 'dm.agentChat.onEvent' ? { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' }
+        : path === 'dm.notifications.onNavigate' ? { kind: 'epic', folder: '/repo', epicId: 'ep_01j0000000000000000000000e' }
+          : { payload: path }
       for (const listener of listeners ?? []) listener(fakeEvent, payload)
       // Folder changes invalidate the registry without forwarding any payload.
       const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [payload]
@@ -281,5 +287,35 @@ describe('preload bridge agent chat attention', () => {
     }
     expect(received).toEqual([valid])
     unsubscribe()
+  })
+})
+
+describe('preload bridge notifications', () => {
+  it('appends notifications last, raising on notifications:raise with only its request', async () => {
+    const dm = bridge.exposed.get('dm') as unknown as { notifications: NotificationsApi } & Record<string, unknown>
+    expect(Object.keys(dm).at(-1)).toBe('notifications')
+    expect(Object.keys(dm.notifications)).toEqual(['raise', 'onNavigate'])
+    const request = { folder: '/repo', kind: 'checkpoint_ready', epicId: 'ep_01j0000000000000000000000e', runId: 'rn_01j0000000000000000000000r' } as const
+    bridge.calls.length = 0
+    handled.length = 0
+    await expect(dm.notifications.raise(request)).resolves.toBe('result:raise')
+    expect(bridge.calls).toEqual([['notifications:raise', request]])
+    expect(handled).toEqual([{ method: 'raise', args: [request] }])
+  })
+
+  it('drops an invalid navigate push and forwards a valid target', () => {
+    const dm = bridge.exposed.get('dm') as unknown as { notifications: NotificationsApi }
+    const received: unknown[] = []
+    const unsubscribe = dm.notifications.onNavigate(target => received.push(target))
+    const listeners = bridge.listeners.get(NOTIFICATION_CHANNELS.navigate)
+    const valid = { kind: 'chat', folder: '/repo', chatId: 'chat_1', threadId: 'thread:1', promptId: 'p1' }
+    const invalid = [
+      null, 'chat_1', { kind: 'unknown' }, { ...valid, extra: true }, { ...valid, chatId: '../chat' },
+      { kind: 'checkpoint', folder: '/repo', epicId: 'ep_1' }, { kind: 'epic', folder: '', epicId: 'ep_01j0000000000000000000000e' }
+    ]
+    for (const target of [...invalid, valid]) for (const listener of listeners ?? []) listener(fakeEvent, target)
+    expect(received).toEqual([valid])
+    unsubscribe()
+    expect(listeners?.size).toBe(0)
   })
 })

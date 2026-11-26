@@ -14,6 +14,7 @@ import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { ForgeSetupApi } from './forgeSetup'
 import type { ForgeApi, ForgeWorld } from './forgeWorld'
 import type { SettingsApi } from './notificationSettings'
+import type { NotificationsApi } from './notifications'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
@@ -367,6 +368,8 @@ export interface DmApi {
   chooseKnowledgeRepository(): Promise<KnowledgeChooseResult>
   /** Removes `<home>/knowledge.json`, so no overall repository is set. */
   clearKnowledgeRepository(): Promise<void>
+  /** OS notifications: `notifications:raise` for a run event the renderer observed, and `notifications:navigate` pushes. */
+  notifications: NotificationsApi
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */

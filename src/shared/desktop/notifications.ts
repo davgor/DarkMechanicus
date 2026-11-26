@@ -5,6 +5,7 @@
  */
 import { z } from 'zod'
 import { chatIdSchema } from '../agents/chat'
+import type { CommandResult } from './api'
 
 export const NOTIFICATION_CHANNELS = {
   /** Push (main → renderer): a `NavigateTarget` after the person clicks a notification. */
@@ -38,3 +39,15 @@ export const notificationRaiseSchema = z.strictObject({
   epicId: epicIdSchema,
   runId: runIdSchema
 })
+
+type NotificationRaiseRequest = z.infer<typeof notificationRaiseSchema>
+
+/**
+ * `window.dm.notifications`: `raise` asks main to notify a run event the renderer observed (main validates it and
+ * reads the epic title itself); `onNavigate` receives where a clicked notification lands, each push validated and an
+ * invalid one dropped. Returns its unsubscribe.
+ */
+export interface NotificationsApi {
+  raise(request: NotificationRaiseRequest): Promise<CommandResult<null>>
+  onNavigate(listener: (target: NavigateTarget) => void): () => void
+}

@@ -67,3 +67,13 @@ export function removeWindowMenuBar(platform: NodeJS.Platform, clearMenu: () => 
 export function applyColorProfile(commandLine: { appendSwitch: (name: string, value?: string) => void }): void {
   commandLine.appendSwitch('force-color-profile', 'srgb')
 }
+
+/** The installed shortcut's AppUserModelId (`build.appId` in package.json): Windows shows a toast only for a matching id. */
+const APP_USER_MODEL_ID = 'com.davgor.darkmechanicus'
+
+/** On Windows, names the process with the installer's app id before any window opens, so OS notifications show and group under the app. */
+export function applyAppUserModelId(platform: NodeJS.Platform, set: (id: string) => void): boolean {
+  if (platform !== 'win32') return false
+  set(APP_USER_MODEL_ID)
+  return true
+}

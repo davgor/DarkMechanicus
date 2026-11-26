@@ -9,7 +9,7 @@ import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { disposeBeforeQuit } from './quitDisposal'
-import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
+import { applyAppUserModelId, applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
 
 /** The dev server in development (electron-vite sets it); otherwise the packaged page beside this bundle. */
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
@@ -100,6 +100,10 @@ function startDesktop(): void {
       onError: (error) => {
         logger.error('Could not dispose agent chats or close the app stores on quit:', error)
       }
+    })
+    // Windows shows a toast only for the installed shortcut's app id; set it before the first window opens.
+    applyAppUserModelId(process.platform, id => {
+      app.setAppUserModelId(id)
     })
     // No File/Edit/View/Window bar in the window; macOS keeps its system menu for the edit shortcuts.
     removeWindowMenuBar(process.platform, () => {

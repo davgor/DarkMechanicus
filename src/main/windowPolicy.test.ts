@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
+import { applyAppUserModelId, applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
 
 describe('loadRendererContent', () => {
   it('loads the dev-server URL when provided', () => {
@@ -150,5 +151,17 @@ describe('packaged launch routing', () => {
     routeAppLaunch(undefined, bundledMcp, actions)
     expect(windows).toBe(1)
     expect(events).toEqual(['lock', 'window', 'lock', 'quit', 'lock', 'quit'])
+  })
+})
+
+describe('applyAppUserModelId', () => {
+  it("sets the installer's app id (package.json build.appId) on win32 only", () => {
+    const set: string[] = []
+    for (const platform of ['darwin', 'linux', 'freebsd'] as const) expect(applyAppUserModelId(platform, id => set.push(id))).toBe(false)
+    expect(set).toEqual([])
+    expect(applyAppUserModelId('win32', id => set.push(id))).toBe(true)
+    expect(set).toEqual(['com.davgor.darkmechanicus'])
+    const { build } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { build: { appId: string } }
+    expect(set).toEqual([build.appId])
   })
 })

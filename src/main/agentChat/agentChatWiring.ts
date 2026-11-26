@@ -13,26 +13,29 @@ import { readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
+import { formatCallsign, rootCallsignOf } from '../../shared/agents/callsign'
 import type { ActivityBindings } from '../agents/activityBindings'
 import type { ChatRef } from '../agents/chatStore'
 import { readArbiterContext, ticketKeyOfAttempt, type ArbiterReads } from '../magos/arbiterContext'
+import type { NotificationEvent } from '../notify/notifier'
 import { endingTerminals, type TerminalSessions } from '../terminals/terminalSessions'
 import type { AgentChatSessions, AgentChatSessionsDeps } from './agentChatSessions'
+import type { AttentionEvent } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
 
 /** What the wiring needs of the terminals: their ownership, their stop of one owner generation, and quit. */
 type TerminalOwners = Pick<TerminalSessions, 'isLive' | 'owner' | 'stop' | 'busy' | 'dispose'>
 /**
  * What the GUI owner is given: the terminals' ownership, the `chats_changed` push for a persisted surface switch, the
- * Magos gate, the thread bindings and the ticket key of a bound attempt.
+ * Magos gate, the thread bindings, the ticket key of a bound attempt and the OS notifier's stall seam.
  */
 export type AgentChatOwnerDeps = Required<Pick<AgentChatSessionsDeps,
-  'terminalLive' | 'terminalOwner' | 'stopTerminal' | 'onChatChanged' | 'arbitrate' | 'bindings' | 'ticketKeyOfAttempt'>>
+  'terminalLive' | 'terminalOwner' | 'stopTerminal' | 'onChatChanged' | 'arbitrate' | 'bindings' | 'ticketKeyOfAttempt' | 'onAttention'>>
 
 type ArbitrationDeps = Parameters<typeof createPromptArbitration>[0]
 
-/** The Magos arbiter's main-side dependencies. */
-export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'onAttention' | 'platform' | 'env' | 'arbiterRoot' | 'startArbiter'> {
+/** The Magos arbiter's main-side dependencies; its attention events go to the wiring's `attention` notifier. */
+export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'platform' | 'env' | 'arbiterRoot' | 'startArbiter'> {
   /** The read-only workspace of a tracked folder (its own desktop workspace); throws for an untracked one. */
   arbiterReads(folder: string): ArbiterReads
   /** Verified worker attempts of chat threads (`activity`), shared with the GUI owner. */
@@ -49,6 +52,8 @@ interface AgentChatWiringOptions<T extends TerminalOwners> {
   /** The `chats:event` push: a surface switch tells every window the chat changed. */
   push: (event: ChatPushEvent) => void
   arbiter: ArbiterWiring
+  /** The OS notifier for escalated prompts, questions and stalled Magos chats, and the chat record it names. */
+  attention: AgentChatAttention
 }
 
 export interface AgentChatWiring<T extends TerminalOwners> {
@@ -79,13 +84,13 @@ function sweepArbiterRoot(root: string): void {
 }
 
 /** The Magos gate over the folder's workspace reads: the binding of a prompt's thread selects its ticket. */
-function arbitration(arbiter: ArbiterWiring) {
+function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent) => void) {
   const reads = (folder: string | null): ArbiterReads => {
     if (folder === null) throw new Error('A project-less chat has no workspace.')
     return arbiter.arbiterReads(folder)
   }
   return createPromptArbitration({
-    settings: arbiter.settings, onAttention: arbiter.onAttention, platform: arbiter.platform, env: arbiter.env,
+    settings: arbiter.settings, onAttention, platform: arbiter.platform, env: arbiter.env,
     arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter,
     allowedRoots: chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
     // An async body turns a throwing lookup into a rejection, which the gate reads as nulls.
@@ -97,9 +102,10 @@ function arbitration(arbiter: ArbiterWiring) {
   })
 }
 
-export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push, arbiter }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
+export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push, arbiter, attention }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
   sweepArbiterRoot(arbiter.arbiterRoot)
-  const magos = arbitration(arbiter)
+  const onAttention = notifiedAttention(attention)
+  const magos = arbitration(arbiter, onAttention)
   let agentChats: AgentChatSessions | undefined
   // The terminals exist before the GUI manager: until it does, nothing runs in the GUI.
   const terminals = terminalsFactory(ref => agentChats?.isLive(ref) ?? false)
@@ -116,7 +122,8 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
       } catch {
         return null
       }
-    }
+    },
+    onAttention
   })
   agentChats = gui
   return {
@@ -129,16 +136,53 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
   }
 }
 
+/** What the wiring needs to raise an OS notification for an attention event. */
+export interface AgentChatAttention {
+  /** The OS notifier's `notify` (`notifier.ts`): settings, focus and dedupe are its own. */
+  notify(event: NotificationEvent): void
+  /** The chat's stored record, for its title and root callsign; null when it is gone. */
+  chat(ref: ChatRef): ChatRecord | null
+  /** A failed notification, logged by bootstrap; never thrown into the gate or the session. */
+  onError(error: unknown): void
+}
+
+/** The chat's own name: its title, else its root callsign (`Magos`, `Lexmechanic`), else a generic one. */
+function chatName(chat: ChatRecord | null): string {
+  const title = chat?.title.trim()
+  if (title) return title
+  const root = chat === null ? null : rootCallsignOf(chat)
+  return root === null ? 'An agent chat' : formatCallsign(root)
+}
+
 /**
- * The default `onAttention` of `ArbiterWiring`: one log line naming the event's kind, folder, chat id and prompt id,
- * never the prompt's text or tool input. The seam stays notification-only: a later notifier ticket may plug the OS
- * notifier into it, while the renderer's attention signal comes from the session manager, not from here.
+ * The one attention seam of the Magos gate and the GUI session manager: each event becomes an OS notification that
+ * names the chat (a prompt's callsign before the chat's title) and lands on the chat. Only the prompt's title reaches
+ * the text, never its detail or tool input; the notifier strips control characters, masks secrets and clips it.
  */
-export function loggedAttention(log: (message: string, fields: { kind: string; folder: string | null; chatId: string; promptId: string }) => void): ArbiterWiring['onAttention'] {
-  return ({ kind, ref, prompt }) => {
+function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) => void {
+  const translate = (event: AttentionEvent): NotificationEvent => {
+    const chat = deps.chat(event.ref)
+    if (event.kind === 'run_stalled') {
+      const since = Date.now() - event.silentMs
+      return {
+        kind: 'run_stalled', key: `stall:${event.ref.id}:${since}`, title: `${chatName(chat)} went quiet`, body: 'No output for 5 minutes.',
+        target: { kind: 'chat', folder: event.ref.folder, chatId: event.ref.id }
+      }
+    }
+    const { prompt } = event
+    const name = prompt.callsign === null ? chatName(chat) : formatCallsign(prompt.callsign)
+    return {
+      kind: event.kind, key: `prompt:${prompt.id}`, title: `${name} needs you`,
+      body: event.kind === 'question' ? `has a question: ${prompt.title}` : `wants to run: ${prompt.title}`,
+      target: { kind: 'chat', folder: event.ref.folder, chatId: event.ref.id, ...(prompt.threadId === null ? {} : { threadId: prompt.threadId }), promptId: prompt.id }
+    }
+  }
+  return event => {
     try {
-      log('Magos attention needed:', { kind, folder: ref.folder, chatId: ref.id, promptId: prompt.id })
-    } catch { /* Logging never changes an outcome. */ }
+      deps.notify(translate(event))
+    } catch (error) {
+      try { deps.onError(error) } catch { /* Logging never changes an outcome. */ }
+    }
   }
 }
 

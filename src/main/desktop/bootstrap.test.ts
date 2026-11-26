@@ -47,6 +47,8 @@ vi.mock('electron', () => ({
   clipboard: { writeText: desktop.writeClipboard },
   dialog: { showOpenDialog: desktop.showOpenDialog },
   net: { fetch: () => { throw new Error('Unexpected network operation') } },
+  // The bridge creates the OS notifier; these tests raise no notification, so the class is never constructed.
+  Notification: class { static isSupported(): boolean { return false } },
   powerSaveBlocker: { start: desktop.keepAwake, stop: () => undefined },
   protocol: { handle: desktop.registerProtocol },
   safeStorage: { isEncryptionAvailable: () => false },

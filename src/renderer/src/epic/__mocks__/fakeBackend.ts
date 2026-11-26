@@ -6,6 +6,7 @@
 import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
 import { FakeAgentChat } from '../../__mocks__/fakeAgentChat'
 import { FakeSettings } from '../../__mocks__/fakeSettings'
+import { FakeNotifications } from '../../__mocks__/fakeNotifications'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
@@ -124,6 +125,7 @@ export class FakeBackend implements DmApi {
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
   settings = new FakeSettings()
+  notifications = new FakeNotifications()
   yolo(): Promise<YoloStatus> {
     return Promise.resolve({ live: false, expiresAt: null, audit: [] })
   }
