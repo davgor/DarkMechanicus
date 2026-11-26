@@ -1,12 +1,18 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
-import { createMemoryFs, type FaultSpec, isWithin } from '../../test/memoryFs'
-import { idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
+import { createMemoryFs, type FaultSpec, isWithin, type MemoryFs } from '../../test/memoryFs'
+import { createSaveHook, idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { copyTracked, createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
+import { createTestCtx, createTestDb } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
+import { type Db, openDatabase, tagTransactions, type TransactionHold } from '../db/database'
+import { migrate } from '../db/migrations'
 import { getMeta } from '../meta'
-import { flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
+import { completeSavedRevision, previewSavedRevision } from '../services/plans'
+import { type FinalizerHooks, flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
 import {
   buildCommentRecord,
@@ -150,15 +156,24 @@ function seedSavedFirstRevision(): RepoEnv {
   return env
 }
 
+/** A temp file staged for `name` (outside the write lock, under `local/staging/`), or a read-back of it. */
+const staged = (name: string) => (path: string): boolean => path.includes(`${name}.tmp-`)
+
 const BOUNDARIES: [string, FaultSpec][] = [
-  ['snapshot temp write', { op: 'writeFile', match: (path) => path.includes(`${R2}.json.tmp-`) }],
-  ['snapshot fsync', { op: 'fsyncFile', match: (path) => path.includes(`${R2}.json.tmp-`) }],
+  ['snapshot staged write', { op: 'writeFile', match: staged(`${R2}.json`) }],
+  ['snapshot fsync', { op: 'fsyncFile', match: staged(`${R2}.json`) }],
+  ['snapshot verify', { op: 'readFile', match: staged(`${R2}.json`) }],
+  ['export intent staged write', { op: 'writeFile', match: staged(`exports~${EPIC}.json`) }],
+  ['export intent verify', { op: 'readFile', match: staged(`exports~${EPIC}.json`) }],
+  ['state staged write', { op: 'writeFile', match: staged('state.json') }],
+  ['state fsync', { op: 'fsyncFile', match: staged('state.json') }],
+  ['state verify', { op: 'readFile', match: staged('state.json') }],
+  ['pointer staged write', { op: 'writeFile', match: staged('current.json') }],
+  ['pointer fsync', { op: 'fsyncFile', match: staged('current.json') }],
+  ['pointer verify', { op: 'readFile', match: staged('current.json') }],
   ['snapshot rename', { op: 'rename', match: (path) => path.endsWith(`${R2}.json`) }],
-  ['snapshot read-back', { op: 'readFile', match: (path) => path.endsWith(`${R2}.json`) }],
-  ['state temp write', { op: 'writeFile', match: (path) => path.includes('state.json.tmp-') }],
+  ['export intent rename', { op: 'rename', match: (path) => path.endsWith(join('exports', `${EPIC}.json`)) }],
   ['state rename', { op: 'rename', match: (path) => path.endsWith('state.json') }],
-  ['pointer temp write', { op: 'writeFile', match: (path) => path.includes('current.json.tmp-') }],
-  ['pointer fsync', { op: 'fsyncFile', match: (path) => path.includes('current.json.tmp-') }],
   ['pointer rename', { op: 'rename', match: (path) => path.endsWith('current.json') }]
 ]
 
@@ -203,23 +218,434 @@ describe('flushOutbox fault injection at every write boundary', () => {
   it('drops a new snapshot that could not be verified so the retry writes it again', () => {
     const env = seedSavedFirstRevision()
     stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
-    env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith(`${R2}.json`) })
+    env.fs.failOn({ op: 'readFile', match: staged(`${R2}.json`) })
     expect(flush(env).failedRevisionIds).toEqual([R2])
     expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
     expect(flush(env).savedRevisionIds).toEqual([R2])
     expect(parseRecord(snapshotRecord, env.fs.get(files(env).snapshot(R2)) ?? '', 's').revisionId).toBe(R2)
   })
 
-  it('recovers when the pointer read-back fails after the pointer was replaced', () => {
+  it('replaces nothing when the pointer read-back fails, since it reads back the staged copy first', () => {
     const env = seedSavedFirstRevision()
+    const before = trackedTexts(env)
     const entry = stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
-    // The third read of current.json is the read-back: the save's and the state export's checks for unimported records come first.
-    env.fs.failOn({ op: 'readFile', nth: 3, match: (path) => path.endsWith('current.json') })
+    env.fs.failOn({ op: 'readFile', match: staged('current.json') })
     expect(flush(env).failedRevisionIds).toEqual([R2])
+    expect(trackedTexts(env)).toEqual(before)
+    expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
     expect(outboxRow(env, entry)?.state).toBe('pending')
     expect(revisionState(env, R2)).toBe('pending')
     expect(flush(env).savedRevisionIds).toEqual([R2])
     expect(JSON.parse(env.fs.get(files(env).pointer) ?? '{}')).toMatchObject({ revisionId: R2, generation: 2 })
+  })
+})
+
+/** A `Db` whose first statement matching `match` fails, as a commit failing after its files were renamed into place. */
+function failingStatement(db: Db, match: RegExp): Db {
+  let armed = true
+  return {
+    path: db.path,
+    get: db.get.bind(db),
+    all: db.all.bind(db),
+    exec: db.exec.bind(db),
+    tx: db.tx.bind(db),
+    inTransaction: db.inTransaction.bind(db),
+    close: db.close.bind(db),
+    run: (sql, ...params) => {
+      if (armed && match.test(sql)) {
+        armed = false
+        throw new Error('Injected commit failure')
+      }
+      return db.run(sql, ...params)
+    }
+  }
+}
+
+/** The memory filesystem, running `then` once right after the first fsync of a path matching `match`. */
+function afterFsync(fs: MemoryFs, match: (path: string) => boolean, then: () => void): MemoryFs {
+  let pending = true
+  const wrapped: MemoryFs = Object.create(fs) as MemoryFs
+  wrapped.fsyncFile = (path) => {
+    fs.fsyncFile(path)
+    if (pending && match(path)) {
+      pending = false
+      then()
+    }
+  }
+  return wrapped
+}
+
+describe('flushOutbox failures at the commit, after staging', () => {
+  it('puts the replaced state and pointer back when the entry cannot be completed, then retries identically', () => {
+    const env = seedSavedFirstRevision()
+    const reference = seedSavedFirstRevision()
+    saveRevision(reference, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    const before = { pointer: env.fs.get(files(env).pointer), snapshot: env.fs.get(files(env).snapshot(R1)) }
+    const state = env.fs.get(files(env).state)
+    const entry = stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    const db = failingStatement(env.db, /^UPDATE outbox SET state = 'done'/)
+    expectPendingAfterFault(env, entry, before, flushOutbox({ ...env, db }, env.hook))
+    expect(env.fs.get(files(env).state)).toBe(state)
+    expect(flush(env)).toEqual({ flushed: 1, failed: 0, errors: [], savedRevisionIds: [R2], failedRevisionIds: [] })
+    for (const path of [files(env).pointer, files(env).state, files(env).snapshot(R2)]) {
+      expect(env.fs.get(path)).toBe(reference.fs.get(path))
+    }
+  })
+
+  it('renames nothing when the DB side of the save fails at the commit, after the preview succeeded', () => {
+    const env = seedSavedFirstRevision()
+    const before = { pointer: env.fs.get(files(env).pointer), snapshot: env.fs.get(files(env).snapshot(R1)) }
+    const entry = stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    let calls = 0
+    const hook = {
+      onSnapshotSaved(revisionId: string): void {
+        calls += 1
+        if (calls === 2) {
+          throw new Error('Injected DB commit failure')
+        }
+        env.hook.onSnapshotSaved(revisionId)
+      }
+    }
+    expectPendingAfterFault(env, entry, before, flushOutbox(env, hook))
+    expect(calls).toBe(2)
+    expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
+    expect(flush(env).savedRevisionIds).toEqual([R2])
+  })
+})
+
+/** `db`, running `released` the moment a failing top-level write transaction has rolled back and released the lock. */
+function onRelease(db: Db, released: () => void): Db {
+  return {
+    ...failingStatement(db, /^$/),
+    tx: (fn, mode) => {
+      if (db.inTransaction() || mode === 'read') {
+        return db.tx(fn, mode)
+      }
+      try {
+        return db.tx(fn, mode)
+      } catch (error: unknown) {
+        released()
+        throw error
+      }
+    }
+  }
+}
+
+describe('flushOutbox restores replaced files under the write lock', () => {
+  it('puts the replaced files back before releasing the lock, so another connection exporting the entry next keeps its export', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-restore-'))
+    const base = createRepoEnv()
+    base.db.close()
+    const [dbA, dbB] = [createTestDb(join(dir, 'state.sqlite')), createTestDb(join(dir, 'state.sqlite'))]
+    try {
+      const env: RepoEnv = { ...base, db: dbA, hook: createSaveHook(dbA, base.clock) }
+      const other: RepoEnv = { ...base, db: dbB, hook: createSaveHook(dbB, base.clock) }
+      saveRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+      const before = trackedTexts(env)
+      env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+      const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+      // The pointer rename fails after state.json was replaced (an editor or antivirus holds current.json).
+      env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('current.json') })
+      const seen: (string | undefined)[][] = []
+      // The other connection flushes the same entry the moment this one's write transaction has ended.
+      const db = onRelease(dbA, () => {
+        seen.push(trackedTexts(env))
+        expect(flush(other)).toMatchObject({ flushed: 1, failed: 0 })
+      })
+      expect(flushOutbox({ ...env, db }, env.hook)).toMatchObject({ flushed: 0, failed: 1 })
+      // The lock was released only once the old state was back in place.
+      expect(seen[0]).toEqual(before)
+      const exported = trackedTexts(env)
+      expect(JSON.parse(exported[1] ?? '{}')).toMatchObject({ ticketStatuses: { [tid(1)]: 'completed' } })
+      const sync = dbA.get<{ exported_hash: string }>("SELECT exported_hash FROM sync_state WHERE kind = 'epic' AND entity_id = ?", EPIC)
+      expect(sync?.exported_hash).toBe(trackedEpicHash(exported[0] ?? '', exported[1] ?? ''))
+      expect(outboxRow(env, entry)).toMatchObject({ state: 'done', attempts: 0 })
+      // The other connection's export stays this machine's own: the next change exports over it.
+      env.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", tid(2))
+      insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+      expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+      expect(tempFiles(env)).toEqual([])
+    } finally {
+      dbA.close()
+      dbB.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('flushOutbox changes between staging and the commit', () => {
+  it('refuses at the commit when tracked records it has not imported arrived while it staged, and replaces nothing', () => {
+    const env = seedSavedFirstRevision()
+    const other = seedSavedFirstRevision()
+    saveRevision(other, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    const entry = stageRevision(env, { epicId: EPIC, revisionId: R3, number: 2, bundle: BUNDLE_3, baseRevisionId: R1 })
+    // A pull lands between staging and the commit.
+    const fs = afterFsync(env.fs, staged('current.json'), () => copyTracked(other, env))
+    const outcome = flushOutbox({ ...env, fs }, env.hook)
+    expect(outcome).toMatchObject({ flushed: 0, failed: 1, failedRevisionIds: [R3], errors: [expect.stringContaining(UNIMPORTED)] })
+    expect(trackedTexts(env)).toEqual(trackedTexts(other))
+    expect(env.fs.get(files(env).snapshot(R3))).toBeUndefined()
+    expect(revisionState(env, R3)).toBe('pending')
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'pending', attempts: 1 })
+    expect(tempFiles(env)).toEqual([])
+  })
+
+  it('stages again when a newer change commits meanwhile, leaves no stale file, and exports the newer state in the same flush', () => {
+    const env = seedSavedFirstRevision()
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    let newer = 0
+    const renamed: string[] = []
+    // Another process commits a newer change of the epic, and its own outbox entry, while this one stages.
+    const fs = afterFsync(env.fs, staged('current.json'), () => {
+      env.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", tid(2))
+      newer = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    })
+    const rename = fs.rename.bind(fs)
+    fs.rename = (from, to) => {
+      if (to.endsWith('state.json')) renamed.push(env.fs.get(from) ?? '')
+      rename(from, to)
+    }
+    expect(flushOutbox({ ...env, fs }, env.hook)).toEqual({ flushed: 2, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    // The state staged before the change was never put in place.
+    expect(renamed.map((text) => parseRecord(epicStateRecord, text, 'state').ticketStatuses[tid(2)])).toEqual(['in_progress', 'in_progress'])
+    const state = parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state')
+    expect([state.ticketStatuses[tid(1)], state.ticketStatuses[tid(2)]]).toEqual(['completed', 'in_progress'])
+    expect([outboxRow(env, entry)?.state, outboxRow(env, newer)?.state]).toEqual(['done', 'done'])
+    expect(tempFiles(env)).toEqual([])
+  })
+})
+
+describe('flushOutbox re-stages a bounded number of times', () => {
+  it('leaves the entry pending, without an error, when every re-stage is overtaken, and exports it on the next flush', () => {
+    const env = seedSavedFirstRevision()
+    const before = trackedTexts(env)
+    const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    const statuses = ['completed', 'in_progress', 'completed', 'in_progress']
+    // A write lands after every staging round: the first stage and both re-stages (each stages state.json again).
+    const wrapped: MemoryFs = Object.create(env.fs) as MemoryFs
+    wrapped.fsyncFile = (path) => {
+      env.fs.fsyncFile(path)
+      const status = path.includes('state.json') ? statuses.shift() : undefined
+      if (status !== undefined) env.db.run('UPDATE ticket_status SET status = ? WHERE ticket_id = ?', status, tid(1))
+    }
+    expect(flushOutbox({ ...env, fs: wrapped }, env.hook)).toMatchObject({ flushed: 0, failed: 0, errors: [] })
+    expect(trackedTexts(env)).toEqual(before)
+    expect(outboxRow(env, entry)).toEqual({ state: 'pending', attempts: 0, last_error: null })
+    expect(tempFiles(env)).toEqual([])
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
+  })
+})
+
+const SLOW_FSYNC_MS = 200
+
+/** Records the order of transactions and file operations, and how long each write transaction held the lock. */
+interface HoldLog {
+  events: string[]
+  holds: number[]
+}
+
+/** A test-local `Db` that logs each top-level transaction's BEGIN and END, and times write transactions. */
+function recordingDb(db: Db, log: HoldLog): Db {
+  return {
+    path: db.path,
+    get: db.get.bind(db),
+    all: db.all.bind(db),
+    run: db.run.bind(db),
+    exec: db.exec.bind(db),
+    inTransaction: db.inTransaction.bind(db),
+    close: db.close.bind(db),
+    tx: (fn, mode) => {
+      if (db.inTransaction()) {
+        return db.tx(fn, mode)
+      }
+      const kind = mode === 'read' ? 'read' : 'write'
+      log.events.push(`BEGIN ${kind}`)
+      const start = performance.now()
+      try {
+        return db.tx(fn, mode)
+      } finally {
+        if (kind === 'write') {
+          log.holds.push(performance.now() - start)
+        }
+        log.events.push(`END ${kind}`)
+      }
+    }
+  }
+}
+
+/** The memory filesystem with a slow fsync, logging each write, fsync, rename and read into `log`. */
+function slowFs(fs: MemoryFs, log: HoldLog): MemoryFs {
+  const wrapped: MemoryFs = Object.create(fs) as MemoryFs
+  wrapped.writeFile = (path, data) => {
+    log.events.push(`writeFile ${path}`)
+    fs.writeFile(path, data)
+  }
+  wrapped.fsyncFile = (path) => {
+    log.events.push(`fsyncFile ${path}`)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, SLOW_FSYNC_MS)
+    fs.fsyncFile(path)
+  }
+  wrapped.rename = (from, to) => {
+    log.events.push(`rename ${to}`)
+    fs.rename(from, to)
+  }
+  wrapped.readFile = (path) => {
+    log.events.push(`readFile ${path}`)
+    return fs.readFile(path)
+  }
+  return wrapped
+}
+
+/** The events inside each top-level write transaction. */
+function writeSpans(events: string[]): string[][] {
+  const spans: string[][] = []
+  let current: string[] | null = null
+  for (const event of events) {
+    if (event === 'BEGIN write') {
+      current = []
+    } else if (event === 'END write') {
+      spans.push(current ?? [])
+      current = null
+    } else {
+      current?.push(event)
+    }
+  }
+  return spans
+}
+
+describe('flushOutbox holds the write lock only to rename and record', () => {
+  it('writes, fsyncs and reads back every file before BEGIN, and holds each write transaction for less than one fsync', () => {
+    const env = seedSavedFirstRevision()
+    stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    const log: HoldLog = { events: [], holds: [] }
+    const outcome = flushOutbox({ ...env, db: recordingDb(env.db, log), fs: slowFs(env.fs, log) }, env.hook)
+    expect(outcome).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R2] })
+
+    const spans = writeSpans(log.events)
+    for (const span of spans) {
+      // Only renames, and reads of the tracked records the commit checks again, happen while the lock is held.
+      expect(span.filter((event) => !event.startsWith('rename ') && !(event.startsWith('readFile ') && !event.includes('.tmp-')))).toEqual([])
+    }
+    const commit = spans.at(-1) ?? []
+    const renames = commit.filter((event) => event.startsWith('rename '))
+    expect(renames).toEqual([
+      `rename ${resolve(files(env).snapshot(R2))}`,
+      `rename ${resolve(ownedPaths(env.layout).exportIntentFile(EPIC))}`,
+      `rename ${resolve(files(env).state)}`,
+      `rename ${resolve(files(env).pointer)}`
+    ])
+    const fsyncs = log.events.flatMap((event, index) => (event.startsWith('fsyncFile ') ? [index] : []))
+    expect(fsyncs).toHaveLength(4)
+    expect(Math.max(...fsyncs)).toBeLessThan(log.events.lastIndexOf('BEGIN write'))
+    expect(log.events.filter((event) => event.startsWith('rename ')).length).toBe(renames.length)
+    expect(Math.max(...log.holds)).toBeLessThan(SLOW_FSYNC_MS)
+    expect(log.holds.reduce((sum, hold) => sum + hold, 0)).toBeLessThan(fsyncs.length * SLOW_FSYNC_MS)
+  })
+})
+
+const THOUSAND = Array.from({ length: 1_000 }, (_unused, index) => index + 1)
+
+/** A file database with the `Db` hold observer, a real save hook, and an epic whose 1,000-ticket plan R1 is saved. */
+function observedThousandTicketEpic(dir: string, holds: TransactionHold[]): { env: RepoEnv; hooks: FinalizerHooks } {
+  const db = openDatabase(join(dir, 'state.sqlite'), { synchronous: 'off', onTransaction: (hold) => holds.push(hold) })
+  migrate(db)
+  const base = createRepoEnv()
+  base.db.close()
+  const ctx = createTestCtx({ db, clock: base.clock })
+  const hooks: FinalizerHooks = {
+    onSnapshotSaved: (revisionId) => completeSavedRevision(ctx, revisionId),
+    previewSavedRevision: (revisionId) => previewSavedRevision(ctx, revisionId)
+  }
+  const env: RepoEnv = { ...base, db, hook: createSaveHook(db, base.clock) }
+  insertEpic(db, { id: EPIC })
+  insertRevision(db, { id: R1, epicId: EPIC, number: 1, bundle: makeBundle([THOUSAND]), createdAt: base.clock.nowIso() })
+  insertOutbox(db, { kind: 'snapshot', epicId: EPIC, revisionId: R1 })
+  expect(flushOutbox(env, hooks)).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R1] })
+  return { env, hooks }
+}
+
+describe('flushOutbox holds the write lock briefly for a 1,000-ticket epic save', () => {
+  it('runs the save hook once, at a commit held for less than one fsync, with every fsync before BEGIN', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-hold-'))
+    const holds: TransactionHold[] = []
+    const { env, hooks } = observedThousandTicketEpic(dir, holds)
+    try {
+      const bundle = makeBundle([THOUSAND], [], { rationale: 'Second revision' })
+      insertRevision(env.db, { id: R2, epicId: EPIC, number: 2, bundle, baseRevisionId: R1, createdAt: env.clock.nowIso() })
+      insertOutbox(env.db, { kind: 'snapshot', epicId: EPIC, revisionId: R2 })
+      let saves = 0
+      const counted: FinalizerHooks = { ...hooks, onSnapshotSaved: (revisionId) => { saves += 1; hooks.onSnapshotSaved(revisionId) } }
+      const log: HoldLog = { events: [], holds: [] }
+      holds.length = 0
+      const outcome = tagTransactions('flush', () => flushOutbox({ ...env, db: recordingDb(env.db, log), fs: slowFs(env.fs, log) }, counted))
+      expect(outcome).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R2] })
+      expect(saves).toBe(1)
+      const flushHolds = holds.filter((hold) => hold.tag === 'flush')
+      // One commit: no preview transaction, no re-stage.
+      expect(flushHolds.map((hold) => hold.outcome)).toEqual(['commit'])
+      expect(Math.max(...flushHolds.map((hold) => hold.holdMs))).toBeLessThan(SLOW_FSYNC_MS)
+      for (const span of writeSpans(log.events)) {
+        expect(span.filter((event) => event.startsWith('fsyncFile ') || event.startsWith('writeFile ') || event.includes('.tmp-') && event.startsWith('readFile '))).toEqual([])
+      }
+      expect(log.events.filter((event) => event.startsWith('fsyncFile '))).toHaveLength(4)
+    } finally {
+      env.db.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+function nextAttemptAt(env: RepoEnv, id: number): string | null | undefined {
+  return env.db.get<{ next_attempt_at: string | null }>('SELECT next_attempt_at FROM outbox WHERE id = ?', id)?.next_attempt_at
+}
+
+const scheduled = (env: RepoEnv): FlushOutcome => flushOutbox(env, env.hook, undefined, 'scheduled')
+
+describe('flushOutbox backoff', () => {
+  it('leaves a failed entry to a scheduled flush until its backoff passes, while an explicit flush retries it at once', () => {
+    const { env, entry } = seedComment()
+    env.fs.put(commentFile(env, C1), prettyJson({ ...buildCommentRecord(env.db, C1), body: 'Someone else wrote this' }))
+    expect(flush(env).failed).toBe(1)
+    expect(nextAttemptAt(env, entry)).toBe('2026-01-01T00:00:15.000Z')
+    env.fs.remove(commentFile(env, C1))
+    env.clock.advanceSeconds(5)
+    expect(scheduled(env)).toEqual({ flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'pending', attempts: 1, last_error: expect.stringContaining('already exists') })
+    expect(flushOutbox(env, env.hook)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(outboxRow(env, entry)).toEqual({ state: 'done', attempts: 1, last_error: null })
+    expect(nextAttemptAt(env, entry)).toBeNull()
+  })
+
+  it('waits 15 s after a failure, doubling up to 5 min, and retries once the time has come', () => {
+    const { env, entry } = seedComment()
+    env.fs.put(commentFile(env, C1), prettyJson({ ...buildCommentRecord(env.db, C1), body: 'Someone else wrote this' }))
+    const delays: number[] = []
+    for (let failure = 1; failure <= 7; failure += 1) {
+      const failedAt = env.clock.nowMs()
+      expect(scheduled(env).failed).toBe(1)
+      const delay = (Date.parse(nextAttemptAt(env, entry) ?? '') - failedAt) / 1000
+      delays.push(delay)
+      env.clock.advanceSeconds(delay - 1)
+      expect(scheduled(env).failed).toBe(0)
+      env.clock.advanceSeconds(1)
+    }
+    expect(delays).toEqual([15, 30, 60, 120, 240, 300, 300])
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'failed', attempts: 5 })
+  })
+
+  it('holds back later records of the same epic while an earlier entry waits out its backoff', () => {
+    const env = createRepoEnv()
+    stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    env.hook.failNext = true
+    expect(flush(env).failed).toBe(1)
+    const later = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    env.clock.advanceSeconds(5)
+    expect(scheduled(env)).toMatchObject({ flushed: 0, failed: 0 })
+    expect(outboxRow(env, later)?.state).toBe('pending')
+    env.clock.advanceSeconds(10)
+    expect(scheduled(env)).toMatchObject({ flushed: 2, failed: 0, savedRevisionIds: [R1] })
   })
 })
 
@@ -428,16 +854,16 @@ describe('flushOutbox export intents cover only an export that has not committed
     expect(trackedTexts(env)).toEqual(own)
   })
 
-  it('takes its own new pointer over the old state, left by a failed write and a failed restore, for its own', () => {
+  it('takes its own new pointer over the old state, left by a failed commit and a failed restore, for its own', () => {
     const env = seedSavedFirstRevision()
     const oldState = env.fs.get(files(env).state)
     env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
     insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
-    // The first read of current.json is the check; the second is the read-back of the new pointer.
-    env.fs.failOn({ op: 'readFile', nth: 2, match: (path) => path.endsWith('current.json') })
-    // The pointer's restore cannot write its temp file; the state's restore succeeds.
+    // The entry cannot be completed once both files were renamed into place; they are put back.
+    const db = failingStatement(env.db, /^UPDATE outbox SET state = 'done'/)
+    // The pointer's restore cannot write its temp file (the first such write is the staged copy); the state's restore succeeds.
     env.fs.failOn({ op: 'writeFile', nth: 2, match: (path) => path.includes('current.json.tmp-') })
-    expect(flush(env).failed).toBe(1)
+    expect(flushOutbox({ ...env, db }, env.hook).failed).toBe(1)
     expect([JSON.parse(env.fs.get(files(env).pointer) ?? '{}').generation, env.fs.get(files(env).state)]).toEqual([2, oldState])
     expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
     expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
@@ -522,6 +948,20 @@ describe('flushOutbox ordering and concurrency', () => {
     const outcome = flushOutbox(env, hook)
     expect(outcome).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R1, R2] })
     expect(env.fs.get(ownedPaths(env.layout).epicPointerFile(OTHER_EPIC))).toBeUndefined()
+  })
+})
+
+describe('flushOutbox orphaned staging temps', () => {
+  it("removes the temps of a process that died before its commit, and keeps a live process's", () => {
+    const env = seedSavedFirstRevision()
+    const staging = join(env.layout.localDir, 'staging')
+    // Process ids are multiples of 4 on Windows and at most 2^22 on Linux, so this one is never running.
+    const dead = join(staging, `7-1-epics~state.json.tmp-${2 ** 31 - 1}`)
+    const live = join(staging, `8-1-epics~state.json.tmp-${process.pid}`)
+    env.fs.put(dead, 'left by a crash')
+    env.fs.put(live, 'staged by a running process')
+    expect(flush(env)).toMatchObject({ flushed: 0, failed: 0 })
+    expect([env.fs.get(dead), env.fs.get(live)]).toEqual([undefined, 'staged by a running process'])
   })
 })
 
@@ -631,7 +1071,7 @@ describe('flushOutbox comment export failures', () => {
 
   it('drops a new comment file that could not be verified so the retry writes it again', () => {
     const { env, entry } = seedComment()
-    env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith(`${C1}.json`) })
+    env.fs.failOn({ op: 'readFile', match: staged(`${C1}.json`) })
     expect(flush(env).failed).toBe(1)
     expect(env.fs.get(commentFile(env, C1))).toBeUndefined()
     expect(tempFiles(env)).toEqual([])

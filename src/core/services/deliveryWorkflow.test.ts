@@ -4,6 +4,7 @@ import { makeBundle, sid, tid } from '../../test/bundles'
 import { runRow, seedRun } from '../../test/checkpointSeed'
 import { claim, startedRun, submitClaim } from '../../test/execution'
 import { createTestCtx } from '../../test/testContext'
+import type { GitAdapter } from '../repo/types'
 import { createKanbanCard } from './kanban/cards'
 import { acceptAttempt } from './attempts'
 import { getCheckpoint } from './checkpoints'
@@ -112,6 +113,19 @@ describe('ticket integration evidence', () => {
     expect(await verify({ commits: [workerCommit, 'c'.repeat(40)] })).toBe(false)
     expect(await verify({ commits: ['main'] })).toBe(false)
   })
+
+  it('refuses a verified integration whose epic branch changed before the acceptance transaction', async () => {
+    const ctx = configured()
+    const { runId, epicId } = startedRun(ctx, { branch: { name: branch, repository: null, startCommit: null } })
+    const claimed = claim(ctx, runId, 1)
+    submitClaim(ctx, claimed, { outputs: { summary: 'Worker revisions', commits: [workerCommit] } })
+    const git = { isAncestor: async (left: string, right: string) => (left === commit && right === 'refs/heads/' + branch) || (left === workerCommit && right === commit) }
+    const proof = await verifyTicketIntegration({ ...ctx, gitFor: () => git as unknown as GitAdapter }, claimed.attempt.id, integrated)
+    expect(proof.passed).toBe(true)
+    expect(() => proof.assertCurrent?.()).not.toThrow()
+    ctx.db.run('UPDATE epics SET branch_json = ? WHERE id = ?', JSON.stringify({ name: 'epic/moved', repository: null, startCommit: null }), epicId)
+    expect(() => proof.assertCurrent?.()).toThrow('The submitted commits or epic branch changed during verification. Verify the current delivery again.')
+  })
 })
 
 describe('delivery policy revisions', () => {
@@ -134,6 +148,18 @@ describe('delivery policy revisions', () => {
     const scope = { epicId, sprintId: sid(1), final: false }
     expect(deliveryReportGap(ctx, scope, { summary: 'Published' })).toContain('custom Sprint standards')
     expect(deliveryReportGap(ctx, scope, { summary: 'Published', standardsVerification: 'Catalog entry #32 verified.' })).toBeNull()
+  })
+
+  it('asks a default sprint report for passing checks before its deployment', () => {
+    const ctx = configured()
+    const bundle = makeBundle([[1]])
+    const { epicId } = seedRun(ctx, { bundle })
+    pinPlanWorkflows(ctx, epicId, bundle)
+    const scope = { epicId, sprintId: sid(1), final: false }
+    const required = 'Record passing results for the required tests. Diagnose and fix failed or timed-out checks before delivery.'
+    expect(deliveryReportGap(ctx, scope, { summary: 'Shipped' })).toBe(required)
+    expect(deliveryReportGap(ctx, scope, { summary: 'Shipped', checks: [{ ...checks[0], status: 'failed' as const }] })).toBe(required)
+    expect(deliveryReportGap(ctx, scope, { summary: 'Shipped', checks })).toContain('Record the deployed revision')
   })
 
   it('pins newly added work without changing an existing ticket when the user saves new prompts for later', () => {

@@ -86,6 +86,8 @@ export interface ShellActions {
   selectKanban(path: string, cardId?: string): void
   /** Opens a folder's Metrics dashboard in the main area. */
   selectMetrics(path: string): void
+  /** Opens a folder's Learnings in the main area, with one learning's detail when named. */
+  selectLearnings(path: string, learningId?: string): void
   /** Opens one of a folder's chats in the main area. */
   selectChat(path: string, chatId: string): void
   /**
@@ -160,7 +162,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectLearnings' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -193,6 +195,11 @@ function selectionActions(deps: ShellDeps): SelectionActions {
     selectMetrics: (path) => {
       deps.land(null)
       deps.select({ folderPath: path, epicId: null, metrics: true })
+      deps.reveal(path, null)
+    },
+    selectLearnings: (path, learningId) => {
+      deps.land(null)
+      deps.select({ folderPath: path, epicId: null, learnings: true, ...(learningId === undefined ? {} : { learningId }) })
       deps.reveal(path, null)
     },
     selectChat: (path, chatId) => {

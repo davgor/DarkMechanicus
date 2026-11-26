@@ -269,3 +269,39 @@ describe('DM-828 c2: a stored Settings pane', () => {
     expect(isSelection({ ...settings, agentPane: { kind: 'preferences' } })).toBe(false)
   })
 })
+
+describe('DM-946: the Learnings route persists and restores', () => {
+  const learnings = { folderPath: '/a', epicId: null, learnings: true as const, learningId: 'lr_1' }
+
+  it('accepts learnings: true with an optional open learning, and refuses malformed ones', () => {
+    expect(isSelection(JSON.parse(JSON.stringify(learnings)))).toBe(true)
+    expect(isSelection({ folderPath: '/a', epicId: null, learnings: true })).toBe(true)
+    expect(isSelection({ ...learnings, learnings: false })).toBe(false)
+    expect(isSelection({ ...learnings, learningId: 7 })).toBe(false)
+    expect(isSelection({ folderPath: '/a', epicId: null, learningId: 'lr_1' })).toBe(false)
+  })
+
+  it('restores it for an initialized, available folder', () => {
+    expect(resolveSelection(learnings, [alpha], true)).toEqual(learnings)
+  })
+
+  it('drops it for an uninitialized, unavailable or vanished folder', () => {
+    expect(resolveSelection(learnings, [folderView({ path: '/a', initialized: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection(learnings, [folderView({ path: '/a', available: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection({ ...learnings, folderPath: '/gone' }, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+  })
+})
+
+describe('resolveSelection with a project-less chat', () => {
+  const stored = { folderPath: '/a', epicId: null, agentPane: { kind: 'chat', chatId: 'chat_free' } } as const
+
+  it('keeps the chat until the project-less chats have loaded, whether they are null or not given at all', () => {
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: null })).toEqual(stored)
+    expect(resolveSelection(stored, [alpha], true, { agents: [] })).toEqual(stored)
+  })
+
+  it('keeps the chat while it exists, and drops it to the folder once deleted', () => {
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: [chatRecord({ id: 'chat_free', folder: null })] })).toEqual(stored)
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: [] })).toEqual({ folderPath: '/a', epicId: null })
+  })
+})

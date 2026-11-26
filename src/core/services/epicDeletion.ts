@@ -5,13 +5,14 @@ import { fail } from '../errors'
 import { activeRun, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { observationsWritten } from './observations'
+import { deleteKanbanCardRows } from './kanban/deletion'
 
 /**
  * Deletes the epic's tracked files and returns the folders it removed. It runs inside the deletion
  * transaction: a failure leaves every row in place, and the write lock keeps a concurrent reconcile
  * from importing files that are about to go.
  */
-type EpicFilesRemover = (epicId: string, runIds: string[]) => string[]
+type EpicFilesRemover = (epicId: string, runIds: string[], cardIds: string[]) => string[]
 
 const RUNS = 'SELECT id FROM runs WHERE epic_id = ?'
 const COMMENTS = 'SELECT id FROM comments WHERE epic_id = ?'
@@ -63,10 +64,16 @@ export function deleteEpic(ctx: Ctx, input: { epicId: string }, removeFiles: Epi
     }
     const runIds = ctx.db.all<{ id: string }>(`${RUNS} ORDER BY number`, epic.id).map((row) => row.id)
     observationsWritten(ctx.db)
+    // DM-937: the epic's generated sprint learning cards and their links go with it.
+    const cardIds = ctx.db.all<{ card_id: string }>('SELECT card_id FROM sprint_learning_cards WHERE epic_id = ? ORDER BY card_id', epic.id).map((row) => row.card_id)
+    for (const cardId of cardIds) {
+      deleteKanbanCardRows(ctx, cardId)
+    }
+    ctx.db.run('DELETE FROM sprint_learning_cards WHERE epic_id = ?', epic.id)
     for (const sql of DELETE_STATEMENTS) {
       ctx.db.run(sql, ...Array.from({ length: sql.split('?').length - 1 }, () => epic.id))
     }
-    const removedPaths = removeFiles(epic.id, runIds)
+    const removedPaths = removeFiles(epic.id, runIds, cardIds)
     appendEvent(ctx, { kind: 'epic.deleted', payload: { title: epic.title, runs: runIds.length } })
     return { epicId: epic.id, title: epic.title, removedRuns: runIds.length, removedPaths }
   })

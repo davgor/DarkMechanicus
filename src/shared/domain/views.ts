@@ -22,6 +22,8 @@ import type { SprintRetro, TicketTierFacts } from './retro'
 import type { EvidenceRef, GradeLetter, GradeOutcome, GradeStatus, GradeStatusReason, SpaceComponent } from './space'
 import type { ScorecardSummary } from './spaceGrades'
 import type { EpicTransferOutcome } from './transfer'
+import type { LearningContextView, SprintLearningCardView } from './learnings'
+import type { LearningSubmissionEvidence } from './kanban'
 import type {
   AttemptKind,
   AttemptState,
@@ -388,6 +390,10 @@ export interface AttemptEvidence {
   notes: string
   /** The images the submission claimed as evidence. Absent on records written before attachments existed. */
   attachments?: AttachmentRef[]
+  // ─── DM-938 ───
+  /** A sprint learning card's dispositions, staged drafts hash and verified branch manifests; absent on any other card. */
+  learning?: LearningSubmissionEvidence
+  // ─── End of DM-938 ───
 }
 
 /** Evidence as a submission names it: its images by their staged ids; the server stores their references. */
@@ -689,6 +695,13 @@ export interface RunView {
   activeSprintTierFacts: TicketTierFacts[]
   attempts: AttemptView[]
   checkpoint: CheckpointView | null
+  // ─── DM-937 ───
+  /**
+   * The run's newest generated sprint learning card, queued by a successful checkpoint advance: the owning orchestrator
+   * claims it while `playPending` before polling the next sprint. It never gates the next sprint. Null without one.
+   */
+  learningCard?: SprintLearningCardView | null
+  // ─── End of DM-937 ───
 }
 
 export interface ReadinessView {
@@ -766,6 +779,33 @@ export interface ExecutionPacket {
     failTool: string
     instructions: string
   }
+  // DM-936: why earlier attempts ended, and the published learnings that apply. Both absent when empty, so a first
+  // claim with no matching learning keeps the legacy packet shape.
+  /**
+   * On a retry: every earlier attempt of this ticket in the run that was rejected or failed (an abandoned lease
+   * included), oldest first, with the reviewer's decision or the failure exactly as recorded.
+   */
+  priorAttempts?: PriorAttemptContext[]
+  /**
+   * The active published learnings addressed to workers for this claim's event and the ticket's file references,
+   * within their own token budget, and what that budget left out. Guidance only: it grants no capability.
+   */
+  learnings?: LearningContextView
+}
+
+/** An earlier attempt of the claimed ticket that did not succeed, with its provenance and exact recorded reasons. */
+interface PriorAttemptContext {
+  attemptId: string
+  number: number
+  state: AttemptState
+  /** The reviewer's rejection (reasons, notes, reviewer) verbatim; null for a failure. */
+  decision: AttemptDecision | null
+  /** The reported failure or abandoned lease verbatim; null for a rejection. */
+  failure: AttemptFailure | null
+  createdAt: string
+  submittedAt: string | null
+  /** When it was rejected, failed or reconciled. */
+  endedAt: string
 }
 
 export interface ClaimResultView {

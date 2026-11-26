@@ -211,6 +211,18 @@ describe('kanban card lifecycle commands', () => {
   })
 })
 
+describe('kanban learning submissions', () => {
+
+  it('refuses a learning submission for an attempt that does not exist as not_found, without reading Git', async () => {
+    const attemptId = 'ka_00000000000000000000000099'
+    const worker = harness.open('worker', { git: { ...harness.git, isAncestor: async () => { throw new Error('Git was read.') } } })
+    const failure = await failureOf(worker.submitKanbanCard({
+      attemptId, claimToken: `${attemptId}.secret`, outputs: { summary: 'Learnings' }, learning: { dispositions: [], drafts: [], manifests: [] }
+    }))
+    expect(failure).toEqual({ code: 'not_found', message: `Kanban attempt ${attemptId} does not exist.` })
+  })
+})
+
 describe('kanban progress alarms', () => {
 
   it('keeps a productive DM-820-style worker on its original card and claim beyond ten minutes', async () => {

@@ -7,11 +7,15 @@ import { afterAll, beforeAll, expect, it, onTestFailed, onTestFinished, vi } fro
 import { buildSync } from 'esbuild'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner } from '../git/runner'
+import { createGitAdapter } from '../../core/repo/git'
+import type { GitAdapter } from '../../core/repo/types'
+import { createGitRunner, type GitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { forgeKickoff, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
-import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
+import { ForgeFixtureTiming, gitTimingLabel } from '../../test/forgeFixtureTiming'
+import { TEST_STORAGE } from '../../test/workspaceHarness'
 import { bindForge, pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { ensureForgeConfig } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
@@ -34,21 +38,118 @@ function networkFailureAt(failure: NetworkFailure, args: readonly string[]): str
   return failure && args.includes(failure) ? failure : undefined
 }
 
+/**
+ * Git that the code under test starts and nobody awaits (a background `git status` refresh, a Forge read still running
+ * when an IPC call returns) can outlive the test. On Windows a running git holds its working folder and the files it
+ * reads, so removing the scratch folder fails until it exits, and `rmSync`'s retries sleep on the event loop meanwhile.
+ * Each fixture tracks its git processes, and `close` waits until every one has exited before removing the folder.
+ */
+interface GitExits {
+  /** Returns `work`, and holds `settled` until it settles. */
+  track<T>(work: Promise<T>): Promise<T>
+  /** A workspace's git adapter: each asynchronous call settles once its git has exited and its output closed. */
+  adapter(root: string): GitAdapter
+  /** Resolves once every tracked git has settled, including those started while waiting. */
+  settled(): Promise<void>
+}
+
+function gitExits(trace: ForgeFixtureTiming): GitExits {
+  const running = new Set<Promise<void>>()
+  function track<T>(work: Promise<T>): Promise<T> {
+    const settled: Promise<void> = work.then(() => undefined, () => undefined).finally(() => { running.delete(settled) })
+    running.add(settled)
+    return work
+  }
+  const timed = <T>(name: string, run: () => Promise<T>): Promise<T> => track(trace.observe('git:core:' + name, run))
+  return {
+    track,
+    /** A workspace's git adapter, with every asynchronous call tracked and timed. */
+    adapter(root: string): GitAdapter {
+      const git = createGitAdapter(root)
+      return {
+        ...git,
+        countUncommitted: pathspec => timed('countUncommitted', () => git.countUncommitted(pathspec)),
+        listLocalBranches: () => timed('listLocalBranches', () => git.listLocalBranches()),
+        listWorktrees: () => timed('listWorktrees', () => git.listWorktrees()),
+        listFiles: (ref, pathspec) => timed('listFiles', () => git.listFiles(ref, pathspec)),
+        showFile: (ref, path) => timed('showFile', () => git.showFile(ref, path)),
+        isAncestor: (ancestor, descendant) => timed('isAncestor', () => git.isAncestor(ancestor, descendant)),
+        commitParents: ref => timed('commitParents', () => git.commitParents(ref))
+      }
+    },
+    async settled(): Promise<void> {
+      while (running.size > 0) await Promise.all(running)
+    }
+  }
+}
+
+/**
+ * The fixture's owners. Like every other test that opens workspaces itself (`TEST_STORAGE`), the thrown-away stores
+ * skip power-loss flushes: a forced sync per write and per commit is what stalls on a Windows CI runner's disk, and
+ * these tests prove crash recovery after a process dies, which the operating system's cache survives.
+ */
+function fixturePool(home: string, gits: GitExits, trace: ForgeFixtureTiming): TestWorkspacePool {
+  const pool = createWorkspacePool((repoRoot, deferOpenReconcile) => openWorkspace({
+    repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' },
+    deferOpenReconcile, git: gits.adapter(repoRoot), ...TEST_STORAGE,
+    onTransaction: ({ tag, acquireMs, holdMs }) => {
+      trace.record(`sqlite:${tag ?? 'untagged'}:lock wait`, acquireMs, holdMs)
+      trace.record(`sqlite:${tag ?? 'untagged'}:lock hold`, holdMs)
+    }
+  }), home)
+  const { close, closeAll } = pool
+  pool.close = path => trace.observe('fixture:owner close', () => close(path))
+  pool.closeAll = () => trace.observe('fixture:owner pool close', closeAll)
+  return pool
+}
+
+/** Local git runs for real and is tracked until it exits; network git is simulated, with an injectable failure. */
+function fixtureRunner(gits: GitExits, trace: ForgeFixtureTiming, probes: string[], failing: () => NetworkFailure): GitRunner {
+  const real = createGitRunner()
+  return { run: async req => {
+    if (req.args.includes('push')) probes.push(req.cwd)
+    if (req.kind !== 'network') {
+      // The runner reports when git is gone: for a cancelled or timed-out git, after its run has settled.
+      // The ES2022 lib has no Promise.withResolvers.
+      let exited = (): void => undefined
+      gits.track(new Promise<void>(resolve => { exited = resolve }))
+      // Like Git's own test suite, disposable fixtures need real objects, not power-loss hardware flushes.
+      return trace.observe(`git:run:${req.kind}:${gitTimingLabel(req.args)}`, () =>
+        real.run({ ...req, env: { ...req.env, GIT_TEST_FSYNC: '0' }, onExit: () => { req.onExit?.(); exited() } }))
+    }
+    const failure = networkFailureAt(failing(), req.args)
+    if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
+    if (req.args.includes('clone')) {
+      const dir = req.args.at(-1)!
+      mkdirSync(dir)
+      gitIn(dir, 'init', '-b', 'main')
+      gitIn(dir, 'remote', 'add', 'origin', req.args.at(-2)!)
+      gitIn(dir, 'config', 'user.name', 'Test')
+      gitIn(dir, 'config', 'user.email', 'test@example.test')
+    }
+    return { code: 0, stdout: '', stderr: '' }
+  } }
+}
+
 function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
+  const trace = new ForgeFixtureTiming(scratch.path, { slowMs: 8_000 })
   const home = join(scratch.path, 'home')
   const source = join(scratch.path, 'Software')
   const world = join(scratch.path, 'TicketStore')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' } }), home)
+  const gits = gitExits(trace)
+  const pool = fixturePool(home, gits, trace)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
-  const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
-  for (const dir of [source, world]) {
-    if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
-    else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
-    registry.track(dir)
-  }
-  const real = createGitRunner()
+  const call = async (name: string, ...args: unknown[]) =>
+    trace.observe('ipc:' + name, () => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args))
+  trace.observe('fixture:checkouts', () => {
+    for (const dir of [source, world]) {
+      if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
+      else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
+      registry.track(dir)
+    }
+  })
   const published: string[] = []
   const probes: string[] = []
   const syncReceipts: Array<() => void> = []
@@ -58,30 +159,20 @@ function fixture(seed?: { source: string; world: string }) {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
-    runner: { run: async req => {
-      if (req.args.includes('push')) probes.push(req.cwd)
-      if (req.kind !== 'network') return real.run(req)
-      const failure = networkFailureAt(failingNetwork, req.args)
-      if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
-      if (req.args.includes('clone')) {
-        const dir = req.args.at(-1)!
-        mkdirSync(dir)
-        gitIn(dir, 'init', '-b', 'main')
-        gitIn(dir, 'remote', 'add', 'origin', req.args.at(-2)!)
-        gitIn(dir, 'config', 'user.name', 'Test')
-        gitIn(dir, 'config', 'user.email', 'test@example.test')
-      }
-      return { code: 0, stdout: '', stderr: '' }
-    } }
+    runner: fixtureRunner(gits, trace, probes, () => failingNetwork)
   })
-  return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
+  const { openProject } = forge
+  forge.openProject = path => trace.observe('ipc:openProject', () => openProject(path))
+  return { pool, source, world, home, registry, call, forge, published, probes, trace, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: NetworkFailure) { failingNetwork = command },
     async close() {
       forge.stop()
-      await forge.ready
+      await trace.observe('fixture:forge ready', () => forge.ready)
       await pool.closeAll()
-      scratch.cleanup()
+      await trace.observe('fixture:git exits', () => gits.settled())
+      trace.observe('fixture:scratch cleanup', scratch.cleanup)
+      trace.finished()
     } }
 }
 
@@ -174,9 +265,9 @@ function crashFixtureSource(): string {
 
 function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | 'member' | 'staging' | 'checkpoint' | 'destination' | 'manifest') {
   const spawnedAt = Date.now()
-  const result = spawnSync(process.execPath, [join(crashBundle.path, 'crash.cjs'), JSON.stringify({ home: f.home, source: f.source, world: f.world, point, spawnedAt })], {
+  const result = f.trace.observe('fixture:crash child', () => spawnSync(process.execPath, [join(crashBundle.path, 'crash.cjs'), JSON.stringify({ home: f.home, source: f.source, world: f.world, point, spawnedAt })], {
     cwd: sourceRoot, encoding: 'utf8', windowsHide: true
-  })
+  }))
   return { ...result, stderr: result.stderr + `Child exited at ${Date.now() - spawnedAt}ms\n` }
 }
 
@@ -507,7 +598,7 @@ it('resumes a restore from the source pointer after the final publication was in
 })
 
 it('reports preparing until the local member owner reconciles and does no remote Git work for readiness', async () => {
-  const { world, call, pool, probes, close } = fixture()
+  const { world, home, call, pool, probes, close } = fixture()
   let release = () => {}
   const blocked = new Promise<void>(resolve => { release = resolve })
   const reconcile = pool.reconcile
@@ -519,14 +610,62 @@ it('reports preparing until the local member owner reconciles and does no remote
     const member = join(world, 'LocalOnly')
     mkdirSync(member)
     await pool.get(member).initializeRepository({ name: 'Local tickets' })
+    // Never imported on this machine: only the portable records exist, no local database.
+    await pool.close(member)
+    renameSync(join(member, '.darkmechanicus', 'local'), join(home, 'other-machine-local'))
     updateForge(world, manifest => manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' }))
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    // The owner answered that no validated import exists yet: the member keeps the cold gate.
+    expect(await pool.get(member).call('hasValidatedCache')).toBe(false)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect(intercept).toHaveBeenCalledTimes(1)
     release()
     await prepared
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'ready' })
     expect(probes).toEqual([])
+  } finally {
+    release()
+    intercept.mockRestore()
+    await close()
+  }
+})
+
+it('after a restart shows a member with a validated local import as ready and syncing until its reconcile resolves', async () => {
+  const { world, call, pool, registry, forge, close } = fixture()
+  const reconcile = pool.reconcile
+  let release = () => {}
+  let held: ReturnType<typeof reconcile> | undefined
+  const intercept = vi.spyOn(pool, 'reconcile')
+  try {
+    await call('create', world)
+    const member = join(world, 'Warm')
+    mkdirSync(member)
+    await pool.get(member).initializeRepository({ name: 'Warm tickets' })
+    await pool.get(member).createKanbanCard({ title: 'Already imported here' })
+    updateForge(world, manifest => manifest.projects.push({ folder: 'Warm', repository: 'https://github.com/example/code.git' }))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
+    await intercept.mock.results[0]!.value
+    // The preparation chain after the owner reply is microtasks only; setImmediate runs after all of them.
+    await new Promise(resolve => setImmediate(resolve))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'ready', syncing: false })
+
+    // Restart: the owner and every in-memory readiness record are gone; the local database stays.
+    await pool.close(member)
+    registry.untrack(world)
+    registry.track(world)
+    await forge.openWorld(world)
+    const blocked = new Promise<void>(resolve => { release = resolve })
+    intercept.mockImplementation(path => (held ??= blocked.then(() => reconcile(path))))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    // Owner work runs in order, so this answer follows the service's own validated-import check.
+    expect(await pool.get(member).call('hasValidatedCache')).toBe(true)
+    expect(await call('memberStatus', world, member)).toEqual({ readiness: 'ready', syncing: true, error: null })
+    expect(intercept).toHaveBeenCalledTimes(2)
+    release()
+    await held
+    await new Promise(resolve => setImmediate(resolve))
+    expect(await call('memberStatus', world, member)).toEqual({ readiness: 'ready', syncing: false, error: null })
   } finally {
     release()
     intercept.mockRestore()

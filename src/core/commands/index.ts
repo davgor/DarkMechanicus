@@ -11,6 +11,7 @@ import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
 import { kanbanCommands } from './kanban'
 import { knowledgeCommands } from './knowledge'
+import { learningCommands } from './learnings'
 import { metricCommands } from './metrics'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
@@ -35,6 +36,7 @@ export const COMMANDS: CommandTable = {
   ...kanbanCommands,
   ...activityCommands,
   ...knowledgeCommands,
+  ...learningCommands,
   ...deletionCommands,
   ...transferCommands,
   ...agentMailCommands

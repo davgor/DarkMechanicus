@@ -120,7 +120,7 @@ const CARD_ATTEMPT_TOOLS = [
     name: 'submit_kanban_card',
     description: `Submits the result of your card attempt (outputs and evidence, as for submit_attempt) and moves the card to Ready for review. Under the Dark Mechanicus Ticket standards run required tests, open a PR, fix failing checks, merge to main and fetch main. Include evidence.merge { pullRequest, checksUrl, branch: "main", commit: full merged SHA } and passing evidence.checks. For custom Ticket standards record how they were verified in evidence.notes. ${CARD_RULES} Submitting does not finish the card: a person approves it to Done or kicks it back with a comment for the next attempt.`,
     kind: 'write',
-    input: { attemptId, claimToken, outputs: SUBMIT.outputs, evidence: SUBMIT.evidence, idempotencyKey },
+    input: { attemptId, claimToken, outputs: SUBMIT.outputs, evidence: SUBMIT.evidence, learning: SUBMIT.learning, idempotencyKey },
     run: (api, input) => api.submitKanbanCard(input)
   }),
   defineTool({

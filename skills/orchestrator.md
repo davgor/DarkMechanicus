@@ -39,7 +39,7 @@ At alarms inspect evidence, operation, next result and blockers. Productive work
 1. Set up, after pulling event `run.started` (nothing has pushed context yet): `get_capabilities`, `get_storage_status`, `get_plan`, `register_host`, `start_run`.
 2. Until required tickets are accepted or blocked: `get_ready_tickets`, `match_capabilities`, `claim_ticket`, start the worker, `heartbeat_attempt`, `submit_attempt`, review, integrate, verify, `accept_attempt` or `reject_attempt`, `record_row_check`.
 3. Run the acceptance node; land the sprint on the epic branch as one squashed commit.
-4. Apply pinned standards: deploy, `submit_sprint_report` with retro, `get_checkpoint`; after human verification, `advance_sprint` or redraft.
+4. Apply pinned standards: deploy, `submit_sprint_report` with retro, `get_checkpoint`; after human verification, `advance_sprint` or redraft, then claim its queued learning card before polling (not a gate).
 
 ## Knowledge: pushed `context` and `get_context`
 
@@ -49,4 +49,4 @@ Call `get_context` with `{ event?, topics?, paths?, ticketId?, budgetTokens? }` 
 
 Events: `run.started`, `ticket.claimed`, `acceptance.claimed`, `attempt.accepted`, `attempt.rejected`, `attempt.failed`, `row_check.failed`, `sprint.reported`, `checkpoint.approved`, `kanban.claimed`, `run.recovery`.
 
-Topics, pulled only: `folders-of-repositories` (first, in a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`, `time-box`, `final-validation-ci`, `post-checkpoint-delivery`.
+Topics, pulled only: `folders-of-repositories` (first, in a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`, `time-box`, `final-validation-ci`, `post-checkpoint-delivery`, `learning-card`.

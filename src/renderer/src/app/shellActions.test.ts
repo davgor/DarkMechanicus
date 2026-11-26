@@ -459,6 +459,25 @@ describe('chat actions', () => {
     expect(created).toBeNull()
     expect(recorder.selections).toEqual([])
   })
+
+  it('opens a folder chat in its own folder, and a project-less chat over the selected folder', () => {
+    recorder.actions('/b').openChat(chatRecord({ id: 'chat_a', folder: '/a' }))
+    recorder.actions('/b').openChat(chatRecord({ id: 'chat_free', folder: null }))
+    expect(recorder.selections).toEqual([
+      { folderPath: '/a', epicId: null, chatId: 'chat_a' },
+      { folderPath: '/b', epicId: null, agentPane: { kind: 'chat', chatId: 'chat_free' } }
+    ])
+    expect(recorder.agentsRevealed).toEqual(['/a'])
+  })
+
+  it('opens nothing when a summoned chat could not be created', async () => {
+    recorder.createdChat = null
+    const created = await recorder.actions('/a').summonChat('claude', 'Tidy every board')
+    expect(created).toBeNull()
+    expect(recorder.chatRequests).toEqual([{ folder: null, agent: 'claude', model: null, firstPrompt: 'Tidy every board' }])
+    expect(recorder.selections).toEqual([])
+    expect(recorder.landings).toEqual([])
+  })
 })
 
 describe('links from other screens', () => {

@@ -22,6 +22,7 @@ import type {
   BuiltInAgentKind,
   CustomAgentRequest,
   CustomAgentUpdate,
+  ApproveLearningCardRequest,
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -35,6 +36,7 @@ import type {
   TrackedFolderView,
   YoloStatus
 } from '../../../shared/desktop/api'
+import type { KanbanCardView } from '../../../shared/domain/kanban'
 
 interface CommandCall {
   folder: string
@@ -330,6 +332,11 @@ export class FakeDm implements DmApi {
     const handler = this.handlers[name]
     const data = handler ? handler(input, folder) : this.responses[name]
     return { ok: true, data: data as CommandOutput<K> }
+  }
+
+  /** DM-956: recorded like a command; answers through `failures`/`responses` under the `approveKanbanCard` name. */
+  approveLearningCard(folder: string, input: ApproveLearningCardRequest): Promise<CommandResult<KanbanCardView>> {
+    return this.command(folder, 'approveKanbanCard', { cardId: input.cardId }) as Promise<CommandResult<KanbanCardView>>
   }
 
   /** Makes the next call of `name` wait until the returned deferred is resolved. */

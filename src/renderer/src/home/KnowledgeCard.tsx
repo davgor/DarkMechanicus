@@ -153,8 +153,9 @@ function useKnowledge(folderPath: string): KnowledgeState {
 /**
  * The knowledge agents read for this folder: the overall repository this machine points at (its path and Git state),
  * the facts each layer holds and any diagnostics. Only the person sets the overall repository, through the native picker.
+ * Learnings opens the folder's published learnings.
  */
-export function KnowledgeCard({ folder }: { folder: TrackedFolderView }): JSX.Element {
+export function KnowledgeCard({ folder, onOpenLearnings }: { folder: TrackedFolderView; onOpenLearnings(): void }): JSX.Element {
   const { status, refusal, busy, choose, clear } = useKnowledge(folder.path)
   const configured = status?.layers.overall.configured === true
   return (
@@ -177,6 +178,7 @@ export function KnowledgeCard({ folder }: { folder: TrackedFolderView }): JSX.El
             Clear
           </Button>
         ) : null}
+        <Button onClick={onOpenLearnings}>Learnings</Button>
       </div>
       <p className="note">
         The overall repository holds knowledge shared by every folder on this computer. Only you can set it; pull and push

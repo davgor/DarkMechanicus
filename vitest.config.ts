@@ -31,11 +31,16 @@ const GIT_HEAVY = [
   'src/core/workspace.forgeVerification.test.ts',
   'src/main/git/**/*.test.ts',
   'src/main/github/**/*.test.ts',
+  'src/main/kanban/learningOperationRecord.test.ts',
+  'src/main/kanban/approveLearningCard.test.ts',
+  'src/main/kanban/learningWorkflow.test.ts',
+  'src/core/services/learningLifecycle.test.ts',
   'src/main/desktop/forgeGit.test.ts',
   'src/main/desktop/forgeResolver.test.ts',
   'src/main/desktop/forgeService.setup.test.ts',
   'src/main/desktop/sourceCheckoutIpc.test.ts',
   'src/core/repo/git.test.ts',
+  'src/core/repo/importer.targeted.test.ts',
   'src/core/repo/gitOriginConfig.test.ts',
   'src/core/services/attemptsIncrement.test.ts',
   'src/core/services/incrementVerify.test.ts',
@@ -61,6 +66,10 @@ const FORGE_RECOVERY = [
   'src/main/desktop/forgeProvisioningWork.test.ts',
   'src/main/desktop/forgeProvisioningAdmission.test.ts'
 ]
+// The thousand-poll mailbox test opens a workspace, and so a WAL SQLite connection, 1,000 times. Measured on Windows, a
+// bare connection open (constructor, first statement, close) takes about 2.4 ms alone but about 10.6 ms while the other
+// files load the filesystem in parallel, which put the test past its 15 s timeout. It runs alone, after the others.
+const MAIL_POLL_LOAD = ['src/core/commands/agentMail.test.ts']
 
 export default defineConfig({
   test: {
@@ -71,7 +80,7 @@ export default defineConfig({
           ...shared,
           name: 'unit',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
-          exclude: [...configDefaults.exclude, ...GIT_HEAVY, ...FORGE_RECOVERY]
+          exclude: [...configDefaults.exclude, ...GIT_HEAVY, ...FORGE_RECOVERY, ...MAIL_POLL_LOAD]
         }
       },
       {
@@ -92,6 +101,16 @@ export default defineConfig({
           include: FORGE_RECOVERY,
           maxWorkers: 1,
           sequence: { groupOrder: 2 }
+        }
+      },
+      {
+        define,
+        test: {
+          ...shared,
+          name: 'mail-poll-load',
+          include: MAIL_POLL_LOAD,
+          maxWorkers: 1,
+          sequence: { groupOrder: 3 }
         }
       }
     ],

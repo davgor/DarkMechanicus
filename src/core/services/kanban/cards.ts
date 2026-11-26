@@ -44,6 +44,7 @@ import { appendEvent } from '../events'
 import { attachmentRefOf, claimAttachments, flagMissingAttachments, flagMissingEvidence, listAttachmentRefs } from '../attachments'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { enqueueOutbox } from '../outbox'
+import { learningReviewOf } from '../learningReview'
 
 /** Done cards one board page shows when the caller names no limit. */
 const DEFAULT_DONE_LIMIT = 20
@@ -167,6 +168,7 @@ export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
   const row = loadSummaryRow(ctx, cardId)
   const attempts = ctx.db.all<AttemptRow>('SELECT * FROM kanban_attempts WHERE card_id = ? ORDER BY number', cardId)
   const attachments = cardAttachments(ctx, cardId)
+  const learning = learningReviewOf(ctx, cardId)
   return {
     ...toSummaryView(row),
     ...effectiveTicket({ body: row.body, acceptanceCriteria: parseJson<TicketCriterion[]>(row.acceptance_criteria_json, []) },
@@ -179,7 +181,8 @@ export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
     completedAt: row.completed_at,
     revision: row.revision,
     ...(attachments.length > 0 ? { attachments } : {}),
-    attempts: attempts.map(toAttemptView).map((view) => ({ ...view, evidence: flagMissingEvidence(ctx.db, view.evidence) }))
+    attempts: attempts.map(toAttemptView).map((view) => ({ ...view, evidence: flagMissingEvidence(ctx.db, view.evidence) })),
+    ...(learning === null ? {} : { learning })
   }
 }
 
@@ -314,6 +317,36 @@ export function createKanbanCard(ctx: Ctx, input: CreateKanbanCardInput): Kanban
   const scope = { command: 'createKanbanCard', key: input.idempotencyKey, request: requestWithoutKey(input) }
   return withIdempotency(ctx, scope, () => insertCard(ctx, input))
 }
+
+// ─── DM-937: generated sprint learning cards ───────────────────────────────────────────────────────────────────────
+
+/** What the server writes into a card it generates itself (no caller input, so no attachments or idempotency key). */
+interface GeneratedCardContent {
+  title: string
+  body: string
+  acceptanceCriteria: TicketCriterion[]
+  priority: TicketPriority
+}
+
+/**
+ * Server-internal: adds a generated card and queues it at once (Play pending), inside the caller's write transaction.
+ * The caller has already authorized the transition that generates it, so no Kanban capability is checked here.
+ */
+export function insertGeneratedCard(ctx: Ctx, content: GeneratedCardContent): { id: string; key: string } {
+  const card = insertCard(ctx, content)
+  const now = ctx.clock.nowIso()
+  ctx.db.run(
+    'UPDATE kanban_cards SET play_requested_at = ?, play_requested_by = ?, updated_at = ? WHERE id = ?',
+    now,
+    ctx.session.label.slice(0, LIMITS.label),
+    now,
+    card.id
+  )
+  recordCardEvent(ctx, card, { kind: 'played', payload: {}, at: now })
+  return { id: card.id, key: card.key }
+}
+
+// ─── End of DM-937 ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 function assertEditable(ctx: Ctx, row: SummaryRow): void {
   if (row.lane !== 'backlog') {

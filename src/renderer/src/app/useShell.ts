@@ -73,6 +73,8 @@ export interface ShellModel {
   /** Refresh token for a folder's views: changes whenever events touch the folder. */
   kanbanToken(folderPath: string): number
   refreshKanban(folderPath: string): void
+  /** Refresh token for a folder's Learnings: card approvals publish learnings, and reconciles import them. */
+  learningsToken(folderPath: string): number
   sections: { forge: boolean; folders: boolean }
   setSection(section: 'forge' | 'folders', expanded: boolean): void
 }
@@ -131,6 +133,8 @@ function shellView(input: {
     chatId: selection.chatId,
     kanban: selection.kanban,
     metrics: selection.metrics,
+    learnings: selection.learnings,
+    learningId: selection.learningId ?? null,
     chats,
     agentPane: selection.agentPane,
     agents,
@@ -192,6 +196,16 @@ function useFolderData(
   return { feed, lists, kanbanCounts, sections, setSection }
 }
 
+/** The refresh tokens views read from the event feed, and a poll of a folder's events on demand. */
+function tokenAccessors(feed: { tokens: Tokens; pollNow(path: string): void }): Pick<ShellModel, 'epicToken' | 'kanbanToken' | 'refreshKanban' | 'learningsToken'> {
+  return {
+    epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId),
+    kanbanToken: (path) => kanbanToken(feed.tokens, path),
+    refreshKanban: feed.pollNow,
+    learningsToken: (path) => kanbanToken(feed.tokens, path) + folderToken(feed.tokens, path)
+  }
+}
+
 /**
  * All shell state in one place: tracked folders, the persisted selection and collapse state, epic
  * lists and storage status kept fresh by the event feed, and the actions the UI can take.
@@ -242,9 +256,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     actions,
     landing,
     setFolderTab,
-    epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId),
-    kanbanToken: (path) => kanbanToken(feed.tokens, path),
-    refreshKanban: feed.pollNow,
+    ...tokenAccessors(feed),
     sections,
     setSection
   }

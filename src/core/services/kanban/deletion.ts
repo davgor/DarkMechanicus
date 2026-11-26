@@ -51,11 +51,16 @@ export function deleteKanbanCard(ctx: Ctx, input: { cardId: string }, removeFile
         { cardId: card.id, attemptState: card.open_state }
       )
     }
-    for (const sql of DELETE_STATEMENTS) {
-      ctx.db.run(sql, ...Array.from({ length: sql.split('?').length - 1 }, () => card.id))
-    }
+    deleteKanbanCardRows(ctx, card.id)
     const removedPaths = removeFiles(card.id)
     appendEvent(ctx, { kind: 'kanban.deleted', payload: { key: card.key, title: card.title } })
     return { cardId: card.id, key: card.key, title: card.title, removedPaths }
   })
+}
+
+/** DM-937: every row of one card, inside the caller's transaction (a card deletion, or an epic's generated cards). */
+export function deleteKanbanCardRows(ctx: Ctx, cardId: string): void {
+  for (const sql of DELETE_STATEMENTS) {
+    ctx.db.run(sql, ...Array.from({ length: sql.split('?').length - 1 }, () => cardId))
+  }
 }

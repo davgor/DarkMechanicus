@@ -74,6 +74,9 @@ import { enqueueOutbox } from './outbox'
 import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
 import { recordHandoffChecks } from './spaceSignals'
+import { filePaths } from '../knowledge/push'
+import { DEFAULT_LEARNING_BUDGET, selectLearnings } from '../knowledge/select'
+import { activeLearnings } from './learnings'
 
 type OutputsInput = SubmitAttemptInput['outputs']
 
@@ -292,6 +295,53 @@ function predecessorsOf(context: RunContext, view: TicketExecutionView): Executi
   })
 }
 
+// DM-936: retry context and applicable learnings in the execution packet.
+
+/**
+ * The earlier attempts of `row`'s ticket in this run that were rejected, failed, or abandoned after their lease
+ * expired, oldest first, each with its decision or failure exactly as stored. Canceled and accepted ones say nothing
+ * about what to fix, so they are left out.
+ */
+function priorAttemptsOf(context: RunContext, row: AttemptRow): NonNullable<ExecutionPacket['priorAttempts']> {
+  return context.attempts
+    .filter(
+      (prior) =>
+        prior.ticket_id === row.ticket_id &&
+        prior.id !== row.id &&
+        (prior.state === 'rejected' || prior.state === 'failed' || (prior.state === 'lease_expired' && prior.failure_json !== null))
+    )
+    .map((prior) => ({
+      attemptId: prior.id,
+      number: prior.number,
+      state: prior.state,
+      decision: parseJson<AttemptDecision | null>(prior.decision_json, null),
+      failure: parseJson<AttemptFailure | null>(prior.failure_json, null),
+      createdAt: prior.created_at,
+      submittedAt: prior.submitted_at,
+      endedAt: prior.reconciled_at ?? prior.decided_at ?? prior.updated_at
+    }))
+}
+
+/**
+ * The packet's retry and learning fields, each only when it has content: the prior attempts, and the active
+ * learnings addressed to workers for the claim event and the ticket's file references, within their own budget.
+ */
+function retryAndLearningPart(ctx: Ctx, parts: PacketParts, ticket: TicketContent): Pick<ExecutionPacket, 'priorAttempts' | 'learnings'> {
+  const priorAttempts = priorAttemptsOf(parts.context, parts.row)
+  const budgetTokens = DEFAULT_LEARNING_BUDGET
+  const selection = selectLearnings(activeLearnings(ctx.db), {
+    role: 'worker',
+    event: isAcceptanceTicket(ticket) ? 'acceptance.claimed' : 'ticket.claimed',
+    paths: filePaths(ticket.references),
+    budgetTokens
+  })
+  const matched = selection.learnings.length + selection.omitted.length > 0
+  return {
+    ...(priorAttempts.length > 0 && { priorAttempts }),
+    ...(matched && { learnings: { ...selection, budgetTokens } })
+  }
+}
+
 interface PacketParts {
   context: RunContext
   row: AttemptRow
@@ -419,7 +469,8 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
     effort: parts.effort,
     predecessors: predecessorsOf(context, view),
     ...reportingPart(ctx, ticket, parts.repositories),
-    ...parts.repositories
+    ...parts.repositories,
+    ...retryAndLearningPart(ctx, parts, ticket)
   }
 }
 

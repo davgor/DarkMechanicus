@@ -1,0 +1,171 @@
+/* Knowledge → Learnings: the list beside the open learning's detail. Cards, fields and links come from styles.css and
+   scorecard.css. */
+.learnings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1280px;
+  min-width: 0;
+  padding: 28px 32px 48px;
+}
+
+.learnings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.learnings-title {
+  margin: 0;
+  color: var(--ink-display);
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.learnings-folder {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.learnings-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.learnings-filters .input {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+
+.learnings-states {
+  display: flex;
+  gap: 14px;
+}
+
+.learnings-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.learnings-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.learnings-column {
+  min-width: 0;
+}
+
+.learnings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.learnings-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.learnings-item[aria-current='true'] {
+  border-color: var(--accent);
+}
+
+.learnings-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.learnings-item-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.learnings-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.learnings-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.learnings-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.learnings-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.learnings-evidence,
+.learnings-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.learnings-history li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.learnings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.learnings-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.learnings-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

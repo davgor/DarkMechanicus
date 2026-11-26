@@ -89,6 +89,14 @@ describe('workspace loading', () => {
     expect(failed).toMatchObject({ loading: false, loadError: 'Epic not found' })
     expect(workspaceReducer(failed, { type: 'load_succeeded', data: data(), at: 1 }).loadError).toBe(null)
   })
+
+  it('ignores a skipped draft read that lands before the workspace has loaded, and shows it once it has', () => {
+    const read = { draft: draftPlan(), draftTickets: [], validation: validation({ warnings: [] }) }
+    const before = initialWorkspaceState()
+    expect(workspaceReducer(before, { type: 'draft_loaded', draft: read })).toBe(before)
+    const after = workspaceReducer(loaded({ draft: null, validation: null }), { type: 'draft_loaded', draft: read })
+    expect([after.data?.draft?.draftRevision, after.validation]).toEqual([draftPlan().draftRevision, validation({ warnings: [] })])
+  })
 })
 
 describe('workspace view resolution', () => {

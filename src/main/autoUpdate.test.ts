@@ -2,6 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 
+const originalPlatform = process.platform
 const checkForUpdates = vi.fn()
 const quitAndInstall = vi.fn()
 const on = vi.fn()
@@ -9,7 +10,8 @@ const on = vi.fn()
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,
-    getVersion: () => '1.2.3'
+    getVersion: () => '1.2.3',
+    getPath: () => '/nonexistent-dm-userdata'
   },
   BrowserWindow: {
     getAllWindows: () => []
@@ -49,7 +51,13 @@ function resetAutoUpdateTest(): void {
   delete process.env['DISABLE_AUTO_UPDATE']
 }
 
+/** Pins process.platform for one test; these tests cover the Windows updater path. */
+function withPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+}
+
 function restoreAutoUpdateTest(): void {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
   vi.useRealTimers()
   delete process.env['DISABLE_AUTO_UPDATE']
 }
@@ -369,6 +377,7 @@ describe('registerAutoUpdateHandlers', () => {
   })
 
   it('forwards update checks and the silent install to the updater', async () => {
+    withPlatform('win32')
     const { registerAutoUpdateHandlers } = await loadModule()
     const listeners = new Map<string, () => unknown>()
     registerAutoUpdateHandlers({
@@ -390,11 +399,19 @@ describe('silent apply helpers', () => {
   afterEach(restoreAutoUpdateTest)
 
   it('quitAndInstallUpdate uses silent install with force-run-after', async () => {
+    withPlatform('win32')
     const { quitAndInstallUpdate } = await loadModule()
     quitAndInstallUpdate()
     const [silent, forceRunAfter] = quitAndInstall.mock.calls[0] ?? []
     expect(silent).toBe(true)
     expect(forceRunAfter).toBe(true)
+  })
+
+  it('macOS never hands the install to electron-updater, and refuses to install with nothing staged', async () => {
+    withPlatform('darwin')
+    const { quitAndInstallUpdate } = await loadModule()
+    expect(() => quitAndInstallUpdate()).toThrow('No staged update')
+    expect(callCount(quitAndInstall)).toBe(0)
   })
 
   it('formats the ready notification with the current version', async () => {

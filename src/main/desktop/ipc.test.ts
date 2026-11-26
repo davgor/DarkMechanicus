@@ -9,6 +9,7 @@ import type { DesktopHandlers } from './handlers'
 import type { KnowledgeHandlers } from './knowledgeHandlers'
 import type { OmpThemeHandlers } from './ompTheme'
 import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from './ipc'
+import { registerLearningApprovalIpc } from './learningApprovalIpc'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 
@@ -412,6 +413,7 @@ describe('preload bridge', () => {
     const ipc = createFakeIpcMain()
     registerDesktopIpc(ipc, createRecordingHandlers().handlers)
     registerYoloIpc(ipc, { yolo: async () => ({ live: false, expiresAt: null, audit: [] }) })
+    registerLearningApprovalIpc(ipc, { approveLearningCard: async () => ({ ok: false, error: { code: 'internal', message: 'unused' } }) })
     const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
 
     const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'((?:dm|agents):[A-Za-z]+)'/g)]

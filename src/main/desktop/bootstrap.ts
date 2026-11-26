@@ -59,6 +59,10 @@ import { createGitHandlers } from '../git/handlers'
 import { sourceControlTarget } from '../git/target'
 import { createProgressBroadcaster, registerGitIpc } from '../git/ipc'
 import { createGitRunner, type GitRunner } from '../git/runner'
+import { createLearningIntegrationLocks } from '../git/learningIntegration'
+import { createOperationLocks, type OperationLocks } from '../git/operationLock'
+import { createLearningApprovals, type LearningApprovalController } from '../kanban/approveLearningCard'
+import { createLearningApprovalHandlers, registerLearningApprovalIpc } from './learningApprovalIpc'
 import { createAccountStore } from '../github/accountStore'
 import { createGithubClient, createSessionClient, type GithubClient } from '../github/client'
 import { createGhCli, isExecutableFile, runGhProcess } from '../github/ghCli'
@@ -701,7 +705,8 @@ function openDesktopPool(): WorkspacePool {
     open: generation => openUtilityWorkspace(generation, home, app.getVersion()),
     canonical: path => boundForgeRoot(nodeFs, home, realpathSync.native(path)),
     authority: currentForgeTransfer,
-    onError: (path, error) => logger.error('Workspace error for ' + path, error)
+    onError: (path, error) => logger.error('Workspace error for ' + path, error),
+    slowLog: logger
   })
 }
 
@@ -902,16 +907,19 @@ function startClones(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 
 /**
  * Serves the `git:*` channels over the real git runner, for the tracked folders only, and clones into the folder
  * chosen with the native dialog. Network operations authenticate with the GitHub session (in main: the token never
- * reaches a window) and broadcast their progress; pull requests are read through the session's API client.
+ * reaches a window) and broadcast their progress; pull requests are read through the session's API client. Returns
+ * the runner and the per-repository operation locks, shared with learning approval (DM-956).
  */
-function startGit(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track' | 'list'>, github: GithubBridge): void {
+function startGit(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track' | 'list'>, github: GithubBridge): SharedGit {
   const runner = createGitRunner()
+  const operations = createOperationLocks(runner)
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
       clones: startClones(forge, folders, runner, github),
       runner,
+      operations,
       trashItem: (path) => shell.trashItem(path),
       openPath: (path) => shell.openPath(path),
       session: { getAccount: github.getAccount, getToken: github.getToken },
@@ -922,6 +930,31 @@ function startGit(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'op
       }
     })
   )
+  return { runner, operations }
+}
+
+/** The one Git runner and Source control operation locks main's Git work shares. */
+interface SharedGit {
+  runner: GitRunner
+  operations: OperationLocks
+}
+
+/**
+ * DM-956: the `dm:approveLearningCard` channel over the shared runner and locks, through each tracked folder's own
+ * desktop workspace. At startup each available, set-up folder recovers the approvals this machine left in progress.
+ */
+function startLearningApprovals(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve' | 'list'>, pool: WorkspacePool, git: SharedGit): LearningApprovalController {
+  const approvals = createLearningApprovals({
+    resolve: (folder) => registry.resolve(folder),
+    workspace: (folder) => pool.get(folder),
+    git: { ...git, cards: createLearningIntegrationLocks() }
+  })
+  registerLearningApprovalIpc(ipc, createLearningApprovalHandlers(approvals))
+  for (const folder of registry.list()) {
+    if (!folder.initialized || !folder.available) continue
+    approvals.recover(folder.path).catch((error: unknown) => logger.error('Learning approval recovery failed for ' + folder.path, error))
+  }
+  return approvals
 }
 
 /** GitHub sign-in first, then the git channels that use its session; returns the session for main's other code. */
@@ -1070,6 +1103,19 @@ function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats']
     close: async () => {
       mail.dispose()
       await close()
+    }
+  }
+}
+
+/**
+ * DM-956: the quit also waits for learning approvals: they keep it busy, and disposing aborts every approval at once
+ * and waits for each workflow and every Git process it started to exit, alongside the chats.
+ */
+function drainingApprovals(chats: DesktopBridge['chats'], approvals: LearningApprovalController): DesktopBridge['chats'] {
+  return {
+    busy: () => chats.busy() || approvals.busy(),
+    dispose: async () => {
+      await Promise.all([chats.dispose(), approvals.dispose()])
     }
   }
 }
@@ -1264,8 +1310,10 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const github = startGithub(ipc)
   const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults, contextDelivery, suspendChatMail })
   verifySetup = forge.assertSetupLaunch
-  startGit(forge, ipc, registry, github)
-  const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
+  const approvals = startLearningApprovals(ipc, registry, pool, startGit(forge, ipc, registry, github))
+  const releasing: ChatProcesses['releaseFolder'] = (folder, forget, related = []) =>
+    releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
+  const handlers = bridgeHandlers({ registry, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerSettingsIpc(ipc, createSettingsHandlers({
     settings,
@@ -1283,5 +1331,6 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   startAgentChats(ipc, registry, agentChats)
   startRestartResume({ registry, pool, store, terminals, agentChats })
-  return { ...stoppingMailFirst(mail, quit, async () => { notifier.dispose(); await forge.stop(); await close() }), github }
+  const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
+  return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }
 }

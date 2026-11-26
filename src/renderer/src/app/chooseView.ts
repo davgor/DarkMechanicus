@@ -21,6 +21,8 @@ export type MainView =
   | { kind: 'kanban'; folder: TrackedFolderView }
   /** The folder's Metrics dashboard. */
   | { kind: 'metrics'; folder: TrackedFolderView }
+  /** The folder's published Learnings (Knowledge → Learnings), with the learning open in its detail pane, if any. */
+  | { kind: 'learnings'; folder: TrackedFolderView; learningId: string | null }
   /** Pressing + in the AGENTS section: the cards to find or download an agent. */
   | { kind: 'add-agent' }
   /** One connected agent's page. */
@@ -42,6 +44,10 @@ interface ViewInput {
   kanban?: boolean
   /** The folder's Metrics dashboard is chosen. */
   metrics?: boolean
+  /** The folder's Learnings are chosen. */
+  learnings?: boolean
+  /** The learning open in the Learnings detail pane. */
+  learningId?: string | null
   /** An agents screen chosen over the folder view. */
   agentPane?: AgentPane
   /** The connected agents, or null until they have loaded. */
@@ -111,6 +117,9 @@ function chooseFolderView(input: ViewInput, folder: TrackedFolderView): MainView
   }
   if (input.metrics === true) {
     return { kind: 'metrics', folder }
+  }
+  if (input.learnings === true) {
+    return { kind: 'learnings', folder, learningId: input.learningId ?? null }
   }
   return chosenChat(input, folder, tab)
 }

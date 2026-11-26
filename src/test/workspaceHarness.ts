@@ -19,13 +19,17 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     setHead: (next) => {
       head = next
     },
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
     listWorktrees: async () => [],
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,
+    isAncestorSync: () => null,
     commitParents: async () => null,
+    diffPaths: () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }
@@ -39,6 +43,12 @@ export interface Harness {
   open(role: SessionRole, options?: OpenOptions): Workspace
   /** Copies tracked records (without local/) into a fresh directory, like a clone; `from` defaults to the harness root. */
   cloneTracked(from?: string): string
+  /**
+   * Closes every workspace it opened, releasing each database. A test that opened one on a folder the harness does not
+   * own (a real repository) calls this before that folder is removed: Windows cannot delete a folder holding an open
+   * database file.
+   */
+  closeWorkspaces(): void
   cleanup(): void
 }
 
@@ -135,10 +145,13 @@ export function createHarness(): Harness {
       })
       return target
     },
-    cleanup() {
+    closeWorkspaces() {
       for (const workspace of workspaces) {
         workspace.close()
       }
+    },
+    cleanup() {
+      this.closeWorkspaces()
       for (const dir of dirs) {
         rmSync(dir, { recursive: true, force: true })
       }

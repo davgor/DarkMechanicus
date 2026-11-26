@@ -80,7 +80,12 @@ export function ownedPaths(layout: RepoLayout) {
     kanbanEventFile: (cardId: string, eventId: string): string =>
       join(kanbanEventsDir(cardId), `${checkedId(eventId, 'kanbanEvent')}.json`),
     /** Machine-local (under `local/`, never committed): what this machine's latest export of the epic was about to write. */
-    exportIntentFile: (epicId: string): string => join(layout.localDir, 'exports', `${checkedId(epicId, 'epic')}.json`)
+    exportIntentFile: (epicId: string): string => join(layout.localDir, 'exports', `${checkedId(epicId, 'epic')}.json`),
+    // DM-935: learnings (one file per learning, with its history) and learning integration recovery manifests.
+    learningRecordsDir: (): string => join(layout.dmDir, 'learnings', 'records'),
+    learningRecordFile: (learningId: string): string => join(layout.dmDir, 'learnings', 'records', `${checkedId(learningId, 'learningRecord')}.json`),
+    learningIntegrationsDir: (): string => join(layout.dmDir, 'learnings', 'integrations'),
+    learningIntegrationFile: (id: string): string => join(layout.dmDir, 'learnings', 'integrations', `${checkedId(id, 'learningIntegration')}.json`)
   }
 }
 

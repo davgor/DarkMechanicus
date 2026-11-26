@@ -26,6 +26,7 @@ import { registerSettingsIpc, type SettingsHandlers } from '../main/desktop/sett
 import { registerNotifyIpc, type NotifyHandlers } from '../main/notify/notifyIpc'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../shared/desktop/notificationSettings'
 import { NOTIFICATION_CHANNELS, type NotificationsApi } from '../shared/desktop/notifications'
+import { type LearningApprovalHandlers, registerLearningApprovalIpc } from '../main/desktop/learningApprovalIpc'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
 import { registerGithubIpc } from '../main/github/ipc'
@@ -136,6 +137,7 @@ beforeAll(async () => {
   registerNotifyIpc(recorder(true), recordingHandlers<NotifyHandlers>())
   registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
+  registerLearningApprovalIpc(recorder(true), recordingHandlers<LearningApprovalHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
   registerTelegramIpc(recorder(false), () => ({}), async () => 'code', () => {})
@@ -201,6 +203,16 @@ describe('preload bridge', () => {
 
     expect(bridge.calls).toEqual([['chats:startPlanner', request]])
     expect(registered.has('chats:startPlanner')).toBe(true)
+  })
+
+  it('sends a Forge convert without options as exactly the world and the source', async () => {
+    const dm = bridge.exposed.get('dm') as { forge: Record<string, Listener> }
+
+    bridge.calls.length = 0
+    await dm.forge.convert('/world', '/source')
+    await dm.forge.convert('/world', '/source', { publish: true })
+
+    expect(bridge.calls).toEqual([['forge:convert', '/world', '/source'], ['forge:convert', '/world', '/source', { publish: true }]])
   })
 })
 

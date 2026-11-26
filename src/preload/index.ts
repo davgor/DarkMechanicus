@@ -190,6 +190,7 @@ const dm: DmApi = {
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),
   openTrackedFolder: (folder, expectedPath) => ipcRenderer.invoke('dm:openTrackedFolder', folder, expectedPath),
   command: (folder, name, input) => ipcRenderer.invoke('dm:command', folder, name, input),
+  approveLearningCard: (folder, input) => ipcRenderer.invoke('dm:approveLearningCard', folder, input),
   getMcpConfig: (folder) => ipcRenderer.invoke('dm:getMcpConfig', folder),
   installSkills: (folder) => ipcRenderer.invoke('dm:installSkills', folder),
   connectClaudeCode: (folder, request) => ipcRenderer.invoke('dm:connectClaudeCode', folder, request),

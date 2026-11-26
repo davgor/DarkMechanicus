@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { LEARNING_EVENTS } from '../../shared/domain/learnings'
 import { isKnowledgeEvent, KNOWLEDGE_EVENTS } from './events'
 
 describe('KNOWLEDGE_EVENTS', () => {
@@ -7,6 +8,10 @@ describe('KNOWLEDGE_EVENTS', () => {
     expect(new Set(ids).size).toBe(ids.length)
     expect(ids).toHaveLength(11)
     for (const event of KNOWLEDGE_EVENTS) expect(event.description.length).toBeGreaterThan(0)
+  })
+
+  it('is the event vocabulary learning records may attach to', () => {
+    expect(LEARNING_EVENTS).toEqual(KNOWLEDGE_EVENTS.map((event) => event.id))
   })
 
   it('guards known event ids only', () => {

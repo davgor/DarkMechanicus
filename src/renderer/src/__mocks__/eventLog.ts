@@ -6,6 +6,7 @@ interface PageInput {
   limit?: number
   epicId?: string
   runId?: string
+  ticketId?: string
 }
 
 /** In-memory event log with the same paging semantics as the core `listEvents` service. */
@@ -31,6 +32,7 @@ export class EventLog {
       .filter((event) => event.seq > since)
       .filter((event) => input.epicId === undefined || event.epicId === input.epicId)
       .filter((event) => input.runId === undefined || event.runId === input.runId)
+      .filter((event) => input.ticketId === undefined || event.ticketId === input.ticketId)
       .slice(0, limit)
     const last = events[events.length - 1]
     return { events, cursor: last ? last.seq : Math.max(since, this.head()) }
