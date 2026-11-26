@@ -371,12 +371,25 @@ function checkRestoredImage(env: Env, row: AttachmentRow, folder: AttachmentFold
   }
 }
 
+/** One write the restore makes to an attachment row, decided from files read and verified before the writer lock. */
+type RowUpdate =
+  | { id: string; kind: 'fill'; file: VerifiedFile; row: AttachmentRow }
+  | { id: string; kind: 'missing' }
+  | { id: string; kind: 'creator'; role: SessionRole; label: string }
+
+/** What `applyAttachmentFiles` writes, and what the reads refused. */
+export interface AttachmentPlan {
+  updates: RowUpdate[]
+  rejected: AttachmentRejection[]
+}
+
 /**
- * Fills the bytes of owned attachments from their portable copies and checks changed copies of already stored
- * images. A missing or rejected copy never erases the locally stored evidence.
+ * Reads and verifies, without writing, the portable copies of owned attachments: the bytes of rows that have none, and
+ * changed copies of already stored images. A missing or rejected copy never erases the locally stored evidence.
  */
-export function restoreAttachmentFiles(env: Env): AttachmentImportOutcome {
+export function prepareAttachmentFiles(env: Env): AttachmentPlan {
   const outcome: AttachmentImportOutcome = { changed: false, rejected: [] }
+  const updates: RowUpdate[] = []
   const rows = env.db.all<AttachmentRow>(
     `SELECT id, sha256, mime, bytes, width, height, missing, length(data) AS stored_bytes, owner_kind, owner_id
      FROM attachments WHERE owner_kind IS NOT NULL ORDER BY rowid`
@@ -388,22 +401,41 @@ export function restoreAttachmentFiles(env: Env): AttachmentImportOutcome {
       if (placement !== null) checkRestoredImage(env, row, placement.folder, outcome)
       continue
     }
-
-    const file = placement === null ? undefined : imageForPlaceholder(env, row, placement.folder, { scans, outcome })
+    const file = placement === null ? undefined : imageForPlaceholder(env, row, placement.folder, { scans, outcome, updates })
     if (file !== undefined && matchesImage(row, file)) {
-      env.db.run('UPDATE attachments SET data = ?, missing = 0 WHERE id = ?', Buffer.from(file.bytes), row.id)
-      rememberImage(env, row, file)
-      outcome.changed = true
+      updates.push({ id: row.id, kind: 'fill', file, row })
     } else if (row.missing !== 1) {
-      env.db.run('UPDATE attachments SET missing = 1 WHERE id = ?', row.id)
-      outcome.changed = true
+      updates.push({ id: row.id, kind: 'missing' })
     }
+  }
+  return { updates, rejected: outcome.rejected }
+}
+
+/** Applies one update when its row still needs it: each write is conditional on the row as it is under the lock. */
+function applyUpdate(db: Db, update: RowUpdate): boolean {
+  if (update.kind === 'fill') {
+    return db.run('UPDATE attachments SET data = ?, missing = 0 WHERE id = ? AND data IS NULL AND sha256 = ?',
+      Buffer.from(update.file.bytes), update.id, update.row.sha256).changes > 0
+  }
+  if (update.kind === 'missing') return db.run('UPDATE attachments SET missing = 1 WHERE id = ? AND data IS NULL AND missing <> 1', update.id).changes > 0
+  return db.run(`UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?
+    AND (created_by_role <> ? OR created_by_label <> ?)`, update.role, update.label, update.id, update.role, update.label).changes > 0
+}
+
+/** Writes the prepared updates, each in its own short transaction. */
+export function applyAttachmentFiles(env: Env, plan: AttachmentPlan): AttachmentImportOutcome {
+  const outcome: AttachmentImportOutcome = { changed: false, rejected: [...plan.rejected] }
+  for (const update of plan.updates) {
+    if (!env.db.tx(() => applyUpdate(env.db, update))) continue
+    outcome.changed = true
+    if (update.kind === 'fill') rememberImage(env, update.row, update.file)
   }
   return outcome
 }
 
 function imageForPlaceholder(
-  env: Env, row: AttachmentRow, folder: AttachmentFolder, state: { scans: Map<string, FolderScan>; outcome: AttachmentImportOutcome }
+  env: Env, row: AttachmentRow, folder: AttachmentFolder,
+  state: { scans: Map<string, FolderScan>; outcome: AttachmentImportOutcome; updates: RowUpdate[] }
 ): VerifiedFile | undefined {
   const { scans, outcome } = state
   const key = `${folder.kind}:${folder.id}`
@@ -414,10 +446,10 @@ function imageForPlaceholder(
     outcome.rejected.push(...scan.rejected)
   }
   const creator = scan.creators.get(row.id)
-  if (creator !== undefined && creator.sha256 === row.sha256) {
-    const updated = env.db.run(`UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?
-      AND (created_by_role <> ? OR created_by_label <> ?)`, creator.role, creator.label, row.id, creator.role, creator.label)
-    if (updated.changes > 0) outcome.changed = true
+  if (creator !== undefined && creator.sha256 === row.sha256 && env.db.get(
+    'SELECT 1 FROM attachments WHERE id = ? AND (created_by_role <> ? OR created_by_label <> ?)', row.id, creator.role, creator.label
+  ) !== undefined) {
+    state.updates.push({ id: row.id, kind: 'creator', role: creator.role, label: creator.label })
   }
   return scan.files.get(row.sha256)
 }

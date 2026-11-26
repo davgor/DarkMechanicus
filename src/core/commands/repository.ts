@@ -170,8 +170,9 @@ const repositoryCommands = {
   getStorageStatus: {
     mutates: false,
     beforeInit: true,
-    run: (core) =>
-      getStorageStatus({ db: core.db(), layout: core.layout, fs: core.fs, git: core.git, clock: core.clock })
+    run: (core) => getStorageStatus({
+      db: core.db(), layout: core.layout, fs: core.fs, git: core.git, clock: core.clock, recordStatus: core.recordStatus
+    })
   },
   flushPortableState: {
     mutates: false,

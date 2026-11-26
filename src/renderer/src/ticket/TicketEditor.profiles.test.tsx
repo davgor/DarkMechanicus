@@ -32,6 +32,7 @@ function ticketCapability(): CapabilityProfile {
 async function openEditor(backend: FakeBackend): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
   const h = renderWorkspace(backend)
   fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+  await screen.findByText('DRAFT REV 5 · UNSAVED')
   fireEvent.click(await screen.findByText('Transactional bundle import'))
   const editor = await screen.findByLabelText('Edit ticket DM-202')
   return { h, editor }

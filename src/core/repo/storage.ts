@@ -10,7 +10,7 @@ import { branchState, EPIC_RECORDS_CONFLICT_PREFIX } from './importer'
 import { readProject } from './initialize'
 import type { ProjectRecord } from './portable'
 import { hasPendingEpicChanges } from './syncState'
-import type { FsAdapter, GitAdapter, RepoLayout } from './types'
+import type { FsAdapter, GitAdapter, GitHead, RepoLayout } from './types'
 
 interface StorageDeps {
   db: Db | null
@@ -18,6 +18,64 @@ interface StorageDeps {
   fs: FsAdapter
   git: GitAdapter
   clock: Clock
+  /** The workspace's cached record-file status; without one, every call asks git. */
+  recordStatus?: RecordStatusCache
+}
+
+/** Where the record files a repository-backed project tracks live, relative to the repository root. */
+const RECORDS_PATHSPEC = '.darkmechanicus'
+
+interface RecordStatusEntry {
+  /** The index stamp, HEAD and last flush the count was taken at. */
+  key: string
+  count: number | null
+}
+
+/**
+ * One workspace's last `git status` count of uncommitted record files. The footer polls the storage status often,
+ * and each `git status` would otherwise hold the project's command queue, so a call serves this count and refreshes
+ * it in the background only once the index, HEAD or the database's last flush changed: idle calls never run git.
+ * A flush is how this app writes record files without touching the index, so it is part of the key; an edit made
+ * outside the app that leaves the index and HEAD alone shows up at the next stamp change.
+ */
+export interface RecordStatusCache {
+  last: RecordStatusEntry | null
+  /** The refresh running now, if any: at most one runs at a time. */
+  refreshing: Promise<RecordStatusEntry> | null
+}
+
+export function createRecordStatusCache(): RecordStatusCache {
+  return { last: null, refreshing: null }
+}
+
+function refreshRecordStatus(cache: RecordStatusCache, deps: StorageDeps, key: string): Promise<RecordStatusEntry> {
+  if (cache.refreshing !== null) return cache.refreshing
+  // Keyed before git runs: a stamp change while it runs makes the next call refresh again.
+  const refreshing = Promise.resolve()
+    .then(() => deps.git.countUncommitted(RECORDS_PATHSPEC))
+    .then((count) => (cache.last = { key, count }))
+    .finally(() => {
+      cache.refreshing = null
+    })
+  cache.refreshing = refreshing
+  return refreshing
+}
+
+async function uncommittedRecordFiles(deps: StorageDeps, head: GitHead | null): Promise<number | null> {
+  // A db project has no record file in the checkout, so there is never one waiting to be committed.
+  if (deps.layout.mode === 'db') return null
+  const cache = deps.recordStatus
+  if (cache === undefined) return deps.git.countUncommitted(RECORDS_PATHSPEC)
+  const lastFlushAt = deps.db === null ? null : getMeta(deps.db, META_KEYS.lastFlushAt)
+  const key = JSON.stringify([deps.git.indexStamp(), head, lastFlushAt])
+  const last = cache.last
+  // The first call has nothing to serve, so it waits for git once.
+  if (last === null) return (await refreshRecordStatus(cache, deps, key)).count
+  if (last.key !== key) {
+    // A failed refresh keeps the last count, and the next call tries again.
+    refreshRecordStatus(cache, deps, key).catch(() => undefined)
+  }
+  return last.count
 }
 
 type DatabaseStatus = Pick<
@@ -151,9 +209,7 @@ export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatus
   const project = projectOrNull(deps)
   const gitHead = deps.git.head()
   const head = { current: gitHead?.branch ?? null, repository: gitHead !== null }
-  // A db project has no record file in the checkout, so there is never one waiting to be committed.
-  const uncommittedRecordFiles =
-    deps.layout.mode === 'db' ? null : await deps.git.countUncommitted('.darkmechanicus')
+  const uncommitted = await uncommittedRecordFiles(deps, gitHead)
   const database =
     deps.db === null
       ? { ...NO_DATABASE, branch: { current: head.current, recorded: null, changed: false, repository: head.repository } }
@@ -164,7 +220,7 @@ export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatus
     storage: storageLocation(deps.layout, deps.fs),
     projectId: project?.projectId ?? null,
     projectName: project?.name ?? null,
-    uncommittedRecordFiles,
+    uncommittedRecordFiles: uncommitted,
     ...database
   }
 }

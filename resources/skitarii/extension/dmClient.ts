@@ -21,7 +21,8 @@ import { DM_WRITER_BUSY, SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_STDERR } from '.
  * spawn, caps and stopping, with a 60 s inactivity watchdog (`DM_RUN_LIMITS`). The command name must have the CLI's own shape (a
  * lowercase letter, then letters, digits or `_`), so it can never be read as a flag, a path or a second word; which
  * commands the chat may run is the grant's decision, checked by the CLI, never a list here. Its successful data comes
- * back with the grant redacted wherever it appears.
+ * back with the grant redacted wherever it appears. A caller of its own (the standards read) may also give the call
+ * an absolute lifetime (`DmRunOptions.lifetimeMs`) that writer contention never renews; an agent's `dm_call` gives none.
  *
  * Self-contained on purpose: OMP runs this file with its bundled Bun, from `<resources>/skitarii/extension/` when
  * packaged, so it imports Node built-ins only. The result types mirror `src/shared/domain/agentMail.ts`; the tests
@@ -185,14 +186,20 @@ export type DmClientError = { source: 'client'; code: DmClientErrorCode; message
 
 export type DmCallResult<T> = { ok: true; data: T; warning?: typeof SESSION_AUDIT_BUSY } | { ok: false; error: DmClientError }
 
+/** A `run` caller's own bounds. An agent's `dm_call` passes none, so it keeps `DM_RUN_LIMITS` exactly. */
+interface DmRunOptions {
+  /** Kills the child and settles `timeout` this long after it starts, however often writer contention renews the watchdog. */
+  lifetimeMs?: number
+}
+
 export interface DmClient {
   /** Runs one mailbox command; never rejects. `signal` aborting kills the child and settles with `aborted`. */
   call<C extends DmMailCommand>(command: C, input: DmMailCalls[C]['input'], signal?: AbortSignal): Promise<DmCallResult<DmMailCalls[C]['output']>>
   /**
-   * Runs any CLI command by name (`DM_COMMAND_NAME`) with a JSON object of arguments, under `DM_RUN_LIMITS`; never
-   * rejects. The grant decides what is allowed: a refusal comes back as the CLI's own error.
+   * Runs any CLI command by name (`DM_COMMAND_NAME`) with a JSON object of arguments, under `DM_RUN_LIMITS` and any
+   * absolute `options.lifetimeMs`; never rejects. The grant decides what is allowed: a refusal comes back as the CLI's own error.
    */
-  run(command: string, input: unknown, signal?: AbortSignal): Promise<DmCallResult<unknown>>
+  run(command: string, input: unknown, signal?: AbortSignal, options?: DmRunOptions): Promise<DmCallResult<unknown>>
   /** Person messages come only from this launch's private desktop outbox, after current mailbox authorization. */
   readBoard(): Promise<DmCallResult<BoardContextBody[]>>
   /** Incident-scoped peer bodies from the same recipient-bound private outbox, never person authority. */
@@ -371,6 +378,8 @@ interface Run {
   child: ChildProcess
   token: string
   limits: Readonly<DmClientLimits>
+  /** An absolute bound on the child's life, never renewed; none for the mail calls and an agent's `dm_call`. */
+  lifetimeMs: number | undefined
   signal: AbortSignal | undefined
   /** Whether successful data is redacted too (`run`); the mail calls keep theirs as before. */
   redact: boolean
@@ -494,7 +503,7 @@ function supervise(run: Run, settle: (result: DmCallResult<unknown>) => void): (
   return stop
 }
 
-/** Spawns nothing on its own: wires a started child, its stdin, its time limit and the abort signal. */
+/** Spawns nothing on its own: wires a started child, its stdin, its time limits and the abort signal. */
 function runChild(run: Run, input: string, cancels: Set<(reason: StopReason) => void>): Promise<DmCallResult<unknown>> {
   return new Promise((resolve) => {
     let settled = false
@@ -502,11 +511,14 @@ function runChild(run: Run, input: string, cancels: Set<(reason: StopReason) => 
       if (settled) return
       settled = true
       clearTimeout(timer)
+      clearTimeout(lifetime)
       run.signal?.removeEventListener('abort', onAbort)
       cancels.delete(stop)
       resolve(result)
     })
     const timer = setTimeout(() => stop('timeout'), run.limits.timeoutMs)
+    // Writer contention renews the inactivity watchdog only; nothing renews the absolute lifetime.
+    const lifetime = run.lifetimeMs === undefined ? undefined : setTimeout(() => stop('timeout'), run.lifetimeMs)
     run.child.on('message', (message) => {
       if (!settled && message === DM_WRITER_BUSY) timer.refresh()
     })
@@ -551,7 +563,7 @@ interface ClientState {
 }
 
 /** One call: a mailbox command by the client's name, or (`run`) any command by the CLI's. */
-type Request = ({ kind: 'mail'; command: DmMailCommand } | { kind: 'run'; command: unknown }) & {
+type Request = ({ kind: 'mail'; command: DmMailCommand } | { kind: 'run'; command: unknown; lifetimeMs: number | undefined }) & {
   input: unknown
   signal: AbortSignal | undefined
 }
@@ -600,7 +612,8 @@ async function callOnce(deps: DmClientDeps, state: ClientState, request: Request
   if (!child.ok) return child
   const run = request.kind === 'run'
   const limits = run ? (deps.runLimits ?? DM_RUN_LIMITS) : (deps.limits ?? DM_CLIENT_LIMITS)
-  return runChild({ child: child.value, token, limits, signal: request.signal, redact: run }, input, state.cancels)
+  const lifetimeMs = run ? request.lifetimeMs : undefined
+  return runChild({ child: child.value, token, limits, lifetimeMs, signal: request.signal, redact: run }, input, state.cancels)
 }
 
 function boardForIdentity(identity: DmCallResult<unknown>, outbox: BoardContextOutbox): DmCallResult<BoardContextBody[]> {
@@ -645,9 +658,9 @@ export function createDmClient(deps: DmClientDeps): DmClient {
   }
   return {
     call: (command, input, signal) => track({ kind: 'mail', command, input, signal }) as Promise<DmCallResult<never>>,
-    run: (command, input, signal) => command === 'recover_tooling' || command === 'recoverTooling'
+    run: (command, input, signal, options) => command === 'recover_tooling' || command === 'recoverTooling'
       ? callRecovery(deps, input, signal)
-      : track({ kind: 'run', command, input, signal }),
+      : track({ kind: 'run', command, input, signal, lifetimeMs: options?.lifetimeMs }),
     readBoard: () => {
       const call = readBoardOnce(deps, state)
       calls.add(call)

@@ -15,25 +15,26 @@ import { createSystemClock, type Clock } from './clock'
 import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
 import type { Ctx } from './context'
-import { guardTransactions, openDatabase, type Db } from './db/database'
+import { guardTransactions, openDatabase, tagTransactions, type Db, type TransactionObserver } from './db/database'
 import { migrate, readSchemaVersion, SCHEMA_VERSION } from './db/migrations'
 import { DomainError, fail } from './errors'
 import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
-import { assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
+import { assertForgeStorage, assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
 import { forgeCodeCheckout, isForgeCodeMember } from './repo/forgeCheckout'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
-import { flushOutbox, type FlushScope } from './repo/finalizer'
+import { type FlushMode, flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
-import { observeReconcileInputs } from './repo/reconcileFingerprint'
+import { reconcileGate } from './repo/reconcileFingerprint'
 import { ensureMachineId, initializeRepository, type ProjectLayout, readProject } from './repo/initialize'
 import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { createRecordStatusCache } from './repo/storage'
 import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { listAgentPeers, MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
@@ -42,7 +43,7 @@ import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
-import { completeSavedRevision } from './services/plans'
+import { completeSavedRevision, previewSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
 import { COMMAND_SCHEMAS } from './commandSchemas'
 
@@ -78,6 +79,8 @@ export interface OpenWorkspaceOptions {
   databaseSynchronous?: 'full' | 'off'
   /** One-shot CLI process progress while waiting for the project writer. */
   onWriterBusy?: () => void
+  /** Measurement only: reports each depth-0 write transaction's lock hold; see `OpenDatabaseOptions.onTransaction`. */
+  onTransaction?: TransactionObserver
   git?: GitAdapter
   /**
    * Builds the adapter for a child repository of a folder of repositories, given its checked real path
@@ -86,7 +89,7 @@ export interface OpenWorkspaceOptions {
   gitAt?: (root: string) => GitAdapter
   /** Reconcile tracked records on open and on heartbeat (default true). */
   autoReconcile?: boolean
-  /** The desktop owner is about to run an explicit reconcile before serving any other operation. */
+  /** The desktop owner reconciles on its sync lane after opening: open neither reconciles nor flushes first. */
   deferOpenReconcile?: boolean
   serverInfo?: { name: string; version: string }
   /**
@@ -231,6 +234,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private granted: RedeemedGrant | null = null
   /** Validation metadata retained across reconciles of this workspace. */
   private readonly fileHashes = createFileHashCache()
+  readonly recordStatus = createRecordStatusCache()
   /** Adapters `gitFor` opened, by child repository name. */
   private readonly childGits = new Map<string, GitAdapter>()
 
@@ -357,9 +361,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   private assertForgeStorage(): void {
-    assertForgeTransferIdle(this.fs, this.homeDir, this.repoRoot)
-    if (forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot) !== this.forgeEpoch) fail('conflict', 'Ticket storage changed. Reconnect before continuing.')
-    if (boundForgeRoot(this.fs, this.homeDir, this.repoRoot) !== this.repoRoot) fail('conflict', 'Reconnect to the Forge World ticket store.')
+    assertForgeStorage(this.fs, this.homeDir, this.repoRoot, this.forgeEpoch)
   }
 
   private assertCurrentStorage(): void {
@@ -409,6 +411,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private openProjectDatabase(restricted: boolean): Db {
     return openDatabase(this.layout.dbFile, {
       synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true,
+      ...(this.options.onTransaction ? { onTransaction: this.options.onTransaction } : {}),
       ...(this.transport === 'cli' && this.options.onWriterBusy
         ? { onWriterBusy: this.options.onWriterBusy, busyTimeoutMs: 500 }
         : this.transport === 'cli' && !restricted ? { contentionTimeoutMs: CLI_SQLITE_CONTENTION_TIMEOUT_MS } : {})
@@ -708,13 +711,14 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   /**
    * Reconciles the tracked records. An automatic reconcile (open, heartbeat) is skipped while the
-   * inputs are those of the last clean reconcile (`reconcileFingerprint.ts`); an explicit one always
-   * reads everything, and either records the fingerprint for the next session.
+   * inputs are those of the last clean reconcile (`reconcileFingerprint.ts`), and otherwise reads
+   * only the records git reports as changed (`reconcileScope.ts`); an explicit one (the
+   * `reconcile_repository` command, the desktop's Reconcile, Forge validation) always reads
+   * everything. Either records the fingerprint and the git marker for the next session.
    */
   reconcile(automatic = false): ReconcileResultView {
     const store = this.requireStore()
-    const inputs = observeReconcileInputs({ db: store.db, layout: this.layout, fs: this.fs, git: this.git })
-    return reconcileRepository({
+    return tagTransactions('reconcile', () => reconcileRepository({
       db: store.db,
       layout: this.layout,
       fs: this.fs,
@@ -723,25 +727,30 @@ export class RepositoryWorkspace implements WorkspaceCore {
       git: this.git,
       sessionId: store.ctx.session.id,
       fileHashes: this.fileHashes
-    }, automatic ? inputs : { current: () => false, applied: inputs.applied })
+    }, reconcileGate({ db: store.db, layout: this.layout, fs: this.fs, git: this.git }, automatic), { full: !automatic }))
   }
 
-  flush(scope?: FlushScope): FlushResultView {
+  /** An explicit flush (the default) retries every waiting entry at once; `scheduled` leaves failed ones in backoff. */
+  flush(scope?: FlushScope, mode: FlushMode = 'explicit'): FlushResultView {
     const store = this.requireStore()
     // Pending exports belong to the recorded branch; never write them into another checkout.
     this.assertBranch()
-    const outcome = flushOutbox(
+    const outcome = tagTransactions('flush', () => flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
-      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
-      scope
-    )
+      {
+        onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId),
+        previewSavedRevision: (revisionId) => previewSavedRevision(store.ctx, revisionId)
+      },
+      scope,
+      mode
+    ))
     return { flushed: outcome.flushed, failed: outcome.failed, errors: outcome.errors }
   }
 
-  /** Flush after a committed mutation; failures stay recorded in the outbox for retry. */
+  /** Flush after a committed mutation; failures stay recorded in the outbox and are retried after their backoff. */
   safeFlush(): void {
     try {
-      this.flush()
+      this.flush(undefined, 'scheduled')
     } catch {
       // The outbox keeps the entry pending with its error; storage status surfaces it.
     }
@@ -827,7 +836,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.assertStillGranted()
     if (this.store !== null) refreshSavePermission(this.store.ctx)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
-    const result = await this.runCommand(name, input, () => run(this, input))
+    const result = await tagTransactions('command', () => this.runCommand(name, input, () => run(this, input)))
     if (spec.mutates && this.store) {
       this.safeFlush()
     }
@@ -857,8 +866,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const store = this.requireStore()
     this.assertStillGranted()
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
+    // The store was required (and its storage checked) above, so the command's `ctx()` is served it without requiring it again.
     return store.db.tx(() => {
-      const result = run(this, input)
+      const result = this.commandContext.run(store.ctx, () => run(this, input))
       touchMailPollSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
       return result
     })

@@ -117,49 +117,79 @@ function archiveStamp(env: Env, sidecar: string, archive: Archive): string | nul
   return recordStamp === null || imageStamp === null ? null : contentHash([recordStamp, imageStamp])
 }
 
-function savedIdentity(row: StoredArchive | null, dataVersion: number): string | null {
+/** What a verified archive is remembered against: the stored row, complete, with its metadata (its sha256 binds the bytes). */
+function savedIdentity(row: StoredArchive | null): string | null {
   if (row === null || row.missing || row.length !== row.archive.attachment.bytes) return null
-  return contentHash([row.archive, dataVersion])
+  return contentHash([row.archive])
+}
+
+/** Whether restoring `record` would write: its row is absent, without bytes or missing. Refuses conflicting metadata. */
+function wouldRestore(db: Db, record: Archive): boolean {
+  const { id } = record.attachment
+  const current = storedArchive(db, id)
+  if (current === null) return true
+  // Canonical references register a placeholder before their image files restore its original creator.
+  const { archive } = current
+  const placeholder = current.length === null && archive.createdBy.role === 'worker' && archive.createdBy.label === 'imported'
+  const comparable = placeholder ? { ...archive, createdBy: record.createdBy, createdAt: record.createdAt } : archive
+  if (canonicalJson(comparable) !== canonicalJson(record)) fail('conflict', `Recovered attachment ${id} conflicts with existing attachment metadata or ownership.`)
+  const data = loadStoredAttachment(db, id).data
+  if (data !== null) verifyBytes(record, data)
+  return data === null || current.missing
 }
 
 function restoreArchive(env: Env, record: Archive, bytes: Uint8Array): boolean {
+  if (!wouldRestore(env.db, record)) return false
   const { id } = record.attachment
-  const current = storedArchive(env.db, id)
-  if (current === null) {
+  if (storedArchive(env.db, id) === null) {
     insertOwnedRow(env.db, record.attachment, { owner: record.owner.kind, ownerId: record.owner.id, createdAt: record.createdAt })
-  } else {
-    // Canonical references register a placeholder before their image files restore its original creator.
-    const { archive } = current
-    const placeholder = current.length === null && archive.createdBy.role === 'worker' && archive.createdBy.label === 'imported'
-    const comparable = placeholder ? { ...archive, createdBy: record.createdBy, createdAt: record.createdAt } : archive
-    if (canonicalJson(comparable) !== canonicalJson(record)) fail('conflict', `Recovered attachment ${id} conflicts with existing attachment metadata or ownership.`)
-    const data = loadStoredAttachment(env.db, id).data
-    if (data !== null) verifyBytes(record, data)
-    if (data !== null && !current.missing) return false
   }
   env.db.run('UPDATE attachments SET data = ?, missing = 0, created_by_role = ?, created_by_label = ?, created_at = ? WHERE id = ?',
     Buffer.from(bytes), record.createdBy.role, record.createdBy.label, record.createdAt, id)
   return true
 }
 
-function importOne(env: Env, path: string, id: string, dataVersion: number): boolean {
-  const key = `recovered:v1:${id}`
+/** An archive read and verified before the writer lock, whose row still needs it. */
+interface PreparedArchive {
+  path: string
+  record: Archive
+  bytes: Uint8Array
+  /** The sidecar and image stamps, when they held still while read; the verification is remembered against them. */
+  stamp: string | null
+}
+
+/** Whether the verification remembered for the stored row still holds for the archive's current stamps. */
+function rememberedValid(env: Env, path: string, id: string): boolean {
   const saved = storedArchive(env.db, id)
-  const identity = savedIdentity(saved, dataVersion)
-  if (saved !== null && identity !== null && env.fileHashes !== undefined) {
-    const stamp = archiveStamp(env, path, saved.archive)
-    if (stamp !== null && env.fileHashes.get(key, stamp) === identity) return false
+  const identity = savedIdentity(saved)
+  if (saved === null || identity === null || env.fileHashes === undefined) return false
+  const stamp = archiveStamp(env, path, saved.archive)
+  return stamp !== null && env.fileHashes.get(`recovered:v1:${id}`, stamp) === identity
+}
+
+/** Reads and verifies one archive (no write); null when its row already holds it. */
+function prepareOne(env: Env, path: string, id: string): PreparedArchive | null {
+  if (rememberedValid(env, path, id)) return null
+  const sidecarStamp = env.fs.fileStamp(path)
+  const record = readRecord(env, path, id)
+  const before = archiveStamp(env, path, record)
+  const bytes = readBytes(env, record)
+  const stable = before !== null && sidecarStamp !== null && sidecarStamp === env.fs.fileStamp(path) && before === archiveStamp(env, path, record)
+  if (!wouldRestore(env.db, record)) {
+    if (stable) env.fileHashes?.remember(`recovered:v1:${id}`, before, contentHash([record]))
+    return null
   }
-  return env.db.tx(() => {
-    const sidecarStamp = env.fs.fileStamp(path)
-    const record = readRecord(env, path, id)
-    const before = archiveStamp(env, path, record)
-    const changed = restoreArchive(env, record, readBytes(env, record))
-    if (before !== null && sidecarStamp !== null && sidecarStamp === env.fs.fileStamp(path) && before === archiveStamp(env, path, record)) {
-      env.fileHashes?.remember(key, before, contentHash([record, dataVersion]))
-    }
-    return changed
-  })
+  return { path, record, bytes, stamp: stable ? before : null }
+}
+
+/** `prepareOne`, with a failure reported as the archive's rejection. */
+function tryPrepare(env: Env, path: string, id: string, plan: RecoveredPlan): void {
+  try {
+    const prepared = prepareOne(env, path, id)
+    if (prepared !== null) plan.pending.push(prepared)
+  } catch (error) {
+    plan.rejected.push({ path: displayPath(env.layout, path), message: error instanceof Error ? error.message : String(error) })
+  }
 }
 
 /** Shared by export and import: a successful migration must not publish an archive a clone refuses for its size. */
@@ -180,27 +210,45 @@ export function assertRecoveredArchiveBounds(env: Pick<Env, 'fs' | 'layout'>): s
   return names
 }
 
+/** The archives `importRecoveredAttachments` would restore, read and verified without the writer lock, and those it refuses. */
+export interface RecoveredPlan {
+  pending: PreparedArchive[]
+  rejected: { path: string; message: string }[]
+}
+
+/** Reads and verifies `recovered-attachments/` without writing: file reads and hashing happen here, outside any lock. */
+export function prepareRecoveredAttachments(env: Env): RecoveredPlan {
+  const plan: RecoveredPlan = { pending: [], rejected: [] }
+  const dir = directory(env.layout)
+  try {
+    for (const name of assertRecoveredArchiveBounds(env)) {
+      const match = ATTACHMENT_SIDECAR_NAME.exec(name)
+      if (match !== null) tryPrepare(env, join(dir, name), match[1]!, plan)
+    }
+  } catch (error) {
+    plan.rejected.push({ path: displayPath(env.layout, dir), message: error instanceof Error ? error.message : String(error) })
+  }
+  return plan
+}
+
+/** Restores each prepared archive in its own short transaction, rechecking its row under the lock. */
+export function applyRecoveredAttachments(env: Env, plan: RecoveredPlan): { changed: boolean; rejected: { path: string; message: string }[] } {
+  const rejected = [...plan.rejected]
+  let changed = false
+  for (const prepared of plan.pending) {
+    try {
+      changed = env.db.tx(() => restoreArchive(env, prepared.record, prepared.bytes)) || changed
+      if (prepared.stamp !== null) env.fileHashes?.remember(`recovered:v1:${prepared.record.attachment.id}`, prepared.stamp, contentHash([prepared.record]))
+    } catch (error) {
+      rejected.push({ path: displayPath(env.layout, prepared.path), message: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return { changed, rejected }
+}
+
 /** Archives are immutable metadata, checked against any existing row. An owner restored later can use the same image. */
 export function importRecoveredAttachments(env: Env, onChange?: () => void): { path: string; message: string }[] {
-  const rejected: { path: string; message: string }[] = []
-  let changed = false
-  const dir = directory(env.layout)
-  const reject = (path: string, error: unknown): void => { rejected.push({ path: displayPath(env.layout, path), message: error instanceof Error ? error.message : String(error) }) }
-  try {
-    const names = assertRecoveredArchiveBounds(env)
-    if (names.length === 0) return rejected
-    const dataVersion = env.db.get<{ data_version: number }>('PRAGMA data_version')!.data_version
-    for (const name of names) {
-      const match = ATTACHMENT_SIDECAR_NAME.exec(name)
-      if (match === null) continue
-      const path = join(dir, name)
-      try {
-        changed = importOne(env, path, match[1]!, dataVersion) || changed
-      } catch (error) {
-        reject(path, error)
-      }
-    }
-  } catch (error) { reject(dir, error) }
-  if (changed) onChange?.()
-  return rejected
+  const outcome = applyRecoveredAttachments(env, prepareRecoveredAttachments(env))
+  if (outcome.changed) onChange?.()
+  return outcome.rejected
 }

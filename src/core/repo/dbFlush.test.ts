@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { makeBundle } from '../../test/bundles'
 import { doneCard, kanbanSessions } from '../../test/kanbanFixtures'
 import { createRepoEnv, flush, type RepoEnv, stageRevision } from '../../test/repoEnv'
+import { flushOutbox } from './finalizer'
 import {
   idOf,
   insertComment,
@@ -118,6 +119,22 @@ describe('flush in db mode and the repository folder', () => {
     expect(revisionState(env, R1)).toBe('pending')
     expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
     expect(revisionState(env, R1)).toBe('saved')
+  })
+})
+
+describe('flush in db mode and backoff', () => {
+  it('leaves a failed save to a scheduled flush until its backoff passes; an explicit flush retries it at once', () => {
+    const env = dbEnv()
+    const id = stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE })
+    env.hook.failNext = true
+    expect(flush(env).failed).toBe(1)
+    const row = (): unknown => env.db.get('SELECT state, attempts, last_error, next_attempt_at FROM outbox WHERE id = ?', id)
+    expect(row()).toEqual({ state: 'pending', attempts: 1, last_error: 'Injected DB commit failure', next_attempt_at: '2026-01-01T00:00:15.000Z' })
+    env.clock.advanceSeconds(5)
+    expect(flushOutbox(env, env.hook, undefined, 'scheduled')).toMatchObject({ flushed: 0, failed: 0 })
+    expect(revisionState(env, R1)).toBe('pending')
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0, savedRevisionIds: [R1] })
+    expect(row()).toEqual({ state: 'done', attempts: 1, last_error: null, next_attempt_at: null })
   })
 })
 

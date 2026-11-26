@@ -18,6 +18,8 @@ import type { KanbanAttemptView, KanbanBoardView, KanbanPacket } from '../../src
 import type { ProfileProject } from './forge-performance-fixture'
 import type { OwnerAction, OwnerReply } from './forge-performance-owner'
 import { absoluteNow, identity, loopSink } from './forge-performance-sinks'
+import { revampProject, revampRealStore, type RevampDeps } from './forge-performance-revamp'
+import { fireFifteenSecondTimers, installTaps } from './forge-performance-taps'
 
 export interface ProfileRun {
   home: string
@@ -28,9 +30,15 @@ export interface ProfileRun {
   systemNode: string
   repoRevision: string
   result: string
-  mode: 'probe' | 'matrix' | 'production'
+  mode: 'probe' | 'matrix' | 'production' | 'revamp'
   projects: ProfileProject[]
   small: ProfileProject
+  /** Revamp mode: the bundled renderer helpers (`forge-performance-renderer.ts`). */
+  rendererBundle?: string
+  /** Revamp mode: a temporary copy of a real ticket store, tracked after the fixtures. */
+  realStore?: string
+  /** `DM_REVAMP_CLI_PHASES=1`: the `cli-phase-timing.cjs` preload each CLI call runs with (it logs to `DM_CLI_PHASE_LOG`). */
+  cliPreload?: string
 }
 
 const config = JSON.parse(readFileSync(process.argv[2]!, 'utf8')) as ProfileRun
@@ -38,6 +46,10 @@ app.setPath('home', config.home)
 app.setPath('userData', config.userData)
 app.setPath('sessionData', config.userData)
 app.commandLine.appendSwitch('disable-background-timer-throttling')
+// The profiler window shares the desktop with other windows: an occluded window must keep producing frames.
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 process.env['DARKMECHANICUS_HOME'] = config.home
 delete process.env['DM_SESSION_TOKEN']
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL')
@@ -104,7 +116,7 @@ const renderSink = String.raw`(() => {
 
 function runCli(project: ProfileProject, name: string, input: unknown, token?: string) {
   const started = performance.now()
-  const child = spawn(config.systemNode, [config.cliEntry, '--repo', project.root, 'call', name, '-'], {
+  const child = spawn(config.systemNode, [...(config.cliPreload ? ['--require', config.cliPreload] : []), config.cliEntry, '--repo', project.root, 'call', name, '-'], {
     env: { ...process.env, DM_SESSION_TOKEN: token },
     windowsHide: true
   })
@@ -420,6 +432,7 @@ async function profile(window: BrowserWindow): Promise<void> {
   const small = await rendererCommand(window, config.small, 'getProject')
   if (!small.ok) throw new Error(JSON.stringify(small.error))
   if (config.mode === 'production') return production(window, renderer, startup)
+  if (config.mode === 'revamp') return revamp(window)
   const owner = startOwner()
   const ownerReady = await owner.ready
   const smallOwner = startOwner()
@@ -444,6 +457,66 @@ async function profile(window: BrowserWindow): Promise<void> {
   }
 }
 
+
+/** Tracks `root` through the production folder picker, with only the native dialog result substituted. */
+async function trackPath(window: BrowserWindow, root: string): Promise<void> {
+  const showOpenDialog = dialog.showOpenDialog
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] })
+  const tracked = await window.webContents.executeJavaScript('window.dm.pickFolder()')
+    .finally(() => { dialog.showOpenDialog = showOpenDialog }) as { added: boolean }
+  if (!tracked.added) throw new Error('The folder picker did not track the folder.')
+}
+
+function revampDeps(window: BrowserWindow, owner: Owner): RevampDeps {
+  return {
+    window, owner, report, stageChange: stagePortableChange,
+    rendererBundle: config.rendererBundle ?? '',
+    command: <T>(folder: { root: string }, name: string, input?: unknown) => window.webContents.executeJavaScript(
+      `window.dm.command(${JSON.stringify(folder.root)}, ${JSON.stringify(name)}, ${input === undefined ? 'undefined' : JSON.stringify(input)})`
+    ) as Promise<DesktopReply<T>>,
+    // A CLI call that printed no JSON is a result too: it is counted as `no_json`, never retried.
+    cli: async (folder, name, input, token) => {
+      const started = performance.now()
+      return runCli(folder as ProfileProject, name, input, token).done
+        .catch(() => ({ elapsedMs: performance.now() - started, code: null, output: null }))
+    },
+    track: (root) => trackPath(window, root),
+    heartbeatNow: () => { if (fireFifteenSecondTimers() === 0) throw new Error('The desktop heartbeat timer was not captured.') }
+  }
+}
+
+async function revamp(window: BrowserWindow): Promise<void> {
+  // Click to paint waits for animation frames. Another window covering this one (Windows occlusion) must not
+  // pause them: keep the page visible to Chromium. This is a profiler condition; the app is unchanged.
+  window.webContents.setBackgroundThrottling(false)
+  const owner = startOwner()
+  const ownerReady = await owner.ready
+  report('revamp-identity', { rev: config.repoRevision, platform: process.platform, arch: process.arch, main: identity(), owner: ownerReady })
+  const deps = revampDeps(window, owner)
+  try {
+    for (const project of config.projects) {
+      await trackCold(window, project)
+      // Click to paint reloads the renderer, which drops the liveness sink: reinstall it when it is gone.
+      await window.webContents.executeJavaScript(`typeof window.dmPerfRead === 'function' || ${renderSink}`)
+      // The owner answers at once and imports on its sync lane (DM-963): the cold open lasts until the epics are listed.
+      const cold = await livenessDuring(window, config.small, async () => {
+        for (;;) {
+          const listed = await rendererCommand<unknown[]>(window, project, 'listEpics')
+          if (!listed.ok) throw new Error(JSON.stringify(listed.error))
+          if (listed.data.length >= project.epics) return listed
+          await delay(25)
+        }
+      })
+      report('revamp-cold-open', { tickets: project.tickets, elapsedMs: cold.elapsedMs, mainLoop: cold.mainLoop })
+      await revampProject(deps, project)
+      await window.webContents.executeJavaScript(`window.dm.untrackFolder(${JSON.stringify(project.root)})`)
+    }
+    if (config.realStore !== undefined) await revampRealStore(deps, config.realStore)
+  } finally {
+    mainSink.close()
+    owner.child.kill()
+  }
+}
 
 const projectOwners = new Map<string, UtilityProcess>()
 let onDispatch: ((message: WorkspaceRequest, owner: UtilityProcess) => void) | undefined
@@ -572,10 +645,12 @@ function assertWriterOutcome(result: { result: DesktopReply<unknown>; beforeRele
   if (main.count === 0 || main.maxGapMs >= 100 || renderer.count === 0) throw new Error('Main or renderer failed to stay live behind the held writer.')
 }
 
+// The revamp matrix runs 30 samples per view and condition on three fixtures, plus a 60-second agent run.
+const RUN_BOUND_MS = config.mode === 'revamp' ? 3_600_000 : 150_000
 const watchdog = setTimeout(() => {
-  report('failure', { message: 'Electron profiler exceeded its 150-second run bound.' })
+  report('failure', { message: `Electron profiler exceeded its ${RUN_BOUND_MS / 1000}-second run bound.` })
   app.exit(1)
-}, 150_000)
+}, RUN_BOUND_MS)
 app.once('ready', () => bootMark('electronReady'))
 app.once('browser-window-created', (_event, window) => {
   bootMark('windowCreated')
@@ -592,6 +667,7 @@ app.once('browser-window-created', (_event, window) => {
   })
 })
 function launch(): void {
+  if (config.mode === 'revamp') installTaps()
   bootMark('loadAppStart')
   createRequire(__filename)(config.builtApp)
   bootMark('loadAppEnd')
