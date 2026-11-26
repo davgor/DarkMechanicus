@@ -35,7 +35,7 @@ export type ClaudeProtocolState = {
   todos: Map<string | null, AgentTodoPhase[]>
   seen: Set<string>
 }
-export type ClaudeCommand =
+type ClaudeCommand =
   | { type: 'send'; text: string; uuid: string; sessionId?: string }
   | { type: 'interrupt'; requestId: string }
   | { type: 'answer'; promptId: string; optionId: string; text?: string }

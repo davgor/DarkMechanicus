@@ -1,11 +1,11 @@
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { agentChatState, reduceAgentChat } from './agentChatModel'
-import { removeScratch } from '../../../test/removeScratch'
-import { createChatStore, type ChatRef, type ChatStore } from '../../../main/agents/chatStore'
-import { createAgentChatSessions, type AgentChatSessions } from '../../../main/agentChat/agentChatSessions'
-import { startAgentProcess, type AgentProcess, type AgentProcessExit } from '../../../main/agentChat/agentProcess'
-import { agentChatRig } from '../../../main/agentChat/__mocks__/agentChatRig'
+import { agentChatState, reduceAgentChat } from '../renderer/src/agentChat/agentChatModel'
+import { removeScratch } from '../test/removeScratch'
+import { createChatStore, type ChatRef, type ChatStore } from '../main/agents/chatStore'
+import { createAgentChatSessions, type AgentChatSessions } from '../main/agentChat/agentChatSessions'
+import { startAgentProcess, type AgentProcess, type AgentProcessExit } from '../main/agentChat/agentProcess'
+import { agentChatRig } from '../main/agentChat/__mocks__/agentChatRig'
 
 /** Deletes the chat as production does: the GUI process stops first, then the record goes. */
 function deleteChat(r: { sessions: AgentChatSessions; store: Pick<ChatStore, 'deleteChat'> }, chat: ChatRef): Promise<void> {

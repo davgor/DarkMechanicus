@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { agentChatState, reduceAgentChat } from './agentChatModel'
-import { createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolEvent, type ClaudeProtocolState } from '../../../main/agentChat/claudeProtocol'
+import { agentChatState, reduceAgentChat } from '../renderer/src/agentChat/agentChatModel'
+import { createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolEvent, type ClaudeProtocolState } from '../main/agentChat/claudeProtocol'
 
 const at = '2026-11-24T00:00:00.000Z'
 const ref = { folder: null, chatId: 'regression' }

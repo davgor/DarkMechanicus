@@ -23,7 +23,7 @@ export interface AgentTreeNode extends AgentTreeNodeInput {
   needsYouBelow: boolean
 }
 
-export interface AgentTreeCounts {
+interface AgentTreeCounts {
   needsYou: number
   working: number
   done: number

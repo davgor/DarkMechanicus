@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { ChatItem } from '../../../shared/agents/chat'
-import { createOmpState, initLines, translateOmpLine, type OmpEvent } from '../../../main/agentChat/ompProtocol'
-import { agentChatState, reduceAgentChat } from './agentChatModel'
+import type { ChatItem } from '../shared/agents/chat'
+import { createOmpState, initLines, translateOmpLine, type OmpEvent } from '../main/agentChat/ompProtocol'
+import { agentChatState, reduceAgentChat } from '../renderer/src/agentChat/agentChatModel'
 
 const at = '2026-11-24T00:00:00.000Z'
-const root = join(import.meta.dirname, '..', '..', '..', 'main', 'agentChat', '__fixtures__', 'omp')
+const root = join(import.meta.dirname, '..', 'main', 'agentChat', '__fixtures__', 'omp')
 function lines(name: string, direction: 'in' | 'out'): string[] {
   const text = readFileSync(join(root, `${name}.${direction}.jsonl`), 'utf8')
   expect(text).not.toContain('\r')

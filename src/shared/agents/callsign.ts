@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { ChatRole } from './chat'
 
-export const CALLSIGN_ROLES = ['Magos', 'Lexmechanic', 'Acolyte', 'Inquisitor', 'Servitor'] as const
+const CALLSIGN_ROLES = ['Magos', 'Lexmechanic', 'Acolyte', 'Inquisitor', 'Servitor'] as const
 export const callsignSchema = z.strictObject({
   role: z.enum(CALLSIGN_ROLES),
   ticketKey: z.string().regex(/^[A-Za-z0-9]{1,12}-\d{1,9}$/).nullable(),

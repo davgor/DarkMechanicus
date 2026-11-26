@@ -15,7 +15,7 @@
     "package": "npm run package:win",
     "package:win": "node scripts/packaging-guard.mjs && electron-vite build && electron-builder --win --publish never",
     "package:mac": "node scripts/packaging-guard.mjs && electron-vite build && electron-builder --mac --publish never",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.integration-ui.json && tsc --noEmit -p fireguard/tsconfig.json",
     "lint": "oxlint src scripts resources/skitarii/extension",
     "test": "vitest run && vitest run --config fireguard/vitest.config.ts",
     "test:fireguard": "vitest run --config fireguard/vitest.config.ts",

@@ -6,9 +6,6 @@ import { RAIL_TAB_ORDER, useRailState } from './useRailState'
 import type { RailStateHandle, RailTabId } from './useRailState'
 import './rightRail.css'
 
-export { RAIL_TAB_ORDER } from './useRailState'
-export type { RailTabId } from './useRailState'
-
 export interface RailTab {
   id: RailTabId
   label: string

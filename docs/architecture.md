@@ -614,6 +614,7 @@ Defense in depth on both bridges (desktop IPC and MCP); the command layer's auth
 - `npm run smoke:mcp` launches the built `out/main/mcp.js` over real stdio (set `MCP_SMOKE_COMMAND` to Electron's binary to use its runtime) and plans, saves, and runs a ticket end to end.
 - `npm run spike:claims` races claims on one ticket from 8 processes (exactly one winner per round).
 - `src/integration/` exercises the real Workspace through the command table, MCP tools (in-memory transport), and desktop IPC handlers.
+- `src/integration-ui/` holds the tests that run main-process code into a renderer model (GUI chat sessions and the Claude and OMP translators feeding `agentChatModel`). They live in their own `tsconfig.integration-ui.json`, the fourth project `npm run typecheck` checks. That keeps main imports out of the web program and renderer imports out of the node program, so `npm run deadcode` (ts-prune over `tsconfig.node.json` and `tsconfig.web.json`) sees each export's real consumers only. Vitest, coverage and oxlint still cover them through `src/**`.
 - Fireguard scopes mutants to the graded tests that import the mutated module and bounds each test run with `testTimeoutMs`, so milestone-sized branches grade in hours, not days, and an infinite-loop mutant counts as killed.
 
 ## Decisions taken during implementation
