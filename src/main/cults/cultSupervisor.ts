@@ -189,7 +189,7 @@ function expire(s: State, runId: string): void {
 
 // --- members -----------------------------------------------------------------------------------------------------
 
-/** Tracks a member whose terminal just started: its process in the ledger, its exit watched, its state active. */
+/** Tracks a member whose terminal just started: its exit watched, its state active, its process in the ledger. */
 async function track(s: State, runId: string, launched: LaunchedMember): Promise<CultMemberView> {
   const chatId = launched.chat.id
   if (launched.start.state !== 'running') {
@@ -197,14 +197,15 @@ async function track(s: State, runId: string, launched: LaunchedMember): Promise
     fail('internal_error', `${launched.member.displayName} did not start: ${launched.start.message}`)
   }
   s.chatRuns.set(chatId, runId)
-  await s.deps.ledger.addProcess({ runId, chatId, pid: launched.start.pid })
   const member = s.deps.cults.updateMember(runId, chatId, { state: 'active' })
+  const recording = s.deps.ledger.addProcess({ runId, chatId, pid: launched.start.pid })
   // It may have exited before it was watched.
   if (!s.deps.terminals.isRunning(chatId)) memberExited(s, chatId)
+  await recording
   return member
 }
 
-function requireAcolyte(s: State, runId: string, chatId: string): CultMemberView {
+function requireLiveMember(s: State, runId: string, chatId: string): CultMemberView {
   const member = liveMembers(s, runId).find((candidate) => candidate.chatId === chatId)
   if (member === undefined) fail('not_found', `No live member ${chatId} in cult run ${runId}.`)
   return member
@@ -236,7 +237,7 @@ async function endMember(s: State, runId: string, member: CultMemberView, change
 
 async function dismissAcolyte(s: State, runId: string, chatId: string): Promise<CultMemberView> {
   requireRunning(requireRun(s, runId), 'dismiss an acolyte')
-  const member = requireAcolyte(s, runId, chatId)
+  const member = requireLiveMember(s, runId, chatId)
   if (member.role !== 'acolyte') fail('invalid_input', 'Only an acolyte can be dismissed.')
   const dismissed = await endMember(s, runId, member, { state: 'dismissed', graceful: true })
   emit(s, runId)
@@ -244,7 +245,7 @@ async function dismissAcolyte(s: State, runId: string, chatId: string): Promise<
 }
 
 async function concludeMember(s: State, runId: string, chatId: string): Promise<CultMemberView> {
-  const member = requireAcolyte(s, runId, chatId)
+  const member = requireLiveMember(s, runId, chatId)
   const run = requireRun(s, runId)
   if (member.role === 'magos' && run.state !== 'shutting_down') await beginShutdown(s, runId, 'completed')
   const concluded = await endMember(s, runId, member, { state: 'concluded', graceful: true })
@@ -283,19 +284,19 @@ function step(s: State, runId: string, summary: string): void {
   emit(s, runId)
 }
 
+/** Starts the graceful shutdown; its steps are timed from now, on the run's own grace and window. */
 async function beginShutdown(s: State, runId: string, reason: ShutdownReason): Promise<CultRunSnapshot> {
   const entry = supervised(s, runId)
   const run = s.deps.cults.transitionRun(runId, { type: 'shutdown', reason })
   cancelTimers(entry)
-  await tell(s, liveMembers(s, runId), (member) => ({ action: member.role === 'magos' ? 'wind_down' : 'conclude' }))
   const grace = run.acolyteGraceMs
-  const window = grace + run.magosWindowMs
   entry.shutdownTimers = [
     schedule(s.clock, grace, () => void graceOver(s, runId).catch(s.onError)),
-    schedule(s.clock, window, () => void windowOver(s, runId).catch(s.onError)),
-    schedule(s.clock, backstopMs(run.acolyteGraceMs, run.magosWindowMs), () => void backstop(s, runId).catch(s.onError))
+    schedule(s.clock, grace + run.magosWindowMs, () => void windowOver(s, runId).catch(s.onError)),
+    schedule(s.clock, backstopMs(grace, run.magosWindowMs), () => void backstop(s, runId).catch(s.onError))
   ]
   emit(s, runId)
+  await tell(s, liveMembers(s, runId), (member) => ({ action: member.role === 'magos' ? 'wind_down' : 'conclude' }))
   await finishIfDone(s, runId)
   return snapshot(s, runId)
 }
@@ -325,6 +326,7 @@ async function backstop(s: State, runId: string): Promise<void> {
   if (entry === undefined) return
   step(s, runId, 'The backstop ended every member still running.')
   entry.ending = true
+  await revokeUpgrades(s, runId)
   await endEveryone(s, runId)
   await finish(s, runId)
 }
@@ -349,16 +351,22 @@ async function abort(s: State, runId: string, reason: AbortReason): Promise<Cult
   const entry = supervised(s, runId)
   entry.ending = true
   cancelTimers(entry)
+  await revokeUpgrades(s, runId)
   await endEveryone(s, runId)
   if (requireRun(s, runId).state !== 'ended') s.deps.cults.transitionRun(runId, { type: 'abort', reason })
   await settle(s, runId)
   return snapshot(s, runId)
 }
 
-/** After the run ended: every petition upgrade revoked, the run's records here dropped, the end told. */
-async function settle(s: State, runId: string): Promise<void> {
+/** Revokes every petition upgrade of the run; one already gone with its member's terminal needs nothing more. */
+async function revokeUpgrades(s: State, runId: string): Promise<void> {
   const upgrades = s.deps.ledger.grants().filter((grant) => grant.runId === runId)
   await Promise.all(upgrades.map((grant) => revokeUpgrade(s.upgrades, grant).catch(s.onError)))
+}
+
+/** After the run ended: every upgrade revoked, the run's records here dropped, the end told. */
+async function settle(s: State, runId: string): Promise<void> {
+  await revokeUpgrades(s, runId)
   for (const member of s.deps.cults.listMembers(runId)) {
     s.chatRuns.delete(member.chatId)
     void s.deps.control.clear(member.chatId).catch(s.onError)

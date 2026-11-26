@@ -26,7 +26,7 @@ import { DomainError, fail } from '../../core/errors'
 import type { ChatRecord, ChatRole } from '../../shared/agents/chat'
 import { isSafeModelId } from '../../shared/agents/models'
 import type { RosterSlot } from '../../shared/cults/archetypes'
-import type { CultMemberView, CultRunView, CultView, MemberRole } from '../../shared/cults/cult'
+import type { CultMemberView, CultRunView, CultView, MemberRole, RunStartInput } from '../../shared/cults/cult'
 import { cultistName } from '../../shared/cults/names'
 import type { ChatRecords } from '../agents/chatRecords'
 import type { ProjectWorkspace } from '../desktop/workspaceClient'
@@ -88,7 +88,7 @@ export interface CultLauncher {
   /** The cult's tracked folder (still tracked), or its sanctum, created, registered and set up in db mode. */
   prepareWorkspace(cult: CultView): Promise<string>
   /** Prepares the workspace, records the run, and starts its Magos; the run is `running` once the Magos runs. */
-  launch(cultId: string, options?: { timeLimitMs?: number | null; cap?: number }): Promise<{ run: CultRunView; magos: LaunchedMember }>
+  launch(cultId: string, options?: Omit<RunStartInput, 'workDir'>): Promise<{ run: CultRunView; magos: LaunchedMember }>
   startMagos(run: CultRunView): Promise<LaunchedMember>
   startAcolyte(run: CultRunView, request: AcolyteRequest): Promise<LaunchedMember>
   endMember(chatId: string, options: { graceful: boolean }): Promise<void>
@@ -212,7 +212,7 @@ async function startMagos(deps: CultLauncherDeps, run: CultRunView): Promise<Lau
   })
 }
 
-async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: string, options: { timeLimitMs?: number | null; cap?: number }) {
+async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: string, options: Omit<RunStartInput, 'workDir'>) {
   const cult = requireCult(deps, cultId)
   const workDir = await launcher.prepareWorkspace(cult)
   const run = deps.cults.startRun(cultId, { workDir, ...options })
