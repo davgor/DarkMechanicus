@@ -462,11 +462,13 @@ async function reconcileOnStartup(s: State): Promise<CultRunView[]> {
   const grants = s.deps.ledger.grants().filter((grant) => !s.runs.has(grant.runId))
   await Promise.all(grants.map((grant) => revokeLeftUpgrade(s.upgrades, grant).catch(s.onError)))
   const runs = s.deps.cults.activeRunsOnStartup().filter((run) => !s.runs.has(run.id))
-  return runs.map((run) => {
+  return Promise.all(runs.map(async (run) => {
     for (const member of liveMembers(s, run.id)) s.deps.cults.updateMember(run.id, member.chatId, { state: 'left' })
     s.deps.cults.transitionRun(run.id, { type: 'abort', reason: 'interrupted' }, 'The app stopped while the run was active.')
+    // A member chat resumed later must not apply what its control file still holds from the run.
+    await Promise.all(s.deps.cults.listMembers(run.id).map((member) => s.deps.control.clear(member.chatId).catch(s.onError)))
     return emit(s, run.id).run
-  })
+  }))
 }
 
 function serialized<T>(s: State, runId: string, work: () => Promise<T>): Promise<T> {

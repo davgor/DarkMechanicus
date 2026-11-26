@@ -98,6 +98,12 @@ import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createCrossRepoCorrectionHandlers, registerCrossRepoCorrectionIpc } from './crossRepoCorrections'
 import { createFolderAgentDefaults, type FolderAgentDefaults } from './folderAgentDefaults'
 import { createSanctumRegistry, withSanctums, type SanctumRegistry } from '../cults/sanctumRegistry'
+import { createCultStore } from '../cults/cultStore'
+import { createCultControl } from '../cults/cultControl'
+import { createCultLedger, systemLeftovers } from '../cults/cultLedger'
+import { createCultLauncher } from '../cults/cultLauncher'
+import { createCultSupervisor, type CultSupervisor } from '../cults/cultSupervisor'
+import { cheapest, createOmpModelCatalog } from '../cults/ompModels'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import {
@@ -936,6 +942,58 @@ function drainingApprovals(chats: DesktopBridge['chats'], approvals: LearningApp
   }
 }
 
+/** What the cult runs are supervised over: the chat processes' records, terminals and grants, the sanctum-aware gates. */
+interface CultServiceDeps {
+  appDb: Db
+  registry: FolderRegistry
+  gates: FolderRegistry
+  sanctums: SanctumRegistry
+  agents: AgentRegistry
+  pool: WorkspacePool
+  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants'>
+}
+
+/**
+ * The cult supervisor (`docs/design/cults.md`, section 3): runs left active by a crash are marked interrupted at once,
+ * and the processes and upgrades they left ended.
+ */
+function startCults(deps: CultServiceDeps): CultSupervisor {
+  const userData = app.getPath('userData')
+  const cults = createCultStore({ db: deps.appDb })
+  const control = createCultControl({ userData })
+  const { chats, store, terminals, grants } = deps.processes
+  const models = createOmpModelCatalog({
+    ompPath: () => deps.agents.list().find((agent) => agent.kind === 'omp')?.executablePath ?? null, deps: agentRunDeps()
+  })
+  const launcher = createCultLauncher({
+    cults, folders: deps.registry, sanctums: deps.sanctums, chats, terminals, control, userData, dmHome: darkMechanicusHome(),
+    workspaceFor: (folder) => desktopWorkspace(deps.gates, deps.pool, folder),
+    closeWorkspace: (folder) => deps.pool.close(folder),
+    cheapestModel: async () => cheapest((await models.list()).options)?.id ?? null
+  })
+  const supervisor = createCultSupervisor({
+    cults, launcher, terminals, control, ledger: createCultLedger({ userData }), grants, chatStore: store, userData,
+    revokeGrantIn: async (folder, grantId) => {
+      await desktopWorkspace(deps.gates, deps.pool, folder).revokeGrant({ grantId })
+    },
+    folders: deps.registry, leftovers: systemLeftovers(),
+    onError: (error) => logger.error('Cult supervision failed:', error)
+  })
+  void supervisor.reconcileOnStartup().catch((error: unknown) => logger.error('Cult startup recovery failed:', error))
+  return supervisor
+}
+
+/** The quit also ends every cult run first: it is recorded interrupted and its upgrades revoked before the chats end. */
+function endingCults(chats: DesktopBridge['chats'], cults: Pick<CultSupervisor, 'busy' | 'dispose'>): DesktopBridge['chats'] {
+  return {
+    busy: () => chats.busy() || cults.busy(),
+    dispose: async () => {
+      await cults.dispose()
+      await chats.dispose()
+    }
+  }
+}
+
 /** Serves the `knowledge:*` channels: layer status for a tracked folder, and the overall repository chosen only with the native picker. */
 function startKnowledge(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve' | 'storageMode'>): void {
   registerKnowledgeIpc(
@@ -1083,7 +1141,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
   // Cult sanctums pass the untracked-folder gates through `gates.resolve`; Folders, reach and forge lists stay registry-only.
-  // The cult service (later tickets) creates its `cultLauncher` over these same sanctums.
+  // The cult launcher (`startCults`) prepares and starts runs over these same sanctums.
   const sanctums = createSanctumRegistry({ userData: app.getPath('userData') })
   const gates = withSanctums(registry, sanctums)
   const agents = openAgentRegistry(appDb)
@@ -1117,6 +1175,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: gates, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
+  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants } })
   const stores = async (): Promise<void> => { await approvals.dispose(); await forge.stop(); await close() }
-  return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }
+  return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

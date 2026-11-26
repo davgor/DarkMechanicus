@@ -469,6 +469,7 @@ describe('cult supervisor: quit and restart', () => {
     await f.ledger.addProcess({ runId: run.id, chatId: f.h.rig.newChat('omp').id, pid: 1 })
     // The crash: the old supervisor hears nothing more.
     f.hearing.on = false
+    await controlled(magos, 'petition')
 
     const restarted = supervisorOver({ ...f, hearing: { on: true }, ledger: createCultLedger({ userData: f.h.rig.userData }) })
     const interrupted = await restarted.reconcileOnStartup()
@@ -480,6 +481,8 @@ describe('cult supervisor: quit and restart', () => {
     expect(await grantOf(run.workDir, magosGrant)).toMatchObject({ active: false })
     expect(f.h.rig.store.getChat({ folder: run.workDir, id: magos.chatId })!.allowSave).toBe(false)
     expect(createCultLedger({ userData: f.h.rig.userData }).processes()).toEqual([])
+    // A member chat resumed later finds no control file to re-apply.
+    expect(existsSync(cultControlPath(f.h.rig.userData, magos.chatId))).toBe(false)
     expect(await restarted.reconcileOnStartup()).toEqual([])
   })
 })
