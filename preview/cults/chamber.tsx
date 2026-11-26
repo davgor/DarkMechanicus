@@ -109,6 +109,10 @@ function Controls({ feed, send, setFeed, selected }: FeedControls & { selected: 
     <Button label="order one" onClick={() => target && send({ type: 'orderSent', to: target, orderId: `o-${Date.now()}` })} />
     <Button label="order all" onClick={() => send({ type: 'orderSent', to: 'all', orderId: `all-${Date.now()}` })} />
     <Button label="report" onClick={() => target && send({ type: 'reportSent', from: target })} />
+    <Button label="speak" onClick={() => target && send({ type: 'bubble', id: target, text: `${target}: <b>cogitating</b> the rite` })} />
+    <Button label="magos speaks" onClick={() => send({ type: 'bubble', id: 'magos', text: 'The Omnissiah wills it. Proceed.' })} />
+    <Button label="all speak" onClick={() => send(...feed.present.map((id): ChamberEvent =>
+      ({ type: 'bubble', id, text: 'Binharic cant for the motive force' })))} />
     <Button label="pause" onClick={() => run('paused')} />
     <Button label="resume" onClick={() => run('running')} />
     <Button label="end" onClick={() => run('ending')} />

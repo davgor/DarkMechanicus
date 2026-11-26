@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CHAMBER_CLIPS, CHAMBER_PROPS } from './chamberArt'
 import { applyChamberEvent, createChamber, staticChamber, type ChamberEvent } from './chamberState'
 import { CultChamber, backdropRect, type ChamberMember } from './CultChamber'
+import { plateMetrics } from './plates'
 import { chamberLayout } from './layout'
 
 const ROOM = { width: 1280, height: 800 }
@@ -131,7 +132,7 @@ describe('CultChamber scene', () => {
     expect(kinds).toEqual(['door-closed', 'teleport-pad', ...layout.consoles.map(() => 'console'), 'helm'])
     expect(layout.consoles.length).toBeGreaterThanOrEqual(3)
     expect(view.query('.cc-conduit')).not.toBeNull()
-    expect(view.query('.cc-effects').childElementCount).toBe(0)
+    expect(view.all('[data-effect]')).toHaveLength(0)
   })
 
 })
@@ -234,7 +235,8 @@ describe('CultChamber loop timing and reduced motion', () => {
       const plate = view.query(`[data-member-id="${acolyte.id}"] .cc-nameplate`)
       expect(sprite.dataset.action).toBe(acolyte.pose)
       expect(plate.style.left).toBe(`${acolyte.x}px`)
-      expect(plate.style.top).toBe(`${acolyte.y + 2}px`)
+      const { rowHeight } = plateMetrics(layout.spriteScale)
+      expect(plate.style.top).toBe(`${acolyte.y + 2 + Number(plate.dataset.row) * rowHeight}px`)
     }
     expect(expected.acolytes.find((item) => item.id === 'm2')!.pose).toBe('type')
     view.rerender(<CultChamber events={[...JOIN, { type: 'working', id: 'm1', on: true }]} seed={7} members={MEMBERS}

@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { MascotSprite } from '../../mascot/MascotSprite'
 import type { MotionState } from '../../mascot/motion'
 import { useMotionPreference, usePageVisible } from '../../mascot/motionGuards'
+import { ChamberEffects } from './ChamberEffects'
 import { CHAMBER_CLIPS, CHAMBER_PROPS, SCENERY_IMAGES } from './chamberArt'
 import {
-  applyChamberEvent, createChamber, staticChamber, stepChamber,
+  applyChamberEvent, createChamber, MAGOS_ID, staticChamber, stepChamber,
   type ChamberAcolyte, type ChamberEvent, type ChamberState
 } from './chamberState'
+import type { ChamberEffect } from './effects'
 import { chamberLayout, type ChamberLayout, type Rect, type Size } from './layout'
 import { MagosSprite } from './MagosSprite'
+import { layoutPlates, plateMetrics, type PlatePlacement } from './plates'
+import { layoutBubbles, SpeechBubble, type BubbleInput } from './SpeechBubble'
 import './chamber.css'
 
 export interface ChamberMember {
@@ -172,21 +176,116 @@ interface AcolyteProps {
   member: ChamberMember | undefined
   scale: number
   selected: boolean
+  plate: PlatePlacement | undefined
+  rowHeight: number
+  outlined: boolean
   onSelect: (id: string) => void
 }
 
-function Acolyte({ acolyte, member, scale, selected, onSelect }: AcolyteProps): JSX.Element {
+function Acolyte({ acolyte, member, scale, selected, plate, rowHeight, outlined, onSelect }: AcolyteProps): JSX.Element {
   const tint = { '--member-hue': `${member?.hue ?? 0}deg` } as CSSProperties
+  const row = plate?.row ?? 0
   return <div className="cc-acolyte" data-member-id={acolyte.id} data-selected={selected} data-mode={acolyte.mode}
     style={tint} onClick={() => onSelect(acolyte.id)}>
     <MascotSprite motion={spriteMotion(acolyte)} action={acolyte.pose} playbackMs={acolyte.poseElapsed} scale={scale} />
-    <span className="cc-nameplate" style={{ left: acolyte.x, top: acolyte.y + 2 }}>{member?.name ?? acolyte.id}</span>
+    <span className="cc-nameplate" data-row={row} data-hidden={plate?.hidden ?? false} data-outlined={outlined}
+      style={{ left: acolyte.x, top: acolyte.y + 2 + row * rowHeight, maxWidth: plate?.width }}>
+      {member?.name ?? acolyte.id}
+    </span>
+  </div>
+}
+
+export const OUTLINE_MS = 1600
+
+/** Recipients of the orders among `effects` newer than `seen`: a packet's target, or every target of a ring. */
+function orderRecipients(effects: readonly ChamberEffect[], seen: number): string[] {
+  return effects.filter((effect) => effect.id > seen).flatMap((effect) => {
+    if (effect.kind === 'ring') return effect.targets.map((target) => target.id)
+    return effect.kind === 'packet' && effect.purpose === 'order' ? [effect.to] : []
+  })
+}
+
+/**
+ * Reduced motion replaces order packets and rings with a brief outline on the recipients' name plates. New orders
+ * are read from the (unstepped) chamber state's effects; each outline clears after OUTLINE_MS.
+ */
+function useOrderOutlines(effects: readonly ChamberEffect[], reduced: boolean): ReadonlySet<string> {
+  const [outlined, setOutlined] = useState<ReadonlySet<string>>(new Set())
+  const seen = useRef(Number.POSITIVE_INFINITY)
+  const newest = effects.reduce((most, effect) => Math.max(most, effect.id), 0)
+  useEffect(() => {
+    if (!reduced) {
+      seen.current = Number.POSITIVE_INFINITY
+      return
+    }
+    const fresh = Number.isFinite(seen.current) ? orderRecipients(effects, seen.current) : []
+    seen.current = Math.max(Number.isFinite(seen.current) ? seen.current : 0, newest)
+    if (fresh.length === 0) return
+    setOutlined(new Set(fresh))
+    const timer = window.setTimeout(() => setOutlined(new Set()), OUTLINE_MS)
+    return () => window.clearTimeout(timer)
+  }, [effects, newest, reduced])
+  return reduced ? outlined : new Set()
+}
+
+interface BubbleContext {
+  layout: ChamberLayout
+  roster: ReadonlyMap<string, ChamberMember>
+  selectedMemberId: string | null | undefined
+}
+
+/** Each shown bubble at its speaker's head, in the member colour or, for the Magos, brass. */
+function bubbleInputs(state: ChamberState, { layout, roster, selectedMemberId }: BubbleContext): BubbleInput[] {
+  return Object.entries(state.bubbles).flatMap(([id, bubble]): BubbleInput[] => {
+    if (id === MAGOS_ID) {
+      return [{ id, text: bubble.text, x: layout.magos.x, headY: layout.magos.y - layout.magosSize.height,
+        color: 'var(--accent)', priority: true }]
+    }
+    const acolyte = state.acolytes.find((item) => item.id === id)
+    if (!acolyte) return []
+    return [{ id, text: bubble.text, x: acolyte.x, headY: acolyte.y - layout.spriteSize.height,
+      color: `hsl(${roster.get(id)?.hue ?? 0} 70% 58%)`, priority: id === selectedMemberId }]
+  })
+}
+
+interface SceneProps extends BubbleContext {
+  state: ChamberState
+  reduced: boolean
+  outlined: ReadonlySet<string>
+  onSelectMember: (id: string) => void
+}
+
+/** The decorative scene; its root carries the run-state theatrics as classes. */
+function Scene({ state, layout, roster, selectedMemberId, reduced, outlined, onSelectMember }: SceneProps): JSX.Element {
+  const plates = layoutPlates(state.acolytes.map((acolyte) => ({ id: acolyte.id, x: acolyte.x,
+    name: roster.get(acolyte.id)?.name ?? acolyte.id,
+    priority: outlined.has(acolyte.id) || acolyte.id in state.bubbles, forced: acolyte.id === selectedMemberId })),
+  layout.spriteScale)
+  const { rowHeight } = plateMetrics(layout.spriteScale)
+  const bubbles = layoutBubbles(bubbleInputs(state, { layout, roster, selectedMemberId }), layout.size.width)
+  const theatrics = ['cc-scene', state.stasis && 'cc-stasis', state.lightsDim && 'cc-lights-dim',
+    state.blackout && 'cc-blackout', state.warning && 'cc-warning'].filter(Boolean).join(' ')
+  return <div className={theatrics} aria-hidden="true" data-reduced={reduced}>
+    <div className="cc-world">
+      <Scenery layout={layout} open={doorOpen(state, layout)} />
+      <MagosSprite magos={state.magos} layout={layout} />
+      <div className="cc-actors">
+        {state.acolytes.map((acolyte) => <Acolyte key={acolyte.id} acolyte={acolyte} member={roster.get(acolyte.id)}
+          scale={layout.spriteScale} selected={acolyte.id === selectedMemberId} plate={plates.get(acolyte.id)}
+          rowHeight={rowHeight} outlined={outlined.has(acolyte.id)} onSelect={onSelectMember} />)}
+      </div>
+      <div className="cc-bubbles">{bubbles.map((bubble) => <SpeechBubble key={bubble.id} bubble={bubble} />)}</div>
+    </div>
+    <div className="cc-shade" />
+    <ChamberEffects effects={reduced ? [] : state.effects} width={layout.size.width} height={layout.size.height}
+      warning={state.warning} stasis={state.stasis} />
   </div>
 }
 
 /**
  * The cult chamber: backdrop, viewscreen, props, the Magos at the helm and a tinted, name-plated acolyte per member,
- * driven by the chamber simulation. Decorative: the Cult page's roster carries every fact and control.
+ * with speech bubbles, order and report effects and the run-state theatrics, all driven by the chamber simulation.
+ * Decorative: the Cult page's roster carries every fact and control.
  */
 export function CultChamber({ events, seed, viewscreen, selectedMemberId, onSelectMember, members }: CultChamberProps): JSX.Element {
   const root = useRef<HTMLDivElement>(null)
@@ -198,20 +297,14 @@ export function CultChamber({ events, seed, viewscreen, selectedMemberId, onSele
   const active = !reduced && visible && onScreen
   const state = useChamberSimulation(events, seed, layout, active)
   const shown = useMemo(() => reduced ? staticChamber(state, layout) : state, [reduced, state, layout])
+  const outlined = useOrderOutlines(state.effects, reduced)
   const roster = useMemo(() => new Map(members.map((member) => [member.id, member])), [members])
   const ready = size.width > 0 && size.height > 0
   return <div ref={root} className="cc-chamber" data-animated={active && ready}
     style={{ '--cc-sprite-scale': layout.spriteScale } as CSSProperties}>
     {ready && <>
-      <div className="cc-scene" aria-hidden="true">
-        <Scenery layout={layout} open={doorOpen(shown, layout)} />
-        <MagosSprite magos={shown.magos} layout={layout} />
-        <div className="cc-actors">
-          {shown.acolytes.map((acolyte) => <Acolyte key={acolyte.id} acolyte={acolyte} member={roster.get(acolyte.id)}
-            scale={layout.spriteScale} selected={acolyte.id === selectedMemberId} onSelect={onSelectMember} />)}
-        </div>
-        <div className="cc-effects" />
-      </div>
+      <Scene state={shown} layout={layout} roster={roster} selectedMemberId={selectedMemberId} reduced={reduced}
+        outlined={outlined} onSelectMember={onSelectMember} />
       <div className="cc-viewscreen-window" style={rectStyle(layout.viewscreen.window)}>{viewscreen}</div>
     </>}
   </div>
