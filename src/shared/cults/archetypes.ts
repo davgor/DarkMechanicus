@@ -273,6 +273,31 @@ const isWorkerType = (value: string): value is WorkerType =>
   value === CUSTOM_WORKER_TYPE ||
   (STANDARD_WORKER_TYPES as readonly string[]).includes(value);
 
+/** Reports blank and duplicate (whitespace/case-insensitive) values of one slot field. */
+function checkUnique(
+  slots: readonly RosterSlot[],
+  field: "id" | "label" | "mission",
+  issues: RosterIssue[],
+): void {
+  const seen = new Set<string>();
+  for (const slot of slots) {
+    const value = norm(slot[field]);
+    if (!value)
+      issues.push({
+        code: `blank_${field}`,
+        message: `Slot ${field} must not be blank.`,
+        slotId: slot.id,
+      });
+    else if (seen.has(value))
+      issues.push({
+        code: `duplicate_${field}`,
+        message: `Slot ${field} "${slot[field].trim()}" is used twice.`,
+        slotId: slot.id,
+      });
+    else seen.add(value);
+  }
+}
+
 /**
  * Checks a roster against its archetype. Run-scoped dynamic types live outside the roster and are
  * additive, so they neither satisfy nor disturb the Plan Forge six.
@@ -283,33 +308,9 @@ export function validateRoster({
   cap,
 }: ValidateRosterInput): RosterIssue[] {
   const issues: RosterIssue[] = [];
-  const unique = (
-    key: (s: RosterSlot) => string,
-    blank: RosterIssue["code"],
-    duplicate: RosterIssue["code"],
-    what: string,
-  ): void => {
-    const seen = new Set<string>();
-    for (const slot of slots) {
-      const value = norm(key(slot));
-      if (!value)
-        issues.push({
-          code: blank,
-          message: `Slot ${what} must not be blank.`,
-          slotId: slot.id,
-        });
-      else if (seen.has(value))
-        issues.push({
-          code: duplicate,
-          message: `Slot ${what} "${key(slot).trim()}" is used twice.`,
-          slotId: slot.id,
-        });
-      else seen.add(value);
-    }
-  };
-  unique((s) => s.id, "blank_id", "duplicate_id", "id");
-  unique((s) => s.label, "blank_label", "duplicate_label", "label");
-  unique((s) => s.mission, "blank_mission", "duplicate_mission", "mission");
+  checkUnique(slots, "id", issues);
+  checkUnique(slots, "label", issues);
+  checkUnique(slots, "mission", issues);
 
   for (const slot of slots) {
     if (!isWorkerType(slot.workerType))
@@ -404,6 +405,24 @@ const BUILT_IN_NAMES: ReadonlySet<string> = new Set(
   Object.values(WORKER_TYPE_INFO).map((info) => norm(info.displayName)),
 );
 
+/** Trims and bounds the inert text fields; returns the refusal reason as a string. */
+function normalizeDynamicFields(
+  input: DynamicWorkerTypeInput,
+): Record<keyof typeof DYNAMIC_TYPE_LIMITS, string> | string {
+  const fields = {
+    displayName: input.displayName.trim().replace(/\s+/g, " "),
+    description: input.description.trim(),
+    mission: input.mission.trim(),
+    rationale: input.rationale.trim(),
+  };
+  for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
+    if (!fields[key]) return `${key} must not be blank.`;
+    if (fields[key].length > DYNAMIC_TYPE_LIMITS[key])
+      return `${key} exceeds ${DYNAMIC_TYPE_LIMITS[key]} characters.`;
+  }
+  return fields;
+}
+
 /** Validates a proposed type and returns it with a run-local id (`dyn_<n>`), or the reason it is refused. */
 export function createRunWorkerType(
   input: DynamicWorkerTypeInput,
@@ -414,20 +433,8 @@ export function createRunWorkerType(
       ok: false,
       error: `A run may create at most ${MAX_DYNAMIC_WORKER_TYPES} worker types.`,
     };
-  const fields = {
-    displayName: input.displayName.trim().replace(/\s+/g, " "),
-    description: input.description.trim(),
-    mission: input.mission.trim(),
-    rationale: input.rationale.trim(),
-  };
-  for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
-    if (!fields[key]) return { ok: false, error: `${key} must not be blank.` };
-    if (fields[key].length > DYNAMIC_TYPE_LIMITS[key])
-      return {
-        ok: false,
-        error: `${key} exceeds ${DYNAMIC_TYPE_LIMITS[key]} characters.`,
-      };
-  }
+  const fields = normalizeDynamicFields(input);
+  if (typeof fields === "string") return { ok: false, error: fields };
   const name = norm(fields.displayName);
   if (
     BUILT_IN_NAMES.has(name) ||
