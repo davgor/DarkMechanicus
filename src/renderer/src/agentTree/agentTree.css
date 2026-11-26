@@ -32,6 +32,7 @@
 .at-status[data-status="done"] { color: var(--st-accepted); }
 .at-status[data-status="failed"] { color: var(--st-failed); }
 .at-status[data-status="idle"], .at-elapsed, .at-count { color: var(--muted); }
+.at-todos { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .at-tool { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .at-secondary { flex-basis: 100%; min-width: 0; padding-left: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
 @media (prefers-reduced-motion: no-preference) {

@@ -22,6 +22,8 @@ interface AgentTreeProps {
   now: number
   label?: string
   needsYou?: NeedsYouControls
+  /** A row's small trailing progress, such as its to-do count; null renders nothing. */
+  progress?: (node: AgentTreeNode) => ReactNode
 }
 
 interface Row {
@@ -74,7 +76,7 @@ function TicketKey({ node }: { node: AgentTreeNode }): JSX.Element | null {
     title={node.ticket.verified ? undefined : 'Not confirmed by a claim'}>{node.ticket.key}</span></span>
 }
 
-function NodeDetails({ node, now }: { node: AgentTreeNode; now: number }): JSX.Element {
+function NodeDetails({ node, now, progress }: { node: AgentTreeNode; now: number; progress: Controls['progress'] }): JSX.Element {
   const elapsed = elapsedMs(node, now)
   const status = statuses[node.status]
   return <>
@@ -84,6 +86,7 @@ function NodeDetails({ node, now }: { node: AgentTreeNode; now: number }): JSX.E
     <TicketKey node={node} />
     <span className="at-status" data-status={node.status} aria-label={status.text}>{status.glyph}</span>
     {elapsed !== null && <span className="at-elapsed">{formatElapsed(elapsed)}</span>}
+    {progress?.(node)}
     {node.lastTool !== null && <span className="at-tool">{node.lastTool}</span>}
     {node.secondary && <span className="at-secondary" title={node.secondary}>{node.secondary}</span>}
   </>
@@ -94,6 +97,7 @@ interface Controls {
   selectedId: string | null
   now: number
   needsYou: NeedsYouControls | undefined
+  progress: AgentTreeProps['progress']
   register(key: string, element: HTMLLIElement | null): void
   focus(key: string): void
   toggle(row: Row): void
@@ -142,7 +146,7 @@ function TreeRow({ row, controls, children }: { row: Row; controls: Controls; ch
     }} onKeyDown={(event) => controls.keyDown(event, row)}>
     <div className="at-row" onClick={() => controls.activate(row)}>
       <Disclosure row={row} controls={controls} />
-      {row.node ? <NodeDetails node={row.node} now={controls.now} /> : <span className="at-name">{row.name}</span>}
+      {row.node ? <NodeDetails node={row.node} now={controls.now} progress={controls.progress} /> : <span className="at-name">{row.name}</span>}
       <CollapsedDetails row={row} controls={controls} />
       <NeedsYouDot row={row} controls={controls} />
     </div>
@@ -194,7 +198,7 @@ function renderRows(rows: Row[], controls: Controls): ReactNode {
   return rows.filter((row) => row.parent === null).map((row) => rendered.get(row.key))
 }
 
-export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', needsYou }: AgentTreeProps): JSX.Element {
+export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', needsYou, progress }: AgentTreeProps): JSX.Element {
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(() => new Map())
   const [focused, setFocused] = useState<string>()
   const elements = useRef(new Map<string, HTMLLIElement>())
@@ -209,7 +213,7 @@ export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', n
     setExpansion((previous) => new Map(previous).set(row.key, !row.open))
   }
   const controls: Controls = {
-    focused: active?.key, selectedId, now, needsYou, focus, toggle,
+    focused: active?.key, selectedId, now, needsYou, progress, focus, toggle,
     register: (key, element) => { if (element) elements.current.set(key, element); else elements.current.delete(key) },
     activate: (row) => { focus(row.key); if (row.node) onSelect(row.node.id); else toggle(row) },
     keyDown: (event, row) => navigate(event, row, rows, controls)

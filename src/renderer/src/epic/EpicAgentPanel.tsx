@@ -5,14 +5,15 @@
  */
 import './epicAgentPanel.css'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { AgentTodoPhase } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { AgentChangesCard } from '../agentChat/AgentChangesCard'
 import { AgentChat } from '../agentChat/AgentChat'
-import { withoutTodoCalls } from '../agentChat/todoPanelModel'
+import { todoProgress, todoProgressLabel, withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
 import { useNeedsYou } from '../agentChat/useNeedsYou'
 import { AgentTree, type NeedsYouControls } from '../agentTree/AgentTree'
-import { buildAgentTree, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
+import { buildAgentTree, type AgentTreeNode, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { ChatTranscript } from '../agents/ChatTranscript'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailTab } from '../components/RightRail'
@@ -23,25 +24,44 @@ import {
 import { agentRows, needsYouRows, type NeedsYouCount } from './needsYou'
 import type { WorkspaceHandle } from './useWorkspace'
 
+/** A watched chat's transcript plus its to-do lists by thread ('' is the chat's own). */
+interface WatchedChat extends LoadedTranscript {
+  todos: ReadonlyMap<string, AgentTodoPhase[]>
+}
+
 /** Subscribes to one chat's structured transcript and reports it; renders nothing. */
 function TranscriptFeed({ folder, chatId, onLoaded }: {
   folder: string
   chatId: string
-  onLoaded(chatId: string, transcript: LoadedTranscript): void
+  onLoaded(chatId: string, transcript: WatchedChat): void
 }): null {
   const { state } = useAgentChat({ folder, chatId })
   useEffect(() => {
-    onLoaded(chatId, { items: state.items, busy: state.status === 'busy' })
-  }, [chatId, onLoaded, state.items, state.status])
+    onLoaded(chatId, { items: state.items, busy: state.status === 'busy', todos: state.todos })
+  }, [chatId, onLoaded, state.items, state.status, state.todos])
   return null
 }
 
-function useTranscripts(): [ReadonlyMap<string, LoadedTranscript>, (chatId: string, transcript: LoadedTranscript) => void] {
-  const [transcripts, setTranscripts] = useState<ReadonlyMap<string, LoadedTranscript>>(() => new Map())
-  const onLoaded = useCallback((chatId: string, transcript: LoadedTranscript) => {
+function useTranscripts(): [ReadonlyMap<string, WatchedChat>, (chatId: string, transcript: WatchedChat) => void] {
+  const [transcripts, setTranscripts] = useState<ReadonlyMap<string, WatchedChat>>(() => new Map())
+  const onLoaded = useCallback((chatId: string, transcript: WatchedChat) => {
     setTranscripts((previous) => new Map(previous).set(chatId, transcript))
   }, [])
   return [transcripts, onLoaded]
+}
+
+/** A row's mono `closed/total` from the agent's recorded to-do phases; nothing without a list. */
+function TodoProgress({ phases }: { phases: readonly AgentTodoPhase[] }): JSX.Element | null {
+  const label = todoProgressLabel(phases)
+  if (label === null) return null
+  const { closed, total } = todoProgress(phases)
+  return <span className="at-todos" role="img" aria-label={`To-dos ${closed} of ${total} done`}>{label}</span>
+}
+
+/** A GUI chat row's own to-do progress; reading only, so listing an agent never starts it. */
+function AgentRowTodos({ folder, chatId }: { folder: string; chatId: string }): JSX.Element | null {
+  const { state } = useAgentChat({ folder, chatId }, { autoStart: false })
+  return <TodoProgress phases={state.todos.get('') ?? []} />
 }
 
 /** No chat is bound to the epic yet: start its planner. */
@@ -196,14 +216,14 @@ function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
   )
 }
 
-function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes, needsYou }: {
+function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes, needsYou, progress }: {
   selectedId: string | null
   onSelect: (id: string) => void
   now: number
   changes: ReactNode
   needsYou: NeedsYouControls
+  progress: (node: AgentTreeNode) => ReactNode
 }): RailTab[] {
-  const tree = buildAgentTree(nodes)
   const { needsYou: waiting, working } = tree.counts
   const badge: RailTab['badge'] = waiting > 0
     ? { text: String(waiting), tone: 'attention' }
@@ -214,7 +234,8 @@ function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, chan
     icon: 'agent',
     ...(badge === undefined ? {} : { badge }),
     content: <>
-      <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" needsYou={needsYou} />
+      <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" needsYou={needsYou}
+        progress={progress} />
       {changes}
     </>
   }]
@@ -287,6 +308,16 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner })
     }
   }
+  // A worker thread's list lives in its owning chat's state; a chat row reads its own only while it runs in the GUI.
+  const progress = (node: AgentTreeNode): ReactNode => {
+    if (node.parentId !== null) {
+      const owner = owningChatId(nodes, node.id)
+      const phases = owner === null ? undefined : watched.get(owner)?.todos.get(node.id)
+      return phases === undefined ? null : <TodoProgress phases={phases} />
+    }
+    const row = chats.find((item) => item.id === node.id)
+    return row?.surface === 'gui' ? <AgentRowTodos folder={folder} chatId={row.id} /> : null
+  }
   return (
     <section aria-label="Agent chat" className="eap">
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}
@@ -296,7 +327,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
         tabs={railTabs(nodes, {
-          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou,
+          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress,
           changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
             onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
         })} />
