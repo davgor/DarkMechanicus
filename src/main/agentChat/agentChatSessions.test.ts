@@ -599,7 +599,9 @@ describe('claude Magos escalation, exit and clipped input over the fake CLI', ()
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
     const outside = join(r.userData, 'secret.txt')
     inject('visible', `type "${outside}"`)
-    inject('clipped', `echo ${'a'.repeat(1_000)} && type "${outside}"`)
+    // Short words: one word over 255 bytes is a path component Linux refuses (ENAMETOOLONG), which the scan reads as
+    // outside the folder before the clipped flag is consulted; Windows answers ENOENT. The cut must look harmless.
+    inject('clipped', `echo ${'a '.repeat(500)}&& type "${outside}"`)
     inject('inside', 'npm test')
     expect(r.sessions.snapshot(chat).pending).toMatchObject({ id: 'visible', arbitration: { state: 'escalated', reason: exclusionText('outside_folder') } })
     await r.sessions.answer(chat, { promptId: 'visible', optionId: 'deny' })
@@ -623,9 +625,11 @@ describe('claude Magos clipping recorded at the cut over the fake CLI', () => {
     await r.sessions.start(chat)
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
     const tail = ` && type "${join(r.userData, 'secret.txt')}"`, ids: string[] = []
+    // Short words before the token, so the visible command holds no path component longer than Linux's 255 bytes.
+    const filler = (length: number) => `${'a '.repeat(length).slice(0, length - 1)} `
     for (const prefix of ['at_', 'ka_']) {
       const partial = `${prefix}0123456789abcdefghjkmnpqrs.abc`
-      inject(`${prefix}command`, '', { name: 'Bash', input: { command: `${'a'.repeat(1_000 - partial.length)}${partial}${tail}` } })
+      inject(`${prefix}command`, '', { name: 'Bash', input: { command: `${filler(1_000 - partial.length)}${partial}${tail}` } })
       inject(`${prefix}path`, '', { name: 'Write', input: { file_path: `${join(r.repo, 'a'.repeat(4_096 - r.repo.length - 1 - partial.length))}${partial}${tail}`, content: '{}' } })
       ids.push(`${prefix}command`, `${prefix}path`)
     }
