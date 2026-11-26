@@ -76,7 +76,8 @@ import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
-import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatOwnerDeps, type AgentChatWiring } from '../agentChat/agentChatWiring'
+import { endingAgentChats, loggedAttention, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
+import { createWorktreeRoots } from '../magos/worktreeRoots'
 import { getAgentAuthStatus } from './agentAuth'
 import {
   createAgentInstaller,
@@ -93,7 +94,7 @@ import {
 import { agentDialogOptions, probeAgent, type AgentProbeDeps } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 import { openAppDatabase } from './appDatabase'
-import { createAppSettings } from './appSettings'
+import { createAppSettings, type AppSettings } from './appSettings'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
@@ -427,6 +428,8 @@ interface ChatProcessOptions {
   agents: Pick<AgentRegistry, 'get'>
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
+  /** The main store's Notifications & approvals settings, read by the Magos arbiter at each prompt. */
+  settings: Pick<AppSettings, 'notifications'>
   sourceCheckouts: SourceCheckouts
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
 }
@@ -458,7 +461,7 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuit
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, settings, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -488,7 +491,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
     folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat), assertForgeSetupLaunch
-  }, push, guiClaims(folders, workspaces, activity))
+  }, push, { claims: guiClaims(folders, workspaces), arbiter: arbiterWiring(folders, workspaces, activity, settings) })
   recovery = createDesktopToolingRecovery({
     userData: app.getPath('userData'), version: () => app.getVersion(),
     source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
@@ -517,7 +520,7 @@ interface ChatOwners extends ContextTerminals {
 /** The terminals first, with a lazy GUI liveness check, then the one GUI session manager over their ownership. */
 function createChatOwners(
   store: ChatStore, options: Omit<TerminalDeps, 'beforeContextPaste' | 'agentChatLive'>, push: ReturnType<typeof createChatPush>,
-  claims: GuiClaimDeps
+  gui: { claims: GuiClaimDeps; arbiter: ArbiterWiring }
 ): ChatOwners {
   let context: ContextTerminals | undefined
   const owners = wireAgentChats({
@@ -525,15 +528,16 @@ function createChatOwners(
       context = createContextTerminals(store, { ...options, agentChatLive }, push)
       return context.terminals
     },
-    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, claims),
-    push
+    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, gui.claims),
+    push,
+    arbiter: gui.arbiter
   })
   if (context === undefined) throw new Error('The chat terminals were not created.')
   return { ...context, owners }
 }
 
-/** How GUI chats bind their threads to verified worker attempts; the ticket-key lookup is wired by the arbiter boot. */
-type GuiClaimDeps = Pick<AgentChatSessionsDeps, 'bindings' | 'verifyAttemptClaim'>
+/** How GUI chats verify a worker's claim token; the bindings and ticket-key lookup come with the Magos wiring. */
+type GuiClaimDeps = Pick<AgentChatSessionsDeps, 'verifyAttemptClaim'>
 
 /** The one GUI session manager over the same store, grants and agents as the terminals, and the terminals' ownership. */
 function createGuiChats(
@@ -668,12 +672,33 @@ function openDesktopPool(): WorkspacePool {
   })
 }
 
-/** GUI chats bind their threads in `activity` to attempts whose claim token the folder's own project verifies, read-only. */
-function guiClaims(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>, activity: ActivityBindings): GuiClaimDeps {
+/** GUI chats bind their threads to attempts whose claim token the folder's own project verifies, read-only. */
+function guiClaims(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>): GuiClaimDeps {
   return {
-    bindings: activity,
     // The token stays in main and the project's utility process; it is never logged.
     verifyAttemptClaim: (folder, token) => desktopWorkspace(folders, workspaces, folder).call('claimedAttempt', token)
+  }
+}
+
+/**
+ * The Magos arbiter over the main settings and each tracked folder's own desktop workspace: verified thread bindings in
+ * `activity`, the folder's registered worktrees as allowed roots, and fresh working folders under
+ * `<userData>/agents/arbiter`. Attention is logged (`loggedAttention`); the seam is notification-only, for a later OS notifier.
+ */
+function arbiterWiring(
+  folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>, activity: ActivityBindings,
+  settings: Pick<AppSettings, 'notifications'>
+): ArbiterWiring {
+  const worktrees = createWorktreeRoots()
+  return {
+    settings: () => settings.notifications(),
+    onAttention: loggedAttention((message, fields) => logger.info(message, fields)),
+    arbiterReads: folder => desktopWorkspace(folders, workspaces, folder),
+    bindings: activity,
+    allowedRoots: folder => worktrees.rootsOf(folder),
+    platform: process.platform,
+    env: process.env,
+    arbiterRoot: join(app.getPath('userData'), 'agents', 'arbiter')
   }
 }
 
@@ -1170,9 +1195,10 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
+  const settings = createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
   const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({
-    folders: registry, agents, workspaces: pool, activity, sourceCheckouts,
+    folders: registry, agents, workspaces: pool, activity, settings, sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)
@@ -1185,7 +1211,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerSettingsIpc(ipc, createSettingsHandlers({
-    settings: createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger }),
+    settings,
     onUnexpectedError: (error) => {
       logger.error('Settings request failed:', error)
     }

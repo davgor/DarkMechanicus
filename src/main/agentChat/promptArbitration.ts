@@ -18,6 +18,11 @@ import type { ArbiterOutcome, ArbitrationGate } from './pendingPrompts'
 
 const MAX_ARBITERS = 3
 const ARBITER_TIMEOUT_MS = 60_000
+/**
+ * The longest `dispose` waits for cancelled runners' cleanup, inside the app's 5 s quit bound. A cancel already sends
+ * the forced tree kill (`taskkill /t /f`, or SIGKILL to the process group); past this bound the quit goes on.
+ */
+const DISPOSE_TIMEOUT_MS = 4_000
 /** Exclusions the person decides with no Magos line on the card; every other exclusion shows its reason. */
 const OFF_REASONS: ReadonlySet<ExclusionReason> = new Set(['disabled', 'not_magos_chat', 'project_less', 'unsupported_kind'])
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
@@ -54,8 +59,11 @@ interface ArbitrateInput { ref: ChatRef; chat: ChatRecord; agent: AgentView; pro
 interface PromptArbitration {
   /** The `arbitrate` seam of the GUI session manager. */
   arbitrate(input: ArbitrateInput): ArbitrationGate
-  /** Cancels every queued and running arbiter. */
-  dispose(): void
+  /**
+   * Cancels every queued and running arbiter, and resolves once their runners have cleaned up or after
+   * `DISPOSE_TIMEOUT_MS`, whichever comes first; it never rejects.
+   */
+  dispose(): Promise<void>
 }
 
 type Verdict = ArbiterResult | { decision: 'escalate'; cause: 'too_large'; reason: string }
@@ -159,7 +167,8 @@ class ArbiterJob {
 /** FIFO, at most one per chat and `MAX_ARBITERS` app-wide; a cancelled runner holds its slot until its cleanup ends. */
 class ArbiterQueue {
   private readonly queue: ArbiterJob[] = []
-  private readonly running = new Set<ArbiterJob>()
+  /** Each running job with its start, which settles once its runner has cleaned up. */
+  private readonly running = new Map<ArbiterJob, Promise<void>>()
 
   add(job: ArbiterJob): void {
     this.queue.push(job)
@@ -167,9 +176,11 @@ class ArbiterQueue {
     queueMicrotask(() => this.pump())
   }
 
-  cancelAll(): void {
+  /** Cancels every job; resolves once the running ones' runners have cleaned up. */
+  cancelAll(): Promise<void> {
     for (const job of this.queue) job.cancel()
-    for (const job of this.running) job.cancel()
+    for (const job of this.running.keys()) job.cancel()
+    return Promise.all(this.running.values()).then(() => undefined)
   }
 
   private pump(): void {
@@ -179,15 +190,23 @@ class ArbiterQueue {
       if (!job.waiting) { this.queue.splice(index, 1); continue }
       if (this.busy(job.input.chat.id)) { index++; continue }
       this.queue.splice(index, 1)
-      this.running.add(job)
-      void job.start().finally(() => { this.running.delete(job); this.pump() })
+      // start() never rejects: every failure finishes the job as an escalation.
+      this.running.set(job, job.start().finally(() => { this.running.delete(job); this.pump() }))
     }
   }
 
   private busy(chatId: string): boolean {
-    for (const job of this.running) if (job.input.chat.id === chatId) return true
+    for (const job of this.running.keys()) if (job.input.chat.id === chatId) return true
     return false
   }
+}
+
+/** Resolves when `work` settles or after `ms`, whichever comes first; never rejects. */
+function atMost(work: Promise<void>, ms: number): Promise<void> {
+  let timer: NodeJS.Timeout | undefined
+  // The repository's ES library predates Promise.withResolvers.
+  const timeout = new Promise<void>(resolve => { timer = setTimeout(resolve, ms) })
+  return Promise.race([work.catch(() => undefined), timeout]).finally(() => clearTimeout(timer))
 }
 
 export function createPromptArbitration(deps: PromptArbitrationDeps): PromptArbitration {
@@ -205,6 +224,6 @@ export function createPromptArbitration(deps: PromptArbitrationDeps): PromptArbi
         return excluded(deps, input, { state: 'escalated', reason: 'The Magos could not check this request; decide this yourself.' }, 'error')
       }
     },
-    dispose: () => queue.cancelAll()
+    dispose: () => atMost(queue.cancelAll(), DISPOSE_TIMEOUT_MS)
   }
 }

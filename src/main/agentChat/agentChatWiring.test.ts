@@ -4,23 +4,29 @@
  * confirmation over an injected dialog. No Electron import: bootstrap passes only Electron's own pieces in.
  */
 import type { IpcMain, IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AGENT_CHAT_CHANNELS } from '../../shared/agents/agentChat'
 import type { ChatPushEvent, StartOrchestratorResult } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
-import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notificationSettings'
+import type { AttemptTimelineView } from '../../shared/domain/activity'
+import type { EpicDetailView, RunView, TicketDetailView } from '../../shared/domain/views'
+import { removeScratch } from '../../test/removeScratch'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createChatRecords } from '../agents/chatRecords'
 import type { ChatRef } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
+import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
 import { disposeBeforeQuit } from '../quitDisposal'
 import { gate, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { agentChatRig } from './__mocks__/agentChatRig'
 import { createAgentChatHandlers, registerAgentChatIpc } from './agentChatIpc'
-import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatOwnerDeps } from './agentChatWiring'
+import { endingAgentChats, loggedAttention, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatOwnerDeps, type ArbiterWiring } from './agentChatWiring'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
@@ -29,13 +35,19 @@ const SENDER = { id: 'app-contents' }
 const TRUSTED = { sender: SENDER, senderFrame: { url: `${APP_URL}/`, parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
 
 /** One app: the terminals and the GUI over one store, wired as bootstrap wires them, with the guarded handlers. */
-function app(dialog: (window: unknown, options: MessageBoxOptions) => Promise<{ response: number }> = async () => ({ response: 0 })) {
-  // The rig builds the GUI manager; it reaches the terminals only through what `wireAgentChats` hands its factory.
+function app(dialog: (window: unknown, options: MessageBoxOptions) => Promise<{ response: number }> = async () => ({ response: 0 }), arbiterOverrides: Partial<ArbiterWiring> = {}) {
+  // The rig builds the GUI manager; it reaches the terminals and the Magos gate only through what `wireAgentChats` hands its factory.
   let owned: AgentChatOwnerDeps | undefined
   const gui = agentChatRig('claude', {
     terminalLive: ref => owned!.terminalLive(ref), terminalOwner: ref => owned!.terminalOwner(ref),
-    stopTerminal: (ref, generation) => owned!.stopTerminal(ref, generation), onChatChanged: ref => owned!.onChatChanged?.(ref)
+    stopTerminal: (ref, generation) => owned!.stopTerminal(ref, generation), onChatChanged: ref => owned!.onChatChanged(ref),
+    arbitrate: input => owned!.arbitrate(input), ticketKeyOfAttempt: (folder, attemptId) => owned!.ticketKeyOfAttempt(folder, attemptId)
   })
+  const arbiter: ArbiterWiring = {
+    settings: () => DEFAULT_NOTIFICATION_SETTINGS, onAttention: vi.fn(), arbiterReads: () => { throw new Error('No workspace in this test.') },
+    bindings: gui.deps.bindings, allowedRoots: () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
+    ...arbiterOverrides
+  }
   let terminalsRig: TerminalRig | undefined
   const pushes: ChatPushEvent[] = []
   const wiring = wireAgentChats({
@@ -44,7 +56,8 @@ function app(dialog: (window: unknown, options: MessageBoxOptions) => Promise<{ 
       return terminalsRig.sessions
     },
     agentChatsFactory: deps => { owned = deps; return gui.sessions },
-    push: event => { pushes.push(event) }
+    push: event => { pushes.push(event) },
+    arbiter
   })
   const showMessageBox = vi.fn(dialog)
   const listeners = new Map<string, Listener>()
@@ -60,8 +73,8 @@ function app(dialog: (window: unknown, options: MessageBoxOptions) => Promise<{ 
 }
 
 let current: ReturnType<typeof app> | undefined
-function open(dialog?: Parameters<typeof app>[0]): ReturnType<typeof app> {
-  current = app(dialog)
+function open(dialog?: Parameters<typeof app>[0], arbiter?: Parameters<typeof app>[1]): ReturnType<typeof app> {
+  current = app(dialog, arbiter)
   return current
 }
 afterEach(async () => {
@@ -72,6 +85,160 @@ afterEach(async () => {
   await current?.gui.cleanup()
   current?.terminals.cleanup()
   current = undefined
+})
+
+const RUN = 'rn_01j0000000000000000000000r'
+const EPIC_ID = 'ep_01j0000000000000000000000e'
+const ATTEMPT = 'at_01j0000000000000000000000a'
+const WORKER_THREAD = 'thread:toolu_T1_claim_worker'
+
+/** A run's Magos chat in the GUI whose fake CLI raises a worker's Bash approval. */
+function magosChat(state: ReturnType<typeof app>): ChatRef {
+  return state.gui.store.createChat({ folder: state.gui.repo, agent: 'claude', role: 'orchestrator', runId: RUN, allowSave: false, model: null, surface: 'gui', firstPrompt: '[worker_approval]' })
+}
+
+/** The folder's workspace reads: the run's epic with a Standards section, and the worker attempt's saved ticket. */
+function projectReads() {
+  return {
+    getRun: vi.fn(async () => ({ id: RUN, epicId: EPIC_ID }) as RunView),
+    getEpic: vi.fn(async () => ({ id: EPIC_ID, intent: '# Epic\n## Standards\nRun targeted checks only.\n## Design\nInternal.' }) as EpicDetailView),
+    getAttemptTimeline: vi.fn(async () => ({ attemptId: ATTEMPT, runId: RUN, ticketId: 'tk_1' }) as AttemptTimelineView),
+    getTicket: vi.fn(async () => ({ ticket: { key: 'DM-442', title: 'Run the tests', body: 'Run them all.', acceptanceCriteria: [{ id: 'c1', text: 'Tests pass' }] } }) as TicketDetailView)
+  }
+}
+
+/** A stub runner: each start records its options; `verdict` settles it, and `stuck` ignores cancellation forever. */
+function stubRunner(options: { verdict?: ArbiterResult; stuck?: boolean } = {}) {
+  const cancels = vi.fn()
+  const start = vi.fn((_input: Parameters<typeof startArbiter>[0]) => {
+    let resolve!: (result: ArbiterResult) => void
+    const promise = new Promise<ArbiterResult>(settle => { resolve = settle })
+    if (options.verdict) resolve(options.verdict)
+    return { result: promise, cancel: () => { cancels(); if (!options.stuck) resolve({ decision: 'escalate', cause: 'cancelled', reason: 'Arbiter cancelled.' }) } }
+  })
+  return { start, cancels }
+}
+
+const requestOf = (runner: ReturnType<typeof stubRunner>) => JSON.parse(runner.start.mock.calls[0][0].input.replace(/^REQUEST:\n/, '')) as Record<string, unknown>
+const withArbitration = (arbitration: Partial<typeof DEFAULT_NOTIFICATION_SETTINGS.arbitration>) =>
+  ({ ...DEFAULT_NOTIFICATION_SETTINGS, arbitration: { ...DEFAULT_NOTIFICATION_SETTINGS.arbitration, ...arbitration } })
+
+describe('agent chat wiring: the Magos arbiter', () => {
+  it('reaches the sessions with the main settings, the bound ticket and Standards context, and the ticket-key lookup', async () => {
+    const reads = projectReads(), runner = stubRunner({ verdict: { decision: 'allow_once', reason: 'Routine.' } })
+    const settings = vi.fn(() => withArbitration({ autoHandleNotes: 'Allow test runs.' }))
+    const folders: string[] = []
+    const state = open(undefined, { settings, arbiterReads: folder => { folders.push(folder); return reads }, startArbiter: runner.start })
+    const chat = magosChat(state)
+    state.gui.deps.bindings.bind({ chatId: chat.id, folder: state.gui.repo, threadId: WORKER_THREAD, kind: 'attempt', attemptId: ATTEMPT, role: 'worker' })
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(state.gui.store.readTranscript(chat)!.items.some(item => item.kind === 'approval_decision')).toBe(true), { timeout: 5_000 })
+    expect(runner.start).toHaveBeenCalledOnce()
+    expect(requestOf(runner)).toMatchObject({
+      ticket: { key: 'DM-442', title: 'Run the tests', body: 'Run them all.', acceptance: ['Tests pass'] },
+      standards: 'Run targeted checks only.', autoHandle: 'Allow test runs.', prompt: { tool: 'Bash', input: { command: 'echo tests' } }
+    })
+    expect(runner.start.mock.calls[0][0].tempRoot).toBe(join(state.gui.root, 'arbiter'))
+    expect(settings).toHaveBeenCalled()
+    expect(new Set(folders)).toEqual(new Set([state.gui.repo]))
+    expect(state.gui.store.readTranscript(chat)!.items.find(item => item.kind === 'approval_decision')).toMatchObject({ decision: 'allow_once', decidedBy: 'magos', reason: 'Routine.' })
+    // The bound attempt's ticket key, through the same reads, stamps the worker thread.
+    await vi.waitFor(() => expect(state.gui.store.readTranscript(chat)!.items.find(item => item.id === WORKER_THREAD)).toMatchObject({ callsign: { ticketKey: 'DM-442', ticketVerified: true } }))
+  })
+
+  it('a failing context read still arbitrates, with neither ticket nor Standards', async () => {
+    const runner = stubRunner({ verdict: { decision: 'deny', reason: 'Not needed.' } })
+    const state = open(undefined, { startArbiter: runner.start })
+    await state.wiring.agentChats.start(magosChat(state))
+    await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    expect(requestOf(runner)).toMatchObject({ ticket: null, standards: null })
+  })
+
+  it('settings with the arbiter off reach the gate: no arbiter runs and the attention seam is told', async () => {
+    const runner = stubRunner(), onAttention = vi.fn()
+    const state = open(undefined, { settings: () => withArbitration({ enabled: false }), onAttention, startArbiter: runner.start }), chat = magosChat(state)
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(onAttention).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    expect(onAttention.mock.calls[0][0]).toMatchObject({ kind: 'approval_needed', ref: { folder: chat.folder, id: chat.id }, prompt: { id: 'req_T1_worker_approval', arbitration: { state: 'off' } } })
+    expect(runner.start).not.toHaveBeenCalled()
+  })
+})
+
+describe('agent chat wiring: quit cancels every arbiter', () => {
+  it('quit cancels a hanging real arbiter within 5 s, its process gone and its working folder removed', async () => {
+    // The fake CLI's arbiter mode hangs on the `[arbiter:hang]` keyword, which the auto-handle notes carry into its stdin.
+    const state = open(undefined, { settings: () => withArbitration({ autoHandleNotes: '[arbiter:hang]' }) }), chat = magosChat(state)
+    await state.wiring.agentChats.start(chat)
+    const log = join(state.gui.root, 'agent.jsonl')
+    const arbiterPid = await vi.waitFor(() => {
+      const entry = readFileSync(log, 'utf8').split(/\r?\n/).filter(Boolean).map(text => JSON.parse(text) as { mode: string; pid: number }).find(line => line.mode === 'arbiter')
+      expect(entry).toBeDefined()
+      return entry!.pid
+    }, { timeout: 10_000 })
+    expect(state.wiring.agentChats.snapshot(chat).pending?.arbitration.state).toBe('deciding')
+    const started = performance.now()
+    await state.wiring.dispose()
+    expect(performance.now() - started).toBeLessThan(5_000)
+    expect(alive(arbiterPid)).toBe(false)
+    expect(readdirSync(join(state.gui.root, 'arbiter'))).toEqual([])
+  })
+
+  it('a stuck arbiter whose runner never settles still lets the quit finish within the 5 s bound', async () => {
+    const runner = stubRunner({ stuck: true })
+    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    const listeners: ((event: { preventDefault(): void }) => void)[] = []
+    const quitApp = { on: (_name: 'before-quit', listener: (event: { preventDefault(): void }) => void) => { listeners.push(listener) }, quit: vi.fn() }
+    const disposed = vi.fn(), released = vi.fn()
+    disposeBeforeQuit(quitApp, { busy: () => state.wiring.busy(), dispose: () => state.wiring.dispose().then(disposed), release: released, waitForRelease: true, timeoutMs: 5_000 })
+    const started = performance.now()
+    listeners[0]({ preventDefault: vi.fn() })
+    await vi.waitFor(() => expect(quitApp.quit).toHaveBeenCalledOnce(), { timeout: 6_000 })
+    expect(performance.now() - started).toBeLessThan(5_000)
+    // The arbiter's own 4 s bound ended the dispose, not the quit's 5 s cut-off.
+    expect([runner.cancels.mock.calls.length, disposed.mock.calls.length, released.mock.calls.length]).toEqual([1, 1, 1])
+  })
+})
+
+describe('agent chat wiring: the arbiter root', () => {
+  it('sweeps stale arbiter working folders at startup, keeping the root', () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm arbiter sweep ')))
+    try {
+      const arbiterRoot = join(root, 'agents', 'arbiter')
+      mkdirSync(join(arbiterRoot, 'dm-arbiter-stale', 'nested'), { recursive: true })
+      writeFileSync(join(arbiterRoot, 'dm-arbiter-stale', 'nested', 'request.txt'), 'old')
+      writeFileSync(join(arbiterRoot, 'stray.txt'), 'old')
+      open(undefined, { arbiterRoot })
+      expect([existsSync(arbiterRoot), readdirSync(arbiterRoot)]).toEqual([true, []])
+    } finally {
+      removeScratch(root)
+    }
+  })
+
+  it('starts with no arbiter root yet, and creates none', () => {
+    const state = open()
+    expect(existsSync(join(state.gui.root, 'arbiter'))).toBe(false)
+  })
+})
+
+describe('agent chat wiring: the default attention seam (loggedAttention)', () => {
+  it('logs only the kind, folder, chat id and prompt id: never the prompt text or tool input', () => {
+    const log = vi.fn()
+    loggedAttention(log)({ kind: 'approval_needed', ref: { folder: 'C:\\repo', id: 'ch_1' }, prompt: {
+      id: 'req_1', kind: 'approval', title: 'Bash secret-title', detail: 'secret-detail', threadId: null, callsign: null, attributed: true,
+      arbitration: { state: 'escalated', reason: 'secret-reason' }, options: [], tool: { name: 'Bash', input: { command: 'echo secret-input' } }
+    } })
+    expect(log).toHaveBeenCalledExactlyOnceWith('Magos attention needed:', { kind: 'approval_needed', folder: 'C:\\repo', chatId: 'ch_1', promptId: 'req_1' })
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret/)
+  })
+
+  it('a failing log never throws into the gate', () => {
+    const attention = loggedAttention(() => { throw new Error('log closed') })
+    expect(() => attention({ kind: 'question', ref: { folder: null, id: 'ch_1' }, prompt: {
+      id: 'q', kind: 'question', title: '', detail: '', threadId: null, callsign: null, attributed: true, arbitration: { state: 'off', reason: null }, options: []
+    } })).not.toThrow()
+  })
 })
 
 const surfaceRequest = (state: ReturnType<typeof app>, chat: ChatRef, extra: Record<string, unknown> = {}) => ({ folder: state.gui.repo, chatId: chat.id, surface: 'gui', ...extra })

@@ -2,29 +2,53 @@
  * Composition of the two owners a chat's live process can have: the terminal (`TerminalSessions`, one PTY per chat)
  * and the GUI (`AgentChatSessions`, one structured CLI process per chat). Each refuses to start while the other is
  * live, through a lazy mutual `isLive`: the terminals are built first, so theirs reads the GUI owner through a
- * closure. Quit waits for both, deleting a chat stops its GUI process before its terminal and record go, and the one
- * native confirmation that may stop a live terminal is built here over an injected dialog. Free of Electron runtime
- * imports so it is unit tested; `bootstrap.ts` only passes the real factories and Electron's dialog in.
+ * closure. The GUI owner is also given the Magos arbiter (`createPromptArbitration`) over the main-side settings and
+ * the ticket and Standards context of each run's folder. Quit waits for both owners and cancels every arbiter,
+ * deleting a chat stops its GUI process before its terminal and record go, and the one native confirmation that may
+ * stop a live terminal is built here over an injected dialog. Free of Electron runtime imports so it is unit tested;
+ * `bootstrap.ts` only passes the real factories, settings, workspaces and Electron's dialog in.
  */
 import type { MessageBoxOptions } from 'electron'
+import { readdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
+import type { ActivityBindings } from '../agents/activityBindings'
 import type { ChatRef } from '../agents/chatStore'
+import { readArbiterContext, ticketKeyOfAttempt, type ArbiterReads } from '../magos/arbiterContext'
 import { endingTerminals, type TerminalSessions } from '../terminals/terminalSessions'
 import type { AgentChatSessions, AgentChatSessionsDeps } from './agentChatSessions'
+import { createPromptArbitration } from './promptArbitration'
 
 /** What the wiring needs of the terminals: their ownership, their stop of one owner generation, and quit. */
 type TerminalOwners = Pick<TerminalSessions, 'isLive' | 'owner' | 'stop' | 'busy' | 'dispose'>
-/** What the GUI owner is given of the terminals, and the `chats_changed` push for a persisted surface switch. */
-export type AgentChatOwnerDeps = Pick<AgentChatSessionsDeps, 'terminalLive' | 'terminalOwner' | 'stopTerminal' | 'onChatChanged'>
+/**
+ * What the GUI owner is given: the terminals' ownership, the `chats_changed` push for a persisted surface switch, the
+ * Magos gate, the thread bindings and the ticket key of a bound attempt.
+ */
+export type AgentChatOwnerDeps = Required<Pick<AgentChatSessionsDeps,
+  'terminalLive' | 'terminalOwner' | 'stopTerminal' | 'onChatChanged' | 'arbitrate' | 'bindings' | 'ticketKeyOfAttempt'>>
+
+type ArbitrationDeps = Parameters<typeof createPromptArbitration>[0]
+
+/** The Magos arbiter's main-side dependencies. */
+export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'onAttention' | 'platform' | 'env' | 'arbiterRoot' | 'startArbiter'> {
+  /** The read-only workspace of a tracked folder (its own desktop workspace); throws for an untracked one. */
+  arbiterReads(folder: string): ArbiterReads
+  /** Verified worker attempts of chat threads (`activity`), shared with the GUI owner. */
+  bindings: Pick<ActivityBindings, 'bind' | 'threadsOf'>
+  /** Canonical registered worktrees of the folder's repository, besides the folder (red-team fix 20). */
+  allowedRoots(folder: string): readonly string[]
+}
 
 interface AgentChatWiringOptions<T extends TerminalOwners> {
   /** Builds the chat terminals; `agentChatLive` refuses a terminal start while the GUI owns the chat. */
   terminalsFactory: (agentChatLive: (ref: ChatRef) => boolean) => T
-  /** Builds the one GUI session manager over the terminals' ownership. */
+  /** Builds the one GUI session manager over the terminals' ownership and the Magos gate. */
   agentChatsFactory: (owners: AgentChatOwnerDeps) => AgentChatSessions
   /** The `chats:event` push: a surface switch tells every window the chat changed. */
   push: (event: ChatPushEvent) => void
+  arbiter: ArbiterWiring
 }
 
 export interface AgentChatWiring<T extends TerminalOwners> {
@@ -32,11 +56,50 @@ export interface AgentChatWiring<T extends TerminalOwners> {
   agentChats: AgentChatSessions
   /** Quit is held while either owner has work under way. */
   busy(): boolean
-  /** Resolves once both owners are disposed: every PTY and GUI process closed, its tree killed and its grants revoked. */
+  /**
+   * Resolves once both owners are disposed (every PTY and GUI process closed, its tree killed and its grants revoked)
+   * and every arbiter is cancelled, its runner cleaned up or given up on after its bound.
+   */
   dispose(): Promise<void>
 }
 
-export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
+/** Startup: arbiter working folders a previous run left behind (`<arbiterRoot>/*`) are removed, best effort. */
+function sweepArbiterRoot(root: string): void {
+  let entries: string[]
+  try {
+    entries = readdirSync(root)
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    try {
+      rmSync(join(root, entry), { recursive: true, force: true })
+    } catch { /* A folder still held open is removed at the next start. */ }
+  }
+}
+
+/** The Magos gate over the folder's workspace reads: the binding of a prompt's thread selects its ticket. */
+function arbitration(arbiter: ArbiterWiring) {
+  const reads = (folder: string | null): ArbiterReads => {
+    if (folder === null) throw new Error('A project-less chat has no workspace.')
+    return arbiter.arbiterReads(folder)
+  }
+  return createPromptArbitration({
+    settings: arbiter.settings, onAttention: arbiter.onAttention, platform: arbiter.platform, env: arbiter.env,
+    arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter,
+    allowedRoots: chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
+    // An async body turns a throwing lookup into a rejection, which the gate reads as nulls.
+    readContext: async ({ chat, prompt }) => {
+      const binding = chat.folder === null ? null
+        : arbiter.bindings.threadsOf({ folder: chat.folder, id: chat.id }).find(bound => bound.kind === 'attempt' && bound.threadId === prompt.threadId) ?? null
+      return readArbiterContext(reads(chat.folder), { chat, threadId: prompt.threadId, binding })
+    }
+  })
+}
+
+export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push, arbiter }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
+  sweepArbiterRoot(arbiter.arbiterRoot)
+  const magos = arbitration(arbiter)
   let agentChats: AgentChatSessions | undefined
   // The terminals exist before the GUI manager: until it does, nothing runs in the GUI.
   const terminals = terminalsFactory(ref => agentChats?.isLive(ref) ?? false)
@@ -44,7 +107,16 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
     terminalLive: ref => terminals.isLive(ref),
     terminalOwner: ref => terminals.owner(ref),
     stopTerminal: (ref, generation) => terminals.stop(ref, generation),
-    onChatChanged: ref => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id })
+    onChatChanged: ref => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }),
+    arbitrate: magos.arbitrate,
+    bindings: arbiter.bindings,
+    ticketKeyOfAttempt: async (folder, attemptId) => {
+      try {
+        return await ticketKeyOfAttempt(arbiter.arbiterReads(folder), attemptId)
+      } catch {
+        return null
+      }
+    }
   })
   agentChats = gui
   return {
@@ -52,8 +124,21 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
     agentChats: gui,
     busy: () => terminals.busy() || gui.busy(),
     dispose: async () => {
-      await Promise.all([terminals.dispose(), gui.dispose()])
+      await Promise.all([terminals.dispose(), gui.dispose(), magos.dispose()])
     }
+  }
+}
+
+/**
+ * The default `onAttention` of `ArbiterWiring`: one log line naming the event's kind, folder, chat id and prompt id,
+ * never the prompt's text or tool input. The seam stays notification-only: a later notifier ticket may plug the OS
+ * notifier into it, while the renderer's attention signal comes from the session manager, not from here.
+ */
+export function loggedAttention(log: (message: string, fields: { kind: string; folder: string | null; chatId: string; promptId: string }) => void): ArbiterWiring['onAttention'] {
+  return ({ kind, ref, prompt }) => {
+    try {
+      log('Magos attention needed:', { kind, folder: ref.folder, chatId: ref.id, promptId: prompt.id })
+    } catch { /* Logging never changes an outcome. */ }
   }
 }
 
