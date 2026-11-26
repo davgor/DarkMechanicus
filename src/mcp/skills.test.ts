@@ -165,7 +165,9 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
   })
+})
 
+describe('the worker-relay marker', () => {
   it('moved past 1.14.0 when the guides started defining the worker-relay marker', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
