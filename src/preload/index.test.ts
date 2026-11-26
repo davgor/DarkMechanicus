@@ -204,7 +204,9 @@ describe('preload bridge', () => {
     expect(bridge.calls).toEqual([['chats:startPlanner', request]])
     expect(registered.has('chats:startPlanner')).toBe(true)
   })
+})
 
+describe('preload bridge forge', () => {
   it('sends a Forge convert without options as exactly the world and the source', async () => {
     const dm = bridge.exposed.get('dm') as { forge: Record<string, Listener> }
 
