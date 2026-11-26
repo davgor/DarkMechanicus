@@ -75,6 +75,8 @@ interface InstructionOptions {
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
   reach?: readonly ReachTarget[]
+  /** A cult member's rules (`cultRules.ts`), appended last; absent for every other chat. */
+  cultRules?: string
 }
 
 /** Keeps a board-bound chat answering its named record instead of assuming execution authority. */
@@ -118,7 +120,8 @@ export function terminalInstructions(options: InstructionOptions): string {
     skillBody('collaboration'),
     ...(options.repositoryContext ? [options.repositoryContext] : []),
     ...(options.forgeWorld ? ['This world-level chat has no project mailbox. Use the per-project dm commands above; open a project-level agent when its Skitarii mailbox is needed.'] : []),
-    ...taskGuidance(options)
+    ...taskGuidance(options),
+    ...(options.cultRules === undefined ? [] : [options.cultRules])
   ]
   // A project-less chat that reaches no folder has no dm line to name itself with.
   if (options.nameFirstPrompt && options.reach?.length !== 0) sections.push([
@@ -156,6 +159,7 @@ interface WriteOptions {
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
   reach?: readonly ReachTarget[]
+  cultRules?: string
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
@@ -170,7 +174,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   if (files.launcherDir !== null) {
     await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, pin))
   }
-  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach } = options
+  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach, cultRules } = options
   const text = terminalInstructions({
     forgeWorld: isWorldLaunch(options),
     repositoryContext: forgeAgentContext(options.folder, options.forgeResolver),
@@ -184,6 +188,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
     ...(cardId === undefined ? {} : { cardId }),
     ...(conversation === undefined ? {} : { conversation }),
     ...(reach === undefined ? {} : { reach }),
+    ...(cultRules === undefined ? {} : { cultRules }),
     launcherDir: files.launcherDir
   })
   await writePrivateFile(files.instructions, text, 0o600)

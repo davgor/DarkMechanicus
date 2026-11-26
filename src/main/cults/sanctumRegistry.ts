@@ -24,8 +24,18 @@ export interface SanctumRegistry {
   remove(cultId: string): Promise<void>
   /** The canonical path of the registered, existing sanctum `path` names; null for anything else. */
   resolve(path: string): string | null
+  /** The canonical paths of the registered sanctums that exist, for the mail sweep; never in the Folders list. */
+  list(): string[]
   /** The sanctum path of a cult, registered or not; refuses anything but a cult id. */
   pathOf(cultId: string): string
+}
+
+/**
+ * The one trusted predicate of the untracked-folder gates (`docs/design/cults.md`, section 5): a tracked folder, else a
+ * registered sanctum. Only `resolve` is widened; listing, reach and forge membership keep reading the Folders registry.
+ */
+export function withSanctums<T extends { resolve(path: string): string | null }>(folders: T, sanctums: Pick<SanctumRegistry, 'resolve'>): T {
+  return Object.assign(Object.create(folders) as T, { resolve: (path: string) => folders.resolve(path) ?? sanctums.resolve(path) })
 }
 
 function requireCultId(cultId: string): string {
@@ -81,6 +91,7 @@ export function createSanctumRegistry(options: { userData: string }): SanctumReg
     resolve(path) {
       const real = existingDirectory(path)
       return real !== null && dirname(real) === root && ids.has(basename(real)) ? real : null
-    }
+    },
+    list: () => [...ids].sort().flatMap((id) => (existingDirectory(join(root, id)) === join(root, id) ? [join(root, id)] : []))
   }
 }

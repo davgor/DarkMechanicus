@@ -4,6 +4,8 @@
  * missions, run worker type contracts and rationales) is quoted as a JSON string, and the charter never appears here:
  * it is only ever the Magos's first prompt.
  */
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import {
   ARCHETYPE_INFO,
   WORKER_TYPE_INFO,
@@ -12,6 +14,25 @@ import {
   type RunWorkerType
 } from '../../shared/cults/archetypes'
 import { formatDuration } from '../../shared/cults/duration'
+import { ompFilePaths } from '../terminals/ompSession'
+import { writePrivateFile } from '../terminals/privateFile'
+
+/**
+ * Where a member chat's rules are kept: inside the chat's own OMP folder, so deleting the chat removes them
+ * (`removeOmpFolder`). The terminal appends them to the instructions file at every start (`terminalFiles.ts`).
+ */
+function cultRulesPath(userData: string, chatId: string): string {
+  return join(dirname(ompFilePaths(userData, chatId).config), 'cult-rules.md')
+}
+
+export function writeCultRules(userData: string, chatId: string, rules: string): Promise<void> {
+  return writePrivateFile(cultRulesPath(userData, chatId), rules, 0o600)
+}
+
+/** A member chat's rules; rejects when they were never written, so a member never starts without them. */
+export function readCultRules(userData: string, chatId: string): Promise<string> {
+  return readFile(cultRulesPath(userData, chatId), 'utf8')
+}
 
 /** The native Skitarii cult tools (the tools ticket's `cult_*` contract), named here so the rules and the tools agree. */
 export const CULT_TOOLS = {
