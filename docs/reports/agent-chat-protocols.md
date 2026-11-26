@@ -378,7 +378,7 @@ token-bearing input, including unknown fields. The public `AgentChatEvent` schem
 
 ### Deterministic fake CLI
 
-Run `node src/main/agentChat/__fixtures__/fakeAgentCli.mjs` with the GUI argv above, or without print/RPC flags for the echoing TUI. Set `FAKE_AGENT_LOG` to an isolated invocation log and `CLAUDE_CONFIG_DIR` to a scratch profile. The log includes only argv, cwd, pid and grant presence; `[leak]` deliberately sends the env grant in a tool result and stderr for downstream masking tests.
+Run `node src/main/agentChat/__fixtures__/fakeAgentCli.mjs` with the GUI argv above, or without print/RPC flags for the echoing TUI. Set `FAKE_AGENT_LOG` to an isolated invocation log and `CLAUDE_CONFIG_DIR` to a scratch profile. Each log line holds only the mode, argv, cwd, pid, `at` (launch time, epoch ms), grant presence and `grantHash` (the SHA-256 hex of the trimmed `DM_SESSION_TOKEN`, the value the grants table stores as `token_hash`, or null without a grant), never the token itself; the built-app e2e (`scripts/e2e-agent-chat.mjs`) uses `at` and `grantHash` to order a launch against the grant revocation of the owner it replaced. `[leak]` deliberately sends the env grant in a tool result and stderr for downstream masking tests.
 
 The shebang is retained, but the `.mjs` is a Node input script, not a directly executable agent path: subprocess tests use `{ file: process.execPath, args: [FAKE_CLI, ...] }`, with no committed executable-bit requirement. Consumers needing an executable agent path use DM-777's generated Windows npm-style shim or executable POSIX `sh` launcher that runs Node, matching DM-791. Do not execute the `.mjs` directly.
 
@@ -408,7 +408,7 @@ Claude queue accounting consumes each queued turn once: on its first main text/t
 
 `interrupt(ref)` writes Claude's control interrupt or OMP's abort without stopping an idle chat. A turn completion cancels the five-second watchdog. If the original turn does not finish, the watchdog forces the retained process-tree owner to stop immediately, keeps the chat failed and resumable, and still waits for the original composite cleanup barrier. Repeated interrupts do not extend the deadline. The main-only transport's `stop({force:true})` also escalates an already-pending graceful stop without changing its promise or looking up an ended process again; ordinary stop retains its three-second escalation.
 
-Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identity/persistence mode; ordinary golden replay remains byte-for-byte unchanged. `[hung]` emits its first turn frame but never completes or acknowledges interrupt, providing a real-child watchdog test without network or credentials.
+Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identity/persistence mode; ordinary golden replay remains byte-for-byte unchanged. With `FAKE_AGENT_CONTINUE_TURNS=1` as well, a Claude-protocol run records its turns in its session file and a `--resume` of it continues the turn numbering, so a resumed process never reuses an earlier turn's message ids (the built-app e2e sets both). `[hung]` emits its first turn frame but never completes or acknowledges interrupt, providing a real-child watchdog test without network or credentials.
 
 ## Arbiter (not GUI launch configuration)
 

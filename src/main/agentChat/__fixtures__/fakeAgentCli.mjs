@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Offline CLI for protocol, process, session and packaged-app tests. Golden JSONL is authoritative. */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -19,11 +19,18 @@ const mode = argv.includes('--version') ? 'version'
       : argv.includes('--mode') && ['rpc-ui', 'rpc'].includes(option('--mode')) ? 'omp'
         : argv.includes('-p') && outputFormat === 'stream-json' ? 'claude' : 'tui'
 const root = dirname(fileURLToPath(import.meta.url))
+/**
+ * One line per invocation, written at launch. `at` is the launch time (epoch ms) and `grantHash` the SHA-256 of the
+ * grant token, as the grants table stores it, so an e2e can order a launch against a grant's revocation. The token
+ * itself is never written.
+ */
 const log = (extra = {}) => {
   if (process.env.FAKE_AGENT_LOG) {
+    const token = process.env.DM_SESSION_TOKEN
     appendFileSync(process.env.FAKE_AGENT_LOG, `${JSON.stringify({
-      mode, pid: process.pid, argv, cwd: process.cwd(),
-      env: { DM_SESSION_TOKEN: process.env.DM_SESSION_TOKEN === undefined ? 'absent' : 'present' }, ...extra,
+      mode, pid: process.pid, at: Date.now(), argv, cwd: process.cwd(),
+      env: { DM_SESSION_TOKEN: token === undefined ? 'absent' : 'present' },
+      grantHash: token === undefined ? null : createHash('sha256').update(token.trim()).digest('hex'), ...extra,
     })}\n`)
   }
 }
@@ -48,14 +55,33 @@ function persistSessionIdentity() {
   }
 }
 
+/** The Claude session file of this run (`<config>/projects/<cwd>/<id>.jsonl`), as Claude Code keeps it. */
+function claudeSessionFile(sessionId) {
+  const config = process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
+  return join(resolve(config), 'projects', process.cwd().replace(/[^a-zA-Z0-9]/g, '-'), `${sessionId}.jsonl`)
+}
+
+/**
+ * With FAKE_AGENT_CONTINUE_TURNS, a Claude-protocol run records its turns in its session file, and a resumed session
+ * goes on from them, as Claude Code's does: a later process never reuses an earlier turn's message ids, which the app
+ * upserts items by. Unit goldens leave it unset and keep T1.
+ */
+function continuedSessionFile() {
+  return mode === 'claude' && sessionIdentity && process.env.FAKE_AGENT_CONTINUE_TURNS === '1' ? claudeSessionFile(sessionIdentity) : null
+}
+
+function recordedTurns(file) {
+  if (file === null || !argv.includes('--resume') || !existsSync(file)) return 0
+  return readFileSync(file, 'utf8').split('\n').filter((line) => line.includes('"type":"turn"')).length
+}
+
 function runInteractive() {
   const sessionId = argv.includes('--session-id') ? option('--session-id') : argv.includes('--resume') ? option('--resume') : 'session_T1'
   persistSessionIdentity()
   if (argv.includes('--session-id')) {
-    const config = process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
-    const project = join(resolve(config), 'projects', process.cwd().replace(/[^a-zA-Z0-9]/g, '-'))
-    mkdirSync(project, { recursive: true })
-    appendFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'system', sessionId })}\n`)
+    const file = claudeSessionFile(sessionId)
+    mkdirSync(dirname(file), { recursive: true })
+    appendFileSync(file, `${JSON.stringify({ type: 'system', sessionId })}\n`)
   }
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity })
   const stop = () => { input.close(); process.stdin.destroy() }
@@ -137,6 +163,8 @@ class ProtocolReplay {
   constructor(input, stop) {
     this.stop = stop
     this.startup = fixture(mode === 'omp' && (argv.includes('--resume') || argv.includes('--session')) ? 'init_resume' : 'init')
+    this.sessionFile = continuedSessionFile()
+    this.turn = recordedTurns(this.sessionFile)
     if (mode === 'omp') emit(this.startup[0])
     input.on('close', () => { clearTimeout(this.timer) })
     input.on('line', (line) => { if (line.trim()) this.receive(JSON.parse(line)) })
@@ -229,6 +257,7 @@ class ProtocolReplay {
 
   turnLines(replay, message) {
     let lines = renumber(fixture(replay), ++this.turn)
+    if (this.sessionFile) appendFileSync(this.sessionFile, `${JSON.stringify({ type: 'turn', turn: this.turn })}\n`)
     if (mode === 'omp' && message.id) lines = lines.map((line) => line.replaceAll(`req_T${this.turn}_prompt`, message.id))
     if (message.admitted) lines = lines.filter((line) => JSON.parse(line).command !== 'prompt')
     return lines
