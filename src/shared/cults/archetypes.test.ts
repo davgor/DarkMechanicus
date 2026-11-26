@@ -93,7 +93,9 @@ describe("materializeRoster", () => {
       ).toEqual(["only"]);
     }
   });
+});
 
+describe("materializeRoster immutability", () => {
   it("stays immutable after creation even if the source is edited", () => {
     const supplied = [slot("a")];
     const roster = materializeRoster("custom", { slots: supplied });
@@ -155,7 +157,9 @@ describe("validateRoster", () => {
         codes(validateRoster({ archetype: "plan_forge", slots, cap: 10 })),
       ).toContain("plan_forge_quorum");
   });
+});
 
+describe("validateRoster cap coverage", () => {
   it("rejects a cap below required coverage", () => {
     const forge = materializeRoster("plan_forge");
     expect(
