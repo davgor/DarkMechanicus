@@ -59,7 +59,8 @@ function applyLocal(feed: Feed, added: ChamberEvent[]): Feed {
   const working = new Set(feed.working)
   let present = feed.present
   for (const event of added) {
-    if (event.type === 'working') event.on ? working.add(event.id) : working.delete(event.id)
+    if (event.type === 'working' && event.on) working.add(event.id)
+    if (event.type === 'working' && !event.on) working.delete(event.id)
     if (event.type === 'memberLeft') present = present.filter((id) => id !== event.id)
     if (event.type === 'memberJoined' && !present.includes(event.id)) present = [...present, event.id]
   }
