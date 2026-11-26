@@ -103,9 +103,10 @@ function completed(protocol: Protocol, stdout: string): boolean {
   return stdout.split('\n').slice(0, -1).some((line) => line && JSON.parse(line).type === (protocol === 'claude' ? 'result' : 'prompt_result'))
 }
 
-async function finish(harness: Harness): Promise<void> {
+/** Ends stdin and answers the fake's exit code, for the test to assert. */
+async function finish(harness: Harness): Promise<number | null> {
   harness.child.stdin.end()
-  expect(await harness.closed).toBe(0)
+  return harness.closed
 }
 
 function assertLog(harness: Harness, mode: string, present = false): void {
@@ -165,7 +166,7 @@ for (const protocol of protocols) {
             + lines(golden(protocol, 'text').replaceAll('T1', 'T2')).slice(1).join('\n').replaceAll('req_T2_prompt', 'req_T1_followup') + '\n'
           await harness.until(() => harness.stdout.length >= expected.length + remainder.length)
         }
-        await finish(harness)
+        expect(await finish(harness)).toBe(0)
         expect(lines(harness.stdout.slice(0, expected.length))).toEqual(lines(expected))
         expect(harness.stdout).toBe(expected + remainder)
         assertLog(harness, protocol)
@@ -180,7 +181,7 @@ for (const protocol of protocols) {
       harness.stdout = ''
       harness.send(prompt(protocol, 'Hello again', 2))
       await harness.until(() => completed(protocol, harness.stdout))
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       expect(first).toBe(golden(protocol, 'text'))
       expect(harness.stdout).toBe(first.replaceAll('T1', 'T2'))
       const ids = (text: string): Set<string> => new Set(text.match(/[a-z_]+T\d+[a-z_\d]*/g))
@@ -212,7 +213,7 @@ for (const protocol of protocols) {
         harness.stdout = prefix
         harness.send(answer)
         await harness.until(() => completed(protocol, harness.stdout))
-        await finish(harness)
+        expect(await finish(harness)).toBe(0)
         expect(harness.stdout).toBe(golden(protocol, scenario))
       })
     }
@@ -224,7 +225,7 @@ for (const protocol of protocols) {
       const prefix = harness.stdout
       harness.send(lines(golden(protocol, 'interrupt', 'in'))[1])
       await harness.until(() => completed(protocol, harness.stdout))
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       const expected = lines(golden(protocol, 'interrupt'))
       const tail = expected.findIndex((line) => {
         const frame = JSON.parse(line)
@@ -240,7 +241,7 @@ for (const protocol of protocols) {
       harness.send(prompt(protocol, 'Second turn', 2))
       const expected = golden(protocol, 'text') + golden(protocol, 'text').replaceAll('T1', 'T2')
       await harness.until(() => harness.stdout.length >= expected.length)
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       expect(harness.stdout).toBe(expected)
     })
 
@@ -248,7 +249,7 @@ for (const protocol of protocols) {
       const harness = await initialize(protocol, [], cli, { DM_SESSION_TOKEN: grant })
       harness.send(prompt(protocol, '[leak]'))
       await harness.until(() => completed(protocol, harness.stdout))
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       expect(harness.stderr).toBe(`${grant}\n`)
       const frame = lines(harness.stdout).map((line) => JSON.parse(line)).find((value) => value.type === (protocol === 'claude' ? 'user' : 'tool_execution_end'))
       expect(JSON.stringify(frame)).toContain(grant)
@@ -267,14 +268,14 @@ for (const protocol of protocols) {
       const harness = await initialize(protocol)
       harness.send(prompt(protocol, '[question]'))
       await harness.until(() => harness.stdout.includes(protocol === 'claude' ? 'control_request' : 'extension_ui_request'))
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
     })
 
     it('exits 0 on EOF during slow without finishing the pending turn', async () => {
       const harness = await initialize(protocol)
       harness.send(prompt(protocol, '[slow]'))
       await harness.until(() => harness.stdout.length > 0)
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       expect(completed(protocol, harness.stdout)).toBe(false)
     })
 
@@ -289,7 +290,7 @@ for (const protocol of protocols) {
       expect(completed(protocol, harness.stdout)).toBe(false)
       harness.send(lines(golden(protocol, 'approval', 'in'))[1])
       await harness.until(() => completed(protocol, harness.stdout))
-      await finish(harness)
+      expect(await finish(harness)).toBe(0)
       expect(harness.stdout).toBe(golden(protocol, 'approval'))
     })
   }
@@ -395,7 +396,7 @@ for (const scenario of ['subagent', 'subagent_tree']) {
       await harness.until(() => completed('omp', harness.stdout))
       expect(harness.stdout).toBe(expected)
     }
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
   })
 }
 
@@ -412,7 +413,7 @@ for (const type of ['follow_up', 'steer']) {
     expect(harness.stdout).toContain(acknowledgement + queued)
     expect(completed('omp', harness.stdout)).toBe(false)
     await harness.until(() => harness.stdout.split('\n').slice(0, -1).filter((line) => JSON.parse(line).type === 'prompt_result').length === 2)
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
     const withoutAdmission = harness.stdout.replace(acknowledgement + queued, '')
     const secondTurn = lines(golden('omp', 'text').replaceAll('T1', 'T2')).slice(1).join('\n').replaceAll('req_T2_prompt', id) + '\n'
     expect(withoutAdmission).toBe(golden('omp', 'text') + '{"type":"queue_update","steering":[],"followUp":[]}\n' + secondTurn)
@@ -427,7 +428,7 @@ it('OMP --resume and --session answer get_state with nonempty todoPhases', async
     harness.send({ type: 'get_state', id: 'resumed-state' })
     await harness.until(() => harness.stdout.includes('resumed-state'))
     expect(JSON.parse(harness.stdout).data.todoPhases.length).toBeGreaterThan(0)
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
   }
 })
 
@@ -438,7 +439,7 @@ it('OMP rpc mode waits for subscription and correlates its response', async () =
   harness.stdout = ''
   harness.send({ type: 'set_subagent_subscription', id: 'custom-subscription', level: 'progress' })
   await harness.until(() => harness.stdout.includes('custom-subscription'))
-  await finish(harness)
+  expect(await finish(harness)).toBe(0)
   expect(JSON.parse(harness.stdout)).toEqual({ type: 'response', command: 'set_subagent_subscription', id: 'custom-subscription', success: true })
 })
 
@@ -447,7 +448,7 @@ for (const [protocol, keyword, target] of [['omp', 'tasks', 'todo'], ['claude', 
     const harness = await initialize(protocol)
     harness.send(prompt(protocol, `[${keyword}]`))
     await harness.until(() => completed(protocol, harness.stdout))
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
     expect(harness.stdout).toBe(golden(protocol, target))
   })
 }
@@ -462,7 +463,7 @@ it('OMP accepts chunked input and renumbers decoded chunk ids on later turns', a
   harness.stdout = ''
   harness.send(prompt('omp', '[chunked]', 2))
   await harness.until(() => completed('omp', harness.stdout))
-  await finish(harness)
+  expect(await finish(harness)).toBe(0)
   const chunks = lines(harness.stdout).map((line) => JSON.parse(line)).filter((frame) => frame.type === 'rpc_chunk')
   const bytes = Buffer.concat(chunks.map((frame) => Buffer.from(frame.data, 'base64')))
   expect(bytes.length).toBe(chunks[0].byteLength)
@@ -496,7 +497,7 @@ it('TUI echoes each stdin line including final unterminated input and exits 0 on
 for (const argv of [[], argsFor('claude'), argsFor('omp')]) {
   it(`${argv.join(' ') || 'TUI'} exits 0 on immediate stdin EOF`, async () => {
     const harness = launch(argv)
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
   })
   if (process.platform !== 'win32') {
     it(`${argv.join(' ') || 'TUI'} exits 0 on delivered SIGTERM`, async () => {
@@ -512,7 +513,7 @@ for (const argv of [[], argsFor('claude'), argsFor('omp')]) {
 for (const argv of [[], argsFor('claude'), argsFor('omp')]) {
   it(`${argv.join(' ') || 'TUI'} writes a resumable session under the isolated CLAUDE_CONFIG_DIR`, async () => {
     const harness = launch([...argv, '--session-id', sessionId])
-    await finish(harness)
+    expect(await finish(harness)).toBe(0)
     expect(claudeSessionExists({ env: { CLAUDE_CONFIG_DIR: join(scratch, 'config') }, platform: process.platform, folder: scratch, sessionId })).toBe(true)
   })
 }

@@ -1311,11 +1311,27 @@ async function settle(check: () => boolean) {
 }
 
 it('takes one AttentionEvent notifier for both the prompt gate and the session manager', () => {
-  const notify = (_event: AttentionEvent): void => undefined
+  const events: AttentionEvent[] = []
+  const notify = (event: AttentionEvent): void => { events.push(event) }
   expectTypeOf(notify).toExtend<NonNullable<AgentChatSessionsDeps['onAttention']>>()
   expectTypeOf(notify).toExtend<Parameters<typeof createPromptArbitration>[0]['onAttention']>()
   // A stall names only the chat and the silence: no prompt, title or transcript text.
   expectTypeOf<Extract<AttentionEvent, { kind: 'run_stalled' }>>().toEqualTypeOf<{ kind: 'run_stalled'; ref: ChatRef; silentMs: number }>()
+  // At runtime the same function serves the session manager (the stall cases below) and the prompt gate (here).
+  const r = rig('claude', { onAttention: notify }), chat = r.newChat()
+  const arbitration = createPromptArbitration({
+    settings: () => DEFAULT_NOTIFICATION_SETTINGS, onAttention: notify, readContext: async () => ({ ticket: null, standards: null }),
+    platform: process.platform, env: r.env, arbiterRoot: join(r.root, 'arbiter')
+  })
+  cleanups.unshift(async () => arbitration.dispose())
+  const prompt: PendingPrompt = { id: 'p1', kind: 'approval', title: 'Bash p1', detail: '', threadId: null, callsign: null, attributed: true,
+    arbitration: { state: 'off', reason: null }, options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }],
+    tool: { name: 'Bash', input: { command: 'npm test' } } }
+  const ref = { folder: chat.folder, id: chat.id }
+  const gate = arbitration.arbitrate({ ref, chat, agent: builtInAgent('claude'), prompt, inputClipped: false })
+  gate.awaitingPerson(prompt)
+  // A worker chat is not the Magos's: the gate is off and the person is told through the shared notifier.
+  expect([gate.state, events]).toEqual(['off', [{ kind: 'approval_needed', ref, prompt }]])
 })
 
 /**
@@ -1333,22 +1349,29 @@ async function stalled(kind: 'claude' | 'omp', role: 'magos' | 'new' | 'worker',
   // Each turn's first stdout line.
   const marker = kind === 'claude' ? '"message_start"' : '"command":"prompt"'
   const turns = () => tap.lines.filter(line => line.includes(marker)).length
-  const event = { kind: 'run_stalled', ref: { folder: chat.folder, id: chat.id }, silentMs: STALL_MS }
+  const event: AttentionEvent = { kind: 'run_stalled', ref: { folder: chat.folder, id: chat.id }, silentMs: STALL_MS }
   return { r, tap, chat, onAttention, turns, event }
 }
 
 /** A busy, silent chat that is not a run's Magos or has a prompt pending: no span is armed and nothing fires. */
 async function neverStalls(kind: 'claude' | 'omp', role: 'magos' | 'new' | 'worker', text: string, waitsOnPerson: boolean) {
-  const { r, chat, onAttention, turns } = await stalled(kind, role, text)
+  const { r, chat, onAttention, turns, event } = await stalled(kind, role, text)
   await settle(() => waitsOnPerson ? r.sessions.snapshot(chat).pending !== null : turns() === 1)
   expect(r.sessions.snapshot(chat).status).toBe('busy')
   expect(vi.getTimerCount()).toBe(0)
   await vi.advanceTimersByTimeAsync(2 * STALL_MS)
-  expect(onAttention).not.toHaveBeenCalled()
+  return observed(onAttention, event)
 }
 
-const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
-  'fires one run_stalled after 300 s of busy silence, once per silent span': async kind => {
+type StallObservation = { fired: AttentionEvent[]; event: AttentionEvent }
+/** Every attention event the case's chat raised, for the case's own run_stalled event to be compared against. */
+function observed(onAttention: { mock: { calls: [AttentionEvent][] } }, event: AttentionEvent): StallObservation {
+  return { fired: onAttention.mock.calls.map(([fired]) => fired), event }
+}
+
+/** Each case and how many run_stalled events it must have raised, all for its own chat and silence. */
+const stallCases: Array<[name: string, fires: number, run: (kind: 'claude' | 'omp') => Promise<StallObservation>]> = [
+  ['fires one run_stalled after 300 s of busy silence, once per silent span', 2, async kind => {
     const { r, tap, chat, onAttention, turns, event } = await stalled(kind, 'magos')
     await settle(() => turns() === 1)
     expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'busy', pending: null })
@@ -1364,8 +1387,9 @@ const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
     await vi.advanceTimersByTimeAsync(STALL_MS)
     expect(onAttention.mock.calls).toEqual([[event], [event]])
     expect(r.sessions.snapshot(chat).status).toBe('busy')
-  },
-  'restarts the span at a line 299 s into the silence': async kind => {
+    return observed(onAttention, event)
+  }],
+  ['restarts the span at a line 299 s into the silence', 1, async kind => {
     const { tap, onAttention, turns, event } = await stalled(kind, 'magos')
     await settle(() => turns() === 1)
     await vi.advanceTimersByTimeAsync(299_000)
@@ -1374,8 +1398,9 @@ const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
     expect(onAttention).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1_000)
     expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
-  },
-  'ends the span when the turn goes idle, and fires again in a later busy silence': async kind => {
+    return observed(onAttention, event)
+  }],
+  ['ends the span when the turn goes idle, and fires again in a later busy silence', 1, async kind => {
     const { r, chat, onAttention, turns, event } = await stalled(kind, 'magos', '[text]')
     await settle(() => r.sessions.snapshot(chat).status === 'idle')
     expect(vi.getTimerCount()).toBe(0)
@@ -1385,12 +1410,13 @@ const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
     await settle(() => turns() === 2)
     await vi.advanceTimersByTimeAsync(STALL_MS)
     expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
-  },
-  'never fires while a prompt waits on the person': kind => neverStalls(kind, 'magos', '[approval]', true),
-  'never fires for a New chat': kind => neverStalls(kind, 'new', '[slow]', false),
-  'never fires for a worker chat': kind => neverStalls(kind, 'worker', '[slow]', false),
-  'leaves no stall timer once the agent exits': async kind => {
-    const { r, chat, onAttention, turns } = await stalled(kind, 'magos')
+    return observed(onAttention, event)
+  }],
+  ['never fires while a prompt waits on the person', 0, kind => neverStalls(kind, 'magos', '[approval]', true)],
+  ['never fires for a New chat', 0, kind => neverStalls(kind, 'new', '[slow]', false)],
+  ['never fires for a worker chat', 0, kind => neverStalls(kind, 'worker', '[slow]', false)],
+  ['leaves no stall timer once the agent exits', 0, async kind => {
+    const { r, chat, onAttention, turns, event } = await stalled(kind, 'magos')
     await settle(() => turns() === 1)
     await vi.advanceTimersByTimeAsync(STALL_MS / 2)
     expect(vi.getTimerCount()).toBe(1)
@@ -1399,20 +1425,23 @@ const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
     expect(r.sessions.snapshot(chat).status).not.toBe('busy')
     expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(2 * STALL_MS)
-    expect(onAttention).not.toHaveBeenCalled()
-  },
-  'leaves no stall timer after dispose': async kind => {
-    const { r, onAttention, turns } = await stalled(kind, 'magos')
+    return observed(onAttention, event)
+  }],
+  ['leaves no stall timer after dispose', 0, async kind => {
+    const { r, onAttention, turns, event } = await stalled(kind, 'magos')
     await settle(() => turns() === 1)
     await vi.advanceTimersByTimeAsync(STALL_MS / 2)
     expect(vi.getTimerCount()).toBe(1)
     await r.sessions.dispose()
     expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(2 * STALL_MS)
-    expect(onAttention).not.toHaveBeenCalled()
-  }
-}
+    return observed(onAttention, event)
+  }]
+]
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} run-stalled attention`, () => {
-  for (const [name, run] of Object.entries(stallCases)) it(name, () => run(kind))
+  for (const [name, fires, run] of stallCases) it(name, async () => {
+    const { fired, event } = await run(kind)
+    expect(fired).toEqual(Array.from({ length: fires }, () => event))
+  })
 })

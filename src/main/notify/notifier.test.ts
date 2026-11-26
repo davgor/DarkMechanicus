@@ -215,5 +215,27 @@ describe('Electron seams', () => {
   it("accepts Electron's Notification class and BrowserWindow", () => {
     expectTypeOf<typeof ElectronNotification>().toExtend<NotifierDeps['Notification']>()
     expectTypeOf<BrowserWindow>().toExtend<NotifierWindow>()
+    // At runtime the notifier needs nothing beyond the seam: objects with only its members drive a show and a click.
+    const calls: string[] = []
+    const listeners: Partial<Record<'click' | 'close' | 'failed', () => void>> = {}
+    const seamWindow: NotifierWindow = {
+      isDestroyed: () => false, isFocused: () => false, isMinimized: () => true,
+      restore: () => { calls.push('restore') }, show: () => { calls.push('show') }, focus: () => { calls.push('focus') },
+      webContents: { isDestroyed: () => false, send: (channel: string) => { calls.push(channel) } }
+    }
+    class SeamNotification {
+      static isSupported(): boolean { return true }
+      constructor(readonly options: { title: string; body: string; silent: boolean }) { calls.push(`new:${options.title}`) }
+      on(name: 'click' | 'close' | 'failed', listener: () => void): this { listeners[name] = listener; return this }
+      show(): void { calls.push('shown') }
+    }
+    const notifier = createNotifier({
+      Notification: SeamNotification, windows: () => [seamWindow], settings: () => DEFAULT_NOTIFICATION_SETTINGS,
+      push: sendToWindows, logger: { info: () => undefined }, now: () => 0
+    })
+    notifier.notify(event())
+    listeners.click?.()
+    notifier.dispose()
+    expect(calls).toEqual(['new:Acolyte:DM-1 needs you', 'shown', 'restore', 'show', 'focus', 'notifications:navigate'])
   })
 })
