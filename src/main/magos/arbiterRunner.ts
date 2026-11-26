@@ -1,6 +1,7 @@
 import { spawn as spawnChild, type ChildProcess } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import { killProcessTree, startsOwnGroup } from '../agents/processTree'
 import { logger } from '../logger'
@@ -37,6 +38,27 @@ async function bounded(work: Promise<unknown>, ms: number): Promise<boolean> {
     ])
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** What Windows answers while a handle in the directory is still open: a killed descendant's cwd, or a file it held. */
+const BUSY_CODES: Record<string, true> = { EBUSY: true, EPERM: true, ENOTEMPTY: true }
+const REMOVE_ATTEMPTS = 4
+
+/**
+ * Removes the run's directory. `taskkill /t /f` returns once termination has been requested, and the runner waits only
+ * for its direct child's exit, so a descendant can still be releasing its handles (its cwd is this directory) when the
+ * removal starts. A busy removal is asked again after 50, 100 and 150 ms: 300 ms in all, inside `removeTemp`'s bound.
+ */
+async function removeDirectory(dir: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rm(dir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (attempt >= REMOVE_ATTEMPTS || !Object.hasOwn(BUSY_CODES, (error as NodeJS.ErrnoException).code ?? '')) throw error
+    }
+    await delay(50 * attempt)
   }
 }
 
@@ -161,7 +183,7 @@ class ArbiterRun {
 
   private removeTemp(): Promise<boolean> {
     if (!this.tempDir) return Promise.resolve(!this.creatingDirectory)
-    this.tempRemoved ??= bounded(rm(this.tempDir, { recursive: true, force: true }), 500)
+    this.tempRemoved ??= bounded(removeDirectory(this.tempDir), 500)
     return this.tempRemoved
   }
 

@@ -361,10 +361,34 @@ it('kills the real child tree on cancellation, not just its direct process', asy
   runs.push(run)
   await waitForLog()
   run.cancel()
-  expect(await run.result).toMatchObject({ cause: 'cancelled' })
+  // The reason shows cleanup was confirmed: an unconfirmed one keeps the cause but reads "could not be confirmed".
+  expect(await run.result).toMatchObject({ cause: 'cancelled', reason: 'Arbiter cancelled.' })
   const record = logRecord()
   expect(() => process.kill(record.pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }))
   expect(() => process.kill(record.descendant!, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }))
+})
+
+const removalError = (code: string): NodeJS.ErrnoException => Object.assign(new Error(`${code}: resource busy or locked, rmdir`), { code })
+
+it('removes its directory after Windows reports it busy, as a killed descendant still releases its cwd', async () => {
+  vi.mocked(rm).mockRejectedValueOnce(removalError('EBUSY'))
+  expect(await runFake('allow').result).toEqual({ decision: 'allow_once', reason: 'fake allow_once' })
+  expect(rm).toHaveBeenCalledTimes(2)
+  expect(existsSync(dirs[0])).toBe(false)
+})
+
+it('stops asking after four busy removals and reports the cleanup unconfirmed', async () => {
+  for (let attempt = 0; attempt < 4; attempt++) vi.mocked(rm).mockRejectedValueOnce(removalError('EPERM'))
+  expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
+  expect(rm).toHaveBeenCalledTimes(4)
+  rmSync(dirs[0], { recursive: true, force: true })
+})
+
+it('fails closed at once on a removal error that is not a busy directory', async () => {
+  vi.mocked(rm).mockRejectedValueOnce(removalError('EIO'))
+  expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
+  expect(rm).toHaveBeenCalledOnce()
+  rmSync(dirs[0], { recursive: true, force: true })
 })
 
 const failureModes = ['throw', 'reject', 'hang', 'false'] as const
