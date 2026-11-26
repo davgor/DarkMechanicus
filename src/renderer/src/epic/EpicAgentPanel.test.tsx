@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import type { AttentionItem } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeChats } from '../__mocks__/fakeChats'
@@ -203,5 +204,92 @@ describe('EpicAgentPanel: Changes card', () => {
     const stage = await agentStage()
     const card = within(stage).getByRole('region', { name: 'Changes' })
     expect(within(card).getByText('Not available for terminal chats')).toBeTruthy()
+  })
+})
+
+const acolyte = { role: 'Acolyte' as const, ticketKey: 'DM-201', ordinal: null, purpose: null, ticketVerified: true }
+const inquisitor = { role: 'Inquisitor' as const, ticketKey: 'DM-202', ordinal: null, purpose: null, ticketVerified: true }
+const nested: ChatItem[] = [
+  ...items,
+  { id: 'th_2', at: AT, kind: 'thread', parentItemId: null, label: 'Review', state: 'running',
+    callsign: { role: 'Acolyte', ticketKey: 'DM-202', ordinal: null, purpose: null, ticketVerified: true } },
+  { id: 'th_3', at: AT, threadId: 'th_2', kind: 'thread', parentItemId: null, label: 'Inspect', state: 'running', callsign: inquisitor }
+]
+const prompt = (threadId: string | null, arbitration: AttentionItem['arbitration'], callsign: AttentionItem['callsign'] = acolyte): AttentionItem => ({
+  chatId: 'chat_orch', promptId: `p_${threadId}`, kind: 'approval', threadId, callsign, arbitration, title: 'Run the tests?', shown: true
+})
+const header = (rail: HTMLElement): string => rail.querySelector('.at-header')?.textContent ?? ''
+
+async function railWith(attention: AttentionItem[], chatItems: ChatItem[] = items) {
+  const backend = backendWith(chatItems)
+  backend.agentChat.attentionResult = { ok: true, data: attention }
+  openAgent(backend, [orchestrator])
+  const stage = await agentStage()
+  const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+  await within(rail).findByRole('treeitem', { name: 'Acolyte:DM-201' })
+  return { backend, stage, rail }
+}
+
+describe('EpicAgentPanel: needs you dots', () => {
+  it('dots a worker approval, bubbles it to the collapsed orchestrator and counts 1 needs you', async () => {
+    const { backend, rail } = await railWith([prompt('th_1', 'escalated')])
+    expect(backend.agentChat.callsOf('attention')).toEqual([[{ folder: FOLDER }]])
+    const worker = within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })
+    expect(await within(worker).findByRole('button', { name: 'Acolyte:DM-201 needs you' })).toBeTruthy()
+    expect(header(rail)).toMatch(/^1 needs you/)
+    const magos = within(rail).getByRole('treeitem', { name: 'Magos' })
+    expect(within(magos).queryAllByRole('button', { name: 'Magos needs you' })).toHaveLength(0)
+    fireEvent.click(within(rail).getByRole('button', { name: 'Collapse Magos' }))
+    const bubbled = within(magos).getByRole('button', { name: 'Magos needs you' })
+    expect(bubbled.getAttribute('title')).toBe('1 waiting below')
+    expect(header(rail)).toMatch(/^1 needs you/)
+  })
+
+  it('selects the orchestrator chat that holds the card when a dot is clicked', async () => {
+    const { stage, rail } = await railWith([prompt('th_1', 'off')])
+    const worker = within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })
+    fireEvent.click(within(worker).getByText('Acolyte:DM-201'))
+    await waitFor(() => expect(worker.getAttribute('aria-selected')).toBe('true'))
+    fireEvent.click(await within(worker).findByRole('button', { name: 'Acolyte:DM-201 needs you' }))
+    await waitFor(() => expect(within(rail).getByRole('treeitem', { name: 'Magos' }).getAttribute('aria-selected')).toBe('true'))
+    expect(within(stage).getByRole('region', { name: 'Magos chat' })).toBeTruthy()
+    expect(within(stage).queryByRole('region', { name: 'Acolyte:DM-201 thread' })).toBeNull()
+  })
+
+  it('shows the grey Magos deciding glyph for a deciding prompt and no needs-you header or dot', async () => {
+    const { rail } = await railWith([prompt('th_1', 'deciding')])
+    const worker = within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })
+    const glyph = await within(worker).findByRole('img', { name: 'Magos deciding' })
+    expect(glyph.className).toBe('at-deciding')
+    expect(within(rail).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
+    expect(header(rail)).not.toContain('needs you')
+    fireEvent.click(within(rail).getByRole('button', { name: 'Collapse Magos' }))
+    expect(within(rail).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
+  })
+})
+
+describe('EpicAgentPanel: needs you header and pushes', () => {
+  it('dots a waiting worker under an expanded parent and a second, collapsed parent, and counts 2 needs you', async () => {
+    const { rail } = await railWith([prompt('th_1', 'off'), prompt('th_3', 'escalated', inquisitor)], nested)
+    const worker = within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })
+    expect(await within(worker).findByRole('button', { name: 'Acolyte:DM-201 needs you' })).toBeTruthy()
+    fireEvent.click(within(rail).getByRole('button', { name: 'Collapse Acolyte:DM-202' }))
+    const second = within(rail).getByRole('treeitem', { name: 'Acolyte:DM-202' })
+    expect(within(rail).queryByRole('treeitem', { name: 'Inquisitor:DM-202' })).toBeNull()
+    expect(within(second).getByRole('button', { name: 'Acolyte:DM-202 needs you' }).getAttribute('title')).toBe('1 waiting below')
+    expect(within(rail).getByRole('treeitem', { name: 'Magos' }).getAttribute('aria-expanded')).toBe('true')
+    expect(header(rail)).toMatch(/^2 needs you/)
+  })
+
+  it('follows attention pushes and clears the dot and header on the empty exit list', async () => {
+    const { backend, rail } = await railWith([])
+    expect(header(rail)).not.toContain('needs you')
+    act(() => backend.agentChat.emit({ folder: FOLDER, chatId: 'chat_orch', type: 'attention', items: [prompt(null, 'off', null)] }))
+    const magos = within(rail).getByRole('treeitem', { name: 'Magos' })
+    expect(within(magos).getAllByRole('button', { name: 'Magos needs you' })).toHaveLength(1)
+    expect(header(rail)).toMatch(/^1 needs you/)
+    act(() => backend.agentChat.emit({ folder: FOLDER, chatId: 'chat_orch', type: 'attention', items: [] }))
+    expect(within(rail).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
+    expect(header(rail)).not.toContain('needs you')
   })
 })

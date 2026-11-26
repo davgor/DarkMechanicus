@@ -4,12 +4,24 @@ import { formatElapsed } from '../epic/time'
 import { elapsedMs, headerText, type AgentTreeNode, type AgentTreeModel } from './agentTreeModel'
 import './agentTree.css'
 
+/**
+ * Optional needs-you controls: with them a waiting row's dot and a collapsed row's bubbled dot are buttons that call
+ * `select` with the row's node id; `below` is the number waiting in a row's subtree and `deciding` the rows whose
+ * prompts the Magos is still deciding.
+ */
+export interface NeedsYouControls {
+  below: ReadonlyMap<string, number>
+  deciding: ReadonlySet<string>
+  select(id: string): void
+}
+
 interface AgentTreeProps {
   tree: AgentTreeModel
   selectedId: string | null
   onSelect(id: string): void
   now: number
   label?: string
+  needsYou?: NeedsYouControls
 }
 
 interface Row {
@@ -81,6 +93,7 @@ interface Controls {
   focused: string | undefined
   selectedId: string | null
   now: number
+  needsYou: NeedsYouControls | undefined
   register(key: string, element: HTMLLIElement | null): void
   focus(key: string): void
   toggle(row: Row): void
@@ -96,11 +109,26 @@ function Disclosure({ row, controls }: { row: Row; controls: Controls }): JSX.El
   </button>
 }
 
-function CollapsedDetails({ row }: { row: Row }): JSX.Element | null {
+function CollapsedDetails({ row, controls }: { row: Row; controls: Controls }): JSX.Element | null {
   if (row.open || !row.node) return null
   return <>
     <span className="at-count">(+{row.node.descendants})</span>
-    {row.node.needsYouBelow && <span className="at-needs" aria-label="Descendant needs you" />}
+    {controls.needsYou === undefined && row.node.needsYouBelow && <span className="at-needs" aria-label="Descendant needs you" />}
+  </>
+}
+
+/** The amber dot of a waiting row, or of a collapsed row with prompts waiting below it; it selects the row's card. */
+function NeedsYouDot({ row, controls }: { row: Row; controls: Controls }): JSX.Element | null {
+  const { needsYou } = controls
+  if (needsYou === undefined || !row.node) return null
+  const node = row.node
+  const below = row.open ? 0 : needsYou.below.get(node.id) ?? 0
+  const deciding = needsYou.deciding.has(node.id)
+  return <>
+    {(node.status === 'needs_you' || below > 0) && <button type="button" className="at-needs" tabIndex={-1}
+      aria-label={`${node.name} needs you`} title={below > 0 ? `${below} waiting below` : undefined}
+      onClick={(event) => { event.stopPropagation(); needsYou.select(node.id) }} />}
+    {deciding && <span className="at-deciding" role="img" aria-label="Magos deciding" title="Magos deciding">◌</span>}
   </>
 }
 
@@ -115,7 +143,8 @@ function TreeRow({ row, controls, children }: { row: Row; controls: Controls; ch
     <div className="at-row" onClick={() => controls.activate(row)}>
       <Disclosure row={row} controls={controls} />
       {row.node ? <NodeDetails node={row.node} now={controls.now} /> : <span className="at-name">{row.name}</span>}
-      <CollapsedDetails row={row} />
+      <CollapsedDetails row={row} controls={controls} />
+      <NeedsYouDot row={row} controls={controls} />
     </div>
     {children}
   </li>
@@ -165,7 +194,7 @@ function renderRows(rows: Row[], controls: Controls): ReactNode {
   return rows.filter((row) => row.parent === null).map((row) => rendered.get(row.key))
 }
 
-export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents' }: AgentTreeProps): JSX.Element {
+export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', needsYou }: AgentTreeProps): JSX.Element {
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(() => new Map())
   const [focused, setFocused] = useState<string>()
   const elements = useRef(new Map<string, HTMLLIElement>())
@@ -180,7 +209,7 @@ export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents' }:
     setExpansion((previous) => new Map(previous).set(row.key, !row.open))
   }
   const controls: Controls = {
-    focused: active?.key, selectedId, now, focus, toggle,
+    focused: active?.key, selectedId, now, needsYou, focus, toggle,
     register: (key, element) => { if (element) elements.current.set(key, element); else elements.current.delete(key) },
     activate: (row) => { focus(row.key); if (row.node) onSelect(row.node.id); else toggle(row) },
     keyDown: (event, row) => navigate(event, row, rows, controls)

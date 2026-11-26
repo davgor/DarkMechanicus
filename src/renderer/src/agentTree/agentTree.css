@@ -23,6 +23,10 @@
 .at-dot[data-hue="6"] { background: var(--term-bright-blue); }
 .at-dot[data-hue="7"] { background: var(--term-bright-magenta); }
 .at-needs { background: var(--attention); }
+/* Scoped under the tree so a host's generic button reset (the rail's `.rr button`) never clears the amber fill. */
+.at-root button.at-needs, .at-root button.at-needs:hover { width: 8px; height: 8px; border: 0; padding: 0; background: var(--attention); cursor: pointer; }
+.at-root button.at-needs:hover, .at-root button.at-needs:focus-visible { outline: 2px solid var(--attention); outline-offset: 1px; }
+.at-deciding { color: var(--muted); }
 .at-status[data-status="running"] { color: var(--st-running); }
 .at-status[data-status="needs_you"] { color: var(--attention); }
 .at-status[data-status="done"] { color: var(--st-accepted); }

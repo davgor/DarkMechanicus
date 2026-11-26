@@ -10,15 +10,17 @@ import { AgentChangesCard } from '../agentChat/AgentChangesCard'
 import { AgentChat } from '../agentChat/AgentChat'
 import { withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
-import { AgentTree } from '../agentTree/AgentTree'
+import { useNeedsYou } from '../agentChat/useNeedsYou'
+import { AgentTree, type NeedsYouControls } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { ChatTranscript } from '../agents/ChatTranscript'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailTab } from '../components/RightRail'
 import {
   activeOrchestratorId, defaultAgentChatId, epicAgentNodes, epicChats, owningChatId, relayMessage, threadTranscript,
-  type LoadedTranscript
+  type EpicAgentNodesInput, type LoadedTranscript
 } from './epicAgentsView'
+import { agentRows, needsYouRows, type NeedsYouCount } from './needsYou'
 import type { WorkspaceHandle } from './useWorkspace'
 
 /** Subscribes to one chat's structured transcript and reports it; renders nothing. */
@@ -194,16 +196,17 @@ function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
   )
 }
 
-function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes }: {
+function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes, needsYou }: {
   selectedId: string | null
   onSelect: (id: string) => void
   now: number
   changes: ReactNode
+  needsYou: NeedsYouControls
 }): RailTab[] {
   const tree = buildAgentTree(nodes)
-  const { needsYou, working } = tree.counts
-  const badge: RailTab['badge'] = needsYou > 0
-    ? { text: String(needsYou), tone: 'attention' }
+  const { needsYou: waiting, working } = tree.counts
+  const badge: RailTab['badge'] = waiting > 0
+    ? { text: String(waiting), tone: 'attention' }
     : working > 0 ? { text: String(working), tone: 'running' } : undefined
   return [{
     id: 'agents',
@@ -211,7 +214,7 @@ function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, chan
     icon: 'agent',
     ...(badge === undefined ? {} : { badge }),
     content: <>
-      <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" />
+      <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" needsYou={needsYou} />
       {changes}
     </>
   }]
@@ -234,6 +237,26 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }
 
+/**
+ * The epic's agent nodes with the folder's attention applied: a row with its own prompt waiting on the person takes
+ * the needs-you status, so the tree's own header count and collapsed-ancestor bubbling show it.
+ */
+function useNeedsYouNodes(folder: string, input: Omit<EpicAgentNodesInput, 'needsYou'>): {
+  nodes: AgentTreeNodeInput[]
+  counts: ReadonlyMap<string, NeedsYouCount>
+} {
+  const attention = useNeedsYou(folder)
+  const { chats, run, epicId, transcripts, savedTickets } = input
+  const base = useMemo(() => epicAgentNodes({ chats, run, epicId, transcripts, savedTickets }),
+    [chats, run, epicId, transcripts, savedTickets])
+  const counts = useMemo(() => needsYouRows(agentRows(base), attention), [base, attention])
+  const nodes = useMemo(() => {
+    const waiting = new Set([...counts].filter(([, count]) => count.own > 0).map(([id]) => id))
+    return waiting.size === 0 ? base : epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, needsYou: waiting })
+  }, [base, counts, chats, run, epicId, transcripts, savedTickets])
+  return { nodes, counts }
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -244,9 +267,9 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const lead = activeOrchestratorId(chats, run)
   // Only chats still subscribed feed the tree; a chat no longer watched would otherwise stay frozen as it was.
   const watched = useMemo(() => new Map([...transcripts].filter(([id]) => id === lead || id === chat?.id)), [transcripts, lead, chat?.id])
-  const nodes = useMemo(() => epicAgentNodes({
+  const { nodes, counts } = useNeedsYouNodes(folder, {
     chats, run, epicId: ws.epicId, transcripts: watched, savedTickets: ws.data.savedTickets
-  }), [chats, run, ws.epicId, watched, ws.data.savedTickets])
+  })
   if (chat === undefined) {
     return <section aria-label="Agent chat" className="eap"><NoAgents ws={ws} /></section>
   }
@@ -254,6 +277,15 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const onSelect = (id: string): void => {
     const owner = owningChatId(nodes, id)
     if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner, threadId: owner === id ? null : id })
+  }
+  const needsYou: NeedsYouControls = {
+    below: new Map([...counts].map(([id, count]) => [id, count.descendants])),
+    deciding: new Set([...counts].filter(([, count]) => count.deciding > 0).map(([id]) => id)),
+    // The card waits in the owning chat's own view, so the dot selects that chat rather than the thread.
+    select: (id) => {
+      const owner = owningChatId(nodes, id)
+      if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner })
+    }
   }
   return (
     <section aria-label="Agent chat" className="eap">
@@ -264,7 +296,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
         tabs={railTabs(nodes, {
-          selectedId: threadId ?? chat.id, onSelect, now: ws.now,
+          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou,
           changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
             onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
         })} />

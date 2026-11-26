@@ -58,16 +58,19 @@ function chatKindLabel(chat: ChatRecord, run: RunView | null): string {
 /**
  * Roots named from their chat records (Magos only for a run's orchestrator, Lexmechanic for a planner, otherwise
  * the chat's title) and, under each root whose transcript is loaded, the subagents named from main's stamped
- * callsigns. A root's node id is its chat id; an id seen before is never listed again.
+ * callsigns. A root's node id is its chat id; an id seen before is never listed again. A node id in `needsYou` (a
+ * chat with a main-thread prompt, or a running thread with its own) gets the `needs_you` status.
  */
-export function epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, needsYou }: {
+export interface EpicAgentNodesInput {
   chats: readonly ChatRecord[]
   run: RunView | null
   epicId: string
   transcripts: ReadonlyMap<string, LoadedTranscript>
   savedTickets: readonly { key: string; title: string }[]
   needsYou?: ReadonlySet<string>
-}): AgentTreeNodeInput[] {
+}
+
+export function epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, needsYou }: EpicAgentNodesInput): AgentTreeNodeInput[] {
   const seen = new Set<string>()
   const nodes: AgentTreeNodeInput[] = []
   for (const chat of epicChats(chats, run, epicId)) {
@@ -78,7 +81,7 @@ export function epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, 
         chat,
         fallbackName: chat.title,
         secondary: chatKindLabel(chat, run),
-        status: transcript?.busy ? 'running' : 'idle',
+        status: needsYou?.has(chat.id) ? 'needs_you' : transcript?.busy ? 'running' : 'idle',
         startedAt: Date.parse(chat.createdAt),
         endedAt: null
       },
