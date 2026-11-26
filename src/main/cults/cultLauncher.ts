@@ -13,10 +13,12 @@
  * upgrades the Magos when an `allow_save` petition is approved. Each member's rules (`cultRules.ts`) are written before
  * its start and appended to its instructions; its first prompt is the charter (Magos) or its mission (acolyte).
  *
- * **Ending.** `endMember` gives a member's CLI Ctrl+D and 5 s to exit, then kills its tree (`killPtyTree`); its grant is
+ * **Ending.** `endMember` asks a member's CLI to exit through its trusted control file (`cultControl.ts`: the Skitarii
+ * extension calls `ctx.shutdown()`), types Ctrl+D after `EXIT_KEYS_AFTER_MS` for a CLI whose extension did not act, and
+ * kills its tree (`killPtyTree`) when it has not exited within 5 s; its grant is
  * revoked by the terminal on every way out. Deleting a cult deletes its member chats (records, transcripts, mailboxes,
  * own folders, and grants with their terminals), then the cult, then its sanctum and the sanctum's database project.
- * Timers, pause and shutdown sequencing, agent commands and IPC are later tickets; they call in through this module.
+ * The supervisor (`cultSupervisor.ts`) times, pauses and shuts runs down through this module.
  */
 import { rm } from 'node:fs/promises'
 import { dbProjectDir } from '../../core/repo/storageMode'
@@ -24,19 +26,22 @@ import { DomainError, fail } from '../../core/errors'
 import type { ChatRecord, ChatRole } from '../../shared/agents/chat'
 import { isSafeModelId } from '../../shared/agents/models'
 import type { RosterSlot } from '../../shared/cults/archetypes'
-import type { CultMemberView, CultRunView, CultView, MemberRole } from '../../shared/cults/cult'
+import type { CultMemberView, CultRunView, CultView, MemberRole, RunStartInput } from '../../shared/cults/cult'
 import { cultistName } from '../../shared/cults/names'
 import type { ChatRecords } from '../agents/chatRecords'
 import type { ProjectWorkspace } from '../desktop/workspaceClient'
-import type { TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
+import type { GracefulEnd, TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
+import type { CultControl } from './cultControl'
 import { acolyteMission, acolyteRules, magosRules, writeCultRules, type CultRunContext, type MemberWorkerType, type PlanTarget } from './cultRules'
 import type { CultStore } from './cultStore'
 import type { SanctumRegistry } from './sanctumRegistry'
 
 /** The agent every cult member runs: Skitarii (OMP), whose chats have mailboxes. */
 const CULT_AGENT = 'omp'
-/** What a graceful end types into a member's CLI: Ctrl+D, which closes an idle OMP editor (`cults.md`, section 3). */
+/** The fallback exit keys: Ctrl+D, which closes an idle OMP editor (`cults.md`, section 3). */
 const EXIT_KEYS = '\x04'
+/** How long the control file's `shutdown` gets before the exit keys are typed: the extension polls it every second. */
+export const EXIT_KEYS_AFTER_MS = 2_000
 /** How long a member's CLI gets to exit on its own before its tree is killed. */
 export const GRACEFUL_EXIT_MS = 5_000
 
@@ -48,6 +53,8 @@ export interface CultLauncherDeps {
   /** The chat records, with deleting a chat also ending its terminal (`endingTerminals`). */
   chats: Pick<ChatRecords, 'createChat' | 'deleteChat'>
   terminals: Pick<TerminalSessions, 'start' | 'endChat'>
+  /** The members' trusted control files, through which a graceful end asks the CLI to exit. */
+  control: Pick<CultControl, 'send'>
   /** The desktop's own workspace of a tracked folder or a registered sanctum (the sanctum-aware `desktopWorkspace`). */
   workspaceFor: (folder: string) => Pick<ProjectWorkspace, 'initializeRepository' | 'getEpic'>
   /** Closes the desktop's workspace of a folder, before its database project is removed. */
@@ -81,7 +88,7 @@ export interface CultLauncher {
   /** The cult's tracked folder (still tracked), or its sanctum, created, registered and set up in db mode. */
   prepareWorkspace(cult: CultView): Promise<string>
   /** Prepares the workspace, records the run, and starts its Magos; the run is `running` once the Magos runs. */
-  launch(cultId: string, options?: { timeLimitMs?: number | null; cap?: number }): Promise<{ run: CultRunView; magos: LaunchedMember }>
+  launch(cultId: string, options?: Omit<RunStartInput, 'workDir'>): Promise<{ run: CultRunView; magos: LaunchedMember }>
   startMagos(run: CultRunView): Promise<LaunchedMember>
   startAcolyte(run: CultRunView, request: AcolyteRequest): Promise<LaunchedMember>
   endMember(chatId: string, options: { graceful: boolean }): Promise<void>
@@ -205,7 +212,7 @@ async function startMagos(deps: CultLauncherDeps, run: CultRunView): Promise<Lau
   })
 }
 
-async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: string, options: { timeLimitMs?: number | null; cap?: number }) {
+async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: string, options: Omit<RunStartInput, 'workDir'>) {
   const cult = requireCult(deps, cultId)
   const workDir = await launcher.prepareWorkspace(cult)
   const run = deps.cults.startRun(cultId, { workDir, ...options })
@@ -244,13 +251,22 @@ async function deleteCult(deps: CultLauncherDeps, cultId: string): Promise<void>
   await rm(dbProjectDir(sanctum, deps.dmHome), { recursive: true, force: true })
 }
 
+function gracefulEnd(deps: CultLauncherDeps, chatId: string): GracefulEnd {
+  return {
+    request: () => deps.control.send(chatId, { action: 'shutdown' }),
+    input: EXIT_KEYS,
+    inputAfterMs: EXIT_KEYS_AFTER_MS,
+    withinMs: GRACEFUL_EXIT_MS
+  }
+}
+
 export function createCultLauncher(deps: CultLauncherDeps): CultLauncher {
   const launcher: CultLauncher = {
     prepareWorkspace: async (cult) => (cult.scope === 'folder' ? folderWorkspace(deps, cult) : sanctumWorkspace(deps, cult)),
     launch: (cultId, options = {}) => launch(deps, launcher, cultId, options),
     startMagos: (run) => startMagos(deps, run),
     startAcolyte: (run, request) => startAcolyte(deps, run, request),
-    endMember: (chatId, { graceful }) => deps.terminals.endChat(chatId, graceful ? { input: EXIT_KEYS, withinMs: GRACEFUL_EXIT_MS } : undefined),
+    endMember: (chatId, { graceful }) => deps.terminals.endChat(chatId, graceful ? gracefulEnd(deps, chatId) : undefined),
     deleteCult: (cultId) => deleteCult(deps, cultId)
   }
   return launcher

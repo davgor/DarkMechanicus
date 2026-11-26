@@ -67,8 +67,11 @@ function grantAcolytes(ctx: StoreContext, row: PetitionRow, requested: number | 
   return granted
 }
 
-/** Approves or denies a pending petition with its event; a decided petition is never decided again. */
-export function decidePetition(ctx: StoreContext, petitionId: string, input: PetitionDecisionInput): CultPetitionView {
+/**
+ * Approves or denies a pending petition with its event, named for the member who raised it; a decided petition is
+ * never decided again.
+ */
+export function decidePetition(ctx: StoreContext, petitionId: string, input: PetitionDecisionInput, memberName: string | null = null): CultPetitionView {
   const decision = parseInput(petitionDecisionSchema, input)
   return ctx.db.tx(() => {
     const row = requirePetition(ctx, petitionId)
@@ -79,9 +82,14 @@ export function decidePetition(ctx: StoreContext, petitionId: string, input: Pet
     const at = ctx.now()
     ctx.db.run('UPDATE cult_petitions SET state = ?, granted = ?, decided_at = ? WHERE id = ?', state, granted, at, petitionId)
     const summary = granted === null ? `Petition ${petitionId} ${state}.` : `Petition ${petitionId} approved: ${granted} more acolytes.`
-    insertEvent(ctx.db, { runId: row.run_id, kind: `petition_${state}`, memberName: null, summary, at })
+    insertEvent(ctx.db, { runId: row.run_id, kind: `petition_${state}`, memberName, summary, at })
     return toPetitionView(requirePetition(ctx, petitionId))
   })
+}
+
+export function getPetition(ctx: StoreContext, petitionId: string): CultPetitionView | null {
+  const row = ctx.db.get<PetitionRow>('SELECT * FROM cult_petitions WHERE id = ?', petitionId)
+  return row === undefined ? null : toPetitionView(row)
 }
 
 /** A run's petitions, oldest first. */

@@ -15,7 +15,8 @@ import { hasValidatedRepositoryCache } from '../../core/repo/validatedCache'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
-import { assertGrantCapability, assertGrantUsable, revokeGrant } from '../../core/services/grants'
+import { assertGrantCapability, assertGrantUsable, revokeGrant, setGrantAllowSave } from '../../core/services/grants'
+import { appendEvent } from '../../core/services/events'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
 import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, renameAgentMailEndpoint, suspendAgentMailEndpoint } from '../../core/services/agentMail'
@@ -135,6 +136,14 @@ function mailReadOperations(ctx: Context) {
 function grantOperations(workspace: Workspace, ctx: Context) {
   return {
     issueChatGrant: (input: Parameters<Workspace['issueGrant']>[0]) => workspace.issueGrant(input),
+    setChatGrantAllowSave(grantId: string, allowSave: boolean) {
+      const context = ctx()
+      return context.db.tx(() => {
+        const grant = setGrantAllowSave(context, { grantId, allowSave })
+        appendEvent(context, { kind: 'grant.allow_save', payload: { grantId: grant.id, allowSave: grant.allowSave } })
+        return grant
+      })
+    },
     verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | null) {
       const context = ctx()
       if (capability === null) assertGrantUsable(context, grantId)

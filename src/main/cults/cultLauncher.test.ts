@@ -1,166 +1,44 @@
 /**
- * Launching cult runs over the real pieces: desktop workspaces (the sanctum's in db mode, on a folder that is not a Git
- * repository, through the real Git adapter), real chat grants with mailbox binding, the cult store on a real app
- * database, the sanctum registry on disk, and the terminal session manager on the fake PTY host (`terminalSessionsRig`).
+ * Launching cult runs over the real pieces (`__mocks__/cultRig.ts`): desktop workspaces (the sanctum's in db mode, on a
+ * folder that is not a Git repository), real chat grants with mailbox binding, the cult store on a real app database,
+ * the sanctum registry on disk, and the terminal session manager on the fake PTY host (`terminalSessionsRig`).
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DomainError } from '../../core/errors'
 import { dbProjectDir } from '../../core/repo/storageMode'
-import { openWorkspace } from '../../core/workspace'
 import { chatRecordSchema, type ChatRecord } from '../../shared/agents/chat'
 import type { CultInput } from '../../shared/cults/cult'
-import type { TrackedFolderView } from '../../shared/desktop/api'
 import { removeScratch } from '../../test/removeScratch'
-import { createSequentialIds, createTestClock } from '../../test/testContext'
-import { TEST_STORAGE } from '../../test/workspaceHarness'
-import { builtInAgent, connectedAgents } from '../agents/__mocks__/chatFixtures'
-import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
-import { createChatHandlers, type ChatHandlers } from '../agents/chatHandlers'
-import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { resolveLaunchFolder } from '../agents/launchFolder'
-import { createTestWorkspacePool, type TestWorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
-import { ompFilePaths, removeOmpFolder } from '../terminals/ompSession'
 import { terminalFilePaths } from '../terminals/terminalFiles'
-import { endingTerminals } from '../terminals/terminalSessions'
-import { cliFor, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
+import { eventually, settle } from '../terminals/__mocks__/terminalSessionsRig'
 import type { FakePty } from '../terminals/__mocks__/fakePtyHost'
-import { openAppDatabase } from '../desktop/appDatabase'
-import { cheapest, parseOmpModels } from './ompModels'
-import { createCultLauncher, GRACEFUL_EXIT_MS, type CultLauncher } from './cultLauncher'
-import { createCultStore, type CultStore } from './cultStore'
-import { createSanctumRegistry, withSanctums, type SanctumRegistry } from './sanctumRegistry'
+import { CHARTER, CHEAPEST, cultHarness, disposeCultHarness, folderCultInput, MAGOS_MODEL, ptyOf as ptyIn, type CultHarness } from './__mocks__/cultRig'
+import { cultControlPath } from './cultControl'
+import { EXIT_KEYS_AFTER_MS, GRACEFUL_EXIT_MS } from './cultLauncher'
 
-const MODELS = readFileSync(new URL('./__fixtures__/omp-models.json', import.meta.url), 'utf8')
-const CHEAPEST = cheapest(parseOmpModels(MODELS, ['anthropic']) ?? [])!.id
-const MAGOS_MODEL = 'anthropic/claude-opus-4-5'
-const CHARTER = 'Polish the brass reliquary until it reflects the Omnissiah.'
-
-interface Harness {
-  rig: TerminalRig
-  pool: TestWorkspacePool
-  cults: CultStore
-  sanctums: SanctumRegistry
-  gates: { resolve(path: string): string | null; list(): TrackedFolderView[] }
-  records: ChatRecords
-  launcher: CultLauncher
-  handlers: ChatHandlers
-  dmHome: string
-}
-
-let h: Harness
-
-function workspacePool(root: string, dmHome: string): TestWorkspacePool {
-  const clock = createTestClock('2026-11-26T09:00:00.000Z')
-  const ids = createSequentialIds()
-  // No fake Git: the sanctum is a plain folder, and the real adapter must cope with that.
-  return createTestWorkspacePool((repoRoot) =>
-    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', homeDir: dmHome, clock, ids, ...TEST_STORAGE })
-  , root)
-}
-
-/** The same gates main has: tracked folders (the rig's), then registered sanctums. */
-function gatesOf(rig: TerminalRig, sanctums: SanctumRegistry): Harness['gates'] {
-  const folders = {
-    resolve: (path: string) => (rig.tracked.has(path) ? path : null),
-    list: () => [...rig.tracked].map((path) => ({ path }) as TrackedFolderView)
-  }
-  return withSanctums(folders, sanctums)
-}
-
-function grantsOver(gates: Harness['gates'], pool: TestWorkspacePool) {
-  return createChatGrants({
-    workspaceFor: (folder) => {
-      if (gates.resolve(folder) !== folder) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
-      return pool.get(folder)
-    },
-    cliFor,
-    minutes: 12 * 60,
-    log: () => {}
-  })
-}
-
-function handlersOver(gates: Harness['gates'], records: ChatRecords): ChatHandlers {
-  const unused = {} as never
-  return createChatHandlers({ registry: gates, agents: { get: () => builtInAgent('omp') }, chats: records, terminals: unused, runs: unused, transfers: unused, kanban: unused })
-}
-
-async function harness(): Promise<Harness> {
-  let grants: ChatGrants | null = null
-  const late = { gates: null as Harness['gates'] | null }
-  const rig = terminalRig({
-    agents: [builtInAgent('omp')],
-    killSettlesAtOnce: true,
-    deps: () => ({
-      folders: { trackedFolder: (path) => late.gates!.resolve(path) },
-      issueChatCli: (folder, grant, chat) => grants!.issueChatCli(folder, grant, chat),
-      revokeChatGrant: async (grantId) => {
-        rig.revoked.push(grantId)
-        await grants!.revokeChatGrant(grantId)
-      }
-    })
-  })
-  const dmHome = join(rig.root, 'dm-home')
-  const pool = workspacePool(rig.root, dmHome)
-  await pool.get(rig.repo).initializeRepository({ name: 'repo', mode: 'db' })
-  const sanctums = createSanctumRegistry({ userData: rig.userData })
-  const gates = (late.gates = gatesOf(rig, sanctums))
-  grants = grantsOver(gates, pool)
-  const records = endingTerminals(
-    createChatRecords({ store: rig.store, agentFor: connectedAgents([builtInAgent('omp')]), removeOmpFolder: (id) => removeOmpFolder(rig.userData, id) }),
-    rig.sessions
-  )
-  const db = openAppDatabase(mkdtempSync(join(rig.root, 'app-')))
-  const cults = createCultStore({ db })
-  const launcher = createCultLauncher({
-    cults, folders: { resolve: (path) => (rig.tracked.has(path) ? path : null) }, sanctums, chats: records, terminals: rig.sessions,
-    workspaceFor: (folder) => {
-      if (gates.resolve(folder) !== folder) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
-      const workspace = pool.get(folder)
-      // The chat store keeps chats only in folders it can find; a sanctum is one from now on.
-      rig.chatFs.folders.add(folder)
-      return workspace
-    },
-    closeWorkspace: (folder) => pool.close(folder),
-    cheapestModel: async () => CHEAPEST,
-    userData: rig.userData,
-    dmHome
-  })
-  return { rig, pool, cults, sanctums, gates, records, launcher, handlers: handlersOver(gates, records), dmHome }
-}
+let h: CultHarness
 
 beforeEach(async () => {
-  h = await harness()
+  h = await cultHarness()
 })
 
 afterEach(async () => {
-  // A fake PTY only records a kill; it exits when told, so the quit has every exit to wait for.
-  const disposing = h.rig.sessions.dispose()
-  for (const pty of h.rig.host.spawns) if (!pty.exited) pty.exit({ exitCode: 0, signal: null })
-  await disposing
-  await h.pool.closeAll()
-  removeScratch(h.rig.root)
+  await disposeCultHarness(h)
 })
 
 function folderCult(overrides: Partial<CultInput> = {}): CultInput {
-  return {
-    name: 'Order of the Cog', charter: CHARTER, scope: 'folder', folderPath: h.rig.repo, archetype: 'general',
-    magosName: 'Magos Ferrum', magosModelId: MAGOS_MODEL, defaultTimeLimitMs: 60 * 60_000, ...overrides
-  }
+  return folderCultInput(h, overrides)
 }
 
 function sanctumCult(): CultInput {
   return folderCult({ name: 'Sanctum Choir', scope: 'sanctum', folderPath: null })
 }
 
-/** The chat's PTY: the one started with the chat's own OMP session folder. */
 function ptyOf(chat: ChatRecord): FakePty {
-  const { sessionDir } = ompFilePaths(h.rig.userData, chat.id)
-  const pty = h.rig.host.spawns.find((candidate) => (candidate.spec.args as string[]).includes(sessionDir))
-  if (pty === undefined) throw new Error(`No PTY was spawned for ${chat.id}.`)
-  return pty
+  return ptyIn(h, chat)
 }
 
 async function grantsIn(folder: string) {
@@ -351,20 +229,36 @@ describe('cult launcher: Plan Forge prompts', () => {
 })
 
 describe('cult launcher: ending a member', () => {
-  it('gives a graceful member Ctrl+D and lets it exit on its own, revoking its grant', async () => {
+  it('asks a graceful member to shut down through its control file, and lets it exit on its own, revoking its grant', async () => {
     const { run } = await h.launcher.launch(h.cults.createCult(folderCult()).id)
     const acolyte = await h.launcher.startAcolyte(run, { name: 'Acolyte Exit', mission: 'Leave.' })
     const pty = ptyOf(acolyte.chat)
     const ending = h.launcher.endMember(acolyte.chat.id, { graceful: true })
-    await settle()
+    await eventually(() => existsSync(cultControlPath(h.rig.userData, acolyte.chat.id)), 'the control file')
 
-    expect(pty.written).toContain('\x04')
+    const control = JSON.parse(readFileSync(cultControlPath(h.rig.userData, acolyte.chat.id), 'utf8'))
+    expect(control).toEqual({ version: 1, chatId: acolyte.chat.id, actions: [{ seq: 1, action: 'shutdown' }] })
+    expect(pty.written).not.toContain('\x04')
     pty.exit()
     await ending
     await settle()
     expect(pty.kills).toBe(0)
     const grantId = h.rig.store.getChat(acolyte.chat)!.grantIds![0]!
     expect((await grantsIn(h.rig.repo)).find((grant) => grant.id === grantId)?.active).toBe(false)
+  })
+
+  it('types Ctrl+D for a member whose extension did not act, then kills it at the graceful window', async () => {
+    const { run } = await h.launcher.launch(h.cults.createCult(folderCult()).id)
+    const deaf = await h.launcher.startAcolyte(run, { name: 'Acolyte Deaf', mission: 'Stay.' })
+    const ending = h.launcher.endMember(deaf.chat.id, { graceful: true })
+    await settle()
+    h.rig.clock.advance(EXIT_KEYS_AFTER_MS)
+
+    expect(ptyOf(deaf.chat).written).toContain('\x04')
+    expect(ptyOf(deaf.chat).kills).toBe(0)
+    h.rig.clock.advance(GRACEFUL_EXIT_MS - EXIT_KEYS_AFTER_MS)
+    await ending
+    expect(ptyOf(deaf.chat).kills).toBe(1)
   })
 
   it('kills a member that does not exit within the graceful window, and at once without it', async () => {
