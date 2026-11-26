@@ -872,10 +872,21 @@ describe('Skitarii mail in the extension entry', () => {
   })
 
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, descriptor)
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
     expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling', 'wait_for_human', 'contact_waiting_human'])
     expect(handlers.get('before_agent_start')).toHaveLength(2)
+    // The mascot's, the mail watcher's, the human wait's, the cult control watcher's and the client's.
+    expect(handlers.get('session_shutdown')).toHaveLength(5)
+  })
+
+  it('starts no cult control watcher for a chat without a client descriptor', async () => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, undefined)
+    const { pi, handlers } = fakePi()
+    await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
     // The mascot's, the mail watcher's, the human wait's and the client's.
     expect(handlers.get('session_shutdown')).toHaveLength(4)
   })
