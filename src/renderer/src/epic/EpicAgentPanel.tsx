@@ -279,6 +279,23 @@ function useNeedsYouNodes(folder: string, input: Omit<EpicAgentNodesInput, 'need
   return { nodes, counts }
 }
 
+/**
+ * Each row's to-do progress: a worker thread's list lives in its owning chat's state, and a chat row reads its own
+ * only while it runs in the GUI.
+ */
+function rowTodos(folder: string, chats: readonly ChatRecord[], nodes: readonly AgentTreeNodeInput[],
+  watched: ReadonlyMap<string, WatchedChat>): (node: AgentTreeNode) => ReactNode {
+  return (node) => {
+    if (node.parentId !== null) {
+      const owner = owningChatId(nodes, node.id)
+      const phases = owner === null ? undefined : watched.get(owner)?.todos.get(node.id)
+      return phases === undefined ? null : <TodoProgress phases={phases} />
+    }
+    const row = chats.find((item) => item.id === node.id)
+    return row?.surface === 'gui' ? <AgentRowTodos folder={folder} chatId={row.id} /> : null
+  }
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -309,16 +326,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner })
     }
   }
-  // A worker thread's list lives in its owning chat's state; a chat row reads its own only while it runs in the GUI.
-  const progress = (node: AgentTreeNode): ReactNode => {
-    if (node.parentId !== null) {
-      const owner = owningChatId(nodes, node.id)
-      const phases = owner === null ? undefined : watched.get(owner)?.todos.get(node.id)
-      return phases === undefined ? null : <TodoProgress phases={phases} />
-    }
-    const row = chats.find((item) => item.id === node.id)
-    return row?.surface === 'gui' ? <AgentRowTodos folder={folder} chatId={row.id} /> : null
-  }
+  const progress = rowTodos(folder, chats, nodes, watched)
   return (
     <section aria-label="Agent chat" className="eap">
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}

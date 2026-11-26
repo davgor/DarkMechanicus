@@ -208,22 +208,32 @@ describe('EpicAgentPanel: Changes card', () => {
   })
 })
 
-describe('EpicAgentPanel: to-do progress on agent rows', () => {
-  const task = (id: string, status: AgentTodoTask['status']): AgentTodoTask => ({ id, content: `Task ${id}`, status })
-  // 3 of 7 closed: completed and abandoned close a task; in-progress, blocked and pending do not.
-  const threeOfSeven: AgentTodoPhase[] = [
-    { name: 'Inspect', tasks: [task('1', 'completed'), task('2', 'completed'), task('3', 'in_progress')] },
-    { name: 'Deliver', tasks: [task('4', 'abandoned'), task('5', 'blocked'), task('6', 'pending'), task('7', 'pending')] }
-  ]
-  // The model-written label claims another count; only the recorded list counts.
-  const labelled = items.map((item) => item.kind === 'thread' ? { ...item, label: 'Acolyte DM-201 done 9/9' } : item)
-  // The row's own line, not its nested children's.
-  const ownRow = (row: HTMLElement): HTMLElement => row.querySelector(':scope > .at-row') as HTMLElement
-  const snapshot = (patch: Partial<AgentChatSnapshot>): CommandResult<AgentChatSnapshot> => ({
-    ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [], ...patch }
-  })
+const task = (id: string, status: AgentTodoTask['status']): AgentTodoTask => ({ id, content: `Task ${id}`, status })
+// 3 of 7 closed: completed and abandoned close a task; in-progress, blocked and pending do not.
+const threeOfSeven: AgentTodoPhase[] = [
+  { name: 'Inspect', tasks: [task('1', 'completed'), task('2', 'completed'), task('3', 'in_progress')] },
+  { name: 'Deliver', tasks: [task('4', 'abandoned'), task('5', 'blocked'), task('6', 'pending'), task('7', 'pending')] }
+]
+// The row's own line, not its nested children's.
+const ownRow = (row: HTMLElement): HTMLElement => row.querySelector(':scope > .at-row') as HTMLElement
+const snapshot = (patch: Partial<AgentChatSnapshot>): CommandResult<AgentChatSnapshot> => ({
+  ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [], ...patch }
+})
 
+/** Each chat answers with its own snapshot, as main does. */
+function snapshotsByChat(backend: FakeBackend, snapshots: Record<string, CommandResult<AgentChatSnapshot>>): void {
+  const api = backend.agentChat
+  const read = api.snapshot.bind(api)
+  api.snapshot = (request) => {
+    api.snapshotResult = snapshots[request.chatId]
+    return read(request)
+  }
+}
+
+describe('EpicAgentPanel: to-do progress on worker rows', () => {
   it('shows a worker thread’s 3/7 from the orchestrator’s recorded list, and nothing on a row without one', async () => {
+    // The model-written label claims another count; only the recorded list counts.
+    const labelled = items.map((item) => item.kind === 'thread' ? { ...item, label: 'Acolyte DM-201 done 9/9' } : item)
     const backend = backendWith(labelled)
     backend.agentChat.snapshotResult = snapshot({ items: labelled, todos: [{ threadId: 'th_1', phases: threeOfSeven }] })
     openAgent(backend, [orchestrator])
@@ -239,41 +249,6 @@ describe('EpicAgentPanel: to-do progress on agent rows', () => {
     expect(rail.textContent).not.toContain('9/9')
   })
 
-  it('reads a GUI chat row’s own list without starting it, and never subscribes to a terminal row', async () => {
-    const planner = chatRecord({
-      id: 'chat_plan', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
-    })
-    const terminal = chatRecord({
-      id: 'chat_term', folder: FOLDER, role: 'orchestrator', epicId: 'ep_1', surface: 'terminal', title: 'Old lead', createdAt: '2026-01-01T10:00:00.000Z'
-    })
-    const backend = backendWith()
-    // Each chat answers with its own snapshot, as main does; the stopped ones would start under a starting subscription.
-    const snapshots: Record<string, CommandResult<AgentChatSnapshot>> = {
-      chat_orch: snapshot({ items }),
-      chat_plan: snapshot({ status: 'exited', todos: [{ threadId: null, phases: threeOfSeven }] }),
-      chat_term: snapshot({ status: 'exited', surface: 'terminal', todos: [{ threadId: null, phases: threeOfSeven }] })
-    }
-    const api = backend.agentChat
-    const read = api.snapshot.bind(api)
-    api.snapshot = (request) => {
-      api.snapshotResult = snapshots[request.chatId]
-      return read(request)
-    }
-    openAgent(backend, [orchestrator, planner, terminal])
-    const stage = await agentStage()
-    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
-    const lexmechanic = ownRow(await within(rail).findByRole('treeitem', { name: 'Lexmechanic' }))
-    expect((await within(lexmechanic).findByRole('img', { name: 'To-dos 3 of 7 done' })).textContent).toBe('3/7')
-    const old = ownRow(within(rail).getByRole('treeitem', { name: 'Old lead' }))
-    expect(within(old).queryByRole('img', { name: /^To-dos/ })).toBeNull()
-    expect(within(ownRow(within(rail).getByRole('treeitem', { name: 'Magos' }))).queryByRole('img', { name: /^To-dos/ })).toBeNull()
-    const requests = api.callsOf('snapshot') as [{ chatId: string }][]
-    const subscribed = requests.map(([request]) => request.chatId)
-    expect(subscribed).toContain('chat_plan')
-    expect(subscribed).not.toContain('chat_term')
-    expect(api.callsOf('start')).toEqual([])
-  })
-
   it('hides the worker’s own to-do tool calls in its read-only thread view', async () => {
     const todoCall: ChatItem = {
       id: 'w2', at: AT, threadId: 'th_1', kind: 'tool_call', name: 'TodoWrite', input: {}, status: 'completed', resultSummary: null
@@ -284,6 +259,37 @@ describe('EpicAgentPanel: to-do progress on agent rows', () => {
     const view = within(stage).getByRole('region', { name: 'Acolyte:DM-201 thread' })
     expect(within(view).getByText('Worker is editing files')).toBeTruthy()
     expect(within(view).queryByRole('listitem', { name: 'Tool call: TodoWrite' })).toBeNull()
+  })
+})
+
+describe('EpicAgentPanel: to-do progress on chat rows', () => {
+  it('reads a GUI chat row’s own list without starting it, and never subscribes to a terminal row', async () => {
+    const planner = chatRecord({
+      id: 'chat_plan', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+    })
+    const terminal = chatRecord({
+      id: 'chat_term', folder: FOLDER, role: 'orchestrator', epicId: 'ep_1', surface: 'terminal', title: 'Old lead', createdAt: '2026-01-01T10:00:00.000Z'
+    })
+    const backend = backendWith()
+    // The stopped chats would start under a subscription that may start.
+    snapshotsByChat(backend, {
+      chat_orch: snapshot({ items }),
+      chat_plan: snapshot({ status: 'exited', todos: [{ threadId: null, phases: threeOfSeven }] }),
+      chat_term: snapshot({ status: 'exited', surface: 'terminal', todos: [{ threadId: null, phases: threeOfSeven }] })
+    })
+    openAgent(backend, [orchestrator, planner, terminal])
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    const lexmechanic = ownRow(await within(rail).findByRole('treeitem', { name: 'Lexmechanic' }))
+    expect((await within(lexmechanic).findByRole('img', { name: 'To-dos 3 of 7 done' })).textContent).toBe('3/7')
+    const old = ownRow(within(rail).getByRole('treeitem', { name: 'Old lead' }))
+    expect(within(old).queryByRole('img', { name: /^To-dos/ })).toBeNull()
+    expect(within(ownRow(within(rail).getByRole('treeitem', { name: 'Magos' }))).queryByRole('img', { name: /^To-dos/ })).toBeNull()
+    const requests = backend.agentChat.callsOf('snapshot') as [{ chatId: string }][]
+    const subscribed = requests.map(([request]) => request.chatId)
+    expect(subscribed).toContain('chat_plan')
+    expect(subscribed).not.toContain('chat_term')
+    expect(backend.agentChat.callsOf('start')).toEqual([])
   })
 })
 
