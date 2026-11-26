@@ -75,6 +75,8 @@ interface InstructionOptions {
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
   reach?: readonly ReachTarget[]
+  /** A cult member's rules (`cultRules.ts`), appended last; absent for every other chat. */
+  cultRules?: string
 }
 
 /** Keeps a board-bound chat answering its named record instead of assuming execution authority. */
@@ -95,7 +97,7 @@ function conversationGuidance(conversation: ConversationTarget): string {
   ].join('\n')
 }
 
-/** The guidance for what the chat is for: Skitarii mail, the run it orchestrates, the epic it transfers, the card it carries. */
+/** The guidance for what the chat is for: Skitarii mail, the run it orchestrates, the epic it transfers, the card it carries, its cult rules. */
 function taskGuidance(options: InstructionOptions): string[] {
   return [
     ...(options.skitariiMail === true ? [skitariiMailGuidance()] : []),
@@ -103,7 +105,8 @@ function taskGuidance(options: InstructionOptions): string[] {
     ...(options.orchestratesRun ? [orchestratorGuidance()] : []),
     ...(options.transferEpicId === undefined ? [] : [transferGuidance(options.transferEpicId)]),
     ...(options.cardId === undefined ? [] : [kanbanGuidance(options.cardId)]),
-    ...(options.conversation === undefined ? [] : [conversationGuidance(options.conversation)])
+    ...(options.conversation === undefined ? [] : [conversationGuidance(options.conversation)]),
+    ...(options.cultRules === undefined ? [] : [options.cultRules])
   ]
 }
 
@@ -156,6 +159,7 @@ interface WriteOptions {
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
   reach?: readonly ReachTarget[]
+  cultRules?: string
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
@@ -170,7 +174,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   if (files.launcherDir !== null) {
     await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, pin))
   }
-  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach } = options
+  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach, cultRules } = options
   const text = terminalInstructions({
     forgeWorld: isWorldLaunch(options),
     repositoryContext: forgeAgentContext(options.folder, options.forgeResolver),
@@ -184,6 +188,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
     ...(cardId === undefined ? {} : { cardId }),
     ...(conversation === undefined ? {} : { conversation }),
     ...(reach === undefined ? {} : { reach }),
+    ...(cultRules === undefined ? {} : { cultRules }),
     launcherDir: files.launcherDir
   })
   await writePrivateFile(files.instructions, text, 0o600)

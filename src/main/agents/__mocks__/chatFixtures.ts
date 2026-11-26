@@ -39,6 +39,8 @@ export function connectedAgents(agents: readonly AgentView[] = [builtInAgent('cl
 /** The in-memory filesystem, with its files open for tests to inspect. */
 export interface MemoryChatFs extends ChatStoreFs {
   files: Map<string, string>
+  /** The folders that exist; a test adds one (a cult sanctum) to keep chats in it. */
+  folders: Set<string>
 }
 
 /** An in-memory filesystem holding `folders`, shared by stores to stand for an app restart. */
@@ -47,6 +49,7 @@ export function memoryChatFs(folders: readonly string[] = [REPO]): MemoryChatFs 
   const dirs = new Set(folders)
   return {
     files,
+    folders: dirs,
     removeFile(path) {
       files.delete(path)
     },

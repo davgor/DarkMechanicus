@@ -97,6 +97,7 @@ import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createCrossRepoCorrectionHandlers, registerCrossRepoCorrectionIpc } from './crossRepoCorrections'
 import { createFolderAgentDefaults, type FolderAgentDefaults } from './folderAgentDefaults'
+import { createSanctumRegistry, withSanctums, type SanctumRegistry } from '../cults/sanctumRegistry'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import {
@@ -398,7 +399,9 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
 }
 
 interface ChatProcessOptions {
+  /** The sanctum-aware gates (`withSanctums`): tracked folders, then registered cult sanctums. */
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  sanctums: Pick<SanctumRegistry, 'list'>
   agents: Pick<AgentRegistry, 'get'>
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
@@ -432,7 +435,7 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQ
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, sanctums, agents, workspaces, activity, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -478,7 +481,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
-  const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
+  const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
     suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
@@ -867,6 +870,8 @@ function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: Folde
  */
 function createChatMail(services: {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  /** The registered sanctums, swept with the tracked folders (`docs/design/cults.md`, section 5). */
+  sanctums: Pick<SanctumRegistry, 'list'>
   store: ChatStore
   mailboxes: ChatMailboxes
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
@@ -887,7 +892,7 @@ function createChatMail(services: {
         (await services.mailboxes.routes(chat, member, background)).map(route => ({ ...chat, endpointId: route.endpointId }))))
       return routes.flat()
     },
-    folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
+    folders: () => [...services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []), ...services.sanctums.list()],
     workspaceFor: (folder, background) => desktopWorkspace(services.folders, services.workspaces, folder, background),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
     board: { poll: async (folder) => {
@@ -1077,6 +1082,10 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
+  // Cult sanctums pass the untracked-folder gates through `gates.resolve`; Folders, reach and forge lists stay registry-only.
+  // The cult service (later tickets) creates its `cultLauncher` over these same sanctums.
+  const sanctums = createSanctumRegistry({ userData: app.getPath('userData') })
+  const gates = withSanctums(registry, sanctums)
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = openDesktopPool()
@@ -1086,7 +1095,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const sourceCheckouts = startSourceCheckout(ipc, registry)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
   const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({
-    folders: registry, agents, workspaces: pool, activity, sourceCheckouts,
+    folders: gates, sanctums, agents, workspaces: pool, activity, sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)
@@ -1098,7 +1107,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const approvals = startLearningApprovals(ipc, registry, pool, startGit(forge, ipc, registry, github))
   const releasing: ChatProcesses['releaseFolder'] = (folder, forget, related = []) =>
     releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
-  const handlers = bridgeHandlers({ registry, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
+  const handlers = bridgeHandlers({ registry: gates, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
@@ -1106,8 +1115,8 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
-  startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
+  startChats(ipc, { folders: gates, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
+  startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
   const stores = async (): Promise<void> => { await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }
 }

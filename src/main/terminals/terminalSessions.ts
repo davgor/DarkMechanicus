@@ -95,6 +95,7 @@ import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
+import { readCultRules } from '../cults/cultRules'
 import { claudeSessionExists } from './claudeSession'
 import { ompAgentDir } from '../desktop/ompTheme'
 import { installSkitariiTheme } from './ompSkitariiTheme'
@@ -127,6 +128,7 @@ const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
 const UNTRACKED = "The chat's folder was untracked, so its terminal was stopped."
+const ENDED = 'The chat was ended, so its terminal was stopped.'
 
 /** Why a chat named by `ref` cannot be found. */
 function noChat(ref: ChatRef): string {
@@ -203,6 +205,12 @@ export interface TerminalSessions {
   releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
+  /**
+   * Ends one chat's terminal (a cult member's end): with `graceful`, its `input` (the CLI's exit keys) is written and
+   * the PTY gets `withinMs` to exit on its own; then, or at once, its start is cancelled or its tree killed
+   * (`killPtyTree`) and its grants revoked. Resolves once the kill has settled.
+   */
+  endChat(chatId: string, graceful?: { input: string; withinMs: number }): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
   /** Observed live PTY only; a queued start or stored chat is not a running agent. */
   /** Delivers advisory context only to an already live terminal. */
@@ -492,10 +500,16 @@ function hasLaunchMailbox(context: StartContext): boolean {
   return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
 }
 
+/** A cult member starts only with the rules its launcher wrote (`cultLauncher.ts`): a missing file fails the start. */
+async function cultRulesOf(userData: string, chat: ChatRecord): Promise<{ cultRules?: string }> {
+  return chat.cultRunId === undefined ? {} : { cultRules: await readCultRules(userData, chat.id) }
+}
+
 async function writeStartFiles(context: StartContext, repairCheckout: string | undefined): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(reach === undefined ? folder : null)
+  const cultRules = await cultRulesOf(userData, chat)
   const files = await writeTerminalFiles({
     forgeResolver: chat.forgeResolver !== undefined,
     userData,
@@ -512,7 +526,8 @@ async function writeStartFiles(context: StartContext, repairCheckout: string | u
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     conversation: chat.conversation,
-    ...(reach === undefined ? {} : { reach })
+    ...(reach === undefined ? {} : { reach }),
+    ...cultRules
   })
   if (agent.kind === 'omp') {
     // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
@@ -1458,6 +1473,25 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
+/** `TerminalSessions.endChat`: a running PTY may first exit on its own, within the time given; see the interface. */
+async function endChat(manager: Manager, chatId: string, graceful?: { input: string; withinMs: number }): Promise<void> {
+  const live = runningTerminal(manager, chatId)
+  if (live !== null && graceful !== undefined && live.stopMessage === null) {
+    // `Promise.withResolvers` is outside this project's ES2022 lib.
+    let cancel: () => void = () => {}
+    const late = new Promise<void>((resolve) => {
+      cancel = manager.deps.timers.after(resolve, graceful.withinMs)
+    })
+    live.pty.write(graceful.input)
+    await Promise.race([live.ended, late])
+    cancel()
+  }
+  const entry = manager.entries.get(chatId) ?? live ?? undefined
+  const ended = entry === undefined ? null : await endEntry(manager, entry, ENDED)
+  // Resolves once its grants are revoked too, so a caller may close or remove their workspace next.
+  await Promise.all([ended?.kill, ended?.live.revoke()])
+}
+
 /** `TerminalSessions.deleteChat`. */
 async function deleteChat(manager: Manager, ref: ChatRef, remove: () => Promise<void>): Promise<void> {
   const chat = manager.deps.store.getChat(ref)
@@ -1571,6 +1605,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget, relatedFolders) => releaseFolder(manager, folder, forget, relatedFolders),
     endAgent: (id) => endAgent(manager, id),
+    endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
     pasteIfRunning: (ref, text) => pasteIfRunning(manager, ref, text),
     activeChats: () => activeChats(manager),
     isRunning: (chatId) => running(chatId) !== null,
