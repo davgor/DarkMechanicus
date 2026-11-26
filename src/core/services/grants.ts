@@ -174,6 +174,26 @@ export function renewGrant(ctx: Ctx, input: { grantId: string; minutes: number }
   return viewOf({ ...row, expires_at: expiresAt }, now)
 }
 
+/**
+ * Flips Allow save on a live grant: the desktop does this when a person approves a cult petition
+ * (docs/design/cults.md section 7). The CLI redeems its token at every call, so its next command
+ * sees the change without a restart.
+ */
+export function setGrantAllowSave(ctx: Ctx, input: { grantId: string; allowSave: boolean }): GrantView {
+  requireCapability(ctx.session, 'grant.issue')
+  const now = ctx.clock.nowIso()
+  const row = grantRow(ctx, input.grantId)
+  if (row.revoked_at !== null || row.expires_at <= now) {
+    fail('invalid_state', `Grant ${row.id} is revoked or has expired, so Allow save cannot change.`, { grantId: row.id })
+  }
+  if (row.role !== 'planner' && row.role !== 'orchestrator') {
+    fail('invalid_input', `Grant ${row.id} is a ${row.role} grant; only planner and orchestrator grants carry Allow save.`, { grantId: row.id })
+  }
+  const allowSave = bool(input.allowSave)
+  ctx.db.run('UPDATE grants SET allow_save = ? WHERE id = ?', allowSave, row.id)
+  return viewOf({ ...row, allow_save: allowSave }, now)
+}
+
 /** Revokes a grant. Already revoked is a no-op, so revoking twice is not an error. */
 export function revokeGrant(ctx: Ctx, grantId: string): GrantView {
   requireCapability(ctx.session, 'grant.revoke')

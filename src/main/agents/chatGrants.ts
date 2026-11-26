@@ -68,6 +68,11 @@ export interface ChatGrants {
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
   renewChatGrant(grantId: string): Promise<void>
+  /**
+   * Flips Allow save on a held grant. Throws, unlike revoke/renew, so a petition approval fails visibly;
+   * `not_found` for a grant this app session did not issue.
+   */
+  setChatGrantAllowSave(grantId: string, allowSave: boolean): Promise<void>
 }
 
 interface HeldGrant {
@@ -298,6 +303,11 @@ class ChatGrantRegistry implements ChatGrants {
       this.deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
     }
   }
+  async setChatGrantAllowSave(grantId: string, allowSave: boolean): Promise<void> {
+    const grant = this.held.get(grantId)
+    if (grant === undefined) throw new DomainError('not_found', 'That chat grant was not issued by this app session.')
+    await grant.workspace.call('setChatGrantAllowSave', grantId, allowSave)
+  }
 }
 
 export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
@@ -308,6 +318,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
     issueChatCli: (folder, grant, chat) => registry.issueChatCli(folder, grant, chat),
     revokeChatGrant: (id) => registry.revokeChatGrant(id),
     renewChatGrant: (id) => registry.renewChatGrant(id),
+    setChatGrantAllowSave: (id, allowSave) => registry.setChatGrantAllowSave(id, allowSave),
     bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
     authorizeNaming: (token) => registry.authorizeNaming(token),
     yolo: (folder, grantId, action, confirm) => registry.yolo(folder, grantId, action, confirm),

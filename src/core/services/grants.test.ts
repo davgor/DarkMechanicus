@@ -12,6 +12,7 @@ import {
   redeemGrant,
   renewGrant,
   revokeGrant,
+  setGrantAllowSave,
   withoutHumanOnly
 } from './grants'
 
@@ -251,6 +252,49 @@ describe('renewing a grant', () => {
 
   it('reports an unknown grant as not found', () => {
     expect(domainErrorOf(() => renewGrant(desktop(), { grantId: 'gr_00000000000000000000000001', minutes: 60 })).code).toBe('not_found')
+  })
+})
+
+describe('flipping Allow save on a live grant', () => {
+  it('turns plan.save on and off for an orchestrator grant, seen at the next redeem', () => {
+    const ctx = desktop()
+    const { grant, token } = issueGrant(ctx, { role: 'orchestrator', label: 'Cult', allowSave: false })
+    expect(redeemGrant(redeemDeps(ctx), token).capabilities).not.toContain('plan.save')
+
+    expect(setGrantAllowSave(ctx, { grantId: grant.id, allowSave: true })).toMatchObject({ id: grant.id, allowSave: true, active: true })
+    expect(redeemGrant(redeemDeps(ctx), token).capabilities).toContain('plan.save')
+
+    expect(setGrantAllowSave(ctx, { grantId: grant.id, allowSave: false }).allowSave).toBe(false)
+    expect(redeemGrant(redeemDeps(ctx), token).capabilities).not.toContain('plan.save')
+  })
+
+  it('refuses a revoked grant', () => {
+    const ctx = desktop()
+    const { grant } = issueGrant(ctx, { role: 'orchestrator', label: 'Cult' })
+    revokeGrant(ctx, grant.id)
+    expect(domainErrorOf(() => setGrantAllowSave(ctx, { grantId: grant.id, allowSave: true })).code).toBe('invalid_state')
+  })
+
+  it('refuses an expired grant', () => {
+    const ctx = desktop()
+    const { grant } = issueGrant(ctx, { role: 'orchestrator', label: 'Cult', minutes: 5 })
+    ctx.clock.advanceSeconds(5 * 60)
+    expect(domainErrorOf(() => setGrantAllowSave(ctx, { grantId: grant.id, allowSave: true })).code).toBe('invalid_state')
+  })
+
+  it.each(['worker', 'reviewer', 'reader'] as const)('refuses a %s grant, which cannot carry Allow save', (role) => {
+    const ctx = desktop()
+    const { grant } = issueGrant(ctx, { role, label: 'Cult' })
+    expect(domainErrorOf(() => setGrantAllowSave(ctx, { grantId: grant.id, allowSave: true })).code).toBe('invalid_input')
+  })
+
+  it.each(['orchestrator', 'worker'] as const)('refuses a %s session', (role) => {
+    const { grant } = issueGrant(desktop(), { role: 'orchestrator', label: 'Cult' })
+    expect(domainErrorOf(() => setGrantAllowSave(agent(role), { grantId: grant.id, allowSave: true })).code).toBe('unauthorized')
+  })
+
+  it('reports an unknown grant as not found', () => {
+    expect(domainErrorOf(() => setGrantAllowSave(desktop(), { grantId: 'gr_00000000000000000000000001', allowSave: true })).code).toBe('not_found')
   })
 })
 
