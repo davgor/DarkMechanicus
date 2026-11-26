@@ -40,6 +40,10 @@ import { guardUnique } from '../execution'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { type AttemptRow, cardView, loadSummaryRow, recordCardEvent, type SummaryRow, toAttemptView } from './cards'
 import { listYoloAudit, yoloEvidence } from '../yolo'
+// ─── DM-938 ───
+import type { LearningManifestProof } from '../learningBranches'
+import { checkLearningSubmission, learningLinkOf, learningPacketOf } from './learningCards'
+// ─── End of DM-938 ───
 
 /** An attempt row with its claim secret, which only the claim checks read and no view carries. */
 interface ClaimRow extends AttemptRow {
@@ -307,7 +311,8 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
   const branch = ctx.checkout().branch
   const definitionOfDone = ctx.definitionOfDone()
   const deliveryStandards = itemWorkflow(ctx, cardId, 'kanban', cardId)
-  return {
+  const link = learningLinkOf(ctx, cardId)
+  const packet: KanbanPacket = {
     ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
     cardId: card.id,
     key: card.key,
@@ -330,6 +335,13 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
     reporting: reportingOf(branch, reviewComments.length > 0, definitionOfDone.length > 0, deliveryStandards?.workflow),
     definitionOfDone
   }
+  // DM-938: only a card with a sprint learning link gets the section; an ordinary packet keeps its exact shape.
+  if (link !== null) {
+    const learning = learningPacketOf(link)
+    packet.learning = learning
+    packet.reporting = { ...packet.reporting, instructions: `${packet.reporting.instructions} ${learning.reporting}` }
+  }
+  return packet
 }
 
 /** Consumes the pending play: attempt n+1, leased and recorded with this machine's id, and the card In progress. */
@@ -424,9 +436,15 @@ export function heartbeatKanbanCard(ctx: Ctx, input: HeartbeatKanbanCardInput): 
   })
 }
 
-/** Stores the attempt's outputs and evidence, masked, and moves the card to Ready for review. */
+/**
+ * Stores the attempt's outputs and evidence, masked, and moves the card to Ready for review. `verification` carries
+ * what the command proved against Git before this transaction: the merge's `assertCurrent`, and for a sprint learning
+ * card (DM-938) the manifest proof `verifyLearningManifests` gave, which stands in for the merge to main while every
+ * other requirement still applies.
+ */
 export function submitKanbanCard(
-  ctx: Ctx, input: SubmitKanbanCardInput, mergedToMain = false, assertVerificationCurrent?: () => void
+  ctx: Ctx, input: SubmitKanbanCardInput, mergedToMain = false,
+  verification: { assertCurrent?: () => void; learning?: LearningManifestProof } = {}
 ): KanbanAttemptView {
   requireCapability(ctx.session, 'kanban.report')
   settleLeases(ctx, input.attemptId)
@@ -435,12 +453,14 @@ export function submitKanbanCard(
     const row = loadClaim(ctx, input.attemptId)
     requireOwnedAttempt(ctx, row)
     verifyCardClaim(ctx, row, input.claimToken)
-    assertVerificationCurrent?.()
+    verification.assertCurrent?.()
     const claim = { token: input.claimToken, secret: row.claim_secret }
     const outputs = maskedReport(normalizeOutputs(input.outputs), claim)
     // Claimed in this transaction: a refused image refuses the whole submission.
     const evidence = maskedReport(normalizeEvidence(claimEvidenceAttachments(ctx, input.evidence, { kind: 'kanban_attempt', id: row.id })), claim)
-    checkKanbanSubmission(itemWorkflow(ctx, row.card_id, 'kanban', row.card_id), evidence, mergedToMain)
+    const learning = checkLearningSubmission(ctx, row, input, verification.learning)
+    if (learning !== undefined) evidence.learning = maskedReport(learning, claim)
+    checkKanbanSubmission(itemWorkflow(ctx, row.card_id, 'kanban', row.card_id), evidence, mergedToMain, learning !== undefined)
     const usage = listYoloAudit(ctx, { runId: null, boundCardId: row.card_id })
     if (usage.length > 0) {
       const log = yoloEvidence(usage, evidence.notes.split('\n'))

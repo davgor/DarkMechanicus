@@ -2,8 +2,8 @@
  * Agent mail through the real command table: real workspaces on a temporary repository, real `dm` CLI grant
  * sessions, the restricted mailbox-poll mode, and separate Node processes competing for one SQLite database.
  */
-import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +35,10 @@ beforeEach(() => {
   harness = createHarness()
 })
 
-afterEach(() => {
+// A test that fails or times out can leave its child processes running with the workspace's SQLite database open:
+// stop and await every one of them before the workspace is removed.
+afterEach(async () => {
+  await stopOwnedChildren()
   harness.cleanup()
 })
 
@@ -344,10 +347,47 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject }
 }
 
-interface WaitingProcess {
+/** A child process this file started, owned until it has closed. */
+interface OwnedChild {
+  /** Settles once the process has exited and its pipes are closed. */
+  closed: Promise<void>
+  /** Ends this one process if it is still running; never any other. */
+  stop(): void
+}
+
+interface WaitingProcess extends OwnedChild {
   ready: Promise<void>
   result: Promise<unknown>
   start(): void
+}
+
+/** Every child started by this file that has not yet closed. */
+const ownedChildren = new Set<OwnedChild>()
+
+/** Stops every still-running child and waits until each has closed, releasing its hold on the workspace. */
+async function stopOwnedChildren(): Promise<void> {
+  const children = [...ownedChildren]
+  for (const child of children) child.stop()
+  await Promise.all(children.map((child) => child.closed))
+}
+
+/** Records a child as owned until it closes, so that afterEach can stop and await it. */
+function own(child: ChildProcess): OwnedChild {
+  const closed = deferred<void>()
+  // Node may emit no 'close' after a failed spawn; with no process there is nothing left to hold the workspace.
+  child.on('error', () => {
+    if (child.pid === undefined) closed.resolve()
+  })
+  child.on('close', () => closed.resolve())
+  const owned: OwnedChild = {
+    closed: closed.promise,
+    stop: () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill()
+    }
+  }
+  ownedChildren.add(owned)
+  void closed.promise.then(() => ownedChildren.delete(owned))
+  return owned
 }
 
 /** Starts one script in its own Node process and holds it at the shared start barrier. */
@@ -357,6 +397,7 @@ function waitingProcess(source: string): WaitingProcess {
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', source], {
     cwd: REPOSITORY
   })
+  const owned = own(child)
   let stdout = ''
   let stderr = ''
   let announced = false
@@ -370,14 +411,12 @@ function waitingProcess(source: string): WaitingProcess {
   child.stderr.on('data', (chunk: Buffer) => {
     stderr += chunk.toString('utf8')
   })
-  child.stdin.on('error', (error) => {
+  const fail = (error: Error): void => {
     ready.reject(error)
     result.reject(error)
-  })
-  child.on('error', (error) => {
-    ready.reject(error)
-    result.reject(error)
-  })
+  }
+  child.stdin.on('error', fail)
+  child.on('error', fail)
   child.on('close', (code) => {
     if (!announced) {
       ready.reject(new Error(`child exited before the start barrier: ${stderr}`))
@@ -393,6 +432,7 @@ function waitingProcess(source: string): WaitingProcess {
     }
   })
   return {
+    ...owned,
     ready: ready.promise,
     result: result.promise,
     start: () => {
@@ -401,7 +441,10 @@ function waitingProcess(source: string): WaitingProcess {
   }
 }
 
-/** Releases every child only after all are ready, preserving real cross-process contention without a timed spin. */
+/**
+ * Releases every child only after all are ready, preserving real cross-process contention without a timed spin. If any
+ * child fails to reach the barrier, the others are stopped there rather than released into their work.
+ */
 async function inProcesses(sources: string[]): Promise<unknown[]> {
   const children = sources.map(waitingProcess)
   const results = children.map((child) => child.result)
@@ -409,8 +452,8 @@ async function inProcesses(sources: string[]): Promise<unknown[]> {
   try {
     await Promise.all(children.map((child) => child.ready))
   } catch (error: unknown) {
-    for (const child of children) child.start()
-    await Promise.allSettled(results)
+    for (const child of children) child.stop()
+    await Promise.all(children.map((child) => child.closed))
     throw error
   }
   for (const child of children) child.start()
@@ -540,5 +583,65 @@ describe('separate processes and a revocation that commits mid-stream', () => {
       await recipient.acknowledgeAgentMessages({ messageIds: left })
     }
     expect((await recipient.getAgentMailStatus({})).pendingCount).toBe(0)
+  })
+})
+
+/**
+ * A script that holds one CLI workspace, and so its SQLite database, open from before the barrier until it is stopped;
+ * released, it would send one message to `to`.
+ */
+function holding(token: string, to: string, announce = ''): string {
+  return `
+    import { once } from 'node:events';
+    import { writeFileSync } from 'node:fs';
+    import { openWorkspace } from ${JSON.stringify(WORKSPACE)};
+    const ws = openWorkspace({ repoRoot: ${JSON.stringify(harness.root)}, homeDir: ${JSON.stringify(harness.homeDir)},
+      role: 'reader', transport: 'cli', label: 'child', grantToken: ${JSON.stringify(token)}, autoReconcile: false,
+      databaseSynchronous: 'off' });
+    await ws.getAgentIdentity({});
+    console.log(${JSON.stringify(CHILD_READY)});
+    ${announce === '' ? '' : `writeFileSync(${JSON.stringify(announce)}, '');`}
+    await once(process.stdin, 'data');
+    await ws.sendAgentMessage({ to: ${JSON.stringify(to)}, clientMessageId: 'released', body: 'released' });
+    ws.close();
+    console.log(JSON.stringify([]));`
+}
+
+describe('child processes the mailbox tests own', () => {
+  it('stops a child holding the workspace database open and awaits its close before the workspace is removed', async () => {
+    const desktop = await realTimeDesktop()
+    const a = await boundChat(desktop, 'chat-a')
+    const b = await boundChat(desktop, 'chat-b')
+    const child = waitingProcess(holding(a.token, b.endpoint.id))
+    void child.result.catch(() => undefined)
+    await child.ready
+    expect(ownedChildren.size).toBe(1)
+    // What afterEach does when a test leaves its children running, as a timed-out test does.
+    await stopOwnedChildren()
+    expect(ownedChildren.size).toBe(0)
+    await expect(child.result).rejects.toThrow(/child exited null/)
+    harness.cleanup()
+    expect(existsSync(harness.root)).toBe(false)
+    expect(existsSync(harness.homeDir)).toBe(false)
+  })
+
+  it('stops a child already waiting at the barrier when another fails to reach it, never releasing it into its work', async () => {
+    const desktop = await realTimeDesktop()
+    const a = await boundChat(desktop, 'chat-a')
+    const b = await boundChat(desktop, 'chat-b')
+    const atBarrier = join(harness.homeDir, 'survivor-at-barrier')
+    // Fails only once the survivor is provably waiting at the barrier with its database open.
+    const failing = `
+      import { existsSync } from 'node:fs';
+      import { setTimeout as delay } from 'node:timers/promises';
+      while (!existsSync(${JSON.stringify(atBarrier)})) await delay(5);
+      process.exit(3);`
+    await expect(inProcesses([holding(a.token, b.endpoint.id, atBarrier), failing])).rejects.toThrow(/child exited before the start barrier/)
+    expect(existsSync(atBarrier)).toBe(true)
+    expect(ownedChildren.size).toBe(0)
+    expect(count(desktop, 'SELECT COUNT(*) AS n FROM agent_mail_messages')).toBe(0)
+    harness.cleanup()
+    expect(existsSync(harness.root)).toBe(false)
+    expect(existsSync(harness.homeDir)).toBe(false)
   })
 })

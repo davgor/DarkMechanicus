@@ -1,10 +1,11 @@
 import type { TicketReference } from '../../shared/domain/bundle'
 import type { ContextView, PushedContext } from '../../shared/domain/knowledge'
 import type { WorkspaceCore } from '../commands/types'
-import { DEFAULT_CONTEXT_BUDGET, selectFacts } from './select'
+import { activeLearnings } from '../services/learnings'
+import { DEFAULT_CONTEXT_BUDGET, DEFAULT_LEARNING_BUDGET, selectFacts, selectLearnings } from './select'
 
-/** What selecting knowledge needs from the open workspace. */
-type KnowledgeCore = Pick<WorkspaceCore, 'role' | 'layout' | 'homeDir' | 'fs'>
+/** What selecting knowledge needs from the open workspace; `db`, when given, adds the published learnings (DM-936). */
+type KnowledgeCore = Pick<WorkspaceCore, 'role' | 'layout' | 'homeDir' | 'fs'> & Partial<Pick<WorkspaceCore, 'db'>>
 
 interface ContextQuery {
   event?: string
@@ -27,12 +28,21 @@ export async function knowledgeContext(core: KnowledgeCore, query: ContextQuery)
     paths: query.paths,
     budgetTokens
   })
+  // DM-936: active learnings, selected within their own budget after the facts, so they never displace a fact or
+  // change its precedence; an item carries text and provenance only.
+  const db = core.db?.() ?? null
+  const learnings =
+    db === null
+      ? null
+      : selectLearnings(activeLearnings(db), { role: core.role, event: query.event, paths: query.paths, budgetTokens: DEFAULT_LEARNING_BUDGET })
+  const matched = learnings !== null && learnings.learnings.length + learnings.omitted.length > 0
   return {
     facts: selected.facts.map(({ id, type, title, layer, body }) => ({ id, type, title, layer, body })),
     omitted: selected.omitted,
     usedTokens: selected.usedTokens,
     budgetTokens,
     diagnostics: loaded.diagnostics,
+    ...(matched && { learnings: { ...learnings, budgetTokens: DEFAULT_LEARNING_BUDGET } }),
     layers: loaded.layers
   }
 }

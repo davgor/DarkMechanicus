@@ -10,6 +10,7 @@ import type { CommandName } from '../shared/domain/api'
 import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } from '../shared/domain/status'
 import { REASONING_LEVELS, RELATION_KINDS, TICKET_FAILURE_POLICIES, TOOL_CAPABILITIES, WORK_TYPES } from '../shared/domain/bundle'
 import { TIER_VERDICTS } from '../shared/domain/retro'
+import { LEARNING_DISPOSITIONS } from '../shared/domain/kanban'
 import type { ProjectView } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { COMMAND_NAMES, createCannedApi, createStubApi } from '../test/stubApi'
@@ -139,7 +140,10 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   send_agent_message: { method: 'sendAgentMessage', kind: 'write' },
   read_agent_inbox: { method: 'readAgentInbox', kind: 'read' },
   acknowledge_agent_messages: { method: 'acknowledgeAgentMessages', kind: 'idempotent' },
-  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' }
+  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' },
+  list_learnings: { method: 'listLearnings', kind: 'read' },
+  get_learning: { method: 'getLearning', kind: 'read' },
+  get_staged_learning_drafts: { method: 'getStagedLearningDrafts', kind: 'read' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
@@ -177,7 +181,10 @@ const HUMAN_ONLY: CommandName[] = [
   'deleteKanbanCard',
   // What a person says (a rating, rescue time, an escaped defect record) is recorded only by the person at the desktop.
   'recordHumanFeedback',
-  'recordEscapedDefects'
+  'recordEscapedDefects',
+  // Which guidance future agents receive is the person's call: no tool retires or replaces a learning.
+  'retireLearning',
+  'replaceLearning'
 ]
 
 /**
@@ -426,6 +433,7 @@ const VOCABULARY = new Set<string>([
   ...GATE_CONDITIONS,
   ...BLOCKER_KINDS,
   ...DRAFT_OPS,
+  ...LEARNING_DISPOSITIONS,
   CRITERION_NEEDS_PERSON
 ])
 

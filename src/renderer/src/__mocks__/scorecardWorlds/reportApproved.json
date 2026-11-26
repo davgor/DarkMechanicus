@@ -4575,6 +4575,7 @@
         "ownedByThisMachine": true,
         "pauseReason": null,
         "autoContinue": false,
+        "learningCard": null,
         "createdAt": "2026-11-15T09:00:00.000Z",
         "startedAt": "2026-11-15T09:00:00.000Z",
         "updatedAt": "2026-11-15T10:08:00.000Z",

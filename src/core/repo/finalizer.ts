@@ -65,7 +65,12 @@ import {
   trackedProfileHash,
   trackedRunHash,
   scorecardRecord,
-  scorecardRecordTexts
+  scorecardRecordTexts,
+  // DM-935: learning records
+  buildLearningIntegrationRecord,
+  buildLearningRecordFile,
+  trackedLearningIntegrationHash,
+  trackedLearningRecordHash
 } from './portable'
 import { matchesSync } from './syncState'
 import type { FsAdapter, RepoLayout } from './types'
@@ -406,6 +411,8 @@ function writeSnapshot(deps: ExportDeps, snapshot: SnapshotText): void {
 
 /** Kinds of `sync_state` rows the finalizer records exports for. */
 type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event' | 'attachment' | 'metric_observation'
+  // DM-935
+  | 'learning_record' | 'learning_integration'
 
 function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
@@ -928,6 +935,30 @@ function requireWritableRunHistory(deps: FinalizerDeps, runId: string): void {
   }
 }
 
+// ─── DM-935: learning files ───
+/**
+ * Rewrites a learning's file or an integration's manifest with the stored state. It writes only over the file this
+ * machine last exported or imported: another machine's change it has not imported yet is never dropped, so the entry
+ * fails with `conflict` and waits for the reconcile that imports (or reports) it.
+ */
+function exportLearningFile(
+  deps: ExportDeps,
+  file: { kind: 'learning_record' | 'learning_integration'; entityId: string; target: string; text: string; hashOf: (text: string) => string }
+): void {
+  const existing = readOwnedText(deps, file.target)
+  if (existing !== null && existing !== file.text && !matchesSync(deps.db, file.kind, file.entityId, file.hashOf(existing))) {
+    fail(
+      'conflict',
+      `${displayPath(deps.layout, file.target)} holds a change this machine has not imported, so it was not written over. The next reconcile imports or reports it.`
+    )
+  }
+  if (existing !== file.text) {
+    putText(deps, file.target, file.text)
+  }
+  recordExport(deps, { kind: file.kind, entityId: file.entityId, hash: file.hashOf(file.text), generation: nextGeneration(deps.db, file.kind, file.entityId) })
+}
+// ─── End DM-935 ───
+
 function required(value: string | null, what: string): string {
   if (value === null) {
     fail('internal', `Outbox entry has no ${what}.`)
@@ -972,7 +1003,18 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   kanban_card: (deps, _hooks, entry) => exportKanbanCard(deps, required(entry.entity_id, 'card id')),
   kanban_event: (deps, _hooks, entry) => exportKanbanEvent(deps, required(entry.entity_id, 'event id')),
   attachment: (deps, _hooks, entry) => exportAttachment(deps, required(entry.entity_id, 'attachment id')),
-  metric_observation: (deps, _hooks, entry) => exportObservation(deps, required(entry.entity_id, 'observation id'))
+  metric_observation: (deps, _hooks, entry) => exportObservation(deps, required(entry.entity_id, 'observation id')),
+  // DM-935: a learning with its history, and an integration's recovery manifest.
+  learning_record: (deps, _hooks, entry) => {
+    const learningId = required(entry.entity_id, 'learning id')
+    exportLearningFile(deps, { kind: 'learning_record', entityId: learningId, target: ownedPaths(deps.layout).learningRecordFile(learningId),
+      text: prettyJson(buildLearningRecordFile(deps.db, learningId)), hashOf: trackedLearningRecordHash })
+  },
+  learning_integration: (deps, _hooks, entry) => {
+    const integrationId = required(entry.entity_id, 'integration id')
+    exportLearningFile(deps, { kind: 'learning_integration', entityId: integrationId, target: ownedPaths(deps.layout).learningIntegrationFile(integrationId),
+      text: prettyJson(buildLearningIntegrationRecord(deps.db, integrationId)), hashOf: trackedLearningIntegrationHash })
+  }
 }
 
 /** A comment with no `sync_state` row is re-queued by every later save (`enqueueUnexportedComments`). */
@@ -1006,7 +1048,10 @@ const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
   kanban_card: () => undefined,
   kanban_event: () => undefined,
   attachment: () => undefined,
-  metric_observation: () => undefined
+  metric_observation: () => undefined,
+  // DM-935: the database holds the learning and the manifest; no file is written.
+  learning_record: () => undefined,
+  learning_integration: () => undefined
 }
 
 type EntryResult = 'flushed' | 'skipped' | 'stale'
@@ -1235,10 +1280,16 @@ interface ReconciledRecords {
   branchChanged: boolean
 }
 
-/** The ids a reconcile result names an entry's records by: epic, run, comment, `profile:<name>`, `kanban:<cardId>`. */
+/**
+ * The ids a reconcile result names an entry's records by: epic, run, comment, `profile:<name>`, `kanban:<cardId>`,
+ * `learning:<id>` and `learning_integration:<id>`.
+ */
 function reconciledIds(entry: OutboxRow): string[] {
   const ids = [entry.epic_id, entry.run_id, entry.entity_id, entry.card_id === null ? null : `kanban:${entry.card_id}`]
   ids.push(entry.kind === 'profile' && entry.entity_id !== null ? `profile:${entry.entity_id}` : null)
+  // DM-935: a learning export that failed with `conflict` waits for the reconcile that imports the file over it.
+  ids.push(entry.kind === 'learning_record' && entry.entity_id !== null ? `learning:${entry.entity_id}` : null)
+  ids.push(entry.kind === 'learning_integration' && entry.entity_id !== null ? `learning_integration:${entry.entity_id}` : null)
   return ids.filter((id) => id !== null)
 }
 

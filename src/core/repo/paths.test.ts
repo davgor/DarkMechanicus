@@ -240,3 +240,16 @@ describe('owned paths in db mode', () => {
     expect(error.message).not.toContain('.darkmechanicus')
   })
 })
+
+describe('ownedPaths attachment files', () => {
+  it('refuses an attachment file path built from an invalid SHA-256 digest', () => {
+    const paths = ownedPaths(layout)
+    const folder = { kind: 'epic' as const, id: EPIC }
+    const digest = 'a'.repeat(64)
+    expect(paths.attachmentFile(folder, digest, 'image/png')).toBe(join(ROOT, '.darkmechanicus', 'epics', EPIC, 'attachments', `${digest}.png`))
+    for (const bad of ['A'.repeat(64), 'a'.repeat(63), `../${'a'.repeat(61)}`]) {
+      const error = captureError(() => paths.attachmentFile(folder, bad, 'image/png'))
+      expect([error.code, error.message]).toEqual(['unsafe_path', 'Refusing to build a repository path from an invalid SHA-256 digest.'])
+    }
+  })
+})

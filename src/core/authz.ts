@@ -76,7 +76,9 @@ export const CAPABILITIES = [
   // the session's current grant to be bound to an open endpoint on this machine and folder (services/agentMail.ts).
   'mail.use',
   // Provisioning, binding, renaming and closing mailboxes, and the person's own inbox, seen cursor and wake credit.
-  'mail.manage'
+  'mail.manage',
+  // Retiring or replacing a published learning: the person decides which guidance future agents receive.
+  'learning.manage'
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]
@@ -115,7 +117,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'correction.cross_repo',
   // Mailboxes are the person's to create, bind and close: an agent that could would register or rebind itself, or
   // close a peer's. The person's inbox view and the one-shot wake credit it grants are theirs too.
-  'mail.manage'
+  'mail.manage',
+  // Agents may propose and read guidance; only the person retires it or replaces it with new content.
+  'learning.manage'
 ]
 
 /** What a planner and an orchestrator both hold. */

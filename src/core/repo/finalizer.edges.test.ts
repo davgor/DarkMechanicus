@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import { pngBytes } from '../../test/images'
+import { publishLearning } from '../../test/learningFixtures'
 import type { MemoryFs } from '../../test/memoryFs'
 import { createRepoEnv, flush, initProject, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
 import { idOf, insertAttempt, insertOutbox, insertRun } from '../../test/repoFixtures'
@@ -9,6 +10,7 @@ import { deliver, portable, report, spaceWorld } from '../../test/spaceWorld'
 import { createTestCtx } from '../../test/testContext'
 import { prettyJson } from '../canonical'
 import { claimAttachments, createStagedAttachment } from '../services/attachments'
+import { enqueueOutbox } from '../services/outbox'
 import { META_KEYS, setMeta } from '../meta'
 import { flushOutbox, type FlushOutcome } from './finalizer'
 import { ownedPaths } from './paths'
@@ -195,5 +197,22 @@ describe('flushOutbox scorecard writes that cannot complete', () => {
     expect(flush(w.env).errors).toContainEqual(expect.stringContaining(`${shown} would be larger than the 8 MiB record limit, so it is not written.`))
     expect(w.env.fs.get(paths.scorecardFile(w.runId, reportId))).toBeUndefined()
     expect(w.env.fs.get(paths.runHistoryFile(w.runId))).toBeUndefined()
+  })
+})
+
+describe('flushOutbox and a learning record already exported as it stands', () => {
+  it('settles the entry without writing the identical file again', () => {
+    const env = createRepoEnv()
+    initProject(env)
+    const learningId = publishLearning(env, 1)
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    const file = ownedPaths(env.layout).learningRecordFile(learningId)
+    const text = env.fs.get(file)
+    const writesBefore = env.fs.writes.length
+    enqueueOutbox({ db: env.db, clock: env.clock }, { kind: 'learning_record', entityId: learningId })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    expect(env.fs.writes.slice(writesBefore).filter((path) => path.includes(learningId))).toEqual([])
+    expect(env.fs.get(file)).toBe(text)
+    expect(env.db.all("SELECT state FROM outbox WHERE kind = 'learning_record'")).toEqual([{ state: 'done' }, { state: 'done' }])
   })
 })

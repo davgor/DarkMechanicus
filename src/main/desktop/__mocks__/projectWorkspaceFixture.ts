@@ -7,7 +7,7 @@ import { workspaceClient } from '../workspaceClient'
 import { runWorkspaceOperation } from '../workspaceOperations'
 import { createWorkspacePool, type WorkspacePool } from '../workspacePool'
 
-type TestWorkspace = ProjectWorkspace & Workspace
+export type TestWorkspace = ProjectWorkspace & Workspace
 export type TestWorkspacePool = Omit<WorkspacePool, 'get'> & { get(path: string): TestWorkspace }
 
 export function testWorkspace(workspace: Workspace, home = ''): TestWorkspace {

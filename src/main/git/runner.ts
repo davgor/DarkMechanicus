@@ -22,10 +22,18 @@ export interface GitRunRequest {
   kind: GitRunKind
   stdin?: string
   env?: Readonly<Record<string, string>>
-  timeoutMs?: number
+  /** `null`: no runner deadline; the caller owns ending git through `signal` (or `converse`). */
+  timeoutMs?: number | null
   maxOutputBytes?: number
   signal?: AbortSignal
   onProgress?(line: string): void
+  /** Each decoded stdout chunk as it arrives, for a conversation that waits on git's answers. */
+  onStdout?(text: string): void
+  /**
+   * Keeps git's stdin open (`git update-ref --stdin` holding a prepared transaction): called once git has started,
+   * with `write` for further input and `end` to close stdin. Replaces `stdin`.
+   */
+  converse?(io: GitConversation): void
   /**
    * Called once, when git is gone (or was never started). A cancelled or timed-out run rejects at once, while git
    * may still be writing for a moment; this says when it has stopped. Must not throw.
@@ -38,6 +46,11 @@ export interface GitRunRequest {
   acceptExitCodes?: readonly number[]
 }
 
+export interface GitConversation {
+  write(text: string): void
+  end(text?: string): void
+}
+
 interface ReadableLike {
   on(event: 'data', listener: (chunk: Buffer | string) => void): unknown
   destroy(): unknown
@@ -48,7 +61,7 @@ export interface ChildLike {
   pid?: number
   stdout: ReadableLike | null
   stderr: ReadableLike | null
-  stdin: { end(data?: string): unknown; on(event: 'error', listener: () => void): unknown } | null
+  stdin: { write(data: string): unknown; end(data?: string): unknown; on(event: 'error', listener: () => void): unknown } | null
   kill(signal?: NodeJS.Signals | number): boolean
   on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): unknown
   on(event: 'exit' | 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown
@@ -247,7 +260,10 @@ class Execution {
   }
 
   private attach(child: ChildLike): void {
-    child.stdout?.on('data', (chunk) => this.take(this.out, chunk, false))
+    child.stdout?.on('data', (chunk) => {
+      this.take(this.out, chunk, false)
+      if (!this.settled) this.request.onStdout?.(chunk.toString())
+    })
     child.stderr?.on('data', (chunk) => this.take(this.err, chunk, true))
     child.on('error', (error) => {
       this.markGone()
@@ -275,7 +291,12 @@ class Execution {
     }
     this.request.signal?.addEventListener('abort', this.onAbort, { once: true })
     child.stdin?.on('error', () => undefined)
-    child.stdin?.end(this.request.stdin)
+    const stdin = child.stdin
+    if (this.request.converse !== undefined && stdin !== null) {
+      this.request.converse({ write: (text) => stdin.write(text), end: (text) => stdin.end(text) })
+    } else {
+      stdin?.end(this.request.stdin)
+    }
   }
 
   private readonly onAbort = (): void => {

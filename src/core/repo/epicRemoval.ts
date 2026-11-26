@@ -53,10 +53,10 @@ function removeOwnedTrees(env: RemovalEnv, dirs: string[]): string[] {
   return roots.map((dir) => displayPath(env.layout, dir))
 }
 
-/** Deletes an epic's folder and its runs' history folders. */
-export function removeEpicFiles(env: RemovalEnv, epicId: string, runIds: string[]): string[] {
+/** Deletes an epic's folder, its runs' history folders and the folders of its generated Kanban cards. */
+export function removeEpicFiles(env: RemovalEnv, epicId: string, runIds: string[], cardIds: string[] = []): string[] {
   const paths = ownedPaths(env.layout)
-  return removeOwnedTrees(env, [paths.epicDir(epicId), ...runIds.map((runId) => paths.runDir(runId))])
+  return removeOwnedTrees(env, [paths.epicDir(epicId), ...runIds.map((runId) => paths.runDir(runId)), ...cardIds.map((cardId) => paths.kanbanCardDir(cardId))])
 }
 
 /** Deletes a Kanban card's folder (its definition and every event file). */

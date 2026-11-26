@@ -14,6 +14,10 @@ import { SKILLS_VERSION } from '../core/version'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import { markdownSection, missingPhrases } from '../test/markdownSections'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
+import type { SessionRole } from '../shared/domain/views'
+import { withRig } from '../test/mcpHarness'
+import { createStubApi } from '../test/stubApi'
+import { createMcpServer } from './server'
 
 const EXPECTED = [
   ['planner', 'Planner'],
@@ -800,5 +804,42 @@ describe('single-card progress supervision skills', () => {
     expect(body).toMatch(/report actual failures honestly/i)
     expect(body).toMatch(/isolated card runs its complete Definition of Done and repository delivery gate/i)
     expect(body).toMatch(/Stop on `expired_claim` or `stale_claim`/i)
+  })
+})
+
+describe('sprint learning card guidance', () => {
+  const build = (role: SessionRole) => (api: Parameters<typeof createMcpServer>[0]) =>
+    createMcpServer(api, { name: 'darkmechanicus', version: '0.0.0' }, { role, allowSave: false })
+  const listedTools = (role: SessionRole): Promise<string[]> =>
+    withRig(build(role), createStubApi(), async (rig) => (await rig.client.listTools()).tools.map((tool) => tool.name))
+  const factBody = (id: string): string => {
+    const source = BUILTIN_KNOWLEDGE.find((item) => item.path.endsWith(`/${id}.md`))
+    const parsed = source === undefined ? undefined : parseFact(source.source, { layer: 'builtin', path: source.path })
+    if (parsed === undefined || !parsed.ok) throw new Error(`missing or unparseable fact ${id}`)
+    return parsed.fact.body
+  }
+
+  it('moved past 1.15.0 when the guides started covering the generated sprint learning card', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 16)).toBe(true)
+  })
+
+  it.each([
+    ['orchestrator', () => [factBody('advance-sprint'), factBody('learning-card')].join('\n')],
+    ['worker', () => markdownSection(skillBody('worker'), 'Sprint learning card packets')],
+    ['reviewer', () => markdownSection(skillBody('reviewer'), 'Sprint learning cards')]
+  ] as const)('gives the %s only learning-card tools its session really lists', async (role, guidance) => {
+    const named = [...new Set(guidance().match(/`[a-z][a-z0-9]*(?:_[a-z0-9]+)+`/g)?.map((name) => name.slice(1, -1)))]
+    const listed = await listedTools(role)
+    const tools = named.filter((name) => /_(?:kanban_card|learnings?|run|attempt)$|^(?:get|list|claim|submit|fail)_/.test(name))
+    expect(tools.length).toBeGreaterThan(0)
+    expect(tools.filter((name) => !listed.includes(name))).toEqual([])
+  })
+
+  it('exposes no agent tool that approves, publishes, retires or replaces a learning, so activation stays human-only', async () => {
+    for (const role of ['orchestrator', 'worker', 'reviewer'] as const) {
+      const learningTools = (await listedTools(role)).filter((name) => name.includes('learning'))
+      expect(learningTools.sort(), role).toEqual(['get_learning', 'get_staged_learning_drafts', 'list_learnings'])
+    }
   })
 })

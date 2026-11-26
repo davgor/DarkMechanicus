@@ -231,6 +231,31 @@ src/shared/domain/hostUsage.ts - UsageBilling
 src/shared/domain/hostUsage.ts - UsageFormat
 src/shared/domain/kanban.ts - KANBAN_EDITABLE_FIELDS
 src/shared/domain/kanban.ts - KanbanAttemptState
+# DM-938 learning-card contract: consumed by core (commandSchemas, kanban/learningCards) and tests, outside tsconfig.web.json.
+src/shared/domain/kanban.ts - KanbanLearningPacket
+src/shared/domain/kanban.ts - LEARNING_DISPOSITIONS
+src/shared/domain/kanban.ts - LearningItemDisposition
+src/shared/domain/kanban.ts - LearningBranchManifest
+src/shared/domain/kanban.ts - VerifiedLearningManifest
+src/shared/domain/learnings.ts - LEARNING_EVENTS
+src/shared/domain/learnings.ts - LEARNING_HISTORY_KINDS
+src/shared/domain/learnings.ts - LEARNING_INTEGRATION_OPEN_STATES
+src/shared/domain/learnings.ts - LEARNING_INTEGRATION_STATES
+src/shared/domain/learnings.ts - LEARNING_STATES
+# The learning evidence snapshot contract is consumed by src/core/services/learningEvidence.ts, outside tsconfig.web.json.
+src/shared/domain/learnings.ts - LEARNING_EVIDENCE_KINDS
+src/shared/domain/learnings.ts - LearningEvidenceItem
+src/shared/domain/learnings.ts - LearningEvidenceSnapshot
+src/shared/domain/learnings.ts - LearningSourceKind
+src/shared/domain/learnings.ts - learningEvidenceSnapshotSchema
+src/shared/domain/learnings.ts - LearningHistoryEntryView
+src/shared/domain/learnings.ts - LearningReplacementContent
+src/shared/domain/learnings.ts - learningReasonSchema
+src/shared/domain/learnings.ts - learningReplacementContentSchema
+# DM-935: the learning integration manifest contract is consumed by src/core/repo/portable.ts, outside tsconfig.web.json.
+src/shared/domain/learnings.ts - learningIntegrationManifestSchema
+src/shared/domain/learnings.ts - LearningIntegrationManifest
+src/shared/domain/learnings.ts - learningIntegrationFailureSchema
 src/shared/domain/metrics.ts - AGENT_METRIC_SOURCES
 src/shared/domain/metrics.ts - BudgetVersionStatus
 src/shared/domain/metrics.ts - MetricReport
@@ -399,3 +424,20 @@ src/shared/domain/standardization.ts - StandardsNoticeRoute
 src/shared/domain/standardization.ts - StandardsNotice
 src/shared/domain/standardization.ts - StandardizationItem
 src/shared/domain/standardsChat.ts - applyQuestion
+# DM-948 prepare-only learning integration contract: consumed by src/main/git/learningIntegration.ts and its test (main only, outside tsconfig.web.json) until the apply ticket wires it.
+src/shared/git/learningIntegration.ts - LearningIntegrationTargetInput
+src/shared/git/learningIntegration.ts - PrepareLearningIntegrationRequest
+src/shared/git/learningIntegration.ts - PreparedTarget
+src/shared/git/learningIntegration.ts - LearningIntegrationConflict
+src/shared/git/learningIntegration.ts - PreparedLearningIntegration
+src/shared/git/learningIntegration.ts - LearningIntegrationErrorCode
+# DM-949 canonical apply/recovery contract: consumed by src/main/git/learningApply.ts and its test (main only, outside tsconfig.web.json) until the coordinator ticket wires it.
+src/shared/git/learningIntegration.ts - PlannedLearningTarget
+src/shared/git/learningIntegration.ts - LearningIntegrationPlan
+src/shared/git/learningIntegration.ts - LearningIntegrationReceipt
+src/shared/git/learningIntegration.ts - ApplyLearningIntegrationRequest
+src/shared/git/learningIntegration.ts - RecoverLearningIntegrationRequest
+src/shared/git/learningIntegration.ts - AppliedLearningIntegration
+# DM-952 clean-checkout requirement: consumed by src/main/git/learningCheckout.ts, learningApply.ts and src/main/kanban/learningOperationRecord.ts (main only, outside tsconfig.web.json) until the coordinator ticket wires it.
+src/shared/git/learningIntegration.ts - OwnedRecordAllowance
+src/shared/git/learningIntegration.ts - CleanCheckoutRequirement

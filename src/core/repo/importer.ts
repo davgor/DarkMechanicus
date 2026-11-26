@@ -38,6 +38,7 @@ import { applyCard, type KanbanScan, kanbanConflictsStored, scanKanban, storeKan
 import { applyObservations, type ObservationScan, type ObservationScope, observationsSettled, scanObservations } from './observationImport'
 import { type ObservedRepository, observeRepository } from './reconcilePreparation'
 import { type GuardedRecord, guardedRecord, retryRecords, stampHolds, stampRecords } from './recordGuard'
+import { applyLearnings, emptyLearningScan, type LearningScan, learningsSettled, scanLearnings } from './learningImport'
 import type { ReconcileGate } from './reconcileFingerprint'
 import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
 import { applyRecoveredAttachments, prepareRecoveredAttachments, type RecoveredPlan } from './recoveredAttachments'
@@ -1822,8 +1823,22 @@ function observationScope(targeted: TrackedRecords | null): ObservationScope | u
 /** The observation files, recovered archives and attachment images to apply, read and verified without the writer lock. */
 interface SidePlans {
   observations: ObservationScan
+  /** DM-935: learning record files and integration recovery manifests. */
+  learnings: LearningScan
   recovered: RecoveredPlan
   attachments: AttachmentPlan
+}
+
+/**
+ * A path under `learnings/` maps to no record kind (`gitChanges.ts`), so any change git reports there reads
+ * everything; a targeted reconcile reads the learning folders only when this database exported a learning since the
+ * last reconcile (a file written and reverted in between leaves git nothing to report).
+ */
+function readsLearnings(deps: ImporterDeps, targeted: TrackedRecords | null): boolean {
+  return targeted === null || deps.db.get(
+    "SELECT 1 FROM outbox WHERE kind IN ('learning_record', 'learning_integration') AND state = 'done' AND done_at >= ? LIMIT 1",
+    getMeta(deps.db, META_KEYS.lastReconcileAt) ?? ''
+  ) !== undefined
 }
 
 /** Reads the side inputs; run in a read snapshot. Observation folders of the epics the plan imports are read too. */
@@ -1832,6 +1847,7 @@ function sidePlans(deps: ImporterDeps, context: ApplyContext): SidePlans {
   const epics = [...new Set([...deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id), ...context.plan.epics.map((files) => files.epicId)])]
   return {
     observations: scanObservations(deps, epics.sort(), observationScope(targeted)),
+    learnings: readsLearnings(deps, targeted) ? scanLearnings(deps) : emptyLearningScan(),
     recovered: readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] },
     attachments: prepareAttachmentFiles(deps)
   }
@@ -1877,20 +1893,21 @@ interface SideOutcome {
 }
 
 /**
- * Observations, recovered archives and attachment images, after the records (an observation of a run imported now
- * resolves). Each was read and verified outside the lock (`sides`); attachment rows the records registered now are read
- * again. Each write is its own short transaction that rechecks its row.
+ * Observations, learnings, recovered archives and attachment images, after the records (an observation of a run
+ * imported now resolves). Each was read and verified outside the lock (`sides`); attachment rows the records
+ * registered now are read again. Each write is its own short transaction that rechecks its row.
  */
 function applySideInputs(deps: ImporterDeps, context: ApplyContext, applied: AppliedRecords, sides: { plans: SidePlans; now: string }): SideOutcome {
   const { plans, now } = sides
   const registered = registerAllAttachments(deps, now) || applied.savedEpics.length + applied.importedRuns.length + applied.importedCards.length > 0
   const observationOutcome = applyObservations(deps, plans.observations, now)
+  const learningOutcome = applyLearnings(deps, plans.learnings, now) // DM-935: learnings and integration recovery manifests.
   const recovered = applyRecoveredAttachments(deps, plans.recovered)
   const attachments = registered ? deps.db.tx(() => sidePlans(deps, context).attachments, 'read') : plans.attachments
   const attachmentOutcome = applyAttachmentFiles(deps, attachments)
   return {
-    imported: observationOutcome.imported,
-    rejected: [...observationOutcome.rejected, ...attachmentOutcome.rejected, ...recovered.rejected],
+    imported: [...observationOutcome.imported, ...learningOutcome.imported],
+    rejected: [...observationOutcome.rejected, ...learningOutcome.rejected, ...attachmentOutcome.rejected, ...recovered.rejected],
     attachmentsChanged: attachmentOutcome.changed || recovered.changed
   }
 }
@@ -2041,7 +2058,9 @@ function unchangedResult(deps: ImporterDeps, context: ApplyContext, plans: SideP
 function sideInputsSettled(db: Db, plans: SidePlans): Rejection[] | null {
   const observations = observationsSettled(db, plans.observations)
   if (observations === null || plans.recovered.pending.length > 0 || plans.attachments.updates.length > 0) return null
-  return [...observations, ...plans.attachments.rejected, ...plans.recovered.rejected]
+  const learnings = learningsSettled(db, plans.learnings)
+  if (learnings === null) return null
+  return [...observations, ...learnings, ...plans.attachments.rejected, ...plans.recovered.rejected]
 }
 
 /** Prepares a reconcile; with `only`, reads just those records again (the ones a record transaction found moved). */

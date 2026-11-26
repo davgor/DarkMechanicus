@@ -45,7 +45,10 @@ const PINNED_PREFIXES = {
   baseline: 'bl',
   assessment: 'as',
   experiment: 'xp',
-  experimentEvent: 'xe'
+  experimentEvent: 'xe',
+  learningRecord: 'lr',
+  // DM-935
+  learningIntegration: 'li'
 } as const satisfies Record<IdKind, string>
 
 /** A random source that records the sizes it was asked for and fills bytes from `fill`. */

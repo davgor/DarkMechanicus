@@ -14,6 +14,7 @@ import type {
   SprintIncrement,
   SprintReportView
 } from '../../shared/domain/views'
+import type { SprintLearningCardView } from '../../shared/domain/learnings'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
 import { bool, parseJson, toJson } from '../db/database'
@@ -37,6 +38,7 @@ import {
   setRunState,
   type RunRow
 } from './reports'
+import { generateSprintLearningCard } from './sprintLearningCards'
 
 /** The only action an approval grant can authorize. */
 const ADVANCE_ACTION = 'advance_sprint'
@@ -602,6 +604,8 @@ interface AdvanceResult {
   runId: string
   outcome: 'advanced' | 'completed'
   activeSprintId: string | null
+  /** DM-937: the learning card the advance generated and queued for the completed sprint (the same one on a replay). */
+  learningCard: SprintLearningCardView
 }
 
 interface Decision {
@@ -651,6 +655,12 @@ function recordCheckpoint(ctx: Ctx, step: Step, outcome: AdvanceResult['outcome'
   return id
 }
 
+/** DM-937: inside the advance, after the checkpoint row; a failed advance rolls it back with everything else. */
+function queueLearningCard(ctx: Ctx, step: Step, checkpointId: string): SprintLearningCardView {
+  const { run, sprint } = step.evaluation
+  return generateSprintLearningCard(ctx, { epicId: run.epic_id, runId: run.id, sprintId: sprint.id, report: step.report, checkpointId })
+}
+
 function moveToSprint(ctx: Ctx, step: Step, next: SprintDef): AdvanceResult {
   const { run, sprint } = step.evaluation
   const checkpointId = recordCheckpoint(ctx, step, 'advanced')
@@ -666,7 +676,8 @@ function moveToSprint(ctx: Ctx, step: Step, next: SprintDef): AdvanceResult {
     runId: run.id,
     payload: { checkpointId, fromSprintId: sprint.id, toSprintId: next.id, ...step.decision }
   })
-  return { runId: run.id, outcome: 'advanced', activeSprintId: next.id }
+  const learningCard = queueLearningCard(ctx, step, checkpointId)
+  return { runId: run.id, outcome: 'advanced', activeSprintId: next.id, learningCard }
 }
 
 function completeEpic(ctx: Ctx, run: RunRow, report: SprintReportView): void {
@@ -709,7 +720,8 @@ function completeRun(ctx: Ctx, step: Step): AdvanceResult {
   })
   appendEvent(ctx, { kind: 'epic.completed', epicId: run.epic_id, runId: run.id, payload: { runId: run.id } })
   enqueueOutbox(ctx, { kind: 'epic_state', epicId: run.epic_id })
-  return { runId: run.id, outcome: 'completed', activeSprintId: null }
+  const learningCard = queueLearningCard(ctx, step, checkpointId)
+  return { runId: run.id, outcome: 'completed', activeSprintId: null, learningCard }
 }
 
 function advanceMessage(run: RunRow): string {

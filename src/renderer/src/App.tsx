@@ -43,6 +43,7 @@ import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
 import { KanbanBoard } from './kanban/KanbanBoard'
+import { LearningsPanel } from './learnings/LearningsPanel'
 import { MetricsDashboard } from './metrics/MetricsDashboard'
 import { OnboardingView } from './onboarding/OnboardingView'
 import { SourceControlView } from './source/SourceControlView'
@@ -187,6 +188,7 @@ function EpicsPanel({ shell, folder }: { shell: ShellModel; folder: TrackedFolde
       onReconcile={() => void actions.reconcile()}
       onResolveConflict={(epicId, keep) => actions.resolveEpicConflict(folder, epicId, keep)}
       onImportBoard={() => actions.importBoard(folder)}
+      onOpenLearnings={() => actions.selectLearnings(folder.path)}
     />
   )
 }
@@ -197,6 +199,9 @@ function FolderPane({ shell, scheduler, EpicView, onProvision }: PaneProps): JSX
   const sourceTarget = useSourceTarget(view.kind === 'folder' ? view.folder : null, scheduler)
   if (view.kind === 'epic') {
     return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
+  }
+  if (view.kind === 'learnings') {
+    return <LearningsPane key={view.folder.path} folder={view.folder} learningId={view.learningId} shell={shell} />
   }
   if (view.kind !== 'folder') {
     return null
@@ -278,7 +283,7 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvi
 
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
-  if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics') && view.folder.forgeParent) {
+  if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics' || view.kind === 'learnings') && view.folder.forgeParent) {
     return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
   return <MainContent {...props} />
@@ -288,6 +293,25 @@ function KanbanPane({ folder, shell }: { folder: TrackedFolderView; shell: Shell
   return <KanbanBoard folder={folder} refreshToken={shell.kanbanToken(folder.path)} host={orchestrationFor(shell, folder)}
     selectedCardId={shell.selection.kanbanCardId ?? null} onOpenCard={id => shell.actions.selectKanban(folder.path, id)}
     onCloseCard={() => shell.actions.selectKanban(folder.path)} onChanged={() => shell.refreshKanban(folder.path)} />
+}
+
+/** Knowledge → Learnings. Source links open the source epic, ticket or card; ids come from the learning itself. */
+function LearningsPane({ folder, learningId, shell }: { folder: TrackedFolderView; learningId: string | null; shell: ShellModel }): JSX.Element {
+  const { actions } = shell
+  return (
+    <LearningsPanel
+      folder={folder}
+      learningId={learningId}
+      refreshToken={shell.learningsToken(folder.path)}
+      onOpenLearning={(id) => actions.selectLearnings(folder.path, id ?? undefined)}
+      onOpenSource={(target) => {
+        if (target.kind === 'card') actions.selectKanban(folder.path, target.cardId)
+        else if (target.kind === 'ticket') actions.openTicket(folder.path, { epicId: target.epicId, ticketId: target.ticketId, attemptId: target.attemptId })
+        else actions.selectEpic(folder.path, target.epicId)
+      }}
+      onBack={() => actions.selectFolder(folder.path)}
+    />
+  )
 }
 
 function MainContent(props: PaneProps): JSX.Element | null {
@@ -326,7 +350,7 @@ function MainContent(props: PaneProps): JSX.Element | null {
 
 function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
   const { view } = shell
-  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat' || view.kind === 'kanban' || view.kind === 'metrics'
+  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat' || view.kind === 'kanban' || view.kind === 'metrics' || view.kind === 'learnings'
   const folder = onFolder ? view.folder : null
   return (
     <SidebarFooter

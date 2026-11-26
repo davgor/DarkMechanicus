@@ -66,7 +66,8 @@ describe('built-in knowledge selection', () => {
       'host-catalog',
       'time-box',
       'final-validation-ci',
-      'post-checkpoint-delivery'
+      'post-checkpoint-delivery',
+      'learning-card'
     ])
     for (const topic of topics) {
       const result = selectFacts(merged.facts, { role: 'orchestrator', topics: [topic], budgetTokens: DEFAULT_CONTEXT_BUDGET })
@@ -165,6 +166,61 @@ describe('retrying a ticket at its retry limit', () => {
       const result = selectFacts(merged.facts, { role: 'orchestrator', event, budgetTokens: DEFAULT_CONTEXT_BUDGET })
       expect(result.facts.map((fact) => fact.body).join('\n'), event).toContain('`retry_ticket`')
     }
+  })
+})
+
+describe('the sprint learning card delivered to orchestrators', () => {
+  const context = (query: { event?: KnowledgeEvent; topics?: string[] }) =>
+    selectFacts(merged.facts, { role: 'orchestrator', ...query, budgetTokens: DEFAULT_CONTEXT_BUDGET })
+  const ids = (result: { facts: KnowledgeFact[] }): string[] => result.facts.map((fact) => fact.id)
+  const text = (result: { facts: KnowledgeFact[] }): string => result.facts.map((fact) => fact.body).join('\n')
+
+  it('parses the learning-card fact as one bounded procedure for the orchestrator', () => {
+    const fact = merged.facts.find((candidate) => candidate.id === 'orchestrator.learning-card')
+    expect(fact).toMatchObject({ type: 'procedure', layer: 'builtin', scope: { roles: ['orchestrator'], events: ['kanban.claimed'] } })
+    expect(fact?.scope.topics).toEqual(['learning-card', 'lost-claim-response'])
+    expect(fact?.tokens).toBeLessThanOrEqual(400)
+  })
+
+  it('pushes the post-advance priority with the advance_sprint response, whole and within budget', () => {
+    const result = context({ event: 'checkpoint.approved' })
+    expect(result.omitted).toEqual([])
+    expect(result.usedTokens).toBeLessThanOrEqual(DEFAULT_CONTEXT_BUDGET)
+    expect(ids(result)).toContain('orchestrator.advance-sprint')
+    // The same context names the claim and the ordinary polling it must come before, and denies the card is a gate.
+    const advance = result.facts.find((fact) => fact.id === 'orchestrator.advance-sprint')?.body ?? ''
+    const claimAt = advance.indexOf('`claim_kanban_card`')
+    const pollAt = advance.indexOf('`get_ready_tickets`')
+    expect(claimAt).toBeGreaterThan(-1)
+    expect(pollAt).toBeGreaterThan(claimAt)
+    expect(advance).toMatch(/learningCard/)
+    expect(advance).toMatch(/not a sprint gate/i)
+  })
+
+  it('pushes the learning-card procedure with every Kanban claim, beside the ordinary card rules, omitting nothing', () => {
+    const result = context({ event: 'kanban.claimed' })
+    expect(result.omitted).toEqual([])
+    expect(result.usedTokens).toBeLessThanOrEqual(DEFAULT_CONTEXT_BUDGET)
+    expect(ids(result)).toEqual(expect.arrayContaining(['orchestrator.kanban-run', 'orchestrator.learning-card']))
+    const body = text(result)
+    for (const tool of ['`claim_kanban_card`', '`fail_kanban_card`', '`submit_kanban_card`']) expect(body).toContain(tool)
+    expect(body).toMatch(/task data/)
+    expect(body).toMatch(/Ready for review/)
+  })
+
+  it('keeps the learning card out of claim contexts for plan tickets and acceptance nodes', () => {
+    for (const event of ['ticket.claimed', 'acceptance.claimed'] as const) {
+      expect(ids(context({ event })), event).not.toContain('orchestrator.learning-card')
+    }
+  })
+
+  it('pulls the whole learning-card workflow by topic, and lost-claim handling with the lost-claim topic', () => {
+    const topic = context({ topics: ['learning-card'] })
+    expect(topic.omitted).toEqual([])
+    expect(ids(topic).sort()).toEqual(['orchestrator.advance-sprint', 'orchestrator.learning-card'])
+    const lost = context({ topics: ['lost-claim-response'] })
+    expect(lost.omitted).toEqual([])
+    expect(ids(lost)).toEqual(expect.arrayContaining(['orchestrator.lost-claim-replay', 'orchestrator.learning-card']))
   })
 })
 

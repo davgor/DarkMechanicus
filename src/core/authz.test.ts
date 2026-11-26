@@ -127,7 +127,8 @@ const DESKTOP: Capability[] = [
   'kanban.delete',
   'feedback.record',
   'correction.cross_repo',
-  'mail.manage'
+  'mail.manage',
+  'learning.manage'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -194,7 +195,8 @@ describe('capability vocabulary', () => {
         'kanban.delete',
         'feedback.record',
         'correction.cross_repo',
-        'mail.manage'
+        'mail.manage',
+        'learning.manage'
       ])
     )
   })
