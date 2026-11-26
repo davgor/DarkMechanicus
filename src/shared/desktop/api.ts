@@ -4,14 +4,18 @@
  * clipboard, and external links are separate narrow methods.
  */
 import type { ChatsApi } from '../agents/chatApi'
+import type { AgentChatApi } from '../agents/agentChat'
 import type { TerminalColors } from '../agents/terminalColors'
 import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
+import type { KanbanCardView } from '../domain/kanban'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { ForgeSetupApi } from './forgeSetup'
 import type { ForgeApi, ForgeWorld } from './forgeWorld'
+import type { SettingsApi } from './notificationSettings'
+import type { NotificationsApi } from './notifications'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
@@ -183,6 +187,13 @@ export type CommandOutput<K extends CommandName> = Awaited<ReturnType<CommandApi
 
 export type CommandResult<T> = { ok: true; data: T } | { ok: false; error: DomainErrorShape }
 
+/** DM-956: the exact learning card approval the person reviewed: card, submitted attempt and staged drafts hash. */
+export interface ApproveLearningCardRequest {
+  cardId: string
+  attemptId: string
+  draftsHash: string
+}
+
 export interface McpConfigView {
   command: string
   args: string[]
@@ -269,12 +280,16 @@ export interface DmApi {
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
+  /** Structured CLI chats: validated `agentChat:*` requests and events. */
+  agentChat: AgentChatApi
   /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
   terminals: TerminalsApi
   /** The local Dark Mechanicus source checkout: the `sourceCheckout:*` channels. */
   sourceCheckout: SourceCheckoutApi
   /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
   crossRepoCorrections: CrossRepoCorrectionsApi
+  /** The "Notifications & approvals" settings main owns: the `settings:*Notifications` channels. */
+  settings: SettingsApi
   listFolders(): Promise<TrackedFolderView[]>
   onFoldersChanged?(receive: () => void): () => void
   pickFolder(mode?: 'forge-world'): Promise<FolderPickResult>
@@ -288,6 +303,12 @@ export interface DmApi {
     name: K,
     input: CommandInput<K>
   ): Promise<CommandResult<CommandOutput<K>>>
+  /**
+   * DM-956: the person's one approval of a sprint learning card in Ready for review: the exact reviewed card, attempt
+   * and staged drafts hash. Main integrates every repository, then approves the card to Done and publishes its
+   * learnings; resolves to the Done card. A conflict leaves the card in Ready for review and publishes nothing.
+   */
+  approveLearningCard(folder: string, input: ApproveLearningCardRequest): Promise<CommandResult<KanbanCardView>>
   getMcpConfig(folder: string): Promise<McpConfigView>
   installSkills(folder: string): Promise<{ written: string[] }>
   connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult>
@@ -361,6 +382,8 @@ export interface DmApi {
   chooseKnowledgeRepository(): Promise<KnowledgeChooseResult>
   /** Removes `<home>/knowledge.json`, so no overall repository is set. */
   clearKnowledgeRepository(): Promise<void>
+  /** OS notifications: `notifications:raise` for a run event the renderer observed, and `notifications:navigate` pushes. */
+  notifications: NotificationsApi
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */
@@ -421,6 +444,12 @@ const DESKTOP_COMMANDS = [
   'listProfiles',
   'getProfile',
   'saveProfile',
+  // Published learnings: the person reads, retires and replaces them; agents only read them.
+  'listLearnings',
+  'getLearning',
+  'getStagedLearningDrafts',
+  'retireLearning',
+  'replaceLearning',
   'queueRun',
   'getRun',
   'getReadyTickets',

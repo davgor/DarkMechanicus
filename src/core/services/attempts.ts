@@ -37,7 +37,7 @@ import type {
 } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from '../claimTokenMask'
-import { addSeconds } from '../clock'
+import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -74,6 +74,9 @@ import { enqueueOutbox } from './outbox'
 import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
 import { recordHandoffChecks } from './spaceSignals'
+import { filePaths } from '../knowledge/push'
+import { DEFAULT_LEARNING_BUDGET, selectLearnings } from '../knowledge/select'
+import { activeLearnings } from './learnings'
 
 type OutputsInput = SubmitAttemptInput['outputs']
 
@@ -292,6 +295,53 @@ function predecessorsOf(context: RunContext, view: TicketExecutionView): Executi
   })
 }
 
+// DM-936: retry context and applicable learnings in the execution packet.
+
+/**
+ * The earlier attempts of `row`'s ticket in this run that were rejected, failed, or abandoned after their lease
+ * expired, oldest first, each with its decision or failure exactly as stored. Canceled and accepted ones say nothing
+ * about what to fix, so they are left out.
+ */
+function priorAttemptsOf(context: RunContext, row: AttemptRow): NonNullable<ExecutionPacket['priorAttempts']> {
+  return context.attempts
+    .filter(
+      (prior) =>
+        prior.ticket_id === row.ticket_id &&
+        prior.id !== row.id &&
+        (prior.state === 'rejected' || prior.state === 'failed' || (prior.state === 'lease_expired' && prior.failure_json !== null))
+    )
+    .map((prior) => ({
+      attemptId: prior.id,
+      number: prior.number,
+      state: prior.state,
+      decision: parseJson<AttemptDecision | null>(prior.decision_json, null),
+      failure: parseJson<AttemptFailure | null>(prior.failure_json, null),
+      createdAt: prior.created_at,
+      submittedAt: prior.submitted_at,
+      endedAt: prior.reconciled_at ?? prior.decided_at ?? prior.updated_at
+    }))
+}
+
+/**
+ * The packet's retry and learning fields, each only when it has content: the prior attempts, and the active
+ * learnings addressed to workers for the claim event and the ticket's file references, within their own budget.
+ */
+function retryAndLearningPart(ctx: Ctx, parts: PacketParts, ticket: TicketContent): Pick<ExecutionPacket, 'priorAttempts' | 'learnings'> {
+  const priorAttempts = priorAttemptsOf(parts.context, parts.row)
+  const budgetTokens = DEFAULT_LEARNING_BUDGET
+  const selection = selectLearnings(activeLearnings(ctx.db), {
+    role: 'worker',
+    event: isAcceptanceTicket(ticket) ? 'acceptance.claimed' : 'ticket.claimed',
+    paths: filePaths(ticket.references),
+    budgetTokens
+  })
+  const matched = selection.learnings.length + selection.omitted.length > 0
+  return {
+    ...(priorAttempts.length > 0 && { priorAttempts }),
+    ...(matched && { learnings: { ...selection, budgetTokens } })
+  }
+}
+
 interface PacketParts {
   context: RunContext
   row: AttemptRow
@@ -419,7 +469,8 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
     effort: parts.effort,
     predecessors: predecessorsOf(context, view),
     ...reportingPart(ctx, ticket, parts.repositories),
-    ...parts.repositories
+    ...parts.repositories,
+    ...retryAndLearningPart(ctx, parts, ticket)
   }
 }
 
@@ -533,6 +584,24 @@ export function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
     token,
     'The claim lease expired; the orchestrator must reconcile this attempt.'
   )
+}
+
+/**
+ * The attempt a claim token (`<attemptId>.<secret>`) is the live, latest claim of, or null. A read only: it never settles
+ * leases or writes; a lease already overdue counts as expired here without being recorded so.
+ */
+export function claimedAttemptOf(ctx: Ctx, token: string): { attemptId: string; runId: string; ticketId: string } | null {
+  const separator = token.indexOf('.')
+  if (separator <= 0) return null
+  const row = ctx.db.get<AttemptRow>('SELECT * FROM attempts WHERE id = ?', token.slice(0, separator))
+  if (row === undefined) return null
+  if (row.lease_expires_at !== null && isBefore(row.lease_expires_at, ctx.clock.nowIso())) return null
+  try {
+    verifyClaim(ctx, row, token)
+  } catch {
+    return null
+  }
+  return { attemptId: row.id, runId: row.run_id, ticketId: row.ticket_id }
 }
 
 /**

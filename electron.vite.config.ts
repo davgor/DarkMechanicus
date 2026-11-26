@@ -45,6 +45,8 @@ export default defineConfig(({ command }) => {
           input: {
             index: 'src/main/index.ts',
             workspaceOwner: 'src/main/desktop/workspaceOwner.ts',
+            // The project utility's sync lane thread (`syncLane.ts`): reconcile on its own connection while the utility serves.
+            syncLaneWorker: 'src/main/desktop/syncLaneWorker.ts',
             mcp: 'src/mcp/main.ts',
             // `cli` is the `dm` command: the same command table over a one-shot process.
             cli: 'src/cli/main.ts',
@@ -56,6 +58,8 @@ export default defineConfig(({ command }) => {
     },
     preload: {
       build: {
+        // Sandboxed preloads cannot require npm packages; inline the event validator's runtime.
+        externalizeDeps: { exclude: ['zod'] },
         outDir: 'out/preload',
         rollupOptions: {
           input: 'src/preload/index.ts'

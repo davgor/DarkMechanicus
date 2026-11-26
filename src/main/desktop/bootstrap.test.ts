@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
@@ -21,21 +21,26 @@ const desktop = vi.hoisted(() => ({
   fork: vi.fn(),
   getFocusedWindow: vi.fn(),
   showOpenDialog: vi.fn(),
+  showMessageBox: vi.fn(),
   registerProtocol: vi.fn(),
   writeClipboard: vi.fn(),
   openExternal: vi.fn(),
   startPty: vi.fn(),
   keepAwake: vi.fn<() => number>(() => { throw new Error('Unexpected terminal start') }),
   send: vi.fn(),
-  closedWindowSend: vi.fn()
+  closedWindowSend: vi.fn(),
+  version: '1.0.0-test',
+  setBeforeInstall: vi.fn<(hook: () => void) => void>(),
+  packaged: vi.fn(() => false),
+  encryption: vi.fn(() => false)
 }))
 
 vi.mock('electron', () => ({
   app: {
     getPath: (kind: 'home' | 'userData') => desktop[kind],
     getAppPath: () => desktop.appPath,
-    getVersion: () => '1.0.0-test',
-    isPackaged: false
+    getVersion: () => desktop.version,
+    get isPackaged() { return desktop.packaged() }
   },
   BrowserWindow: {
     getFocusedWindow: desktop.getFocusedWindow,
@@ -45,16 +50,23 @@ vi.mock('electron', () => ({
     ]
   },
   clipboard: { writeText: desktop.writeClipboard },
-  dialog: { showOpenDialog: desktop.showOpenDialog },
+  dialog: { showOpenDialog: desktop.showOpenDialog, showMessageBox: desktop.showMessageBox },
   net: { fetch: () => { throw new Error('Unexpected network operation') } },
+  // The bridge creates the OS notifier; these tests raise no notification, so the class is never constructed.
+  Notification: class { static isSupported(): boolean { return false } },
   powerSaveBlocker: { start: desktop.keepAwake, stop: () => undefined },
   protocol: { handle: desktop.registerProtocol },
-  safeStorage: { isEncryptionAvailable: () => false },
+  safeStorage: {
+    isEncryptionAvailable: desktop.encryption,
+    getSelectedStorageBackend: () => 'gnome_libsecret',
+    decryptString: (data: Buffer) => data.toString('utf8')
+  },
   shell: { openExternal: desktop.openExternal },
   utilityProcess: { fork: desktop.fork }
 }))
 
-vi.mock('../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../autoUpdate', () => ({ setBeforeInstall: desktop.setBeforeInstall }))
 vi.mock('../terminals/ptyHost', () => ({ createNodePtyHost: desktop.startPty }))
 
 class InProcessUtility extends EventEmitter {
@@ -85,15 +97,23 @@ afterEach(async () => {
   }
 })
 
-async function bridgeFixture() {
-  vi.resetModules()
+/** A scratch home with an empty `user-data`, or the same home again when the app restarts over it. */
+function bridgeHome(home?: string): string {
+  if (home !== undefined) return home
   const scratch = scratchDir('dm-bridge-')
   cleanups.push(scratch.cleanup)
-  const userData = join(scratch.path, 'user-data')
-  const appPath = join(scratch.path, 'app')
-  mkdirSync(userData)
-  Object.assign(desktop, { home: scratch.path, userData, appPath })
-  vi.stubEnv('DARKMECHANICUS_HOME', join(scratch.path, 'state'))
+  mkdirSync(join(scratch.path, 'user-data'))
+  return scratch.path
+}
+
+async function bridgeFixture(options: { home?: string; version?: string; seed?: (userData: string) => void } = {}) {
+  vi.resetModules()
+  const root = bridgeHome(options.home)
+  const userData = join(root, 'user-data')
+  const appPath = join(root, 'app')
+  options.seed?.(userData)
+  Object.assign(desktop, { home: root, userData, appPath, version: options.version ?? '1.0.0-test' })
+  vi.stubEnv('DARKMECHANICUS_HOME', join(root, 'state'))
   const { serveWorkspaceOwner } = await import('./workspaceOwnerRuntime')
   const owners: InProcessUtility[] = []
   desktop.fork.mockImplementation((_file: string, [generation, pid, home, version]: string[]) => {
@@ -125,7 +145,7 @@ async function bridgeFixture() {
     return data(invoke<CommandResult<T>>('dm:command', folder, name, input))
   }
   return {
-    root: scratch.path, owners, invoke, bridge, finish, command,
+    root, owners, invoke, bridge, finish, command,
     attach: async (url: string) => {
       const handler = desktop.registerProtocol.mock.calls.find(([scheme]) => scheme === ATTACHMENT_SCHEME)?.[1] as
         ((request: Request) => Promise<Response>) | undefined
@@ -152,7 +172,7 @@ async function track(fixture: Awaited<ReturnType<typeof bridgeFixture>>, name: s
 }
 
 function postedNames(owner: InProcessUtility): string[] {
-  return owner.requests.map(request => request.type === 'close' ? 'close' :
+  return owner.requests.map(request => request.type === 'close' ? 'close' : request.type === 'sync' ? 'sync:' + request.mode :
     request.work.kind === 'heartbeat' ? 'heartbeat' : request.work.name)
 }
 
@@ -186,7 +206,10 @@ it('admits a desktop owner only for project work, serves its image, and retires 
 
   await f.finish()
   expect(f.owners[0]?.killed).toBe(true)
-  expect(postedNames(f.owners[0]!)).toEqual(['initializeRepository', 'uploadAttachment', 'attachment', 'heartbeat', 'close'])
+  const posted = postedNames(f.owners[0]!)
+  // The owner opens without reconciling; its open-time reconcile runs once on the sync lane, and the 15 s heartbeat skips its own.
+  expect(posted.filter(name => !name.startsWith('sync:'))).toEqual(['initializeRepository', 'uploadAttachment', 'attachment', 'heartbeat', 'close'])
+  expect(posted.filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat'])
 })
 
 it('makes an untracked attachment key unusable without opening a replacement owner', async () => {
@@ -274,7 +297,8 @@ it('broadcasts local Forge readiness only to live windows and removes the member
   expect(await prepared).toBe('forge:foldersChanged')
   expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'ready', error: null })
   expect(f.owners).toHaveLength(1)
-  expect(postedNames(f.owners[0]!)).toEqual(['reconcileMember'])
+  // The readiness read runs on the owner before the member's import, which runs on the lane; it is also the open-time import.
+  expect(postedNames(f.owners[0]!)).toEqual(['hasValidatedCache', 'sync:member'])
   expect(desktop.closedWindowSend).not.toHaveBeenCalled()
 
   expect(await f.invoke('dm:untrackFolder', world)).toEqual([])
@@ -347,4 +371,43 @@ it('dispatches the configured member host ahead of the world default from the bo
   } finally {
     for (const session of host.spawns) if (!session.exited) session.exit()
   }
+})
+
+it('registers the Restart now hook, which writes the marker beside the chat store', async () => {
+  await bridgeFixture({ version: '0.83.0' })
+  const file = join(desktop.userData, 'agents', 'restart-resume.json')
+  expect(existsSync(file)).toBe(false)
+  const hook = desktop.setBeforeInstall.mock.calls.at(-1)?.[0]
+  hook?.()
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ fromVersion: '0.83.0', writtenAt: expect.any(String), chats: [] })
+})
+
+it('a start after an update consumes the marker and skips a chat of an untracked folder without throwing', async () => {
+  await bridgeFixture({ version: '0.84.0', seed: userData => {
+    mkdirSync(join(userData, 'agents'))
+    writeFileSync(join(userData, 'agents', 'restart-resume.json'), JSON.stringify({
+      fromVersion: '0.83.0', writtenAt: new Date().toISOString(), chats: [{ folder: join(userData, 'gone'), chatId: 'magos-1' }]
+    }))
+  } })
+  expect(existsSync(join(desktop.userData, 'agents', 'restart-resume.json'))).toBe(false)
+  const { logger } = await import('../logger')
+  await vi.waitFor(() => expect(vi.mocked(logger.warn)).toHaveBeenCalledWith('Restart resume skipped chat magos-1: its folder is no longer tracked.'))
+})
+
+it('recovers learning approvals at startup only in set-up folders, opening no owner for an uninitialized one', async () => {
+  const first = await bridgeFixture()
+  const project = await track(first, 'approvals')
+  await first.command(project.path, 'initializeRepository', { name: 'Approvals' })
+  const lazy = await track(first, 'lazy')
+  await first.finish()
+
+  const restarted = await bridgeFixture({ home: first.root })
+  await vi.waitFor(() => expect(restarted.owners.flatMap(postedNames)).toContain('pendingLearningApprovals'))
+  expect(restarted.owners).toHaveLength(1)
+  // Like every owner it opens without reconciling and runs its open-time reconcile once on the sync lane; the only
+  // project work startup recovery posts is the pending-approvals read.
+  await vi.waitFor(() => expect(postedNames(restarted.owners[0]!).filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat']))
+  expect(postedNames(restarted.owners[0]!).filter(name => !name.startsWith('sync:'))).toEqual(['pendingLearningApprovals'])
+  expect(existsSync(join(lazy.path, '.darkmechanicus'))).toBe(false)
+  expect(restarted.bridge.chats.busy()).toBe(false)
 })

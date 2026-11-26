@@ -1,0 +1,12 @@
+{"type":"response","command":"prompt","id":"req_T1_prompt","success":true}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"extension_ui_request","id":"ui_T1_approval","method":"select","title":"Run bash: echo hello?","options":["Approve Once","Deny"]}
+{"type":"tool_execution_start","toolCallId":"call_T1_bash","toolName":"bash","args":{"command":"echo hello"}}
+{"type":"tool_execution_update","toolCallId":"call_T1_bash","toolName":"bash","args":{"command":"echo hello"},"partialResult":{"content":[{"type":"text","text":"h"}],"details":{}}}
+{"type":"tool_execution_end","toolCallId":"call_T1_bash","toolName":"bash","result":{"content":[{"type":"text","text":"hello"}],"details":{}},"isError":false}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"hello"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"hello"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"},"toolResults":[]}
+{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"hello"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}]}
+{"type":"prompt_result","id":"req_T1_prompt","agentInvoked":true,"status":"completed"}

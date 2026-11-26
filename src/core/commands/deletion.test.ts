@@ -117,7 +117,8 @@ describe('deleteEpic', () => {
       epicId,
       title: 'Doomed',
       removedRuns: 1,
-      removedPaths: [`.darkmechanicus/epics/${epicId}`, `.darkmechanicus/history/${runId}`]
+      // DM-937: the sprint learning card the advance generated goes with its epic.
+      removedPaths: [`.darkmechanicus/epics/${epicId}`, `.darkmechanicus/history/${runId}`, expect.stringMatching(/^\.darkmechanicus\/kanban\/kc_/)]
     })
     expect(rowsMentioning([epicId, runId])).toEqual([])
     expect(rowsMentioning([keeper.epicId])).toEqual(keeperRows)
@@ -197,7 +198,8 @@ describe('deleteEpic of finished and unsaved epics', () => {
     expect((await desktop.getEpic({ epicId: done.epicId })).status).toBe('completed')
     const draftOnly = await agent.createEpic({ title: 'Draft only' })
 
-    expect((await desktop.deleteEpic({ epicId: done.epicId })).removedPaths).toHaveLength(2)
+    // DM-937: the epic folder, the run's history and the generated sprint learning card.
+    expect((await desktop.deleteEpic({ epicId: done.epicId })).removedPaths).toHaveLength(3)
     expect((await desktop.deleteEpic({ epicId: draftOnly.id })).removedPaths).toEqual([])
     expect(await desktop.listEpics()).toEqual([])
   })

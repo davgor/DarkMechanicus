@@ -56,9 +56,13 @@ interface NoticeProps {
 }
 
 function ForgeNotice({ ready, syncing, error, retry }: NoticeProps): JSX.Element | null {
-  const message = syncing
-    ? ready ? 'Syncing Forge World tickets in the background…' : 'Preparing Forge World tickets…'
-    : error ?? (ready ? null : 'Preparing local Forge World tickets…')
+  // A ready member keeps its local records on screen; a sync only adds this small badge above them.
+  if (ready && syncing) {
+    return <div className="forge-status" role="status">
+      <span className="badge" title="Syncing Forge World tickets in the background">Syncing…</span>
+    </div>
+  }
+  const message = syncing ? 'Preparing Forge World tickets…' : error ?? (ready ? null : 'Preparing local Forge World tickets…')
   if (message === null) return null
   return <div className="forge-status" role="status">
     <span>{message}</span>

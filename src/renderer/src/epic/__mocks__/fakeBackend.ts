@@ -4,6 +4,9 @@
  * on recorded requests and rendered state instead of mock expectations.
  */
 import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
+import { FakeAgentChat } from '../../__mocks__/fakeAgentChat'
+import { FakeSettings } from '../../__mocks__/fakeSettings'
+import { FakeNotifications } from '../../__mocks__/fakeNotifications'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
@@ -13,6 +16,7 @@ import type {
   AgentFindResult,
   AgentId,
   AgentView,
+  ApproveLearningCardRequest,
   ClaudeCodeConnectResult,
   CommandInput,
   CommandOutput,
@@ -26,6 +30,7 @@ import type {
   YoloStatus
 } from '../../../../shared/desktop/api'
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
+import type { KanbanCardView } from '../../../../shared/domain/kanban'
 import { isActiveRunState, isOpenAttemptState } from '../../../../shared/domain/status'
 import type {
   AutoRetryView,
@@ -118,8 +123,11 @@ export class FakeBackend implements DmApi {
   /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
   chats: ChatsApi
   terminals = idleTerminals()
+  agentChat = new FakeAgentChat()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
+  settings = new FakeSettings()
+  notifications = new FakeNotifications()
   yolo(): Promise<YoloStatus> {
     return Promise.resolve({ live: false, expiresAt: null, audit: [] })
   }
@@ -181,6 +189,11 @@ export class FakeBackend implements DmApi {
     } catch (error) {
       return { ok: false, error: { code: 'not_found', message: error instanceof Error ? error.message : String(error) } }
     }
+  }
+
+  /** DM-956: recorded like a command; answers through `failures`/`handlers` under the `approveKanbanCard` name. */
+  approveLearningCard(folder: string, input: ApproveLearningCardRequest): Promise<CommandResult<KanbanCardView>> {
+    return this.command(folder, 'approveKanbanCard', { cardId: input.cardId }) as Promise<CommandResult<KanbanCardView>>
   }
 
   listFolders(): Promise<TrackedFolderView[]> {
@@ -317,10 +330,12 @@ function ticketOf(state: Scenario, input: { ticketId: string; view: 'saved' | 'd
   return ticketDetail({ view: input.view, ticket: content, execution: null, attempts: [], readOnly: false, readOnlyReason: null })
 }
 
-/** Same paging semantics as the core `listEvents`: events after `sinceSeq`, at most `limit`. */
-function eventsPage(events: EventView[], input: { sinceSeq?: number; limit?: number }): unknown {
+/** Same paging semantics as the core `listEvents`: events after `sinceSeq` of the given ticket (when named), at most `limit`. */
+function eventsPage(events: EventView[], input: { sinceSeq?: number; limit?: number; ticketId?: string }): unknown {
   const since = input.sinceSeq ?? 0
-  const page = events.filter((item) => item.seq > since).slice(0, input.limit ?? 200)
+  const page = events
+    .filter((item) => item.seq > since && (input.ticketId === undefined || item.ticketId === input.ticketId))
+    .slice(0, input.limit ?? 200)
   return { events: page, cursor: page[page.length - 1]?.seq ?? since }
 }
 
@@ -484,7 +499,7 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     listTickets: (input: { view: 'saved' | 'draft' }) => summaries(planOf(state, input.view).bundle),
     validatePlan: () => state.validation,
     getTicket: (input: { ticketId: string; view: 'saved' | 'draft' }) => ticketOf(state, input),
-    listEvents: (input: { sinceSeq?: number; limit?: number }) => eventsPage(state.events, input),
+    listEvents: (input: { sinceSeq?: number; limit?: number; ticketId?: string }) => eventsPage(state.events, input),
     openDraft: () => openDraft(state),
     updatePlanDraft: () => updateDraft(state),
     savePlan: () => save(state),

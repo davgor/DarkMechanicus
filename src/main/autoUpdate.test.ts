@@ -2,6 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 
+const originalPlatform = process.platform
 const checkForUpdates = vi.fn()
 const quitAndInstall = vi.fn()
 const on = vi.fn()
@@ -9,7 +10,8 @@ const on = vi.fn()
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,
-    getVersion: () => '1.2.3'
+    getVersion: () => '1.2.3',
+    getPath: () => '/nonexistent-dm-userdata'
   },
   BrowserWindow: {
     getAllWindows: () => []
@@ -49,7 +51,13 @@ function resetAutoUpdateTest(): void {
   delete process.env['DISABLE_AUTO_UPDATE']
 }
 
+/** Pins process.platform for one test; these tests cover the Windows updater path. */
+function withPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+}
+
 function restoreAutoUpdateTest(): void {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
   vi.useRealTimers()
   delete process.env['DISABLE_AUTO_UPDATE']
 }
@@ -369,6 +377,7 @@ describe('registerAutoUpdateHandlers', () => {
   })
 
   it('forwards update checks and the silent install to the updater', async () => {
+    withPlatform('win32')
     const { registerAutoUpdateHandlers } = await loadModule()
     const listeners = new Map<string, () => unknown>()
     registerAutoUpdateHandlers({
@@ -390,6 +399,7 @@ describe('silent apply helpers', () => {
   afterEach(restoreAutoUpdateTest)
 
   it('quitAndInstallUpdate uses silent install with force-run-after', async () => {
+    withPlatform('win32')
     const { quitAndInstallUpdate } = await loadModule()
     quitAndInstallUpdate()
     const [silent, forceRunAfter] = quitAndInstall.mock.calls[0] ?? []
@@ -397,9 +407,57 @@ describe('silent apply helpers', () => {
     expect(forceRunAfter).toBe(true)
   })
 
+  it('macOS never hands the install to electron-updater, and refuses to install with nothing staged', async () => {
+    withPlatform('darwin')
+    const { quitAndInstallUpdate } = await loadModule()
+    expect(() => quitAndInstallUpdate()).toThrow('No staged update')
+    expect(callCount(quitAndInstall)).toBe(0)
+  })
+
   it('formats the ready notification with the current version', async () => {
     const { formatUpdateReadyMessage } = await loadModule()
     const message = formatUpdateReadyMessage('2.0.0')
     expect(message).toBe('Version 2.0.0 is ready.')
+  })
+})
+
+describe('the before-install hook', () => {
+  beforeEach(resetAutoUpdateTest)
+  afterEach(restoreAutoUpdateTest)
+
+  it('Restart now calls the hook before autoUpdater.quitAndInstall', async () => {
+    withPlatform('win32')
+    const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
+    const order: string[] = []
+    quitAndInstall.mockImplementation(() => { order.push('quitAndInstall') })
+    setBeforeInstall(() => { order.push('hook') })
+    quitAndInstallUpdate()
+    expect(order).toEqual(['hook', 'quitAndInstall'])
+  })
+
+  it('a throwing hook is logged and the update still installs', async () => {
+    withPlatform('win32')
+    const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
+    // resetModules re-creates the logger mock: only an import after it reaches the instance autoUpdate logs to.
+    const { logger } = await import('./logger')
+    setBeforeInstall(() => { throw new Error('marker write failed') })
+    quitAndInstallUpdate()
+    expect(quitAndInstall.mock.calls).toEqual([[true, true]])
+    expect(vi.mocked(logger.error).mock.calls).toEqual([['The before-install hook failed; installing anyway:', new Error('marker write failed')]])
+  })
+
+  it('the IPC Restart now runs the hook; startup and update checks never do', async () => {
+    withPlatform('win32')
+    const { initAutoUpdate, checkForUpdatesNow, registerAutoUpdateHandlers, setBeforeInstall, INITIAL_CHECK_DELAY_MS } = await loadModule()
+    const hook = vi.fn()
+    setBeforeInstall(hook)
+    initAutoUpdate()
+    await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS)
+    await checkForUpdatesNow()
+    expect(callCount(hook)).toBe(0)
+    const listeners = new Map<string, () => unknown>()
+    registerAutoUpdateHandlers({ handle: (channel, listener) => { listeners.set(channel, () => listener({} as IpcMainInvokeEvent)) } })
+    listeners.get('autoUpdate:quitAndInstall')?.()
+    expect([callCount(hook), callCount(quitAndInstall)]).toEqual([1, 1])
   })
 })

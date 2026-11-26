@@ -11,6 +11,7 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView } from '../../shared/domain/views'
 import { builtInAgent, connectedAgents } from './__mocks__/chatFixtures'
+import { onTerminalSurface, recordingAgentChats, type RecordingAgentChats } from './__mocks__/agentChatDoubles'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
 import { CUSTOM_AGENT, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
@@ -29,17 +30,19 @@ interface Rig {
 }
 
 let terminals: TerminalRig
+let agentChats: RecordingAgentChats
 
 beforeEach(() => {
   terminals = terminalRig()
+  agentChats = recordingAgentChats()
 })
 
 afterEach(() => {
   terminals.cleanup()
 })
 
-/** The chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them. */
-function rig(status: TransferStatus = 'queued'): Rig {
+/** The chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them; `gui` keeps the surface the agent gets, otherwise every chat is a terminal chat. */
+function rig(status: TransferStatus = 'queued', gui = false): Rig {
   const calls: string[] = []
   const records = createChatRecords({ store: terminals.store, agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('autonomous'), CUSTOM_AGENT]) })
   const transfers: TransferReads = {
@@ -47,7 +50,8 @@ function rig(status: TransferStatus = 'queued'): Rig {
     getTransfer: (_folder, epicId) =>
       (calls.push(`getTransfer ${epicId}`), Promise.resolve({ epicId, status, packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView))
   }
-  return { records: endingTerminals(records, terminals.sessions), transfers, calls, errors: [] }
+  const ending = endingTerminals(records, terminals.sessions)
+  return { records: gui ? ending : onTerminalSurface(ending, terminals.store), transfers, calls, errors: [] }
 }
 
 function request(agent = 'claude', model: string | null = 'haiku'): { folder: string; epicId: string; agent: string; model?: string } {
@@ -66,7 +70,7 @@ describe('start a transfer chat', () => {
   it('opens an orchestrator chat titled after the epic, recording it, and starts its terminal with the transfer kickoff', async () => {
     const { records, transfers, calls } = rig()
 
-    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect(calls).toEqual([`getEpic ${EPIC_ID}`, `getTransfer ${EPIC_ID}`])
     expect(result.problem).toBeNull()
@@ -77,19 +81,37 @@ describe('start a transfer chat', () => {
       role: 'orchestrator',
       allowSave: true,
       title: 'Linear transfer · Linear handoff',
-      transferEpicId: EPIC_ID
+      transferEpicId: EPIC_ID,
+      epicId: EPIC_ID
     })
     expect(result.chat).not.toHaveProperty('runId')
     expect(chats().map((chat) => chat.id)).toEqual([result.chat?.id])
     expect(terminals.steps).toEqual(['auth', 'grant:gr_1', 'spawn'])
     expect(argsOf().at(-1)).toBe(KICKOFF)
     expect(chats()[0]?.kickoffSent).toBe(true)
+    expect(agentChats.calls).toEqual([])
   })
+})
 
+describe('start a transfer chat on the GUI surface', () => {
+  it('stores the epic id and starts a GUI chat through the agent-chat sessions, with the transfer kickoff as its first message', async () => {
+    const { records, transfers } = rig('queued', true)
+
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
+
+    expect(result.problem).toBeNull()
+    expect(result.chat).toMatchObject({ role: 'orchestrator', transferEpicId: EPIC_ID, epicId: EPIC_ID, surface: 'gui' })
+    expect(terminals.store.getChat(result.chat as ChatRecord)).toMatchObject({ epicId: EPIC_ID, surface: 'gui' })
+    expect(agentChats.calls).toEqual([['start', result.chat, { firstMessage: KICKOFF }]])
+    expect(terminals.host.spawns).toEqual([])
+  })
+})
+
+describe('start a transfer chat: the guidance and the kickoff', () => {
   it('starts the agent with an orchestrator grant that may save, the transfer guidance and no run guidance in its instructions', async () => {
     const { records, transfers } = rig('in_progress')
 
-    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     const instructions = readFileSync(argsOf()[argsOf().indexOf('--append-system-prompt-file') + 1] ?? '', 'utf8')
     expect(result.problem).toBeNull()
@@ -101,7 +123,7 @@ describe('start a transfer chat', () => {
   it('pastes the transfer kickoff into Autonomous once its first screen has settled, with its default model', async () => {
     const { records, transfers } = rig()
 
-    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request('autonomous', null))
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request('autonomous', null))
     const pty = terminals.host.last()
     pty.emitData('\x1b[?2004hAutonomous')
     await settle()
@@ -124,7 +146,7 @@ describe('start a transfer chat: refusals before anything starts', () => {
   ] as const)('refuses a transfer that is %s, creating no chat and starting no terminal', async (status, code) => {
     const { records, transfers } = rig(status)
 
-    await expect(startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())).rejects.toMatchObject({ code })
+    await expect(startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())).rejects.toMatchObject({ code })
 
     expect(chats()).toEqual([])
     expect(terminals.host.spawns).toEqual([])
@@ -136,7 +158,7 @@ describe('start a transfer chat: refusals before anything starts', () => {
     const refusal = new DomainError('not_found', `Epic ${EPIC_ID} was not found.`)
 
     await expect(
-      startTransferChat({ transfers: { ...transfers, getEpic: () => Promise.reject(refusal) }, chats: records, terminals: terminals.sessions }, request())
+      startTransferChat({ transfers: { ...transfers, getEpic: () => Promise.reject(refusal) }, chats: records, terminals: terminals.sessions, agentChats }, request())
     ).rejects.toBe(refusal)
 
     expect(calls).toEqual([])
@@ -154,7 +176,7 @@ describe('start a transfer chat: failures once the chat is asked for', () => {
       }
     }
 
-    const result = await startTransferChat({ transfers, chats: failing, terminals: terminals.sessions }, request())
+    const result = await startTransferChat({ transfers, chats: failing, terminals: terminals.sessions, agentChats }, request())
 
     expect(result.chat).toBeNull()
     expect(result.problem).toContain('The transfer is authorized')
@@ -171,7 +193,7 @@ describe('start a transfer chat: failures once the chat is asked for', () => {
     const { records, transfers } = rig()
     arrange()
 
-    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect(result.chat).toBeNull()
     expect(result.problem).toContain('The transfer is authorized, but Claude Code could not be started')
@@ -185,7 +207,7 @@ describe('start a transfer chat: failures once the chat is asked for', () => {
     terminals.host.failNextSpawn(new Error('posix_spawnp failed.'))
     const stuck: ChatRecords = { ...records, deleteChat: () => Promise.reject(new Error('disk is read-only')) }
 
-    const result = await startTransferChat({ transfers, chats: stuck, terminals: terminals.sessions, onError: (error) => errors.push(error) }, request())
+    const result = await startTransferChat({ transfers, chats: stuck, terminals: terminals.sessions, agentChats, onError: (error) => errors.push(error) }, request())
 
     expect(result.chat).toMatchObject({ transferEpicId: EPIC_ID })
     expect(result.problem).toContain('posix_spawnp failed')
@@ -199,7 +221,7 @@ describe('start a transfer chat: a custom agent', () => {
     const { records, transfers } = rig()
     terminals.host.failNextSpawn(new Error('mine exited with code 1.'))
 
-    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request(CUSTOM_AGENT.id, null))
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request(CUSTOM_AGENT.id, null))
 
     expect(result.chat).toBeNull()
     expect(result.problem).toMatch(/^The transfer is authorized, but My CLI could not be started: .*mine exited with code 1/)
@@ -211,7 +233,7 @@ describe('start a transfer chat: a custom agent', () => {
 describe('find a transfer chat', () => {
   it('finds the chat again after an app restart, an orchestrator that may save, and its kickoff is not given again', async () => {
     const { records, transfers } = rig()
-    const started = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    const started = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
     terminals.host.last().exit({ exitCode: 0, signal: null })
     await settle()
 
@@ -233,7 +255,7 @@ describe('find a transfer chat', () => {
     records.createChat({ folder: terminals.repo, agent: 'claude', role: 'orchestrator', allowSave: false, runId: 'rn_1' })
     expect(await findTransferChat(records, terminals.repo, EPIC_ID)).toBeNull()
 
-    await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    await startTransferChat({ transfers, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect(await findTransferChat(records, terminals.repo, 'ep_01m6772ffwkwr2a91fsqzfz1hf')).toBeNull()
   })

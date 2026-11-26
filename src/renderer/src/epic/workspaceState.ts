@@ -52,8 +52,12 @@ export interface WorkspaceState {
   view: PlanViewKind
   /** The view the person last picked for this epic, remembered across visits; null leaves it to the default. */
   chosenView: PlanViewKind | null
-  layout: 'graph' | 'list'
+  layout: 'graph' | 'list' | 'agent'
   selectedTicketId: string | null
+  /** The epic chat the Agent stage shows; null leaves it to the default (the active run's orchestrator, else the newest chat). */
+  agentChatId: string | null
+  /** A subagent thread of `agentChatId` shown read-only with the relay composer; null shows the chat itself. */
+  agentThreadId: string | null
   /**
    * Set when the person opened the live activity of an attempt (the hourglass, the attempts strip): the ticket panel
    * shows its Activity tab for that attempt. A new object per request, so asking again brings the tab back.
@@ -91,8 +95,14 @@ export type WorkspaceAction =
   | { type: 'show_view'; view: PlanViewKind; remember?: boolean }
   /** Save or Discard ended the draft: show Saved and forget the choice, so the next draft opens by default. */
   | { type: 'draft_closed' }
-  | { type: 'show_layout'; layout: 'graph' | 'list' }
+  /** An unchanged draft the load skipped was read on request: add it to the loaded data. */
+  | { type: 'draft_loaded'; draft: Pick<WorkspaceData, 'draft' | 'draftTickets' | 'validation'> }
+  | { type: 'show_layout'; layout: 'graph' | 'list' | 'agent' }
   | { type: 'select_ticket'; ticketId: string | null }
+  /** Show an epic chat, or one of its subagent threads, in the Agent stage. */
+  | { type: 'select_agent'; chatId: string; threadId?: string | null }
+  /** An "Open chat" link inside the epic: show the Agent stage with that chat, or one of its threads, selected. */
+  | { type: 'open_agent'; chatId: string; threadId?: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
   /** Select the ticket and show its Scorecard tab, on one run's grade when named. */
@@ -120,6 +130,8 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     chosenView,
     layout: 'graph',
     selectedTicketId: null,
+    agentChatId: null,
+    agentThreadId: null,
     activity: null,
     ticketScorecard: null,
     checkpointOpen: false,
@@ -199,11 +211,27 @@ const HANDLERS: Handlers = {
   }),
   show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
-  show_layout: (state, action) => ({ ...state, layout: action.layout, scorecardOpen: false }),
+  draft_loaded: (state, action) =>
+    state.data === null ? state : { ...state, data: { ...state.data, ...action.draft }, validation: action.draft.validation },
+  show_layout: (state, action) => ({
+    ...state,
+    layout: action.layout,
+    checkpointOpen: action.layout === 'agent' ? false : state.checkpointOpen,
+    scorecardOpen: false
+  }),
   select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
+  select_agent: (state, action) => ({ ...state, agentChatId: action.chatId, agentThreadId: action.threadId ?? null }),
+  open_agent: (state, action) => ({
+    ...state,
+    layout: 'agent',
+    agentChatId: action.chatId,
+    agentThreadId: action.threadId ?? null,
+    checkpointOpen: false,
+    scorecardOpen: false
+  }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
   open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
-  open_checkpoint: (state) => ({ ...state, checkpointOpen: true, scorecardOpen: false }),
+  open_checkpoint: (state) => ({ ...state, layout: state.layout === 'agent' ? 'graph' : state.layout, checkpointOpen: true, scorecardOpen: false }),
   close_checkpoint: (state) => ({ ...state, checkpointOpen: false }),
   open_scorecard: (state) => ({ ...state, scorecardOpen: true, checkpointOpen: false }),
   close_scorecard: (state) => ({ ...state, scorecardOpen: false }),

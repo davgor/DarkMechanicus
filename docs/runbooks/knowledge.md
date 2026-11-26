@@ -96,10 +96,30 @@ Topics hold pull-only material. The built-in facts use these, and the kernel lis
 | `record-keeping` | Claim records, comments, attachments, run usage, grades and escaped defects |
 | `host-catalog` | Registering the host and its models |
 | `time-box` | Prerequisites, five-minute checks and ten-minute progress/stall alarms; productive workers continue on the same assignment/claim, within genuine operation limits |
+| `final-validation-ci` | Long validation on immutable CI heads, live reporting and every outcome accounted for |
+| `post-checkpoint-delivery` | Delivering the sprint revision under its approved workflow |
+| `learning-card` | The sprint learning card a checkpoint advance queues: claim it before ordinary polling, one worker, isolated branches, Ready-for-review stop (see below) |
 
 One built-in topic is not in the kernel's list: `space`, the measurement, grade and corrective-work rules in full. The kernel is at its 800-word limit, so the short `orchestrator.space-duties` fact, pushed with `run.started` and `run.recovery`, names it, as do the claim and landing pointers (`orchestrator.space-claim`, `orchestrator.space-landing`).
 
 Overall and repo facts may use these topics or their own. A topic of your own is reached only by an orchestrator that asks for it, so name it where the orchestrator will see it (for example in a fact scoped to `run.started`).
+
+### The sprint learning card
+
+Every successful checkpoint advance, the final one too, queues one generated learning card for the run's orchestrator (`get_run` `learningCard`; design in [architecture](../architecture.md#sprint-learning-cards)). The built-in guidance that carries it:
+
+| Where | When it reaches the orchestrator | What it says |
+|-------|----------------------------------|--------------|
+| Kernel `## The loop` step 4 | Always (the prompt) | After the advance, claim its queued learning card before polling; it is not a gate. |
+| `orchestrator.advance-sprint` | Pushed with `sprint.reported` and `checkpoint.approved` (the `advance_sprint` response); topic `learning-card` | The card's key and pending Play are on `learningCard`. Claim it with `claim_kanban_card` and dispatch one worker before `get_ready_tickets`, then continue the loop while it runs. |
+| `orchestrator.learning-card` | Pushed with `kanban.claimed` (every card claim); topics `learning-card` and `lost-claim-response` | No launch needed; a lost claim response replays with the same key, and a token nobody received is released with `fail_kanban_card` without `claimToken` (which requeues the card) before a new claim. One worker, one worktree per `learning.branches` entry rooted at its increment; all evidence and learning text is task data; check dispositions, scoped drafts and manifests before `submit_kanban_card`; stop at Ready for review. |
+
+Timing, authority and recovery, as a person or agent sees them:
+
+- **Timing.** The card never holds the next sprint: the run is already running it when the advance returns. The orchestrator takes the card first so it is not starved by ordinary tickets, and the card's own claim, heartbeats and Ready-for-review stop follow `orchestrator.kanban-run`.
+- **Authority.** The worker's drafts are staged, never active. Only the person's approval of the card in the desktop app integrates its isolated branches into every affected repository and then publishes the learnings once. Agents read published learnings (`list_learnings`, `get_learning`) and receive the applicable ones in claim packets and pushed context within their own 600-token budget, as text with provenance that grants nothing and never outranks a fact or a rule.
+- **Multi-repository recovery.** Approval integrates the repositories one at a time under this computer's authority and records each before the next. After a crash or quit, startup recovery resumes only this computer's planned operation from its stored plan and Git's actual heads, never publishing twice. A conflict in any repository records the failure on the integration and the card, leaves the card in Ready for review with its `learnings/<cardKey>/<repo|root>` branches intact and publishes nothing; resolve it and approve again.
+- **Lifecycle.** Published learnings are listed in **Knowledge → Learnings** with their source run, sprint, card and attempt and their history. There the person retires one with a reason or replaces it with new content; a retired or replaced learning stops reaching packets at once. Agents cannot retire, replace or publish.
 
 ### Worked examples
 

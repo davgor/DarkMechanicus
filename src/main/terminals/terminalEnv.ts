@@ -46,6 +46,8 @@ interface TerminalEnvOptions {
   dmClient?: string
   /** Set only for a project-less chat that reaches no folder: it starts with no grant, so none is required. */
   grantless?: true
+  /** Structured stdio has no terminal, including any inherited terminal variables. */
+  headless?: true
 }
 
 /** The descriptor's variable, for an OMP launch that has one; any other kind given one is refused. */
@@ -100,13 +102,13 @@ function layered(base: TerminalEnvOptions['base'], own: Readonly<Record<string, 
 
 export function terminalEnv(options: TerminalEnvOptions): Record<string, string> {
   const own: Record<string, string> = {
-    ...TERMINAL_CONSTANTS,
+    ...(options.headless ? {} : TERMINAL_CONSTANTS),
     ...(options.kind === 'omp' ? OMP_CONSTANTS : {}),
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
     ...dmEnv(options.cli, options.platform, options.grantless === true),
     ...dmClientEnv(options.kind, options.dmClient)
   }
-  const env = layered(options.base, own, NEVER_PASSED)
+  const env = layered(options.base, own, options.headless ? [...NEVER_PASSED, 'TERM', 'COLORTERM'] : NEVER_PASSED)
   if (options.platform !== 'win32') {
     const path = pathWithLauncher(env['PATH'], options.launcherDir)
     if (path !== undefined) {
@@ -119,4 +121,10 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
 /** The environment of an agent's sign-in terminal: main's own, scrubbed, with the terminal's constants and no grant, naming address or descriptor. */
 export function terminalLoginEnv(base: TerminalEnvOptions['base']): Record<string, string> {
   return layered(base, TERMINAL_CONSTANTS, NEVER_PASSED)
+}
+
+/** A headless arbiter inherits sign-in environment, never a chat grant, pipe, descriptor or terminal. */
+export function arbiterEnv(base: TerminalEnvOptions['base'], kind: 'claude' | 'omp'): Record<string, string> {
+  const own = kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : OMP_CONSTANTS
+  return layered(base, own, [...NEVER_PASSED, 'TERM', 'COLORTERM'])
 }

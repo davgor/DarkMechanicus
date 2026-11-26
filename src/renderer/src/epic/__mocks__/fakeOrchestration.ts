@@ -21,6 +21,7 @@ export interface FakeOrchestration extends OrchestrationHost {
   reportedStatuses: [AgentId, AgentAuthStatus][]
   /** The chats that were opened. */
   openedChats: string[]
+  openedSourceFiles: string[]
   /** Times the shell was told to fetch the folder's chats again. */
   chatsChanged: { count: number }
 }
@@ -36,6 +37,7 @@ export function fakeOrchestration(patch: Partial<OrchestrationHost> = {}): FakeO
   const added = { count: 0 }
   const reportedStatuses: [AgentId, AgentAuthStatus][] = []
   const openedChats: string[] = []
+  const openedSourceFiles: string[] = []
   const chatsChanged = { count: 0 }
   const chats: readonly ChatRecord[] = []
   return {
@@ -50,10 +52,12 @@ export function fakeOrchestration(patch: Partial<OrchestrationHost> = {}): FakeO
     },
     onAgentStatus: (kind, status) => reportedStatuses.push([kind, status]),
     onOpenChat: (chatId) => openedChats.push(chatId),
+    onOpenSourceFile: (absolutePath) => { openedSourceFiles.push(absolutePath) },
     ...patch,
     added,
     reportedStatuses,
     openedChats,
+    openedSourceFiles,
     chatsChanged
   }
 }

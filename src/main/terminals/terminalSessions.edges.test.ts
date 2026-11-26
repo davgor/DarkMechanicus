@@ -133,7 +133,7 @@ describe('terminal sessions: dependencies that fail', () => {
     expect([rig.revoked, errorMessages()]).toEqual([['gr_1'], ['The grant store is locked.']])
   })
 
-  it('reports a tree kill that fails, and starts the chat again afterwards', async () => {
+  it('reports a tree kill that fails, retries it on the next start, and starts the chat again afterwards', async () => {
     rig.cleanup()
     rig = terminalRig({
       deps: () => ({
@@ -149,7 +149,8 @@ describe('terminal sessions: dependencies that fail', () => {
     await eventually(() => errorMessages().length > 0, 'the kill to fail')
     const second = await startTerminal(rig, chat)
 
-    expect(errorMessages()).toEqual(['ps is missing.'])
+    // The failed cleanup is not remembered: the next start asks again, and that attempt reports itself too.
+    expect(errorMessages()).toEqual(['ps is missing.', 'ps is missing.'])
     expect(second.pid).not.toBe(first.pid)
     expect(rig.host.spawns).toHaveLength(2)
   })

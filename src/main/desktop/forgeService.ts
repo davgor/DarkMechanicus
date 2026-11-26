@@ -20,7 +20,7 @@ import { ensureForgeConfig, FORGE_CONFIG, readForgeReference } from '../../core/
 import { requireTracked } from './handlers'
 import { readForgeCheckout } from './forgeCheckout'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
-import { ForgeGit } from './forgeGit'
+import { ForgeGit, type WorldCheckout } from './forgeGit'
 import { createForgeProvisioning, type ForgeProvisioning } from './forgeProvisioning'
 import { bundledRecipebookFile, createForgeProvisioningWork } from './forgeProvisioningWork'
 import { bundledForgeRecipes, verifyForgeScaffold } from './forgeScaffold'
@@ -45,6 +45,8 @@ interface Services {
   provisioning?: Pick<Parameters<typeof createForgeProvisioningWork>[0], 'publisher' | 'discover'> & { journal: string }
   onImported?(member: string, agent?: string): Promise<void>
   setup?: Omit<ForgeSetupOnboardingOptions, 'resolveMember' | 'discover' | 'resolveCheckout' | 'mutate' | 'sync'>
+  /** Told the code of each busy manifest rename that is asked again; this module stays free of the Electron logger. */
+  onManifestRetry?(code: string): void
 }
 interface MemberIdentity { key: string; identity: string }
 interface MemberPreparation { key: string | undefined; promise: Promise<void> }
@@ -85,7 +87,7 @@ class ForgeService {
   private readonly last = new Map<string, number>()
   private readonly next = new Map<string, number>()
   private readonly errors = new Map<string, string>()
-  private readonly checking = new Map<string, Promise<void>>()
+  private readonly checking = new Map<string, Promise<WorldCheckout>>()
 
   constructor(private readonly deps: Services) {
     this.git = new ForgeGit(deps.session, deps.runner)
@@ -121,20 +123,20 @@ class ForgeService {
     if (project === undefined) throw new Error('The Forge World no longer maps this ticket project.')
     return project.repository
   }
-  ensure(root: string): Promise<void> {
+  /** The full Forge World check; `checked` is what the running sync has just established, reused instead of asking git again. */
+  ensure(root: string, checked?: WorldCheckout): Promise<WorldCheckout> {
     try { assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root) }
     catch (error) { return Promise.reject(error) }
     const pending = this.checking.get(root)
     if (pending) return pending
     const key = this.rootKey(root)
-    const work = this.git.ensureMain(root)
-      .then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home }))
-      .then(() => {
-        if (key !== undefined && this.rootKey(root) === key) {
-          this.validated.set(root, key)
-          this.notifyMembers(root)
-        }
-      }).finally(() => this.checking.delete(root))
+    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked, onManifestRetry: this.deps.onManifestRetry })).then(checkout => {
+      if (key !== undefined && this.rootKey(root) === key) {
+        this.validated.set(root, key)
+        this.notifyMembers(root)
+      }
+      return checkout
+    }).finally(() => this.checking.delete(root))
     this.checking.set(root, work)
     return work
   }
@@ -224,11 +226,11 @@ class ForgeService {
       this.assertSyncTarget(root, attachmentKey, 'repair')
       pendingMerge = await this.hasPendingMerge(root)
       if (pendingMerge) throw new Error('Finish the Forge World merge commit before syncing.')
-      await this.ensure(root)
+      const checked = await this.ensure(root)
       this.assertSyncTarget(root, attachmentKey)
-      await this.git.sync(root, async () => {
+      await this.git.sync(root, async merged => {
         this.assertSyncTarget(root, attachmentKey)
-        await this.ensure(root)
+        await this.ensure(root, merged)
         for (const project of this.worldAt(root).projects) {
           const member = join(root, project.folder)
           if (this.deps.registry.resolve(member) && existsSync(join(member, '.darkmechanicus/project.json'))) {
@@ -237,7 +239,7 @@ class ForgeService {
             await this.prepareMember(root, member, attachmentKey)
           }
         }
-      }, () => { this.assertSyncTarget(root, attachmentKey); current?.() })
+      }, () => { this.assertSyncTarget(root, attachmentKey); current?.() }, checked)
       this.assertSyncTarget(root, attachmentKey)
       await this.deps.onSynced(root)
       this.assertSyncTarget(root, attachmentKey)
@@ -421,7 +423,7 @@ class ForgeService {
     if (!existsSync(member)) mkdirSync(member)
     else throw new Error('The project folder already exists in this Forge World.')
     await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
-    updateForge(root, w => w.projects.push({ folder, repository: url }))
+    updateForge(root, w => w.projects.push({ folder, repository: url }), this.deps.onManifestRetry)
     return member
   }
   async convert(root: string, source: string, force = false) {
@@ -521,7 +523,7 @@ class ForgeService {
       if (realpathSync.native(move.member) !== move.member || dirname(move.member) !== move.root) throw new Error('The reserved export folder moved; the source was kept.')
       rmSync(move.member, { recursive: true })
     }
-    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) })
+    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) }, this.deps.onManifestRetry)
   }
 
   async retireForcedSource({ source, member }: ForgeMove) {
@@ -582,7 +584,8 @@ class ForgeService {
       ...adapter, home, registry, pool, session, pickDirectory, git: this.git,
       withWorld: (root, change) => this.withProvisioningWorld(root, change),
       synchronize: (root, current) => this.sync(root, true, false, current),
-      onProject: (member, agent) => this.imported(member, agent)
+      onProject: (member, agent) => this.imported(member, agent),
+      onManifestRetry: this.deps.onManifestRetry
     }))
     this.provisioning = provisioning
     ipc.handle('forgeSetup:provision', (_event, request, operationId) => provisioning.provision(request, operationId))
@@ -668,7 +671,7 @@ class ForgeService {
       if (picked) await this.convert(root, this.deps.registry.track(picked).folder.path)
     })
     ipc.handle('forge:add', (_e, folder, repository, name) => this.add(this.rootOf(folder), repository, name))
-    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }); this.next.set(root, Date.now() + minutes * 60_000) })
+    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onManifestRetry); this.next.set(root, Date.now() + minutes * 60_000) })
     ipc.handle('forge:sync', (_e, folder) => this.sync(this.rootOf(folder)))
     ipc.handle('forge:memberStatus', (_e, folder, member: unknown) => this.memberStatus(folder, member))
     ipc.handle('forge:status', (_e, folder) => { const root = this.rootOf(folder); return { last: this.last.get(root) ?? null, error: this.errors.get(root) ?? null } })
@@ -728,6 +731,8 @@ class ForgeService {
     const current = (): MemberIdentity | undefined =>
       key !== undefined && identity !== undefined && this.rootKey(root) === key && this.identityOf(root, path) === identity
         ? { key, identity } : undefined
+    // Queued on the member's owner ahead of its reconcile, so it answers before the import starts.
+    const cached = this.deps.pool.get(path).call('hasValidatedCache')
     const work = this.deps.pool.reconcile(path).then(({ result, hasLocalCache }) => {
       this.assertSyncTarget(root, key)
       const ready = current()
@@ -746,6 +751,14 @@ class ForgeService {
       if (this.preparing.get(path)?.promise === work) this.preparing.delete(path)
     })
     this.preparing.set(path, { key, promise: work })
+    // A member whose local database already holds a validated import is ready at once: its views read
+    // the local records, with a syncing status, while the reconcile runs.
+    void cached.then(valid => {
+      const ready = valid ? current() : undefined
+      if (ready === undefined || this.pendingMember(path, key)?.promise !== work) return
+      this.prepared.set(path, ready)
+      this.notifyMembers(root)
+    }, () => undefined)
     return work
   }
 
@@ -861,7 +874,7 @@ class ForgeService {
       beforeVerify?.()
       await original.call('verifyForge', member, false)
     }
-    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }))
+    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }), this.deps.onManifestRetry)
   }
   private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
     const detection = this.setup === undefined ? undefined : await this.deps.provisioning?.discover(repository)
@@ -904,7 +917,7 @@ class ForgeService {
     mkdirSync(dirname(archive), { recursive: true })
     if (existsSync(join(member, '.darkmechanicus'))) renameSync(join(member, '.darkmechanicus'), archive)
     if (existsSync(member) && readdirSync(member).length === 0) rmdirSync(member)
-    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) })
+    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) }, this.deps.onManifestRetry)
   }
 }
 

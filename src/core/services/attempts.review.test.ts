@@ -121,6 +121,70 @@ describe('rejectAttempt', () => {
   })
 })
 
+// DM-936: the retry packet carries why earlier attempts ended, verbatim.
+const REASONS = ['Missing the  migration test.\n  Line two keeps its indent.', 'Uses "any" in src/core/x.ts — remove it.']
+const NOTES = 'Reviewer notes:\n- exact text, *markdown* and trailing space '
+
+describe('retry packets — rejection', () => {
+  it('a reclaim after rejection carries the exact reasons, notes and provenance that attempt 1 never had', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: bundleWith([[1]], [], { retryLimit: 3, onTicketFailure: 'pause_run' }) })
+    const first = claim(ctx, runId, 1)
+    expect(first.packet).not.toHaveProperty('priorAttempts')
+    expect(first.packet).not.toHaveProperty('learnings')
+    ctx.clock.advanceSeconds(30)
+    submitClaim(ctx, first)
+    ctx.clock.advanceSeconds(30)
+    rejectAttempt(withRole(ctx, 'reviewer'), { attemptId: first.attempt.id, reasons: REASONS, notes: NOTES })
+
+    const second = claim(ctx, runId, 1)
+    expect(second.attempt.number).toBe(2)
+    expect(second.packet.priorAttempts).toEqual([
+      {
+        attemptId: first.attempt.id,
+        number: 1,
+        state: 'rejected',
+        decision: { outcome: 'rejected', reasons: REASONS, notes: NOTES, decidedBy: 'test reviewer' },
+        failure: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        submittedAt: '2026-01-01T00:00:30.000Z',
+        endedAt: '2026-01-01T00:01:00.000Z'
+      }
+    ])
+    // Attempt 1's stored record never gained the later context.
+    expect(JSON.stringify(attemptRow(ctx, first.attempt.id))).not.toContain('priorAttempts')
+  })
+})
+
+describe('retry packets — history', () => {
+  it('lists every earlier rejection and failure in order, and an abandoned lease, but no other ticket\'s attempts', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: bundleWith([[1, 2]], [], { retryLimit: 5, onTicketFailure: 'pause_run' }) })
+    const one = claim(ctx, runId, 1)
+    submitClaim(ctx, one)
+    rejectAttempt(ctx, { attemptId: one.attempt.id, reasons: ['First reason'] })
+    const two = claim(ctx, runId, 1)
+    failAttempt(ctx, { attemptId: two.attempt.id, failure: { reason: 'Tool crashed', details: 'exit 3', retryable: true } })
+    const other = claim(ctx, runId, 2)
+    failAttempt(ctx, { attemptId: other.attempt.id, failure: { reason: 'Unrelated' } })
+    const three = claim(ctx, runId, 1, { leaseSeconds: 30 })
+    ctx.clock.advanceSeconds(31)
+    reconcileAttempt(ctx, { attemptId: three.attempt.id, resolution: 'abandon', notes: 'Worker vanished' })
+
+    const four = claim(ctx, runId, 1)
+    const prior = four.packet.priorAttempts ?? []
+    expect(prior.map((p) => [p.number, p.attemptId, p.state])).toEqual([
+      [1, one.attempt.id, 'rejected'],
+      [2, two.attempt.id, 'failed'],
+      [3, three.attempt.id, 'lease_expired']
+    ])
+    expect(prior[0]?.decision?.reasons).toEqual(['First reason'])
+    expect(prior[1]?.failure).toEqual({ reason: 'Tool crashed', details: 'exit 3', retryable: true })
+    expect(prior[2]?.failure).toEqual({ reason: 'lease expired', details: 'Worker vanished', retryable: true })
+    expect(JSON.stringify(prior)).not.toContain('Unrelated')
+  })
+})
+
 describe('failAttempt', () => {
   it('fails an open attempt with default failure details', () => {
     const ctx = createTestCtx()

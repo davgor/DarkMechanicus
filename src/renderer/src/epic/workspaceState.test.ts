@@ -56,6 +56,8 @@ describe('workspace loading', () => {
       chosenView: null,
       layout: 'graph',
       selectedTicketId: null,
+      agentChatId: null,
+      agentThreadId: null,
       activity: null,
       ticketScorecard: null,
       checkpointOpen: false,
@@ -86,6 +88,14 @@ describe('workspace loading', () => {
     const failed = workspaceReducer(reloading, { type: 'load_failed', message: 'Epic not found' })
     expect(failed).toMatchObject({ loading: false, loadError: 'Epic not found' })
     expect(workspaceReducer(failed, { type: 'load_succeeded', data: data(), at: 1 }).loadError).toBe(null)
+  })
+
+  it('ignores a skipped draft read that lands before the workspace has loaded, and shows it once it has', () => {
+    const read = { draft: draftPlan(), draftTickets: [], validation: validation({ warnings: [] }) }
+    const before = initialWorkspaceState()
+    expect(workspaceReducer(before, { type: 'draft_loaded', draft: read })).toBe(before)
+    const after = workspaceReducer(loaded({ draft: null, validation: null }), { type: 'draft_loaded', draft: read })
+    expect([after.data?.draft?.draftRevision, after.validation]).toEqual([draftPlan().draftRevision, validation({ warnings: [] })])
   })
 })
 
@@ -187,6 +197,59 @@ describe('the view an epic opens in', () => {
     const closed = workspaceReducer(noisy, { type: 'draft_closed' })
     expect(closed).toMatchObject({ view: 'saved', chosenView: null, saveNotice: null, confirm: null })
     expect(loaded({ ...CHANGED, draft: draftPlan() }, closed).view).toBe('saved')
+  })
+})
+
+describe('agent layout transitions', () => {
+  it('replaces Scorecard with Agent and returns to Agent when Scorecard closes', () => {
+    const scorecard = workspaceReducer(loaded(), { type: 'open_scorecard' })
+    const agent = workspaceReducer(scorecard, { type: 'show_layout', layout: 'agent' })
+    expect([agent.layout, agent.scorecardOpen]).toEqual(['agent', false])
+    const reopened = workspaceReducer(agent, { type: 'open_scorecard' })
+    expect([reopened.layout, reopened.scorecardOpen]).toEqual(['agent', true])
+    expect(workspaceReducer(reopened, { type: 'close_scorecard' })).toEqual(agent)
+  })
+
+  it('closes the checkpoint when Agent replaces it so report navigation can reopen it', () => {
+    const checkpoint = workspaceReducer(loaded(), { type: 'open_checkpoint' })
+    const agent = workspaceReducer(checkpoint, { type: 'show_layout', layout: 'agent' })
+    expect([agent.layout, agent.checkpointOpen, agent.scorecardOpen]).toEqual(['agent', false, false])
+    const reopened = workspaceReducer(agent, { type: 'open_checkpoint' })
+    expect([reopened.layout, reopened.checkpointOpen]).toEqual(['graph', true])
+    const graph = workspaceReducer(reopened, { type: 'close_checkpoint' })
+    expect([graph.layout, graph.checkpointOpen]).toEqual(['graph', false])
+  })
+
+  it.each(['graph', 'list', 'agent'] as const)('opens checkpoints from %s without retaining the Agent stage', (layout) => {
+    const state = workspaceReducer(loaded(), { type: 'show_layout', layout })
+    const open = workspaceReducer(state, { type: 'open_checkpoint' })
+    expect([open.layout, open.checkpointOpen, open.scorecardOpen]).toEqual([layout === 'agent' ? 'graph' : layout, true, false])
+  })
+
+  it('selects an agent chat or one of its threads, and a missing thread selects the chat itself', () => {
+    const thread = workspaceReducer(loaded(), { type: 'select_agent', chatId: 'chat_orch', threadId: 'th_1' })
+    expect([thread.agentChatId, thread.agentThreadId]).toEqual(['chat_orch', 'th_1'])
+    const root = workspaceReducer(thread, { type: 'select_agent', chatId: 'chat_plan' })
+    expect([root.agentChatId, root.agentThreadId]).toEqual(['chat_plan', null])
+    const cleared = workspaceReducer(thread, { type: 'select_agent', chatId: 'chat_orch', threadId: null })
+    expect([cleared.agentChatId, cleared.agentThreadId]).toEqual(['chat_orch', null])
+    expect({ ...thread, agentChatId: null, agentThreadId: null }).toEqual(loaded())
+  })
+
+  it('opens a chat in the Agent stage from a link, from any layout, report or scorecard', () => {
+    const scorecard = workspaceReducer(workspaceReducer(loaded(), { type: 'open_checkpoint' }), { type: 'open_scorecard' })
+    const opened = workspaceReducer(scorecard, { type: 'open_agent', chatId: 'chat_orch' })
+    expect([opened.layout, opened.agentChatId, opened.agentThreadId, opened.checkpointOpen, opened.scorecardOpen])
+      .toEqual(['agent', 'chat_orch', null, false, false])
+    const list = workspaceReducer(workspaceReducer(loaded(), { type: 'show_layout', layout: 'list' }), { type: 'select_agent', chatId: 'chat_plan', threadId: 'th_9' })
+    const fromList = workspaceReducer(list, { type: 'open_agent', chatId: 'chat_orch', threadId: null })
+    expect([fromList.layout, fromList.agentChatId, fromList.agentThreadId]).toEqual(['agent', 'chat_orch', null])
+  })
+
+  it('opens one of a chat’s threads when the link names it', () => {
+    const thread = workspaceReducer(loaded(), { type: 'open_agent', chatId: 'chat_orch', threadId: 'th_1' })
+    expect([thread.layout, thread.agentChatId, thread.agentThreadId]).toEqual(['agent', 'chat_orch', 'th_1'])
+    expect({ ...thread, layout: 'graph', agentChatId: null, agentThreadId: null }).toEqual(loaded())
   })
 })
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { AgentAuthStatus } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentView } from '../../../shared/desktop/api'
 import type { Scheduler } from '../app/scheduler'
 import { Button } from '../components/Button'
 import { StatePill, type PillState } from '../components/StatePill'
@@ -20,6 +20,7 @@ interface TerminalPaneProps {
   chat: ChatRecord
   /** What to call the chat's agent: the connected agent's display name, or its fallback. */
   agentName: string
+  agentKind?: AgentView['kind']
   kit: TerminalKit
   scheduler: Scheduler
   /** The agent's status, as the sign-in card checked it once its login ended. */
@@ -166,7 +167,7 @@ function FirstPromptRecovery({ chat }: { chat: ChatRecord }): JSX.Element | null
  * fresh one. A chat that stored a transcript before chats became terminals shows **Earlier conversation** above the
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
-export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus, peers = [], onOpenChat }: TerminalPaneProps): JSX.Element {
+export function TerminalPane({ folder, chat, agentName, agentKind, kit, scheduler, onAgentStatus, peers = [], onOpenChat }: TerminalPaneProps): JSX.Element {
   const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const [earlierOpen, setEarlierOpen] = useState(false)
   const pill = PHASE_PILLS[phase.state]
@@ -179,6 +180,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       <ChatHeader
         chat={chat}
         agentName={agentName}
+        surfaceTarget={{ folder, agentKind }}
         terminalTitle={title}
         mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
         // A project-less chat has no mailbox, so no inbox.

@@ -22,6 +22,7 @@ class Recorder {
   revealed: string[] = []
   refreshed: string[] = []
   busy: string[] = []
+  folderTabs: [string, 'source'][] = []
   reloads = 0
   untracked: string[] = []
   picked: FolderPickResult = { folder: null, added: false }
@@ -53,6 +54,10 @@ class Recorder {
         }
       },
       select: (selection) => this.selections.push(selection),
+      setFolderTab: (path, tab) => {
+        expect(this.selections).toEqual([])
+        this.folderTabs.push([path, tab])
+      },
       reveal: (path, bucket) => this.revealed.push(bucket === null ? path : `${path}:${bucket}`),
       bucketOf: (path, epicId) => this.buckets[`${path}:${epicId}`] ?? null,
       revealAgents: (path) => this.agentsRevealed.push(path),
@@ -454,9 +459,36 @@ describe('chat actions', () => {
     expect(created).toBeNull()
     expect(recorder.selections).toEqual([])
   })
+
+  it('opens a folder chat in its own folder, and a project-less chat over the selected folder', () => {
+    recorder.actions('/b').openChat(chatRecord({ id: 'chat_a', folder: '/a' }))
+    recorder.actions('/b').openChat(chatRecord({ id: 'chat_free', folder: null }))
+    expect(recorder.selections).toEqual([
+      { folderPath: '/a', epicId: null, chatId: 'chat_a' },
+      { folderPath: '/b', epicId: null, agentPane: { kind: 'chat', chatId: 'chat_free' } }
+    ])
+    expect(recorder.agentsRevealed).toEqual(['/a'])
+  })
+
+  it('opens nothing when a summoned chat could not be created', async () => {
+    recorder.createdChat = null
+    const created = await recorder.actions('/a').summonChat('claude', 'Tidy every board')
+    expect(created).toBeNull()
+    expect(recorder.chatRequests).toEqual([{ folder: null, agent: 'claude', model: null, firstPrompt: 'Tidy every board' }])
+    expect(recorder.selections).toEqual([])
+    expect(recorder.landings).toEqual([])
+  })
 })
 
 describe('links from other screens', () => {
+  it('opens a source file on the source tab before selecting and lands the request', () => {
+    recorder.actions().openSourceFile('C:/Repo', 'c:\\Repo\\src\\a.ts')
+    expect(recorder.folderTabs).toEqual([['C:/Repo', 'source']])
+    expect(recorder.selections).toEqual([{ folderPath: 'C:/Repo', epicId: null }])
+    expect(recorder.revealed).toEqual(['C:/Repo'])
+    expect(recorder.landings).toEqual([{ kind: 'sourceFile', folderPath: 'C:/Repo', absolutePath: 'c:\\Repo\\src\\a.ts' }])
+  })
+
   it('opens a ticket in its epic: selects the epic, reveals its bucket and asks the workspace for the ticket and attempt', () => {
     recorder.buckets['/a:ep_1'] = 'in_progress'
     recorder.actions().openTicket('/a', { epicId: 'ep_1', ticketId: 'tk_1', attemptId: 'at_1' })

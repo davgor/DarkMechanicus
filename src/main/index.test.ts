@@ -17,7 +17,9 @@ const startup = vi.hoisted(() => ({
   events: [] as string[],
   storeRelease: undefined as Promise<void> | undefined,
   menus: [] as unknown[],
-  switches: [] as [string, string][]
+  switches: [] as [string, string][],
+  /** Each app id set, with how many windows existed when it was set. */
+  appIds: [] as Array<{ id: string; windows: number }>
 }))
 
 vi.mock('electron', () => ({
@@ -33,6 +35,9 @@ vi.mock('electron', () => ({
     },
     quit: () => {
       startup.quits += 1
+    },
+    setAppUserModelId: (id: string) => {
+      startup.appIds.push({ id, windows: startup.options.length })
     },
     getVersion: () => '0.6.0'
   },
@@ -87,6 +92,7 @@ beforeEach(() => {
   startup.storeRelease = undefined
   startup.menus = []
   startup.switches = []
+  startup.appIds = []
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -151,6 +157,17 @@ describe('desktop startup menu', () => {
     await Promise.resolve()
     expect(startup.options).toHaveLength(1)
     expect(startup.menus).toEqual(process.platform === 'darwin' ? [] : [null])
+  })
+})
+
+describe('desktop startup app id', () => {
+  it("names the process with the installer's AppUserModelId before the first window opens, on Windows only", async () => {
+    await import('./index')
+    expect(startup.appIds).toEqual([])
+    startup.ready!()
+    await Promise.resolve()
+    expect(startup.options).toHaveLength(1)
+    expect(startup.appIds).toEqual(process.platform === 'win32' ? [{ id: 'com.davgor.darkmechanicus', windows: 0 }] : [])
   })
 })
 

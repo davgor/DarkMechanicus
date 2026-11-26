@@ -19,8 +19,8 @@ const deletionCommands = {
     schema: COMMAND_SCHEMAS.deleteEpic,
     mutates: true,
     run: (core, input) =>
-      deleteEpic(core.ctx(), input, (epicId, runIds) =>
-        removeEpicFiles({ layout: core.layout, fs: core.fs }, epicId, runIds)
+      deleteEpic(core.ctx(), input, (epicId, runIds, cardIds) =>
+        removeEpicFiles({ layout: core.layout, fs: core.fs }, epicId, runIds, cardIds)
       )
   },
   deleteTicket: { schema: COMMAND_SCHEMAS.deleteTicket, mutates: false, run: deleteTicketCommand }

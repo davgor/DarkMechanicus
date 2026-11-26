@@ -57,16 +57,25 @@ describe('advancing the final sprint', () => {
     approveCheckpoint(desktop, { runId: run.runId, reportId: final.id })
     agent.clock.advanceSeconds(90)
     const now = '2026-01-01T00:01:30.000Z'
-    expect(advanceSprint(agent, { runId: run.runId })).toEqual({ runId: run.runId, outcome: 'completed', activeSprintId: null })
+    expect(advanceSprint(agent, { runId: run.runId })).toEqual({
+      runId: run.runId,
+      outcome: 'completed',
+      activeSprintId: null,
+      learningCard: expect.objectContaining({ sprintId: sid(2), playPending: true })
+    })
     expect(runRow(agent, run.runId)).toMatchObject({ state: 'completed', active_sprint_id: null, ended_at: now, revision: 3 })
     const epic = epicRow(agent, run.epicId)
     expect(epic).toMatchObject({ status: 'completed', completed_at: now, revision: 2, updated_at: now })
     expect(JSON.parse(String(epic?.['outcome_json']))).toEqual({ ...OUTCOME, recordedAt: now, runId: run.runId })
-    expect(eventLog(agent).slice(-2).map((event) => [event.kind, event.payload])).toEqual([
+    const completion = eventLog(agent).filter((event) => event.kind === 'run.completed' || event.kind === 'epic.completed')
+    expect(completion.map((event) => [event.kind, event.payload])).toEqual([
       ['run.completed', { checkpointId: expect.stringMatching(/^ck_/), sprintId: sid(2) }],
       ['epic.completed', { runId: run.runId }]
     ])
-    expect(outboxEntries(agent).map((entry) => entry.kind)).toEqual(['run_history', 'epic_state'])
+    // DM-937: the learning card follows the completion, its queued event last.
+    expect(eventLog(agent).at(-1)?.kind).toBe('sprint.learning_card_queued')
+    // DM-937: then the generated learning card's definition and its created and played events.
+    expect(outboxEntries(agent).map((entry) => entry.kind)).toEqual(['run_history', 'epic_state', 'kanban_card', 'kanban_event', 'kanban_event'])
     const checkpoint = agent.db.get<{ outcome: string }>('SELECT outcome FROM checkpoints')
     expect(checkpoint?.outcome).toBe('completed')
   })
@@ -186,7 +195,12 @@ describe('approveAndAdvance', () => {
     acceptTickets(agent, run, [1, 2])
     const submitted = report(agent, run)
     const result = approveAndAdvance(desktop, { runId: run.runId, reportId: submitted.id, idempotencyKey: 'one-click' })
-    expect(result).toEqual({ runId: run.runId, outcome: 'advanced', activeSprintId: sid(2) })
+    expect(result).toEqual({
+      runId: run.runId,
+      outcome: 'advanced',
+      activeSprintId: sid(2),
+      learningCard: expect.objectContaining({ sprintId: sid(1), playPending: true })
+    })
     const grants = agent.db.all<{ id: string; consumed_by: string | null }>('SELECT id, consumed_by FROM approvals')
     expect(grants).toEqual([{ id: expect.stringMatching(/^ap_/), consumed_by: desktop.session.id }])
     expect(approveAndAdvance(desktop, { runId: run.runId, reportId: submitted.id, idempotencyKey: 'one-click' })).toEqual(result)

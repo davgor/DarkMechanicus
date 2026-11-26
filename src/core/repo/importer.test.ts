@@ -19,7 +19,7 @@ import { createSaveHook } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createSequentialIds, createTestClock, createTestCtx, createTestDb, type TestCtx, withRole } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
-import { guardTransactions } from '../db/database'
+import type { Db } from '../db/database'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { resolveEpicConflict, type EpicRecordsAccess } from '../services/epicConflict'
 import { cancelTransfer, queueTransfer, startTransfer } from '../services/transfers'
@@ -320,6 +320,33 @@ describe('reconcileRepository cached history', () => {
 
 })
 
+/** `db`, running `hook` once as its first depth-0 write transaction begins (a read snapshot is not the writer lock). */
+function atWriterAdmission(db: Db, hook: () => void): { db: Db; writing: () => boolean } {
+  let pending = true
+  let writing = false
+  return {
+    writing: () => writing,
+    db: {
+      path: db.path,
+      get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
+      inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
+      tx: (fn, mode) => {
+        if (mode === 'read' || db.inTransaction()) return db.tx(fn, mode)
+        return db.tx(() => {
+          writing = true
+          try {
+            if (pending) hook()
+            pending = false
+            return fn()
+          } finally {
+            writing = false
+          }
+        })
+      }
+    }
+  }
+}
+
 describe('reconcileRepository writer admission', () => {
   it('revalidates preparation after files and machine-local state change at writer admission', () => {
     const target = cloneOf(buildSource())
@@ -328,29 +355,21 @@ describe('reconcileRepository writer admission', () => {
     const file = paths.epicStateFile(EPIC)
     const snapshot = paths.snapshotFile(EPIC, R2)
     let parsedBeforeWriter = false
-    const readFile = target.fs.readFile.bind(target.fs)
-    target.fs.readFile = (path) => {
-      if (path === snapshot && !target.db.inTransaction()) parsedBeforeWriter = true
-      return readFile(path)
-    }
-    let intercepted = false
-    const guarded = guardTransactions(target.db, () => {
-      if (intercepted) return
-      intercepted = true
+    const guarded = atWriterAdmission(target.db, () => {
       target.fs.put(file, (target.fs.get(file) ?? '').replace('Test epic', 'New title'))
     })
-    expect(reconcileRepository({ ...deps, db: guarded })).toMatchObject({ imported: [EPIC, RUN], rejected: [] })
+    const readFile = target.fs.readFile.bind(target.fs)
+    target.fs.readFile = (path) => {
+      if (path === snapshot && !guarded.writing()) parsedBeforeWriter = true
+      return readFile(path)
+    }
+    expect(reconcileRepository({ ...deps, db: guarded.db })).toMatchObject({ imported: [EPIC, RUN], rejected: [] })
     expect(parsedBeforeWriter).toBe(true)
     expect(target.db.get('SELECT title FROM epics WHERE id = ?', EPIC)).toEqual({ title: 'New title' })
 
     target.fs.put(file, (target.fs.get(file) ?? '').replace('New title', 'Pulled title'))
-    let addedConflict = false
-    const changed = guardTransactions(target.db, () => {
-      if (addedConflict) return
-      addedConflict = true
-      insertOutbox(target.db, { kind: 'epic_state', epicId: EPIC })
-    })
-    expect(reconcileRepository({ ...deps, db: changed })).toMatchObject({
+    const changed = atWriterAdmission(target.db, () => insertOutbox(target.db, { kind: 'epic_state', epicId: EPIC }))
+    expect(reconcileRepository({ ...deps, db: changed.db })).toMatchObject({
       imported: [], conflicts: [{ epicId: EPIC, message: expect.stringContaining('waiting to be exported') }]
     })
     expect(target.db.get('SELECT title FROM epics WHERE id = ?', EPIC)).toEqual({ title: 'New title' })

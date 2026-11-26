@@ -9,6 +9,7 @@ import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, chatRecord } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
 import type { OrchestrationHost } from '../epic/orchestration'
+import { fakeOrchestration } from '../epic/__mocks__/fakeOrchestration'
 import { cardView } from './__mocks__/fixtures'
 import { KanbanCardPanel } from './KanbanCardPanel'
 
@@ -40,15 +41,12 @@ beforeEach(() => {
 })
 
 function host(chats: ChatRecord[]): OrchestrationHost {
-  return {
+  return fakeOrchestration({
     agents: [agentView({ kind: 'claude' })],
     statuses: { claude: SIGNED_IN },
     chats,
-    onChatsChanged: () => Promise.resolve(),
-    onAddAgent: () => undefined,
-    onAgentStatus: () => undefined,
     onOpenChat: (chatId) => opened.push(chatId)
-  }
+  })
 }
 
 function panelAt(cardId: string, token = 0, chats: ChatRecord[] = []): JSX.Element {
@@ -175,6 +173,23 @@ describe('KanbanCardPanel Play without a chat', () => {
     expect(opened).toEqual([])
     expect(changes).toBe(1)
   })
+
+  it('lists the chat it started but does not open it when its terminal did not start', async () => {
+    cards.kc_a = cardView({ id: 'kc_a', key: 'DM-7', title: 'Fix login' })
+    const started = chatRecord({ id: 'chat_started', folder: '/a', cardId: 'kc_a' })
+    dm.chats.startKanbanCard = (request) => Promise.resolve({
+      ok: true,
+      data: { card: { ...cards[request.cardId]!, lane: 'in_progress' }, chat: started, problem: 'The terminal could not be started.' }
+    })
+    await show('kc_a')
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Play' }))
+    await settle()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }))
+    await settle()
+    expect(within(panel()).getByRole('status').textContent).toBe('The terminal could not be started.')
+    expect(opened).toEqual([])
+    expect(changes).toBe(1)
+  })
 })
 
 describe('KanbanCardPanel review and chat link', () => {
@@ -195,6 +210,17 @@ describe('KanbanCardPanel review and chat link', () => {
     const chats = [
       chatRecord({ id: 'chat_old', folder: '/a', cardId: 'kc_a', createdAt: '2026-03-01T10:00:00.000Z', updatedAt: '2026-03-05T10:00:00.000Z' }),
       chatRecord({ id: 'chat_new', folder: '/a', cardId: 'kc_a', createdAt: '2026-03-03T10:00:00.000Z', updatedAt: '2026-03-03T10:00:00.000Z' })
+    ]
+    await show('kc_a', 0, chats)
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Open chat' }))
+    expect(opened).toEqual(['chat_new'])
+  })
+
+  it('keeps the newest chat when an older one is listed after it', async () => {
+    cards.kc_a = cardView({ id: 'kc_a', key: 'DM-7', lane: 'in_progress', openAttempt: { number: 1, state: 'running' } })
+    const chats = [
+      chatRecord({ id: 'chat_new', folder: '/a', cardId: 'kc_a', createdAt: '2026-03-03T10:00:00.000Z', updatedAt: '2026-03-03T10:00:00.000Z' }),
+      chatRecord({ id: 'chat_old', folder: '/a', cardId: 'kc_a', createdAt: '2026-03-01T10:00:00.000Z', updatedAt: '2026-03-05T10:00:00.000Z' })
     ]
     await show('kc_a', 0, chats)
     fireEvent.click(within(panel()).getByRole('button', { name: 'Open chat' }))

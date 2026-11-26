@@ -24,12 +24,26 @@ import {
 } from '../services/kanban/cards'
 import { removeKanbanCardFiles } from '../repo/epicRemoval'
 import { deleteKanbanCard } from '../services/kanban/deletion'
+// ─── DM-938 ───
+import type { SubmitKanbanCardInput } from '../../shared/domain/api'
+import { learningLinkOf } from '../services/kanban/learningCards'
+import { type LearningManifestProof, verifyLearningManifests } from '../services/learningBranches'
+// ─── End of DM-938 ───
 import type { CommandTable } from './types'
 
 /** The board reads attempt states as stored, so overdue card leases are expired first, as run reads expire theirs. */
 function swept(ctx: Ctx): Ctx {
   expireKanbanLeasesOnRead(ctx)
   return ctx
+}
+
+/** DM-938: a sprint learning card's manifests, verified read-only against Git before the storing transaction. */
+async function learningProof(ctx: Ctx, input: SubmitKanbanCardInput): Promise<LearningManifestProof | undefined> {
+  if (input.learning === undefined) return undefined
+  const attempt = ctx.db.get<{ card_id: string }>('SELECT card_id FROM kanban_attempts WHERE id = ?', input.attemptId)
+  const link = attempt === undefined ? null : learningLinkOf(ctx, attempt.card_id)
+  if (link === null) return undefined
+  return verifyLearningManifests((repo) => ctx.gitFor(repo), { cardKey: link.cardKey, bases: link.bases, manifests: input.learning.manifests })
 }
 
 const kanbanCommands = {
@@ -99,7 +113,8 @@ const kanbanCommands = {
       const merge = input.evidence?.merge
       const git = merge?.branch === 'main' ? ctx.gitFor(null) : null
       const merged = git !== null && merge !== undefined && await git.isAncestor(merge.commit, 'refs/remotes/origin/main') === true
-      return submitKanbanCard(ctx, input, merged, merged ? git.assertCurrent : undefined)
+      const learning = await learningProof(ctx, input)
+      return submitKanbanCard(ctx, input, merged, { ...(merged && { assertCurrent: git.assertCurrent }), ...(learning && { learning }) })
     }
   },
   failKanbanCard: {

@@ -15,6 +15,7 @@ import { hasValidatedRepositoryCache } from '../../core/repo/validatedCache'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
+import { claimedAttemptOf } from '../../core/services/attempts'
 import { assertGrantCapability, assertGrantUsable, revokeGrant } from '../../core/services/grants'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
@@ -22,6 +23,15 @@ import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, cl
 import { findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { bindChatMailbox, deleteChatMailbox, hasMailbox, mailboxName, provisionAll, type MailboxChat } from '../agents/chatMailboxOperations'
+import {
+  finishLearningApproval,
+  learningApprovalState,
+  recordLearningIntegrationConflict,
+  recordLearningIntegrationPlan,
+  recordLearningIntegrationReceipt
+} from '../../core/services/learningApproval'
+import { listLocalPendingLearningIntegrations, prepareLearningIntegration } from '../../core/services/learningIntegrations'
+import type { LearningIntegrationConflict, LearningIntegrationPlan, LearningIntegrationReceipt } from '../../shared/git/learningIntegration'
 
 function sameProject(workspace: Workspace, projectId: string): Ctx {
   const ctx = workspace.ctx()
@@ -131,6 +141,8 @@ function grantOperations(workspace: Workspace, ctx: Context) {
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)
     },
+    /** Read-only: the attempt a worker's claim token is the live claim of, or null. Never settles leases or logs the token. */
+    claimedAttempt: (token: string) => claimedAttemptOf(ctx(), token),
     bindYoloGrant(yolo: YoloBinding) { bindYoloChat(ctx(), yolo) },
     endYolo: (grantId: string) => endYoloChat(ctx(), grantId),
     refuseYolo: (grantId: string, runId: string | null) => auditYolo(ctx(), { grantId, runId, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' }),
@@ -151,11 +163,8 @@ function grantOperations(workspace: Workspace, ctx: Context) {
 function forgeOperations(workspace: Workspace, ctx: Context, home: string) {
   return {
     initialized: () => workspace.isInitialized(),
-    async reconcileMember() {
-      const hasLocalCache = hasValidatedRepositoryCache(ctx().db)
-      const result = await workspace.reconcileRepository()
-      return { result, hasLocalCache }
-    },
+    /** Machine-local proof, read before this owner reconciles, that the member already holds a validated import. */
+    hasValidatedCache: () => hasValidatedRepositoryCache(ctx().db),
     checkStorageIdle(force: boolean) {
       const context = ctx()
       if (force) assertForgeForceSafe(context.db)
@@ -212,10 +221,35 @@ function correctionOperations(workspace: Workspace, ctx: Context) {
   }
 }
 
+/**
+ * DM-956: the core steps of one learning card approval, for main's coordinator (`src/main/kanban/approveLearningCard.ts`).
+ * Each mutation is flushed before it returns, so its portable record is written before the next native step runs.
+ */
+function learningApprovalOperations(workspace: Workspace, ctx: Context) {
+  async function flushed<T>(value: T): Promise<T> {
+    await workspace.flushPortableState()
+    return value
+  }
+  return {
+    async prepareLearningApproval(input: { cardId: string; attemptId: string; draftsHash: string }) {
+      const prepared = await prepareLearningIntegration(ctx(), input)
+      return flushed(learningApprovalState(ctx(), prepared.id))
+    },
+    learningApprovalOwned: (integrationId: string) => listLocalPendingLearningIntegrations(ctx()).some(operation => operation.id === integrationId),
+    pendingLearningApprovals: () => listLocalPendingLearningIntegrations(ctx()).map(operation => learningApprovalState(ctx(), operation.id)),
+    recordLearningPlan: (integrationId: string, plan: LearningIntegrationPlan) => flushed(recordLearningIntegrationPlan(ctx(), integrationId, plan)),
+    recordLearningReceipt: (integrationId: string, receipt: LearningIntegrationReceipt) =>
+      flushed(recordLearningIntegrationReceipt(ctx(), integrationId, receipt)),
+    recordLearningConflict: (integrationId: string, conflicts: readonly LearningIntegrationConflict[]) =>
+      flushed(recordLearningIntegrationConflict(ctx(), integrationId, conflicts)),
+    finishLearningApproval: (integrationId: string) => flushed(finishLearningApproval(ctx(), integrationId))
+  }
+}
+
 function workspaceOperations(workspace: Workspace, home: string) {
   const ctx = () => workspace.ctx()
   return { ...mailboxOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
-    ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx) }
+    ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx), ...learningApprovalOperations(workspace, ctx) }
 }
 
 type Tail<F> = F extends (ctx: Ctx, ...args: infer Args) => unknown ? Args : never

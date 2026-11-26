@@ -20,6 +20,7 @@ import { registerMetricsTools } from './tools/metrics'
 import { registerPlanningTools } from './tools/planning'
 import { registerProfileTools } from './tools/profiles'
 import { registerTransferTools } from './tools/transfers'
+import { registerLearningTools } from './tools/learnings'
 
 import { registerQuestionTools } from './tools/questions'
 import { HUMAN_QUESTION_GUIDANCE } from '../core/humanQuestions'
@@ -77,6 +78,7 @@ export function createMcpServer(
   registerCommentTools(server, api)
   registerAttachmentTools(server, api)
   registerTransferTools(server, api)
+  registerLearningTools(server, api)
   registerKanbanTools(server, api)
   registerAgentMailTools(server, api)
   registerPrompts(server)

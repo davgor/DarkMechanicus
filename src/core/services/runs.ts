@@ -39,6 +39,7 @@ import {
 } from './execution'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { sprintIncrementViews } from './increments'
+import { latestSprintLearningCard } from './sprintLearningCards'
 import { enqueueOutbox } from './outbox'
 import { assertNoOpenTransfer } from './transferGuard'
 
@@ -205,7 +206,8 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
       catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
     }),
     attempts: recentAttempts(context.attempts),
-    checkpoint: null
+    checkpoint: null,
+    learningCard: latestSprintLearningCard(ctx, run.id)
   }
 }
 

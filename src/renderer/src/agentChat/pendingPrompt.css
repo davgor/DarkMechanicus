@@ -1,0 +1,85 @@
+.agent-prompt {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow: auto;
+  margin: 0 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+
+.agent-prompt h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.agent-prompt p {
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+
+.agent-prompt-tool,
+.agent-prompt-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-prompt-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.agent-prompt .btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.agent-prompt-answer {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.agent-prompt-answer textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+
+.agent-prompt-answer button {
+  justify-self: start;
+}
+
+.agent-prompt-notice {
+  margin: 8px 16px;
+  color: var(--muted);
+}
+
+.agent-prompt-error {
+  color: var(--danger);
+}
+
+.agent-prompt-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: agent-prompt-spin 1s linear infinite;
+}
+
+@keyframes agent-prompt-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-prompt-spinner { animation: none; }
+}

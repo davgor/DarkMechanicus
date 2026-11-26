@@ -80,7 +80,7 @@ describe('isSelection with an agents pane', () => {
     const base = { folderPath: '/a', epicId: null }
     expect(isSelection({ ...base, agentPane: null })).toBe(false)
     expect(isSelection({ ...base, agentPane: 'add' })).toBe(false)
-    expect(isSelection({ ...base, agentPane: { kind: 'settings' } })).toBe(false)
+    expect(isSelection({ ...base, agentPane: { kind: 'preferences' } })).toBe(false)
     expect(isSelection({ ...base, agentPane: { kind: 'agent' } })).toBe(false)
     expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: 'gemini' } })).toBe(false)
   })
@@ -252,4 +252,56 @@ it('restores a valid card only with its folder board selection', () => {
   expect(isSelection({ ...stored, kanbanCardId: 123 })).toBe(false)
   expect(isSelection({ ...stored, kanban: undefined })).toBe(false)
   expect(resolveSelection(stored, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+})
+
+describe('DM-828 c2: a stored Settings pane', () => {
+  const settings = { folderPath: '/a', epicId: null, agentPane: { kind: 'settings' } } as const
+
+  it('is a valid stored selection and survives reconciliation, also with no folder', () => {
+    const alpha = folderView({ path: '/a' })
+    const restored: unknown = JSON.parse(JSON.stringify(settings))
+    expect(isSelection(restored)).toBe(true)
+    expect(resolveSelection(settings, [alpha], true, { agents: [] })).toEqual(settings)
+    expect(resolveSelection({ ...settings, folderPath: null }, [], true)).toEqual({ folderPath: null, epicId: null, agentPane: { kind: 'settings' } })
+  })
+
+  it('refuses an unknown pane kind', () => {
+    expect(isSelection({ ...settings, agentPane: { kind: 'preferences' } })).toBe(false)
+  })
+})
+
+describe('DM-946: the Learnings route persists and restores', () => {
+  const learnings = { folderPath: '/a', epicId: null, learnings: true as const, learningId: 'lr_1' }
+
+  it('accepts learnings: true with an optional open learning, and refuses malformed ones', () => {
+    expect(isSelection(JSON.parse(JSON.stringify(learnings)))).toBe(true)
+    expect(isSelection({ folderPath: '/a', epicId: null, learnings: true })).toBe(true)
+    expect(isSelection({ ...learnings, learnings: false })).toBe(false)
+    expect(isSelection({ ...learnings, learningId: 7 })).toBe(false)
+    expect(isSelection({ folderPath: '/a', epicId: null, learningId: 'lr_1' })).toBe(false)
+  })
+
+  it('restores it for an initialized, available folder', () => {
+    expect(resolveSelection(learnings, [alpha], true)).toEqual(learnings)
+  })
+
+  it('drops it for an uninitialized, unavailable or vanished folder', () => {
+    expect(resolveSelection(learnings, [folderView({ path: '/a', initialized: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection(learnings, [folderView({ path: '/a', available: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection({ ...learnings, folderPath: '/gone' }, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+  })
+})
+
+describe('resolveSelection with a project-less chat', () => {
+  const stored = { folderPath: '/a', epicId: null, agentPane: { kind: 'chat', chatId: 'chat_free' } } as const
+
+  it('keeps the chat until the project-less chats have loaded, whether they are null or not given at all', () => {
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: null })).toEqual(stored)
+    expect(resolveSelection(stored, [alpha], true, { agents: [] })).toEqual(stored)
+  })
+
+  it('keeps the chat while it exists, and drops it to the folder once deleted', () => {
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: [chatRecord({ id: 'chat_free', folder: null })] })).toEqual(stored)
+    expect(resolveSelection(stored, [alpha], true, { agents: [], projectless: [] })).toEqual({ folderPath: '/a', epicId: null })
+  })
 })

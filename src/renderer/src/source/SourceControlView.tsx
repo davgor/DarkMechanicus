@@ -14,6 +14,8 @@ interface SourceControlViewProps {
   folder: TrackedFolderView
   scheduler: Scheduler
   target?: SourceTargetModel
+  focusPath?: string
+  onFocused?(): void
 }
 
 function Notice(props: { title: string; children?: React.ReactNode }): JSX.Element {
@@ -54,7 +56,7 @@ function InitializeNotice({ folder, onDone }: { folder: string; onDone(): void }
 }
 
 /** The folder's Source control: its repository's changes and diffs, or what stands in the way of showing them. */
-function RepositorySourceView({ folder, scheduler }: SourceControlViewProps): JSX.Element {
+function RepositorySourceView({ folder, scheduler, focusPath, onFocused }: SourceControlViewProps): JSX.Element {
   const repo = useRepoState({ folder: folder.path, scheduler })
   const { state } = repo
   if (state.status === 'loading') {
@@ -93,7 +95,7 @@ function RepositorySourceView({ folder, scheduler }: SourceControlViewProps): JS
       ) : null}
       {value.kind === 'not_repository' ? <InitializeNotice folder={folder.path} onDone={repo.refresh} /> : null}
       {value.kind === 'repository' ? (
-        <RepositoryView folderPath={folder.path} forgeWorld={folder.forgeWorld !== undefined || folder.forgeIssue === true} status={value.status} version={repo.version} onRefresh={repo.refresh} scheduler={scheduler} />
+        <RepositoryView folderPath={folder.path} forgeWorld={folder.forgeWorld !== undefined || folder.forgeIssue === true} status={value.status} version={repo.version} onRefresh={repo.refresh} scheduler={scheduler} focusPath={focusPath} onFocused={onFocused} />
       ) : null}
     </div>
   )

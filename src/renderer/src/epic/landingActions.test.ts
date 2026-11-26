@@ -44,6 +44,28 @@ describe('landingActions', () => {
     expect(landingActions({ ...LANDING, ticketId: 'tk_gone' }, data(), 'saved')).toEqual([])
     expect(landingActions(LANDING, data({ saved: null, draft: draftPlan() }), 'draft')).toEqual([])
   })
+
+  it('opens the Agent tab on the chat an Agent request names, never at a thread, whatever the plan holds', () => {
+    const agent = { kind: 'epicAgent', epicId: 'ep_1', chatId: 'chat_magos' } as const
+    expect(landingActions(agent, data(), 'saved')).toEqual([{ type: 'open_agent', chatId: 'chat_magos', threadId: null }])
+    expect(landingActions(agent, data({ saved: null, draft: draftPlan() }), 'draft'))
+      .toEqual([{ type: 'open_agent', chatId: 'chat_magos', threadId: null }])
+
+    const loaded = workspaceReducer(initialWorkspaceState(), { type: 'load_succeeded', data: data(), at: 1 })
+    expect(landingActions(agent, data(), 'saved').reduce(workspaceReducer, loaded))
+      .toMatchObject({ layout: 'agent', agentChatId: 'chat_magos', agentThreadId: null, checkpointOpen: false })
+  })
+
+  it('opens the checkpoint panel for a checkpoint request', () => {
+    const checkpoint = { kind: 'epicCheckpoint', epicId: 'ep_1' } as const
+    expect(landingActions(checkpoint, data(), 'saved')).toEqual([{ type: 'open_checkpoint' }])
+
+    const onAgent = workspaceReducer(
+      workspaceReducer(initialWorkspaceState(), { type: 'load_succeeded', data: data(), at: 1 }),
+      { type: 'show_layout', layout: 'agent' }
+    )
+    expect(landingActions(checkpoint, data(), 'saved').reduce(workspaceReducer, onAgent)).toMatchObject({ layout: 'graph', checkpointOpen: true })
+  })
 })
 
 describe('the show_view action', () => {

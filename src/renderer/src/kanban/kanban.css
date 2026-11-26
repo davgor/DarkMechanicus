@@ -238,3 +238,138 @@
   margin: 0;
   font-size: 16px;
 }
+
+/* DM-943: a sprint learning card's review surface inside the card panel. Every tone is paired with its text. */
+.lc-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lc-status {
+  padding: 10px 12px;
+  border: 1px solid var(--tone, var(--line));
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tone, var(--muted)) 8%, var(--panel));
+  gap: 4px;
+}
+
+.lc-status p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.lc-status.tone-review { --tone: var(--st-review); }
+.lc-status.tone-running { --tone: var(--st-running); }
+.lc-status.tone-failed { --tone: var(--st-failed); }
+.lc-status.tone-accepted { --tone: var(--st-accepted); }
+.lc-status.tone-waiting { --tone: var(--st-waiting); }
+
+.lc-status-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.lc-failure {
+  color: var(--st-failed);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lc-kv .kv-row {
+  grid-template-columns: 76px minmax(0, 1fr);
+  font-size: 12px;
+}
+
+.lc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lc-group-title,
+.lc-draft-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.lc-items,
+.lc-drafts,
+.lc-repos,
+.lc-cites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lc-item,
+.lc-draft,
+.lc-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-size: 12.5px;
+}
+
+.lc-item:focus,
+.lc-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.lc-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lc-id {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.lc-quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--line-strong);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lc-reason,
+.lc-text,
+.lc-cites-label {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lc-disposition {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--tone, var(--line));
+  border-radius: 4px;
+  color: var(--tone, var(--ink-soft));
+  font-size: 11px;
+}
+
+.lc-disposition.is-learning { --tone: var(--st-accepted); }
+.lc-disposition.is-duplicate { --tone: var(--st-ready); }
+.lc-disposition.is-not_reusable { --tone: var(--st-waiting); }
+.lc-disposition.is-missing { --tone: var(--st-failed); }
+
+.lc-repo-name {
+  color: var(--ink);
+  font-weight: 600;
+}

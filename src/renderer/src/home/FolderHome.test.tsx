@@ -58,6 +58,7 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
           calls.reconcile += 1
         }}
         onResolveConflict={() => Promise.resolve()}
+        onOpenLearnings={() => undefined}
         onImportBoard={() => {
           calls.boardImports += 1
           return Promise.resolve<BoardImportView | null>(IMPORTED)

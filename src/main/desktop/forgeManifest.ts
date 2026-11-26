@@ -31,7 +31,41 @@ export function forgeKickoff(member: string): string {
     'The parent forge-world.json lists the other repositories available for this work.'
 }
 
-export function updateForge(root: string, change: (world: ForgeWorld) => void): void {
+/** What Windows answers a rename onto a file another handle holds open (a scan, a reader) for a moment. */
+const RENAME_BUSY: Record<string, true> = { EPERM: true, EACCES: true, EBUSY: true }
+/** Waits after each busy refusal: 300 ms in all. */
+const RENAME_PAUSES_MS = [50, 100, 150]
+
+/**
+ * Renames the written `temp` over `forge-world.json`. A busy refusal is asked again after each of
+ * `RENAME_PAUSES_MS`, after telling `onRetry` its code; any other error, or the last refusal, is thrown as it came,
+ * with the target untouched. This module logs nothing itself: plain Node scripts bundle it, so the main process
+ * passes its logger in.
+ */
+export function replaceForgeFile(temp: string, file: string, onRetry?: (code: string) => void, rename: (from: string, to: string) => void = renameSync): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rename(temp, file)
+      return
+    } catch (error) {
+      const pause = RENAME_PAUSES_MS[attempt], code = (error as NodeJS.ErrnoException).code ?? ''
+      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, code)) throw error
+      noteRetry(onRetry, code)
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pause)
+    }
+  }
+}
+
+/** Tells `onRetry` of a busy rename that is asked again; a failing note never changes the rename's outcome. */
+function noteRetry(onRetry: ((code: string) => void) | undefined, code: string): void {
+  try {
+    onRetry?.(code)
+  } catch {
+    // A failed note must not turn a retry into a failure.
+  }
+}
+
+export function updateForge(root: string, change: (world: ForgeWorld) => void, onRetry?: (code: string) => void): void {
   const file = join(root, FORGE_FILE)
   const lock = file + '.lock'
   writeFileSync(lock, '', { flag: 'wx' })
@@ -40,7 +74,7 @@ export function updateForge(root: string, change: (world: ForgeWorld) => void): 
     const world = parseForge(readFileSync(file, 'utf8'))
     change(world)
     writeFileSync(temp, JSON.stringify(parseForge(JSON.stringify(world)), null, 2) + '\n', { flag: 'wx' })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file, onRetry)
   } finally {
     if (existsSync(temp)) unlinkSync(temp)
     unlinkSync(lock)

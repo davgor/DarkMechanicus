@@ -55,6 +55,8 @@ function rig(): Rig {
     agents: { get: connectedAgents() },
     chats,
     terminals: { start: refuse, paste: refuse },
+    agentChats: { start: refuse, send: refuse, isLive: () => false },
+    plannerAgents: { list: () => [], checkAuth: refuse },
     runs: { getEpic: refuse, queueRun: refuse },
     transfers: { getEpic: refuse, getTransfer: refuse },
     kanban: { play: refuse, kickBack: refuse, branch: refuse },

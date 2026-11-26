@@ -166,7 +166,12 @@ describe('advanceSprint with a human grant', () => {
     agent.clock.advanceSeconds(5)
     const result = advanceSprint(agent, { runId: run.runId })
     const now = '2026-01-01T00:00:05.000Z'
-    expect(result).toEqual({ runId: run.runId, outcome: 'advanced', activeSprintId: sid(2) })
+    expect(result).toEqual({
+      runId: run.runId,
+      outcome: 'advanced',
+      activeSprintId: sid(2),
+      learningCard: expect.objectContaining({ sprintId: sid(1), playPending: true })
+    })
     expect(runRow(agent, run.runId)).toMatchObject({ state: 'running', active_sprint_id: sid(2), revision: 3, updated_at: now })
     expect(approvals(agent)[0]).toMatchObject({ consumed_at: now, consumed_by: agent.session.id })
     expect(checkpointRows(agent)).toEqual([
@@ -180,11 +185,12 @@ describe('advanceSprint with a human grant', () => {
         decided_at: now
       }
     ])
-    expect(eventLog(agent).at(-1)).toMatchObject({
+    expect(eventLog(agent).find((event) => event.kind === 'checkpoint.advanced')).toMatchObject({
       kind: 'checkpoint.advanced',
       payload: { fromSprintId: sid(1), toSprintId: sid(2), policy: 'human', approvalId: approval.id }
     })
-    expect(outboxEntries(agent)).toEqual([{ kind: 'run_history', epic_id: run.epicId, run_id: run.runId }])
+    // DM-937: then the generated learning card's definition and its created and played events.
+    expect(outboxEntries(agent).map((entry) => entry.kind)).toEqual(['run_history', 'kanban_card', 'kanban_event', 'kanban_event'])
   })
 
   it('requires a person to approve and records nothing without it', () => {

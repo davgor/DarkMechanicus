@@ -6,7 +6,7 @@ import type { KanbanCardView } from '../../../shared/domain/kanban'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { OrchestrationHost } from '../epic/orchestration'
+import { fakeOrchestration } from '../epic/__mocks__/fakeOrchestration'
 import { FakeBoard, cardSummary, cardView } from './__mocks__/fixtures'
 import { KanbanBoard } from './KanbanBoard'
 
@@ -38,15 +38,10 @@ beforeEach(() => {
   }
 })
 
-const host: OrchestrationHost = {
+const host = fakeOrchestration({
   agents: [agentView({ kind: 'claude' })],
-  statuses: { claude: SIGNED_IN },
-  chats: [],
-  onChatsChanged: () => Promise.resolve(),
-  onAddAgent: () => undefined,
-  onAgentStatus: () => undefined,
-  onOpenChat: () => undefined
-}
+  statuses: { claude: SIGNED_IN }
+})
 
 function seed(card: KanbanCardView): void {
   cards[card.id] = card

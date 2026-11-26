@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CorrectionProvenance } from '../../../shared/domain/bundle'
 import { runCommand } from '../api/dm'
+import { Icon } from '../components/Icon'
 import { DeleteEpic } from './DeleteEpic'
 import type { HeaderActions, HeaderView } from './headerView'
 import { StatePill } from './StatePill'
 import type { WorkspaceHandle } from './useWorkspace'
 import { saveBlocked } from './validationView'
 
-/** What the stage shows: the plan as a graph or a list, or the epic's Scorecard (live, or immutable once completed). */
+/** What the stage shows: the plan, epic agents, or the epic's Scorecard (live, or immutable once completed). */
 function ViewToggle({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const { layout, scorecardOpen } = ws.state
   return (
@@ -25,6 +26,14 @@ function ViewToggle({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         onClick={() => ws.dispatch({ type: 'show_layout', layout: 'list' })}
       >
         List
+      </button>
+      <button
+        type="button"
+        className="ew-toggle-agent"
+        aria-pressed={!scorecardOpen && layout === 'agent'}
+        onClick={() => ws.dispatch({ type: 'show_layout', layout: 'agent' })}
+      >
+        <Icon name="agent" /><strong>Agent</strong>
       </button>
       <button
         type="button"

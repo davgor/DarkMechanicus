@@ -8,6 +8,7 @@ import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, chatRecord, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
 import type { OrchestrationHost } from '../epic/orchestration'
+import { fakeOrchestration } from '../epic/__mocks__/fakeOrchestration'
 import { FakeBoard, cardSummary, cardView } from './__mocks__/fixtures'
 import { KanbanBoard } from './KanbanBoard'
 
@@ -38,15 +39,12 @@ beforeEach(() => {
 })
 
 function host(chats: ChatRecord[] = []): OrchestrationHost {
-  return {
+  return fakeOrchestration({
     agents: [agentView({ kind: 'claude' })],
     statuses: { claude: SIGNED_IN },
     chats,
-    onChatsChanged: () => Promise.resolve(),
-    onAddAgent: () => undefined,
-    onAgentStatus: () => undefined,
     onOpenChat: (chatId) => opened.push(chatId)
-  }
+  })
 }
 
 /** Puts the card on the board (as its summary) and behind `getKanbanCard` (in full). */

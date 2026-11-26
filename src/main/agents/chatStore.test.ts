@@ -1,9 +1,10 @@
-import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { createIdGenerator } from '../../core/ids'
+import { GRANT_TOKEN_MASK } from '../../core/storedSecrets'
 import { chatItemSchema, type ChatItem } from '../../shared/agents/chat'
 import { createFolderRegistry, type RegistryFs } from '../desktop/folderRegistry'
 import { storeItems } from './__mocks__/chatFixtures'
@@ -120,6 +121,33 @@ function stored(fs: ChatStoreFs, chat: ChatRef, items: readonly ChatItem[]): voi
 
 const NEW_CHAT: NewChat = { folder: REPO, agent: 'claude', model: 'opus', role: 'orchestrator', allowSave: true }
 const AT = '2026-02-01T00:00:00.000Z'
+
+describe('epic binding and chat surface persistence', () => {
+  it('persists both fields at creation and allows a surface change', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat({ ...NEW_CHAT, epicId: 'ep_1', surface: 'gui' })
+    expect(openStore(fs).getChat(chat)).toEqual(chat)
+    expect(chat).toMatchObject({ epicId: 'ep_1', surface: 'gui' })
+    const updated = store.updateChat(chat, { surface: 'terminal' })
+    expect(openStore(fs).getChat(chat)).toEqual(updated)
+    expect(updated).toMatchObject({ epicId: 'ep_1', surface: 'terminal' })
+  })
+
+  it('binds legacy chats once and refuses the entire rebinding patch without a write', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const legacy = store.createChat(NEW_CHAT)
+    expect(openStore(fs).getChat(legacy)).not.toHaveProperty('epicId')
+    expect(openStore(fs).getChat(legacy)).not.toHaveProperty('surface')
+    const bound = store.updateChat(legacy, { epicId: 'ep_1' })
+    expect(openStore(fs).getChat(bound)?.epicId).toBe('ep_1')
+    const before = new Map(fs.files)
+    expect(store.updateChat(bound, { epicId: 'ep_2', surface: 'gui' })).toEqual(bound)
+    expect(fs.files).toEqual(before)
+    expect(openStore(fs).getChat(bound)).toEqual(bound)
+  })
+})
 
 let itemCount = 0
 function userMessage(text: string): ChatItem {
@@ -239,6 +267,46 @@ describe('chat store item replacement', () => {
     const items = openStore(fs).readTranscript(chat)?.items ?? []
     expect(items.map((item) => item.kind)).toEqual(['tool_call', 'user_message'])
     expect(items[0]).toMatchObject({ status: 'completed', resultSummary: '2 files' })
+  })
+})
+
+describe('chat store live appends', () => {
+  it.each([REPO, null])('keeps first-written order and last-value-per-id for folder %s', (folder) => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat({ ...NEW_CHAT, folder })
+    const first = userMessage('first')
+    const second = userMessage('second')
+    store.appendItems(chat, [first, second])
+    store.appendItems(chat, [{ ...first, text: 'updated' } as ChatItem, userMessage('third')])
+
+    const items = openStore(fs).readTranscript(chat)?.items ?? []
+    expect(items.map(item => item.id).slice(0, 2)).toEqual([first.id, second.id])
+    expect(items.map(item => item.kind === 'user_message' ? item.text : item.kind)).toEqual(['updated', 'second', 'third'])
+    expect(fs.readFile(transcriptPath(fs, chat.id)).trim().split('\n')).toHaveLength(4)
+    if (folder === null) expect(transcriptPath(fs, chat.id)).toBe(join(ROOT, 'projectless', `${chat.id}.jsonl`))
+  })
+
+  it('repairs a truncated tail before appending without losing the next item', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat(NEW_CHAT)
+    const first = userMessage('before crash')
+    stored(fs, chat, [first])
+    fs.appendFile(transcriptPath(fs, chat.id), '{"id":')
+    const next = userMessage('after crash')
+    store.appendItems(chat, [next])
+    expect(store.readTranscript(chat)).toMatchObject({ items: [first, next], skipped: 1 })
+  })
+
+  it('rejects unknown chats and leaves an empty append without a transcript', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat(NEW_CHAT)
+    store.appendItems(chat, [])
+    expect([...fs.files.keys()]).toEqual([indexPath(fs)])
+    expect(errorCode(() => store.appendItems({ ...chat, id: 'chat_gone' }, [userMessage('no')]))).toBe('not_found')
+    expect([...fs.files.keys()]).toEqual([indexPath(fs)])
   })
 })
 
@@ -616,6 +684,42 @@ describe('chat store on the real filesystem', () => {
       const reopened = createChatStore({ root })
       expect(reopened.getChat({ folder: join(folder, sep), id: chat.id })).toEqual(chat)
       expect(transcriptTexts(reopened, join(folder, sep), chat.id)).toEqual(['on disk'])
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('live chat transcripts on the real filesystem', () => {
+
+  it.each([true, false])('masks live items on disk and deletes the transcript (projectless: %s)', (projectless) => {
+    const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-chat-append-')))
+    const root = join(base, 'agents', 'chats')
+    try {
+      const store = createChatStore({ root })
+      const chat = store.createChat({ ...NEW_CHAT, folder: projectless ? null : base })
+      const { token, secret } = realShapedToken()
+      const grant = `dmg_${'ab'.repeat(32)}`
+      const item: ChatItem = {
+        id: 'live_call', at: AT, kind: 'tool_call', name: 'Bash', status: 'running',
+        input: { nested: [{ [grant]: token }] }, resultSummary: `${token} ${grant}`
+      }
+      store.appendItems(chat, [userMessage(`${token} ${grant}`), item])
+      const [key = ''] = readdirSync(root)
+      const path = join(root, key, `${chat.id}.jsonl`)
+      const disk = readFileSync(path, 'utf8')
+      expect(disk).not.toContain(token)
+      expect(disk).not.toContain(secret)
+      expect(disk).not.toContain(grant)
+      expect(createChatStore({ root }).readTranscript(chat)?.items).toEqual([
+        expect.objectContaining({ text: `${CLAIM_TOKEN_MASK} ${GRANT_TOKEN_MASK}` }),
+        { ...item, input: { nested: [{ [GRANT_TOKEN_MASK]: CLAIM_TOKEN_MASK }] }, resultSummary: `${CLAIM_TOKEN_MASK} ${GRANT_TOKEN_MASK}` }
+      ])
+      expect(item.input).toEqual({ nested: [{ [grant]: token }] })
+      if (projectless) expect(key).toBe('projectless')
+      store.deleteChat(chat)
+      expect(existsSync(path)).toBe(false)
+      expect(createChatStore({ root }).readTranscript(chat)).toBeNull()
     } finally {
       rmSync(base, { recursive: true, force: true })
     }

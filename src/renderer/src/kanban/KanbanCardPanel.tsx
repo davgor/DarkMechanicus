@@ -17,6 +17,7 @@ import { ReferenceList } from '../ticket/ReferenceList'
 import { EvidenceSections } from '../ticket/panelTabs'
 import { criteriaChecklist, evidenceView } from '../ticket/ticketView'
 import { DeleteCardControl } from './DeleteCardControl'
+import { LearningCardDetails, type StagedDrafts, useStagedDrafts } from './LearningCardDetails'
 import { StartCardDialog } from './StartCardDialog'
 import '../epic/tones.css'
 import '../ticket/ticket.css'
@@ -89,9 +90,10 @@ function canRetry(card: KanbanCardView): boolean {
   return latest?.state === 'failed' || latest?.state === 'lease_expired'
 }
 
-/** The open card, read with `getKanbanCard` when it is opened and again when the folder's events move. */
-function useCard(folderPath: string, cardId: string, refreshToken: number): { card: KanbanCardView | null; error: string | null; setCard(card: KanbanCardView): void } {
+/** The open card, read with `getKanbanCard` when it is opened, when the folder's events move and on `reload()`. */
+function useCard(folderPath: string, cardId: string, refreshToken: number) {
   const [state, setState] = useState<{ cardId: string; card: KanbanCardView | null; error: string | null }>({ cardId, card: null, error: null })
+  const [version, setVersion] = useState(0)
   useEffect(() => {
     let live = true
     runCommand(folderPath, 'getKanbanCard', { cardId }).then(
@@ -105,9 +107,14 @@ function useCard(folderPath: string, cardId: string, refreshToken: number): { ca
     return () => {
       live = false
     }
-  }, [folderPath, cardId, refreshToken])
+  }, [folderPath, cardId, refreshToken, version])
   const current = state.cardId === cardId ? state : { card: null, error: null }
-  return { card: current.card, error: current.error, setCard: (card) => setState({ cardId: card.id, card, error: null }) }
+  return {
+    card: current.card,
+    error: current.error,
+    setCard: (card: KanbanCardView) => setState({ cardId: card.id, card, error: null }),
+    reload: () => setVersion((previous) => previous + 1)
+  }
 }
 
 function DoneSummary({ summary }: { summary: KanbanDoneSummary }): JSX.Element {
@@ -228,10 +235,23 @@ interface ReviewProps {
   card: KanbanCardView
   /** The review went through: the card as it left it, and what kept a kick-back from reaching the agent. */
   onReviewed(card: KanbanCardView, problem: string | null): void
+  /** Learning cards only: the staged drafts the person reviewed, whose hash the approval names. */
+  drafts: StagedDrafts | null
+  /** An approval failed after it may have changed the card (a conflict): read the card again. */
+  onFailed(): void
+}
+
+/** What Approve does: the ordinary approval, or the desktop learning approval of exactly the reviewed drafts. */
+function approval(folderPath: string, card: KanbanCardView, drafts: StagedDrafts | null): (() => Promise<{ card: KanbanCardView; problem: string | null }>) | null {
+  if (drafts === null) return async () => ({ card: await runCommand(folderPath, 'approveKanbanCard', { cardId: card.id }), problem: null })
+  const submitted = card.attempts.at(-1)
+  if (drafts.status !== 'ready' || submitted?.state !== 'submitted' || drafts.staged.attemptId !== submitted.id) return null
+  const request = { cardId: card.id, attemptId: submitted.id, draftsHash: drafts.staged.draftsHash }
+  return async () => ({ card: await unwrapChat(window.dm.approveLearningCard(folderPath, request)), problem: null })
 }
 
 /** The kick-back form: the comment is required, so Send stays disabled until one is typed. */
-function KickBackForm(props: { busy: boolean; onSend(comment: string): void; onCancel(): void }): JSX.Element {
+function KickBackForm(props: { busy: boolean; learning: boolean; onSend(comment: string): void; onCancel(): void }): JSX.Element {
   const [comment, setComment] = useState('')
   const text = comment.trim()
   return (
@@ -240,6 +260,7 @@ function KickBackForm(props: { busy: boolean; onSend(comment: string): void; onC
         <span>Kick-back comment</span>
         <textarea value={comment} rows={3} onChange={(event) => setComment(event.target.value)} />
       </label>
+      {props.learning ? <p className="ew-muted">Kicking back publishes nothing: no learning record becomes active and no target branch changes.</p> : null}
       <div className="tp-row-actions">
         <Button variant="primary" disabled={text === '' || props.busy} busy={props.busy} onClick={() => {
             if (text !== '') props.onSend(text)
@@ -255,10 +276,11 @@ function KickBackForm(props: { busy: boolean; onSend(comment: string): void; onC
 }
 
 /** Approve, or Kick back with a required comment that goes to the card's agent. */
-function ReviewControls({ folderPath, card, onReviewed }: ReviewProps): JSX.Element {
+function ReviewControls({ folderPath, card, onReviewed, drafts, onFailed }: ReviewProps): JSX.Element {
   const [kicking, setKicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const approve = approval(folderPath, card, drafts)
   const perform = async (action: () => Promise<{ card: KanbanCardView; problem: string | null }>): Promise<void> => {
     setBusy(true)
     setError(null)
@@ -267,6 +289,8 @@ function ReviewControls({ folderPath, card, onReviewed }: ReviewProps): JSX.Elem
       onReviewed(result.card, result.problem)
     } catch (failure) {
       setError(errorMessage(failure))
+      // A learning approval may have recorded a conflict before refusing; an ordinary refusal changed nothing.
+      if (drafts !== null) onFailed()
     } finally {
       setBusy(false)
     }
@@ -276,19 +300,23 @@ function ReviewControls({ folderPath, card, onReviewed }: ReviewProps): JSX.Elem
       {kicking ? (
         <KickBackForm
           busy={busy}
+          learning={drafts !== null}
           onSend={(comment) => void perform(() => unwrapChat(window.dm.chats.kickBackKanbanCard({ folder: folderPath, cardId: card.id, comment })))}
           onCancel={() => setKicking(false)}
         />
       ) : (
         <div className="tp-row-actions">
-          <Button variant="primary" busy={busy} disabled={busy} onClick={() => void perform(async () => ({ card: await runCommand(folderPath, 'approveKanbanCard', { cardId: card.id }), problem: null }))}>
-            Approve
+          <Button variant="primary" busy={busy} disabled={busy || approve === null} onClick={() => {
+              if (approve !== null) void perform(approve)
+            }}>
+            {drafts === null ? 'Approve' : 'Approve and publish'}
           </Button>
           <Button disabled={busy} onClick={() => setKicking(true)}>
             Kick back
           </Button>
         </div>
       )}
+      {busy && drafts !== null && !kicking ? <p role="status" className="ew-muted">Integrating each repository, then publishing…</p> : null}
       {error === null ? null : (
         <p role="alert" className="tp-error">
           {error}
@@ -307,14 +335,17 @@ interface CardBodyProps {
   onPlay(): void
   onReviewed(card: KanbanCardView, problem: string | null): void
   onDeleted(): void
+  onReload(): void
 }
 
 /** The loaded card: title, Play or Retry and the chat link, review controls, the Done summary, then the details. */
-function CardBody({ folderPath, folderKey, card, refreshToken, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
+function CardBody({ folderPath, folderKey, card, refreshToken, host, onPlay, onReviewed, onDeleted, onReload }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
     .filter((item) => item.cardId === card.id)
     .reduce<ChatRecord | null>((newest, item) => (newest === null || item.createdAt > newest.createdAt ? item : newest), null)
+  const drafts = useStagedDrafts(folderPath, card, refreshToken)
+  const review = card.learning
   return (
     <>
       <h2 className="kanban-panel-title">{card.title}</h2>
@@ -327,8 +358,11 @@ function CardBody({ folderPath, folderKey, card, refreshToken, host, onPlay, onR
         {chat === null ? null : <Button onClick={() => host.onOpenChat(chat.id)}>Open chat</Button>}
         <DeleteCardControl folderPath={folderPath} card={card} onDeleted={onDeleted} />
       </div>
-      {card.lane === 'ready_for_review' ? <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} /> : null}
+      {card.lane === 'ready_for_review' ? (
+        <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} drafts={review === undefined ? null : drafts} onFailed={onReload} />
+      ) : null}
       {card.summary === null ? null : <DoneSummary summary={card.summary} />}
+      {review === undefined ? null : <LearningCardDetails card={card} review={review} drafts={drafts} />}
       <CardDetails
         folderPath={folderPath}
         folderKey={folderKey}
@@ -362,7 +396,7 @@ function PanelHead({ card, onClose }: { card: KanbanCardView | null; onClose(): 
  * card leads with its compact summary.
  */
 export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, host, onChanged, onClose }: KanbanCardPanelProps): JSX.Element {
-  const { card, error, setCard } = useCard(folderPath, cardId, refreshToken)
+  const { card, error, setCard, reload } = useCard(folderPath, cardId, refreshToken)
   const [playing, setPlaying] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const changed = (next: KanbanCardView, problem: string | null): void => {
@@ -370,7 +404,6 @@ export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, h
     setNotice(problem)
     onChanged()
   }
-  const deleted = (): void => { onChanged(); onClose() }
   return (
     <aside className="kanban-panel" aria-label={card === null ? 'Card' : `${card.key} ${card.title}`}>
       <PanelHead card={card} onClose={onClose} />
@@ -385,7 +418,8 @@ export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, h
           refreshToken={refreshToken}
           onPlay={() => setPlaying(true)}
           onReviewed={changed}
-          onDeleted={deleted}
+          onDeleted={() => { onChanged(); onClose() }}
+          onReload={() => { reload(); onChanged() }}
         />
       ) : error === null ? (
         <p className="kanban-note">Loading the card…</p>

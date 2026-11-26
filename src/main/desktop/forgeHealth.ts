@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { z } from 'zod'
 import { assertForgeWorldSyncAllowed, bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
@@ -10,10 +10,17 @@ import { nodeFs } from '../../core/repo/nodeFs'
 import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { readForgeCheckout, verifyForgeCheckout } from './forgeCheckout'
 import { ensureForgeDirections } from './forgeDirections'
-import type { ForgeGit } from './forgeGit'
-import { FORGE_FILE, githubRemote, parseForge, projectName } from './forgeManifest'
+import type { ForgeGit, WorldCheckout } from './forgeGit'
+import { FORGE_FILE, githubRemote, parseForge, projectName, replaceForgeFile } from './forgeManifest'
 
-interface HealthOptions { git: Pick<ForgeGit, 'run' | 'inspectCheckout'>; home: string }
+interface HealthOptions {
+  git: Pick<ForgeGit, 'run' | 'inspectCheckout'>
+  home: string
+  /** What the sync running this check has just established about the world's repository; checked again when absent. */
+  checked?: WorldCheckout
+  /** Told the code of each busy manifest rename that is asked again (the main process logs it). */
+  onManifestRetry?(code: string): void
+}
 const repairable = z.looseObject({ projects: z.array(z.looseObject({ folder: z.string(), repository: z.string().optional() })) })
 
 function ordinary(path: string, directory: boolean): void {
@@ -37,7 +44,7 @@ async function recoverRepository(root: string, member: string, worldRepository: 
     throw new Error('Forge World repository mapping is missing for ' + member + '. Restore its GitHub repository URL in forge-world.json; no verified local pointer can recover it.')
   }
   const repository = githubRemote((await git.run(checkout, ['remote', 'get-url', 'origin'])).stdout.trim())
-  await verifyForgeCheckout(member, repository, git)
+  await verifyForgeCheckout(member, repository, git, worldRepository)
   return repository
 }
 
@@ -55,7 +62,7 @@ async function checkedWorld(root: string, text: string, repository: string, git:
   return parseForge(JSON.stringify(data))
 }
 
-function saveRepairedManifest(root: string, before: string, world: ForgeWorld): void {
+function saveRepairedManifest(root: string, before: string, world: ForgeWorld, onRetry?: (code: string) => void): void {
   const parsed: unknown = JSON.parse(before)
   if (JSON.stringify(parsed) === JSON.stringify(world)) return
   const file = join(root, FORGE_FILE), lock = file + '.lock', temp = file + '.' + randomUUID()
@@ -63,7 +70,7 @@ function saveRepairedManifest(root: string, before: string, world: ForgeWorld): 
   try {
     if (readFileSync(file, 'utf8') !== before) throw new Error('Forge World manifest changed during its health check. Reopen it to check the new mapping.')
     writeFileSync(temp, JSON.stringify(world, null, 2) + '\n', { flag: 'wx' })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file, onRetry)
   } finally {
     if (existsSync(temp)) unlinkSync(temp)
     unlinkSync(lock)
@@ -78,24 +85,32 @@ function repairCodePointer({ source, member, folder }: { source: string; member:
   bindForge(home, source, member, readFileSync(note, 'utf8'))
 }
 
+/** The world's repository checks no sync has just made: it is the repository's root, its index and HEAD's tree, and its origin. */
+async function checkWorldRepository(root: string, git: HealthOptions['git']): Promise<WorldCheckout> {
+  const gitRoot = (await git.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
+  if (realpathSync.native(gitRoot) !== root) throw new Error('Choose the Forge World Git repository root.')
+  const inspected = new Set<string>()
+  await git.inspectCheckout(root, inspected)
+  return { url: githubRemote((await git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim()), inspected }
+}
+
 /** The one idempotent upgrade/check path for boot, opening, sync and all Forge mutations. */
-export async function ensureForgeWorld(root: string, { git, home }: HealthOptions): Promise<void> {
+export async function ensureForgeWorld(root: string, { git, home, checked, onManifestRetry }: HealthOptions): Promise<WorldCheckout> {
   assertForgeWorldSyncAllowed(nodeFs, home, root)
   ordinary(root, true)
   ordinary(join(root, FORGE_FILE), false)
-  const gitRoot = (await git.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
-  if (realpathSync.native(gitRoot) !== root) throw new Error('Choose the Forge World Git repository root.')
-  await git.inspectCheckout(root)
-  const repository = githubRemote((await git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
+  const checkout = checked ?? await checkWorldRepository(root, git)
+  const repository = checkout.url
   const text = readFileSync(join(root, FORGE_FILE), 'utf8')
   const world = await checkedWorld(root, text, repository, git)
   const checkouts = []
   for (const project of world.projects) {
     const member = join(root, project.folder)
-    const source = await verifyForgeCheckout(member, project.repository, git)
+    const source = await verifyForgeCheckout(member, project.repository, git, repository)
     if (source) checkouts.push({ source, member, folder: project.folder })
   }
-  saveRepairedManifest(root, text, world)
+  saveRepairedManifest(root, text, world, onManifestRetry)
   ensureForgeDirections(root)
   for (const checkout of checkouts) repairCodePointer(checkout, repository, home)
+  return checkout
 }

@@ -222,6 +222,13 @@
   color: var(--ink);
 }
 
+.ew-toggle .ew-toggle-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
 /* Notices, bars and confirmations */
 .ew-notices {
   flex-shrink: 0;

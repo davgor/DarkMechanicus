@@ -1,18 +1,25 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { thrownBy } from '../../test/thrownBy'
+import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
+import { resolveLayout } from '../repo/layout'
+import { ownedPaths } from '../repo/paths'
+import { openWorkspace } from '../workspace'
 import {
   bool,
   DEFAULT_BUSY_TIMEOUT_MS,
   type Db,
+  guardTransactions,
   isBusyError,
   type OpenDatabaseOptions,
   openDatabase,
   parseJson,
-  toJson
+  tagTransactions,
+  toJson,
+  type TransactionHold
 } from './database'
 
 const tempDirs: string[] = []
@@ -607,5 +614,127 @@ describe('writer transactions and explicit read snapshots', () => {
     expect(reader.inTransaction()).toBe(false)
     expect(names(reader)).toEqual(['committed by owner', 'committed during snapshot'])
     expect(() => add(reader, 'read-only writes are forbidden')).toThrow(/readonly/)
+  })
+})
+
+describe('transaction hold observer', () => {
+  it('reports one record per depth-0 write transaction, with its tag and outcome, and none for savepoints or reads', () => {
+    const holds: TransactionHold[] = []
+    const db = open(':memory:', { onTransaction: (hold) => holds.push(hold) })
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, name TEXT)')
+    tagTransactions('reconcile', () => db.tx(() => {
+      add(db, 'outer')
+      db.tx(() => db.tx(() => add(db, 'nested twice')))
+      expect(() => db.tx(() => { throw new Error('inner savepoint fails') })).toThrow('inner savepoint fails')
+    }))
+    tagTransactions('flush', () => expect(() => db.tx(() => { add(db, 'rolled back'); throw new Error('stop') })).toThrow('stop'))
+    db.tx(() => names(db), 'read')
+    db.tx(() => add(db, 'untagged'))
+    expect(holds.map(({ tag, outcome }) => [tag, outcome])).toEqual([['reconcile', 'commit'], ['flush', 'rollback'], [null, 'commit']])
+    for (const hold of holds) {
+      expect(hold.holdMs).toBeGreaterThanOrEqual(0)
+      expect(hold.acquireMs).toBeGreaterThanOrEqual(0)
+    }
+    expect(names(db)).toEqual(['outer', 'nested twice', 'untagged'])
+  })
+
+  it('keeps the tag across awaits and lets an inner scope override an outer one', async () => {
+    const holds: TransactionHold[] = []
+    const db = open(':memory:', { onTransaction: (hold) => holds.push(hold) })
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, name TEXT)')
+    await tagTransactions('command', async () => {
+      await Promise.resolve()
+      db.tx(() => add(db, 'command write'))
+      tagTransactions('flush', () => db.tx(() => add(db, 'flush inside command')))
+    })
+    expect(holds.map(({ tag }) => tag)).toEqual(['command', 'flush'])
+  })
+})
+
+describe('transaction hold observer timing and isolation', () => {
+  it('never changes the transaction when the observer throws', () => {
+    const db = open(':memory:', { onTransaction: () => { throw new Error('observer failure') } })
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, name TEXT)')
+    expect(db.tx(() => { add(db, 'kept'); return 'value' })).toBe('value')
+    const failure = new Error('body failure')
+    expect(() => db.tx(() => { add(db, 'dropped'); throw failure })).toThrow(failure)
+    expect(names(db)).toEqual(['kept'])
+    expect(db.inTransaction()).toBe(false)
+  })
+
+  it('times the write lock hold from BEGIN IMMEDIATE to COMMIT and the wait to acquire it', () => {
+    const holds: TransactionHold[] = []
+    const db = open(':memory:', { onTransaction: (hold) => holds.push(hold) })
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, name TEXT)')
+    const now = vi.spyOn(performance, 'now')
+    now.mockReturnValueOnce(100).mockReturnValueOnce(130).mockReturnValueOnce(380)
+    try {
+      db.tx(() => add(db, 'timed'))
+    } finally {
+      now.mockRestore()
+    }
+    expect(holds).toEqual([{ tag: null, outcome: 'commit', acquireMs: 30, holdMs: 250 }])
+  })
+})
+
+describe('transaction hold observer on a workspace', () => {
+  it('records one hold per depth-0 transaction tagged reconcile or flush for a changed-epic reconcile and a flush', async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-db-observer-')))
+    const home = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-db-observer-home-')))
+    tempDirs.push(root, home)
+    const holds: TransactionHold[] = []
+    const workspace = openWorkspace({
+      repoRoot: root, homeDir: home, role: 'desktop', label: 'Observer check', transport: 'in_process', ...TEST_STORAGE,
+      git: createFakeGit({ branch: 'main', commit: 'a'.repeat(40), detached: false }), onTransaction: (hold) => holds.push(hold)
+    })
+    try {
+      await workspace.initializeRepository({})
+      const epic = await workspace.createEpic({ title: 'Observed epic' })
+      const draft = await workspace.updatePlanDraft({
+        epicId: epic.id, ops: [{ op: 'add_ticket', ref: 'one', sprint: '1', ticket: { title: 'Only ticket' } }]
+      })
+      await workspace.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+      const target = ownedPaths(resolveLayout(root)).epicStateFile(epic.id)
+      const state = JSON.parse(readFileSync(target, 'utf8')) as { title: string; generation: number }
+      writeFileSync(target, JSON.stringify({ ...state, title: 'Observed epic, changed on disk', generation: state.generation + 1 }))
+
+      holds.length = 0
+      const reconciled = await workspace.reconcileRepository()
+      expect(reconciled.imported).toContain(epic.id)
+      // The reconcile command applies the changed epic in its own reconcile transaction, then finishes (conflicts, the
+      // reconciled event, the marker) in one more; it flushes nothing pending.
+      expect(holds.map(({ tag }) => tag)).toEqual(['reconcile', 'reconcile'])
+
+      holds.length = 0
+      await workspace.setEpicStatus({ epicId: epic.id, status: 'in_progress' })
+      // A mutation commits under its command tag, then its post-command flush exports the epic state under flush.
+      expect(holds.map(({ tag }) => tag)).toEqual(['command', 'flush'])
+      expect(holds.every(({ outcome }) => outcome === 'commit')).toBe(true)
+    } finally {
+      workspace.close()
+    }
+  })
+})
+
+describe('guardTransactions', () => {
+  it('checks the guard once per depth-0 transaction, never on a nested savepoint', () => {
+    const db = openWithNotes()
+    let checks = 0
+    const guarded = guardTransactions(db, () => { checks += 1 })
+    guarded.tx(() => {
+      add(guarded, 'outer')
+      guarded.tx(() => guarded.tx(() => add(guarded, 'nested')))
+    })
+    expect(checks).toBe(1)
+    guarded.tx(() => names(guarded), 'read')
+    expect(checks).toBe(2)
+    expect(names(db)).toEqual(['outer', 'nested'])
+  })
+
+  it('refuses a depth-0 transaction the guard rejects, leaving nothing written', () => {
+    const db = openWithNotes()
+    const guarded = guardTransactions(db, () => { throw new Error('storage moved') })
+    expect(() => guarded.tx(() => add(guarded, 'refused'))).toThrow('storage moved')
+    expect(names(db)).toEqual([])
   })
 })

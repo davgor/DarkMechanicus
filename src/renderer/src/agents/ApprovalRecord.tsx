@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { formatCallsign } from '../../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem } from '../../../shared/agents/chat'
 import { classNames } from '../components/classNames'
 import { StatePill } from '../components/StatePill'
@@ -55,11 +56,21 @@ interface ApprovalRecordProps {
 }
 
 /**
+ * Who asked, from the callsign main stamped on the request; a request raised in a thread before callsigns existed
+ * says only that a subagent asked. The thread's own label is the agent's words and is never shown here.
+ */
+function askedBy(request: ApprovalRequestItem): string | null {
+  if (request.callsign !== undefined) return `Asked by ${formatCallsign(request.callsign)}`
+  return request.threadId === undefined ? null : 'Asked by a subagent'
+}
+
+/**
  * An approval request a chat stored before chats became terminals, as a record: what the agent asked to do and
  * the decision stored for it. Nothing here can be answered: the agent that asked is gone.
  */
 export const ApprovalRecord = memo(function ApprovalRecord({ request, answer, folder }: ApprovalRecordProps): JSX.Element {
   const detail = approvalDetail(request, folder)
+  const asker = askedBy(request)
   const view = answer === null ? null : answerView(answer)
   return (
     <article className={classNames('chat-approval-card', 'is-answered')} aria-label={`Approval request: ${detail.heading}`}>
@@ -68,7 +79,7 @@ export const ApprovalRecord = memo(function ApprovalRecord({ request, answer, fo
         {view === null ? <StatePill state="canceled" label="Not answered" /> : <StatePill state={view.state} label={view.label} />}
       </div>
       <p className="chat-approval-title">{detail.heading}</p>
-      {request.threadLabel === undefined ? null : <p className="chat-approval-thread">{`Asked by the subagent: ${request.threadLabel}`}</p>}
+      {asker === null ? null : <p className="chat-approval-thread">{asker}</p>}
       <Details detail={detail} />
       {view?.detail == null ? null : <p className="chat-approval-answer-detail">{view.detail}</p>}
     </article>

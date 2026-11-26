@@ -47,7 +47,7 @@ const SECRET_WORDS: Record<string, true> = {
 const SECRET_WORD_PAIRS: Record<string, true> = { 'api key': true, 'private key': true, 'access key': true, 'signing key': true }
 
 /** A grant token (`dmg_` and 64 hex characters, `services/grants.ts`), or 16 or more of them cut short. */
-const GRANT_TOKEN = /dmg_[0-9a-f]{16,}/gi
+export const GRANT_TOKEN = /dmg_[0-9a-f]{16,}/gi
 
 export const GRANT_TOKEN_MASK = '[grant token masked]'
 

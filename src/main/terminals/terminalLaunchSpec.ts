@@ -317,7 +317,8 @@ type ProgramInput = Pick<TerminalLaunchInput, 'env' | 'platform' | 'shimFs'> & {
 function windowsProgram(input: ProgramInput): Program {
   const shimFs = input.shimFs ?? nodeShimFs
   const { executablePath } = input.agent
-  const path = input.agent.kind === 'claude' ? resolveClaudeExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
+  const path = input.agent.kind === 'claude' || input.agent.kind === 'omp'
+    ? resolveClaudeExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
   if (path !== executablePath && path.toLowerCase().endsWith('.js')) {
     return { file: shimNode(executablePath, input.env, shimFs), leading: [path], viaShim: false }
   }
@@ -326,6 +327,16 @@ function windowsProgram(input: ProgramInput): Program {
     throw new DomainError('invalid_input', 'That file is not a program Windows can run (.exe or .cmd).')
   }
   return { file: path, leading: [], viaShim: kind === 'shim' }
+}
+
+/** The shell-free program shared by terminal, GUI and arbiter launches. Callers must refuse `viaShim` for stdio. */
+export function windowsAgentProgram(
+  agent: ProgramInput['agent'],
+  env: ProgramInput['env'],
+  platform: NodeJS.Platform,
+  shimFs?: ShimFs
+): Program {
+  return platform === 'win32' ? windowsProgram({ agent, env, platform, shimFs }) : { file: agent.executablePath, leading: [], viaShim: false }
 }
 
 /** The chat's model as it may go on a command line: null when there is none, or when it fails the check. */
@@ -388,7 +399,7 @@ function literalPopupPaste(input: TerminalLaunchInput): string | null {
 }
 
 /** The chat's instructions, for a CLI that takes them as text: the same text `writeTerminalFiles` wrote. */
-function instructionsTextFor(input: TerminalLaunchInput, launcherDir: string | null): string {
+export function instructionsTextFor(input: Pick<TerminalLaunchInput, 'chat' | 'cli' | 'reach'>, launcherDir: string | null): string {
   const { chat } = input
   return terminalInstructions({
     cli: input.cli,
@@ -431,7 +442,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
   const env = envFor(input, launcherDir)
-  const program: Program = platform === 'win32' ? windowsProgram(input) : { file: agent.executablePath, leading: [], viaShim: false }
+  const program = windowsAgentProgram(agent, input.env, platform, input.shimFs)
   const dropped: DroppedValue[] = []
   const model = checkedModel(input, dropped)
   const sessionId = checkedSessionId(input, dropped)

@@ -38,6 +38,7 @@ async function openEditor(): Promise<{ backend: FakeBackend; editor: HTMLElement
   backend.handlers.uploadAttachment = (input) => ({ id: 'im_00000000000000000000000009', label: (input as { label: string }).label })
   renderWorkspace(backend)
   fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+  await screen.findByText('DRAFT REV 5 · UNSAVED')
   fireEvent.click(await screen.findByText('Transactional bundle import'))
   return { backend, editor: await screen.findByLabelText('Edit ticket DM-202') }
 }

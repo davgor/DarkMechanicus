@@ -286,6 +286,8 @@ it('finishes an ours-only resolved merge even when its staged tree is unchanged,
   const remote = gitIn(second, 'rev-parse', 'HEAD').trim()
   writeFileSync(join(first, 'README.md'), 'Local\n')
   await expect(client.sync(first, async () => undefined)).rejects.toThrow()
+  // The conflict stays staged: a sync refuses it before staging anything over it.
+  await expect(client.sync(first, async () => undefined)).rejects.toThrow('unresolved merge')
   gitIn(first, 'checkout', '--ours', 'README.md')
   gitIn(first, 'add', 'README.md')
   expect(gitIn(first, 'diff', '--cached', '--name-only')).toBe('')
@@ -293,4 +295,22 @@ it('finishes an ours-only resolved merge even when its staged tree is unchanged,
   expect(gitIn(first, 'merge-base', '--is-ancestor', remote, 'main')).toBe('')
   expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(gitIn(first, 'rev-parse', 'HEAD').trim())
   expect(gitIn(bare, 'show', 'main:README.md')).toBe('Local\n')
+})
+
+it('inspects each commit tree once in a sync that commits and merges', async () => {
+  const { first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  const published = gitIn(first, 'rev-parse', 'HEAD').trim()
+  writeFileSync(join(first, 'README.md'), 'Next\n')
+  const trees: string[] = []
+  const counting = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: request => {
+      if (request.args.includes('ls-tree')) trees.push(request.args.at(-1) ?? '')
+      return runner.run(request)
+    }
+  })
+  await counting.sync(first, async () => undefined)
+  const committed = gitIn(first, 'rev-parse', 'HEAD').trim()
+  expect(trees).toEqual([published, committed])
 })

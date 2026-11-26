@@ -157,3 +157,48 @@ it('opens chats of a Forge root without a project database', () => {
   const chat = chatRecord({ id: 'chat_world', folder: world.path })
   expect(chooseView({ loaded: true, folder: world, epicId: null, chatId: chat.id, chats: [chat] })).toEqual({ kind: 'chat', folder: world, chat })
 })
+
+describe('DM-828 c2: the Settings view', () => {
+  it('wins over the folder view, its epic, board and dashboard, and shows with no folder', () => {
+    const pane = { kind: 'settings' } as const
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane })).toEqual({ kind: 'settings' })
+    expect(chooseView({ loaded: true, folder: ready, epicId: 'ep_1', kanban: true, metrics: true, agentPane: pane }).kind).toBe('settings')
+    expect(chooseView({ loaded: true, folder: null, epicId: null, agentPane: pane }).kind).toBe('settings')
+  })
+
+  it('waits for the folders like every other view', () => {
+    expect(chooseView({ loaded: false, folder: null, epicId: null, agentPane: { kind: 'settings' } }).kind).toBe('loading')
+  })
+})
+
+describe('DM-946: the Learnings view', () => {
+  it('shows the folder’s learnings with the open learning, if any', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, learnings: true, learningId: 'lr_1' })).toEqual({ kind: 'learnings', folder: ready, learningId: 'lr_1' })
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, learnings: true })).toEqual({ kind: 'learnings', folder: ready, learningId: null })
+  })
+
+  it('yields to an epic, the board, the dashboard and an agents screen', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: 'ep_1', learnings: true }).kind).toBe('epic')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, kanban: true, learnings: true }).kind).toBe('kanban')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, metrics: true, learnings: true }).kind).toBe('metrics')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, learnings: true, agentPane: { kind: 'add' } }).kind).toBe('add-agent')
+  })
+})
+
+describe('chooseView with a project-less chat', () => {
+  const summoned = chatRecord({ id: 'chat_free', folder: null })
+  const open = { loaded: true, folder: ready, epicId: null, agentPane: { kind: 'chat', chatId: 'chat_free' } } as const
+
+  it('shows the chat over the folder once project-less chats are listed', () => {
+    expect(chooseView({ ...open, projectless: [summoned] })).toEqual({ kind: 'projectless-chat', chat: summoned })
+  })
+
+  it('shows loading while the project-less chats are still being listed', () => {
+    expect(chooseView({ ...open, projectless: null })).toEqual({ kind: 'loading', what: 'chat' })
+    expect(chooseView(open)).toEqual({ kind: 'loading', what: 'chat' })
+  })
+
+  it('falls back to the folder page when the chat is gone', () => {
+    expect(chooseView({ ...open, projectless: [chatRecord({ id: 'chat_other', folder: null })] })).toEqual({ kind: 'folder', folder: ready, tab: 'source' })
+  })
+})

@@ -1,5 +1,25 @@
 # Chats as terminal shells
 
+## Superseded in part (2026-11-20)
+
+**The person's direction (2026-11-20).** Chats are GUI chats again, each driven by the agent CLI's own structured mode: Skitarii (OMP) with `--mode rpc-ui`, Claude Code with `-p` and stream-json (`buildAgentChatLaunch`, `src/main/agentChat/agentChatLaunch.ts`). No vendor SDK and no per-vendor adapter layer comes back: main runs the person's CLI as one process per chat (`agentProcess.ts`) and reads its own wire protocol (`claudeProtocol.ts`, `ompProtocol.ts`). Every GUI chat keeps a **Terminal** toggle, and a supported terminal chat offers **GUI**. A new chat of a GUI-capable agent starts on the GUI (`createChat` in `src/main/agents/chatRecords.ts` stores `surface: 'gui'`); Codex, Cursor, Autonomous, custom CLIs and Forge setup chats stay terminal-only. What the rest of this document says about terminals stays true for the terminal surface; what it says about removing streaming, approvals and transcripts is superseded for GUI chats.
+
+**Terminal-chat rules that still hold, on both surfaces:**
+
+- **Folder pinning.** Every GUI start resolves the chat's folder with `resolveLaunchFolder` before anything is issued, as a terminal start does.
+- **Grants.** A GUI chat gets the same `dm` grant at its role, issued per start and revoked when its process ends; the grant stays in the environment, never on the command line.
+- **Quit hold.** Quit waits for both owners (`wireAgentChats` in `agentChatWiring.ts`: `busy` and `dispose` cover the terminals and the GUI processes), inside the 5-second bound of `quitDisposal.ts`.
+- **No idle stop.** A GUI process, like a PTY, runs until its CLI exits or main stops it.
+- **One owner at a time.** A chat runs either a PTY or a GUI process, never both: each owner refuses to start while the other is live.
+
+**Claude's workspace trust dialog.** A Claude GUI (`-p`) chat skips Claude Code's workspace trust dialog, so tracking a folder in Dark Mechanicus is the trust decision for GUI chats. Track only folders whose repository settings, hooks and `CLAUDE.md` you trust.
+
+**Claude's memory guard in GUI mode is unverified.** GUI and terminal starts write the same settings file (`writeClaudeSettings`, with `autoMemoryDirectory` and the `PreToolUse` hook). The `proto` investigation could not run Claude on the execution host, so it never observed the hook firing under `-p` ([`agent-chat-protocols.md`](../reports/agent-chat-protocols.md), optional probe 2). Settings parity is not runtime proof: treat the memory guard as unverified in GUI mode.
+
+**The one sanctioned headless Claude use without a session.** The Magos arbiter (`src/main/magos/arbiterLaunch.ts`) runs Claude as `-p --output-format json --no-session-persistence --tools "" --strict-mcp-config --safe-mode` with a fixed system prompt. It runs in a fresh empty temp folder made for that one decision, with no grant, and decides only allow once, deny or escalate. No other launch uses `--tools ""`.
+
+**Switching surfaces.** GUI to terminal is refused while a turn runs, a message is queued or a prompt waits (`busy`). Terminal to GUI with a live terminal needs the person's explicit native confirmation, **Stop terminal and switch**; Cancel is the default and leaves the terminal running. The app never infers that a terminal is idle. Details: [`architecture.md`](../architecture.md#gui-chats-srcmainagentchat) and the [runbook](../runbooks/agents.md#switching-between-gui-and-terminal).
+
 Design spike for DM-302 ("Design chats as terminal shells that run the agent CLI directly"), epic "Agent CLIs", sprint 3. It answers the ticket's five questions, says what the prototype showed, and ends with the build tickets.
 
 **The person's direction (2026-10-30).** Turn chats into shells, so the person works with the agent CLI directly. The protocol adapters (ACP, Codex app-server, Claude Code SDK) sit in the middle and make chats inflexible. The terminal lives **inside the app's main window**, in the place of the chat view, not in a separate window.
@@ -15,6 +35,16 @@ Design spike for DM-302 ("Design chats as terminal shells that run the agent CLI
 | 3. Carry-over | Folder pinning, grant, instructions, per-folder default, quit disposal: kept, moved to CLI flags and environment. Approvals, sign-in prompts and model switching: left to the CLI. Resume: the CLI's own (`claude --session-id`/`--resume`, `a8s resume`, `codex resume`). Transcripts: the app stops storing them; old ones stay readable. |
 | 4. Adapters | Removed: no streaming, approvals, transcript mapping or protocol handshake is left. What survives is not an adapter: a per-kind table of CLI flags. |
 | 5. Testing | Pure launch-spec and IPC-validation unit tests; a fake `PtyHost` for lifecycle; a real PTY test with a fixture CLI under system Node; end to end on the built app over CDP on macOS and Windows. |
+
+### Structured GUI launch (DM-774)
+
+`src/main/agentChat/agentChatLaunch.ts` builds a shell-free argv launch for Claude (`-p`, stream-json, forwarded subagent text and stdio permissions) or Skitarii (`--mode rpc-ui`). Main supplies the canonical folder, registered agent, grant invocation, prepared `TerminalFiles` as `paths`, environment and platform. Before calling, main resolves Claude's `sessionStarted` with `claudeSessionExists`; for OMP it reads `ompSessionId(paths.omp.sessionDir)` into `chat.sessionId` and derives `sessionStarted` from that result. These facts are never accepted from the renderer. A fresh Claude UUID is supplied through `newSessionId`; OMP creates its own id. Kickoff text is returned as `firstMessage`, never added to argv.
+
+GUI and terminal starts share `writeTerminalFiles`/`instructionsTextFor`, `writeClaudeSettings` (including the identical memory-guard hook), `terminalEnv` and `windowsAgentProgram`. Headless environments remove inherited `TERM`/`COLORTERM` in every case and keep the grant env-only. Windows npm Claude shims resolve to `node.exe` plus the script; unresolved shell shims are refused. The launch builder does not spawn or write files. Hook execution in Claude `-p` mode remains unverified here; settings parity is not runtime hook proof.
+
+Claude `-p` skips its workspace trust dialog: tracking a folder in Dark Mechanicus is the trust decision for GUI launches. When no agent is explicitly selected, `pickChatAgent` chooses installed, signed-in Skitarii, then another signed-in GUI-capable agent, then a signed-in terminal-only agent; otherwise callers retain the sign-in path.
+
+Ordinary folder and project-less chats render their stored `surface`: `gui` uses `AgentChat`; terminal and legacy records use `TerminalPane`. Supported terminal agents offer **GUI** in the header, and GUI offers **Terminal** while idle. Both request the typed main-owned surface transition and wait for the updated chat record push; busy or unsupported refusals remain inline without replacing the pane. New chat uses the shared signed-in picker unless the person has explicitly selected a connected folder default or chooses another agent.
 
 ## What the app does today
 

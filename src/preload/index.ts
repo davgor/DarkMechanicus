@@ -7,9 +7,12 @@ import {
   type ChatPushEvent,
   type ChatsApi
 } from '../shared/agents/chatApi'
+import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
+import { SETTINGS_CHANNELS, type SettingsApi } from '../shared/desktop/notificationSettings'
+import { NOTIFICATION_CHANNELS, navigateTargetSchema, type NotificationsApi } from '../shared/desktop/notifications'
 import type { SourceCheckoutApi } from '../shared/desktop/sourceCheckout'
 import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL, type GithubAccountView, type GithubApi } from '../shared/github/api'
@@ -59,6 +62,7 @@ const chats: ChatsApi = {
   create: (request) => ipcRenderer.invoke('chats:create', request),
   startOrchestrator: (request) => ipcRenderer.invoke('chats:startOrchestrator', request),
   startTransferChat: (request) => ipcRenderer.invoke('chats:startTransferChat', request),
+  startPlanner: (request) => ipcRenderer.invoke('chats:startPlanner', request),
   startKanbanCard: (request) => ipcRenderer.invoke('chats:startKanbanCard', request),
   kickBackKanbanCard: (request) => ipcRenderer.invoke('chats:kickBackKanbanCard', request),
   sendConversationMessage: (request) => ipcRenderer.invoke('chats:sendConversationMessage', request),
@@ -80,6 +84,24 @@ const chats: ChatsApi = {
   mail
 }
 
+const agentChat: AgentChatApi = {
+  start: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.start, request),
+  send: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.send, request),
+  interrupt: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.interrupt, request),
+  answer: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.answer, request),
+  setSurface: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setSurface, request),
+  snapshot: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.snapshot, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown): void => {
+      const parsed = agentChatEventSchema.safeParse(event)
+      if (parsed.success) listener(parsed.data)
+    }
+    ipcRenderer.on(AGENT_CHAT_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(AGENT_CHAT_CHANNELS.event, handler)
+  },
+  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request)
+}
+
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
 const sourceCheckout: SourceCheckoutApi = {
   get: () => ipcRenderer.invoke('sourceCheckout:get'),
@@ -98,12 +120,32 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
   collectResults: (folder, key) => ipcRenderer.invoke('corrections:collectCrossRepo', folder, key)
 }
 
+/** The notification and approval settings: main validates `next` and asks the person to confirm a loosening change. */
+const settings: SettingsApi = {
+  getNotifications: () => ipcRenderer.invoke(SETTINGS_CHANNELS.getNotifications),
+  setNotifications: (next) => ipcRenderer.invoke(SETTINGS_CHANNELS.setNotifications, next)
+}
+
+/** OS notifications: `raise` sends ids only (main reads every title); a navigate push that is not a valid target is dropped. */
+const notifications: NotificationsApi = {
+  raise: (request) => ipcRenderer.invoke(NOTIFICATION_CHANNELS.raise, request),
+  onNavigate: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, target: unknown): void => {
+      const parsed = navigateTargetSchema.safeParse(target)
+      if (parsed.success) listener(parsed.data)
+    }
+    ipcRenderer.on(NOTIFICATION_CHANNELS.navigate, handler)
+    return () => ipcRenderer.removeListener(NOTIFICATION_CHANNELS.navigate, handler)
+  }
+}
+
 /**
  * The narrow desktop bridge: every method is one `dm:*`, `agents:*` or `knowledge:*` IPC invoke; main validates each payload.
  * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal;
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
+  agentChat,
   forgeSetup: {
     provision: (input, operationId) => ipcRenderer.invoke('forgeSetup:provision', input, operationId),
     provisioning: () => ipcRenderer.invoke('forgeSetup:provisioning'),
@@ -137,6 +179,7 @@ const dm: DmApi = {
   terminals: createTerminalsApi(ipcRenderer),
   sourceCheckout,
   crossRepoCorrections,
+  settings,
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
   onFoldersChanged: (receive) => {
     const handler = (): void => receive()
@@ -147,6 +190,7 @@ const dm: DmApi = {
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),
   openTrackedFolder: (folder, expectedPath) => ipcRenderer.invoke('dm:openTrackedFolder', folder, expectedPath),
   command: (folder, name, input) => ipcRenderer.invoke('dm:command', folder, name, input),
+  approveLearningCard: (folder, input) => ipcRenderer.invoke('dm:approveLearningCard', folder, input),
   getMcpConfig: (folder) => ipcRenderer.invoke('dm:getMcpConfig', folder),
   installSkills: (folder) => ipcRenderer.invoke('dm:installSkills', folder),
   connectClaudeCode: (folder, request) => ipcRenderer.invoke('dm:connectClaudeCode', folder, request),
@@ -174,7 +218,8 @@ const dm: DmApi = {
   setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request),
   knowledgeStatus: (folder) => ipcRenderer.invoke('knowledge:status', folder),
   chooseKnowledgeRepository: () => ipcRenderer.invoke('knowledge:choose-repository'),
-  clearKnowledgeRepository: () => ipcRenderer.invoke('knowledge:clear-repository')
+  clearKnowledgeRepository: () => ipcRenderer.invoke('knowledge:clear-repository'),
+  notifications
 }
 
 contextBridge.exposeInMainWorld('dm', dm)

@@ -1,4 +1,5 @@
 /** Scoped knowledge an agent asks for at a workflow event (`getContext`). */
+import type { LearningContextView } from './learnings'
 
 /** The layer a fact came from; a higher layer overrides a lower one with the same id. */
 type ContextLayer = 'builtin' | 'overall' | 'repo'
@@ -31,6 +32,11 @@ interface KnowledgeContextView {
   budgetTokens: number
   /** Fact files that could not be read, with the reason. */
   diagnostics: { layer: ContextLayer; path: string; message: string }[]
+  /**
+   * DM-936: the active published learnings matching the session's role, the event and the paths, within their own
+   * budget beside the facts'; present only when at least one learning matched. Guidance only: never a grant.
+   */
+  learnings?: LearningContextView
 }
 
 /** A state-changing command's result, with the pushed knowledge for an orchestrator session. */

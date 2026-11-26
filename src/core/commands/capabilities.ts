@@ -168,5 +168,10 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   sendAgentMessage: 'mail.use',
   readAgentInbox: 'mail.use',
   acknowledgeAgentMessages: 'mail.use',
-  getAgentMailStatus: 'mail.use'
+  getAgentMailStatus: 'mail.use',
+  listLearnings: 'read',
+  getLearning: 'read',
+  getStagedLearningDrafts: 'read',
+  retireLearning: 'learning.manage',
+  replaceLearning: 'learning.manage'
 }

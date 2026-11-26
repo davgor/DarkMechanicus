@@ -1,7 +1,25 @@
 import { app, BrowserWindow, type IpcMain } from 'electron'
+import { join } from 'node:path'
 import { autoUpdater } from 'electron-updater'
 import type { AutoUpdatePhase, AutoUpdateState } from '../shared/autoUpdate/types'
 import { logger } from './logger'
+import {
+  appBundlePathFromExecPath,
+  discardStagedMacUpdate,
+  downloadAndStageMacUpdate,
+  canReplaceBundle,
+  isInstallableLocation,
+  startInstallHelper,
+  sweepStaleMacUpdates,
+  type StagedMacUpdate
+} from './macUpdate'
+
+const isMac = (): boolean => process.platform === 'darwin'
+
+/** Staged macOS update waiting for "Restart now". Set only after the DMG is verified and unpacked. */
+let stagedMacUpdate: StagedMacUpdate | undefined
+/** Latched on the first "Restart now" so a second click cannot start a competing install. */
+let macInstallStarted = false
 
 /** Delay before the first update check after launch. */
 export const INITIAL_CHECK_DELAY_MS = 8_000
@@ -59,21 +77,107 @@ export function isAutoUpdateEnabled(): boolean {
   return app.isPackaged && process.env['DISABLE_AUTO_UPDATE'] !== '1'
 }
 
+let beforeInstall: (() => void) | undefined
+
+/**
+ * Registers what runs synchronously when Restart now installs an update, before the app quits. A plain quit, which
+ * installs a downloaded update through `autoInstallOnAppQuit`, never runs it.
+ */
+export function setBeforeInstall(hook: () => void): void {
+  beforeInstall = hook
+}
+
+function runBeforeInstall(): void {
+  try {
+    beforeInstall?.()
+  } catch (error) {
+    logger.error('The before-install hook failed; installing anyway:', error)
+  }
+}
+
 export function quitAndInstallUpdate(): void {
-  autoUpdater.quitAndInstall(true, true)
+  if (!isMac()) {
+    runBeforeInstall()
+    autoUpdater.quitAndInstall(true, true)
+    return
+  }
+  if (macInstallStarted) {
+    return
+  }
+  const targetApp = appBundlePathFromExecPath(process.execPath)
+  if (!stagedMacUpdate || !targetApp) {
+    throw new Error('No staged update to install from this build')
+  }
+  if (!isInstallableLocation(targetApp)) {
+    throw new Error(`Cannot update an app running from ${targetApp}; move it to Applications first`)
+  }
+  if (!canReplaceBundle(targetApp)) {
+    throw new Error(`Cannot replace ${targetApp}: its folder is not writable by this user`)
+  }
+  macInstallStarted = true
+  runBeforeInstall()
+  try {
+    startInstallHelper(stagedMacUpdate, targetApp, process.pid)
+  } catch (error: unknown) {
+    macInstallStarted = false
+    throw error
+  }
+  app.quit()
+}
+
+/**
+ * macOS: reads `latest-mac.yml` through electron-updater (autoDownload is off there), then fetches
+ * and verifies the DMG ourselves instead of letting electron-updater install it.
+ */
+async function checkMacUpdate(): Promise<void> {
+  const result = await autoUpdater.checkForUpdates()
+  // A restart clicked while this check was waiting on the network must not discard its staged app.
+  if (macInstallStarted || !result?.isUpdateAvailable) {
+    return
+  }
+  const { version, files } = result.updateInfo
+  if (state.phase === 'downloaded' && version === state.availableVersion) {
+    return
+  }
+
+  if (stagedMacUpdate) {
+    discardStagedMacUpdate(stagedMacUpdate)
+    stagedMacUpdate = undefined
+  }
+  setState({ phase: 'downloading', availableVersion: version, downloadPercent: 0, message: undefined })
+  const staged = await downloadAndStageMacUpdate({
+    version,
+    files,
+    arch: process.arch,
+    stagingRoot: join(app.getPath('userData'), 'updates'),
+    onProgress: (percent) => {
+      setState({ phase: 'downloading', downloadPercent: percent })
+    }
+  })
+  stagedMacUpdate = staged
+  setState({
+    phase: 'downloaded',
+    availableVersion: version,
+    downloadPercent: 100,
+    message: formatUpdateReadyMessage(version)
+  })
 }
 
 export async function checkForUpdatesNow(): Promise<void> {
   if (!isAutoUpdateEnabled()) {
     return
   }
-  if (checkInFlight || !canStartUpdateCheck(state.phase)) {
+  if (checkInFlight || macInstallStarted || !canStartUpdateCheck(state.phase)) {
     return
   }
 
   checkInFlight = true
   try {
-    await autoUpdater.checkForUpdates()
+    if (isMac()) {
+      await checkMacUpdate()
+    } else {
+      await autoUpdater.checkForUpdates()
+    }
   } catch (error: unknown) {
     logger.error('Auto-update check failed:', error)
     reportUpdateError(error instanceof Error ? error.message : 'Update check failed')
@@ -164,8 +268,13 @@ export function initAutoUpdate(): void {
   }
 
   autoUpdater.logger = logger
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  // macOS downloads and installs through checkMacUpdate; electron-updater must not fetch on its own.
+  autoUpdater.autoDownload = !isMac()
+  autoUpdater.autoInstallOnAppQuit = !isMac()
+  if (isMac()) {
+    // Staged copies from earlier sessions are never installed (nothing restarts into them), so remove them.
+    sweepStaleMacUpdates(join(app.getPath('userData'), 'updates'))
+  }
   wireAutoUpdaterEvents()
   scheduleUpdateChecks()
 }

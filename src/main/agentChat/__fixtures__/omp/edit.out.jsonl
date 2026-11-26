@@ -1,0 +1,14 @@
+{"type":"response","command":"prompt","id":"req_T1_prompt","success":true}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"tool_execution_start","toolCallId":"call_T1_edit","toolName":"edit","args":{"path":"C:/fixture/repo/a.txt","old_text":"alpha","new_text":"beta"}}
+{"type":"tool_execution_update","toolCallId":"call_T1_edit","toolName":"edit","args":{"path":"C:/fixture/repo/a.txt","old_text":"alpha","new_text":"beta"},"partialResult":{"content":[{"type":"text","text":"U"}],"details":{}}}
+{"type":"tool_execution_end","toolCallId":"call_T1_edit","toolName":"edit","result":{"content":[{"type":"text","text":"Updated"}],"details":{}},"isError":false}
+{"type":"tool_execution_start","toolCallId":"call_T1_write","toolName":"write","args":{"path":"C:/fixture/repo/b.txt","content":"beta"}}
+{"type":"tool_execution_update","toolCallId":"call_T1_write","toolName":"write","args":{"path":"C:/fixture/repo/b.txt","content":"beta"},"partialResult":{"content":[{"type":"text","text":"W"}],"details":{}}}
+{"type":"tool_execution_end","toolCallId":"call_T1_write","toolName":"write","result":{"content":[{"type":"text","text":"Written"}],"details":{}},"isError":false}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Done"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Done"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"},"toolResults":[]}
+{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"Done"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}]}
+{"type":"prompt_result","id":"req_T1_prompt","agentInvoked":true,"status":"completed"}

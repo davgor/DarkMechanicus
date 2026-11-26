@@ -246,7 +246,7 @@ describe('Run bar: who orchestrates', () => {
   const orchestrator = chatRecord({ id: 'chat_9', agent: 'claude', title: 'Orchestrator · Planning vertical slice', runId: 'rn_2' })
   const bystander = chatRecord({ id: 'chat_3', title: 'Plan the next epic' })
 
-  it('links the chat orchestrating the active run, found by the run id recorded on it', async () => {
+  it('links the chat orchestrating the active run, found by the run id recorded on it, into the Agent tab', async () => {
     const host = fakeOrchestration({ chats: [bystander, orchestrator] })
     renderWorkspace(new FakeBackend(scenario({ run: runView({ state: 'queued', activeSprintOrdinal: null }) })), { orchestration: host })
 
@@ -254,7 +254,10 @@ describe('Run bar: who orchestrates', () => {
     expect(within(bar).getByText('Orchestrated by Claude Code in')).toBeTruthy()
     fireEvent.click(within(bar).getByRole('button', { name: 'Orchestrator · Planning vertical slice' }))
 
-    expect(host.openedChats).toEqual(['chat_9'])
+    expect(host.openedChats).toEqual([])
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('true')
+    const tree = within(screen.getByRole('complementary', { name: 'Epic agents' }))
+    expect((await tree.findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
     expect(within(bar).queryByText(/Waiting for an orchestrator/)).toBeNull()
   })
 

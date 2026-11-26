@@ -32,6 +32,8 @@ interface FolderHomeProps {
   onResolveConflict(epicId: string, keep: EpicConflictChoice): Promise<void>
   /** Imports the folder's old-style board; resolves with the result, or null once a failure was reported. */
   onImportBoard(): Promise<BoardImportView | null>
+  /** Opens the folder's Learnings (Knowledge → Learnings). */
+  onOpenLearnings(): void
 }
 
 /**
@@ -61,7 +63,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
       />
       <McpCard folder={folder} status={props.status} />
       <DefaultAgentCard folder={folder} agents={props.agents} />
-      <KnowledgeCard folder={folder} />
+      <KnowledgeCard folder={folder} onOpenLearnings={props.onOpenLearnings} />
       <GrantsCard folder={folder} />
       <BranchEpics folder={folder} />
     </div>
