@@ -152,20 +152,20 @@ describe('useEventFeed failures', () => {
   })
 })
 
+const RUN = 'rn_0000000000000000000000000a'
+const SPRINT_1 = 'sp_0000000000000000000000000a'
+const SPRINT_2 = 'sp_0000000000000000000000000b'
+
+/** Shaped like the event `submitSprintReport` appends (src/core/services/reports.ts). */
+function reportSubmitted(path: string, sprintId: string, reportRevision: number): void {
+  logFor(path).append({ kind: 'report.submitted', epicId: EPIC_A, runId: RUN, payload: { sprintId, reportRevision } })
+}
+
+function runFailed(path: string, runId = RUN): void {
+  logFor(path).append({ kind: 'run.failed', epicId: EPIC_A, runId, payload: { reason: 'ticket failed', canceledAttempts: [] } })
+}
+
 describe('useEventFeed notifications', () => {
-  const RUN = 'rn_0000000000000000000000000a'
-  const SPRINT_1 = 'sp_0000000000000000000000000a'
-  const SPRINT_2 = 'sp_0000000000000000000000000b'
-
-  /** Shaped like the event `submitSprintReport` appends (src/core/services/reports.ts). */
-  function reportSubmitted(path: string, sprintId: string, reportRevision: number): void {
-    logFor(path).append({ kind: 'report.submitted', epicId: EPIC_A, runId: RUN, payload: { sprintId, reportRevision } })
-  }
-
-  function runFailed(path: string, runId = RUN): void {
-    logFor(path).append({ kind: 'run.failed', epicId: EPIC_A, runId, payload: { reason: 'ticket failed', canceledAttempts: [] } })
-  }
-
   it('raises nothing for the events before the baseline', async () => {
     reportSubmitted('/a', SPRINT_1, 1)
     runFailed('/a')
@@ -198,7 +198,9 @@ describe('useEventFeed notifications', () => {
       { folder: '/a', kind: 'checkpoint_ready', epicId: EPIC_A, runId: RUN }
     ])
   })
+})
 
+describe('useEventFeed notification dedupe and failures', () => {
   it('does not repeat a notification when a re-created poller refetches', async () => {
     const view = await mount({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'old']]) })
     runFailed('/a')

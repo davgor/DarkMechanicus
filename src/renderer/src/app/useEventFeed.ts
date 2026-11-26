@@ -38,13 +38,14 @@ function raiseNotifications(events: EventView[], folder: string, notified: Set<s
   }
 }
 
-function createFeedPoller(
-  path: string,
-  identity: string,
-  dispatch: Dispatch<TokenAction>,
-  notified: Set<string>,
-  onError: (error: unknown) => void
-): FeedPoller {
+/** Where a folder's poller reports: token actions, the keys already notified, and feed failures. */
+interface FeedSinks {
+  dispatch: Dispatch<TokenAction>
+  notified: Set<string>
+  onError(error: unknown): void
+}
+
+function createFeedPoller(path: string, identity: string, { dispatch, notified, onError }: FeedSinks): FeedPoller {
   return { identity, poller: createEventPoller({
     fetchHead: () => runCommand(path, 'getEventHead', undefined),
     fetchPage: (request) => runCommand(path, 'listEvents', request),
@@ -80,7 +81,7 @@ export function useEventFeed({ paths, identities, selectedPath, scheduler, onErr
     const stops = Array.from(watched, ([path, identity]) => {
       let entry = pollers.current.get(path)
       if (entry === undefined) {
-        entry = createFeedPoller(path, identity, dispatch, notified.current, (error) => report.current(error))
+        entry = createFeedPoller(path, identity, { dispatch, notified: notified.current, onError: (error) => report.current(error) })
         pollers.current.set(path, entry)
         void entry.poller.tick()
       }
