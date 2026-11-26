@@ -80,9 +80,9 @@ describe('name plates in a crowded room', () => {
     const layout = chamberLayout({ width: ROOM_WIDTH, height: 720 }, PROPS, 24)
     const names = ['Vexa-9', 'Orlok Teth', 'Kryz', 'Amaranth-3', 'Dorn Vel', 'Sable Quill', 'Zeta Kahl']
     const plates = Array.from({ length: 24 }, (_, index) => ({ id: `m${index}`, x: 180 + index * 22,
-      name: names[index % names.length]!, priority: index === 12 }))
+      name: names[index % names.length]!, priority: index % 2 === 0, forced: index === 13 }))
     const placed = layoutPlates(plates, layout.spriteScale)
-    expect(placed.get('m12')!.hidden).toBe(false)
+    expect(placed.get('m13')!.hidden).toBe(false)
     const shown = plates.filter((plate) => !placed.get(plate.id)!.hidden)
     expect(shown.length).toBeGreaterThan(5)
     for (const [index, a] of shown.entries()) {

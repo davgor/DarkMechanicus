@@ -259,7 +259,7 @@ interface SceneProps extends BubbleContext {
 function Scene({ state, layout, roster, selectedMemberId, reduced, outlined, onSelectMember }: SceneProps): JSX.Element {
   const plates = layoutPlates(state.acolytes.map((acolyte) => ({ id: acolyte.id, x: acolyte.x,
     name: roster.get(acolyte.id)?.name ?? acolyte.id,
-    priority: acolyte.id === selectedMemberId || outlined.has(acolyte.id) || acolyte.id in state.bubbles })),
+    priority: outlined.has(acolyte.id) || acolyte.id in state.bubbles, forced: acolyte.id === selectedMemberId })),
   layout.spriteScale)
   const { rowHeight } = plateMetrics(layout.spriteScale)
   const bubbles = layoutBubbles(bubbleInputs(state, { layout, roster, selectedMemberId }), layout.size.width)

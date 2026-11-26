@@ -56,12 +56,16 @@ function placeOne(bubble: BubbleInput, roomWidth: number): BubblePlacement {
     tailX: clamp(bubble.x - left, 10, width - 10) }
 }
 
-/** Raises `bubble` above every placed bubble it would overlap; null when that would leave the room's top. */
+/** A bubble rises at most this many bubble heights above its speaker; higher, its tail would point at no one. */
+export const MAX_LIFT = 2
+
+/** Raises `bubble` above every placed bubble it would overlap; null when that leaves the room or its speaker. */
 function stackUp(bubble: BubblePlacement, placed: readonly BubblePlacement[]): BubblePlacement | null {
+  const highest = Math.max(MARGIN, bubble.top - MAX_LIFT * (bubble.height + GAP))
   let next = bubble
   for (let guard = 0; guard <= placed.length; guard += 1) {
     const blocker = placed.find((other) => overlaps(next, other))
-    if (!blocker) return next.top >= MARGIN ? next : null
+    if (!blocker) return next.top >= highest ? next : null
     next = { ...next, top: blocker.top - next.height - GAP }
   }
   return null
