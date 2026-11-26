@@ -126,5 +126,8 @@ export function reduceAgentChat(state: AgentChatState, event: AgentChatEvent, at
       return { ...state, lastEventAt: at, queued: event.count }
     case 'todos':
       return { ...replaceThreadTodos(state, event.threadId, event.phases), lastEventAt: at }
+    default:
+      // `attention`: folder-level needs-you state; the chat's own card follows `pending`.
+      return state
   }
 }

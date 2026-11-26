@@ -264,3 +264,22 @@ describe('preload bridge subscriptions', () => {
     expect(listeners?.size).toBe(0)
   })
 })
+
+describe('preload bridge agent chat attention', () => {
+  it('maps agentChat.attention, appended last, to agentChat:attention with only its request and forwards attention pushes', async () => {
+    const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
+    expect(Object.keys(dm.agentChat).at(-1)).toBe('attention')
+    bridge.calls.length = 0
+    await expect(dm.agentChat.attention({ folder: '/repo' })).rejects.toThrow(`Unregistered channel ${AGENT_CHAT_CHANNELS.attention}`)
+    expect(bridge.calls).toEqual([['agentChat:attention', { folder: '/repo' }]])
+    const received: unknown[] = []
+    const unsubscribe = dm.agentChat.onEvent(event => received.push(event))
+    const item = { chatId: 'chat_1', promptId: 'p1', kind: 'approval', threadId: null, callsign: null, arbitration: 'deciding', title: 'Bash', shown: true }
+    const valid = { type: 'attention', folder: '/repo', chatId: 'chat_1', items: [item] }
+    for (const event of [{ ...valid, items: [{ ...item, tool: { name: 'Bash', input: { command: 'secret' } } }] }, valid]) {
+      for (const listener of bridge.listeners.get(AGENT_CHAT_CHANNELS.event) ?? []) listener(fakeEvent, event)
+    }
+    expect(received).toEqual([valid])
+    unsubscribe()
+  })
+})

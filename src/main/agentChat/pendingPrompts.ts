@@ -17,6 +17,8 @@ type Dependencies = {
   publish(prompt: PendingPrompt | null): void
   arbitrate?: (prompt: PendingPrompt) => ArbitrationGate
   answer(prompt: PendingPrompt, verdict: { decision: Decision; reason: string }): void
+  /** The queue or the head's arbitration may have changed (`queue()`); called after the head is published, never deduplicated. */
+  changed?(): void
 }
 
 /** The published arbitration state of a new head; the gate's own reason is masked and bounded like every reason. */
@@ -30,6 +32,8 @@ function arbitrationOf(gate: ArbitrationGate | null | 'failed'): PendingPrompt['
 /** Per-process FIFO view of translator-held prompts. No deadline or remembered permission. */
 export class PendingPrompts {
   private current: PendingPrompt | null = null
+  /** The held prompts behind the head, as last given; their arbitration stays the translator's until they lead. */
+  private waiting: readonly PendingPrompt[] = []
   private arbitration?: Arbitration
   private answering = false
 
@@ -37,8 +41,16 @@ export class PendingPrompts {
 
   snapshot(): PendingPrompt | null { return this.current }
 
+  /** The head (with its arbitration state) followed by every prompt queued behind it. */
+  queue(): readonly PendingPrompt[] { return this.current ? [this.current, ...this.waiting] : [] }
+
   update(prompts: readonly PendingPrompt[]): void {
-    const head = prompts[0]
+    this.waiting = prompts.slice(1)
+    this.lead(prompts[0])
+    this.deps.changed?.()
+  }
+
+  private lead(head: PendingPrompt | undefined): void {
     if (head?.id === this.current?.id) { this.restamp(head); return }
     this.cancel()
     this.current = null
@@ -74,7 +86,9 @@ export class PendingPrompts {
   clear(): void {
     this.cancel()
     this.current = null
+    this.waiting = []
     this.deps.publish(null)
+    this.deps.changed?.()
   }
 
   answer(promptId: string, apply: () => readonly PendingPrompt[]): void {
@@ -109,6 +123,7 @@ export class PendingPrompts {
     const current: PendingPrompt = { ...prompt, arbitration: { state: 'escalated', reason: mask(reason).slice(0, 500) } }
     this.current = current
     this.deps.publish(current)
+    this.deps.changed?.()
     if (this.current === current) running.awaitingPerson(current)
   }
 

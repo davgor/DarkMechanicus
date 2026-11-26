@@ -1,4 +1,4 @@
-import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import { deferred, type Deferred } from './deferred'
@@ -10,6 +10,7 @@ export class FakeAgentChat implements AgentChatApi {
   snapshotResult: CommandResult<AgentChatSnapshot> = {
     ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
   }
+  attentionResult: CommandResult<AttentionItem[]> = { ok: true, data: [] }
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   calls: { method: Method; args: unknown[] }[] = []
   private holds: Partial<Record<Method, Deferred[]>> = {}
@@ -65,6 +66,11 @@ export class FakeAgentChat implements AgentChatApi {
       if (this.snapshotResult.ok) this.snapshotResult = { ok: true, data: { ...this.snapshotResult.data, surface: request.surface } }
       return this.snapshotResult
     })
+  }
+
+  attention(request: Parameters<AgentChatApi['attention']>[0]) {
+    const result = this.attentionResult
+    return this.call('attention', request, () => result)
   }
 
   private async call<T>(method: Method, request: unknown, produce: () => CommandResult<T>): Promise<CommandResult<T>> {

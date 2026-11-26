@@ -27,7 +27,8 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [AGENT_CHAT_CHANNELS.interrupt]: { folder: REPO, chatId: 'chat_1' },
   [AGENT_CHAT_CHANNELS.answer]: { folder: REPO, chatId: 'chat_1', promptId: 'p1', optionId: 'allow_once' },
   [AGENT_CHAT_CHANNELS.setSurface]: { folder: REPO, chatId: 'chat_1', surface: 'gui' },
-  [AGENT_CHAT_CHANNELS.snapshot]: { folder: REPO, chatId: 'chat_1' }
+  [AGENT_CHAT_CHANNELS.snapshot]: { folder: REPO, chatId: 'chat_1' },
+  [AGENT_CHAT_CHANNELS.attention]: { folder: REPO }
 }
 
 function rig() {
@@ -35,7 +36,8 @@ function rig() {
   const record = (name: string, result: unknown) => vi.fn(async (...args: unknown[]) => { calls.push([name, ...args]); return result })
   const sessions = {
     start: record('start', SNAPSHOT), send: record('send', undefined), interrupt: record('interrupt', undefined),
-    answer: record('answer', undefined), setSurface: record('setSurface', SNAPSHOT), snapshot: vi.fn((...args: unknown[]) => { calls.push(['snapshot', ...args]); return SNAPSHOT })
+    answer: record('answer', undefined), setSurface: record('setSurface', SNAPSHOT), snapshot: vi.fn((...args: unknown[]) => { calls.push(['snapshot', ...args]); return SNAPSHOT }),
+    attention: vi.fn((...args: unknown[]) => { calls.push(['attention', ...args]); return [] })
   } as unknown as AgentChatSessions
   const confirmTerminalStop = vi.fn(async () => false)
   const listeners = new Map<string, Listener>()
@@ -61,12 +63,35 @@ describe('agent chat IPC registration', () => {
     expect(channels.every(channel => channel.startsWith('agentChat:'))).toBe(true)
   })
 
-  it('answers each channel for the app page and reaches the session manager with the resolved chat', async () => {
+  it('answers each channel for the app page and reaches the session manager with the resolved chat or folder', async () => {
     const state = rig()
     for (const channel of INVOKED) expect(codeOf(await state.invoke(channel, REQUESTS[channel]))).toBe('ok')
     // `INVOKED` is sorted by channel name, so the manager is reached in that order.
-    expect(state.calls.map(call => [call[0], call[1]])).toEqual(
-      ['answer', 'interrupt', 'send', 'setSurface', 'snapshot', 'start'].map(name => [name, { folder: REPO, id: 'chat_1' }]))
+    expect(state.calls.map(call => [call[0], call[1]])).toEqual([['answer', 'attention'].map(name => [name, name === 'attention' ? REPO : { folder: REPO, id: 'chat_1' }]),
+      ['interrupt', 'send', 'setSurface', 'snapshot', 'start'].map(name => [name, { folder: REPO, id: 'chat_1' }])].flat())
+  })
+
+  it('registers agentChat:attention behind the guard and answers the folder’s items or a project-less list', async () => {
+    const state = rig()
+    expect(state.listeners.has(AGENT_CHAT_CHANNELS.attention)).toBe(true)
+    const item = { chatId: 'chat_1', promptId: 'p1', kind: 'approval', threadId: null, callsign: null, arbitration: 'escalated', title: 'Run', shown: true }
+    vi.mocked(state.sessions.attention).mockReturnValueOnce([item as never])
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder: REPO })).toEqual({ ok: true, data: [item] })
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder: null })).toEqual({ ok: true, data: [] })
+    // The one-shot return stands in for the recording implementation, so the mock's own calls are the record.
+    expect(vi.mocked(state.sessions.attention).mock.calls).toEqual([[REPO], [null]])
+    const untrusted = { sender: {}, senderFrame: frame('https://example.com/') } as unknown as IpcMainInvokeEvent
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder: REPO }, untrusted))).toBe('unauthorized')
+    expect(state.refused).toEqual([AGENT_CHAT_CHANNELS.attention])
+  })
+
+  it('refuses agentChat:attention for an unknown folder before reaching the session manager', async () => {
+    const state = rig()
+    for (const folder of ['/elsewhere', '/work/repo/../other']) {
+      expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder }))).toBe('unauthorized')
+    }
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder: REPO, chatId: 'chat_1' }))).toBe('invalid_input')
+    expect(state.calls).toEqual([])
   })
 })
 

@@ -3,7 +3,7 @@ import {
   AGENT_CHAT_CHANNELS, GUI_PROTOCOL_KINDS, TODO_TOOL_NAMES, agentChatStartSchema, agentChatSendSchema,
   agentChatInterruptSchema, agentChatAnswerSchema, agentChatSetSurfaceSchema, agentChatSnapshotRequestSchema,
   agentChatEventSchema, agentChatSnapshotSchema, pendingPromptSchema, agentTodoTaskSchema, agentTodoPhaseSchema,
-  type AgentChatEvent, type PendingPrompt
+  agentChatAttentionSchema, attentionItemSchema, type AgentChatEvent, type AttentionItem, type PendingPrompt
 } from './agentChat'
 
 const ref = { folder: null, chatId: 'chat_1' }
@@ -90,8 +90,37 @@ describe('agent chat events and snapshots', () => {
   })
 
   it('fixes channel and protocol/tool names for all consumers', () => {
-    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event'].map(name => [name, `agentChat:${name}`])))
+    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention'].map(name => [name, `agentChat:${name}`])))
     expect(GUI_PROTOCOL_KINDS).toEqual(['omp', 'claude'])
     expect(TODO_TOOL_NAMES).toEqual(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'])
+  })
+})
+
+describe('agent chat attention', () => {
+  it('carries a folder attention list with only the named fields, bounded titles and no tool input', () => {
+    const item: AttentionItem = {
+      chatId: 'chat_1', promptId: 'req_1', kind: 'approval', threadId: 'thread_1', callsign: prompt.callsign,
+      arbitration: 'escalated', title: 'a'.repeat(200), shown: true
+    }
+    const queued: AttentionItem = { ...item, promptId: 'req_2', kind: 'question', threadId: null, callsign: null, arbitration: 'off', shown: false }
+    for (const event of [{ ...ref, type: 'attention', items: [item, queued] }, { ...ref, type: 'attention', items: [] }] as AgentChatEvent[]) {
+      expect(agentChatEventSchema.parse(JSON.parse(JSON.stringify(event)))).toEqual(event)
+    }
+    for (const invalid of [
+      { ...item, title: 'a'.repeat(201) }, { ...item, tool: prompt.tool }, { ...item, detail: 'npm test' },
+      { ...item, options: prompt.options }, { ...item, arbitration: { state: 'deciding', reason: null } }, { ...item, arbitration: 'decided' },
+      { ...item, kind: 'command' }, { ...item, promptId: '' }, { ...item, chatId: '../escape' }, { ...item, shown: undefined }
+    ]) {
+      expect(attentionItemSchema.safeParse(invalid).success).toBe(false)
+      expect(agentChatEventSchema.safeParse({ ...ref, type: 'attention', items: [invalid] }).success).toBe(false)
+    }
+    expect(agentChatEventSchema.safeParse({ ...ref, type: 'attention' }).success).toBe(false)
+  })
+
+  it('accepts only a nullable folder as the attention request', () => {
+    for (const valid of [{ folder: null }, { folder: '/repo' }]) expect(agentChatAttentionSchema.parse(valid)).toEqual(valid)
+    for (const invalid of [{}, { folder: 1 }, { folder: '/repo', chatId: 'chat_1' }, { folder: '/repo', cwd: '/' }, null]) {
+      expect(agentChatAttentionSchema.safeParse(invalid).success).toBe(false)
+    }
   })
 })

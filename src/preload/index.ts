@@ -97,7 +97,8 @@ const agentChat: AgentChatApi = {
     }
     ipcRenderer.on(AGENT_CHAT_CHANNELS.event, handler)
     return () => ipcRenderer.removeListener(AGENT_CHAT_CHANNELS.event, handler)
-  }
+  },
+  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request)
 }
 
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */

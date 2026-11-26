@@ -13,6 +13,7 @@ import { parseInput } from '../../core/schemas'
 import {
   AGENT_CHAT_CHANNELS,
   agentChatAnswerSchema,
+  agentChatAttentionSchema,
   agentChatEventSchema,
   agentChatInterruptSchema,
   agentChatSendSchema,
@@ -20,7 +21,8 @@ import {
   agentChatSnapshotRequestSchema,
   agentChatStartSchema,
   type AgentChatEvent,
-  type AgentChatSnapshot
+  type AgentChatSnapshot,
+  type AttentionItem
 } from '../../shared/agents/agentChat'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
@@ -32,7 +34,7 @@ import type { AgentChatSessions } from './agentChatSessions'
 
 interface AgentChatHandlerDeps<S> {
   registry: Pick<FolderRegistry, 'resolve'>
-  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot'>
+  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention'>
   /** The native confirmation, modal to the window that sent the request (`nativeTerminalStopConfirmation`). */
   confirmTerminalStop: (sender: S, chat: ChatRecord) => Promise<boolean>
   onUnexpectedError?: (error: unknown) => void
@@ -46,6 +48,7 @@ interface AgentChatHandlers<S> {
   /** `sender` is the requesting window's contents, which the confirmation is modal to. */
   setSurface(sender: S, input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   snapshot(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
+  attention(input: unknown): Promise<CommandResult<AttentionItem[]>>
 }
 
 /** Validates a request naming one chat and resolves its tracked folder (null for a project-less chat). */
@@ -81,7 +84,11 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       const { ref, request } = chatRequest(registry, agentChatSetSurfaceSchema, input)
       return sessions.setSurface(ref, request.surface, chat => deps.confirmTerminalStop(sender, chat))
     }),
-    snapshot: input => answer(deps, () => sessions.snapshot(chatRequest(registry, agentChatSnapshotRequestSchema, input).ref))
+    snapshot: input => answer(deps, () => sessions.snapshot(chatRequest(registry, agentChatSnapshotRequestSchema, input).ref)),
+    attention: input => answer(deps, () => {
+      const { folder } = parseInput(agentChatAttentionSchema, input, 'agent chat attention request')
+      return sessions.attention(folder === null ? null : chatFolder({ registry }, folder))
+    })
   }
 }
 
@@ -92,6 +99,7 @@ export function registerAgentChatIpc<S>(ipcMain: Pick<IpcMain, 'handle'>, handle
   ipcMain.handle(AGENT_CHAT_CHANNELS.answer, (_event, request: unknown) => handlers.answer(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.setSurface, (event, request: unknown) => handlers.setSurface(senderOf(event), request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.snapshot, (_event, request: unknown) => handlers.snapshot(request))
+  ipcMain.handle(AGENT_CHAT_CHANNELS.attention, (_event, request: unknown) => handlers.attention(request))
 }
 
 /** Sends each validated agent chat event to every open window on `agentChat:event`; anything else is dropped. */

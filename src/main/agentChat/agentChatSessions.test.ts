@@ -668,6 +668,84 @@ for (const kind of ['claude', 'omp'] as const) it(`${kind} reconciles injected c
   await expect(r.sessions.answer(chat, { promptId: 'third', optionId: 'allow_once' })).rejects.toMatchObject({ code: 'stale_prompt' })
 })
 
+/** A Claude chat whose lines a test feeds: `spawn` opens a worker thread, `ask` raises one of its Bash approvals. */
+async function attentionChat(overrides: Parameters<typeof agentChatRig>[1] = {}) {
+  const r = rig('claude', overrides), chat = r.newChat(), start = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  r.deps.startProcess = spec => { const child = start(spec); return { ...child, onLine: listener => { receive = listener; return child.onLine(listener) } } }
+  await r.sessions.start(chat)
+  const send = (frame: object) => receive(JSON.stringify(frame))
+  send({ type: 'assistant', parent_tool_use_id: null, message: { id: 'spawn', content: [{ type: 'tool_use', id: 'toolu_W', name: 'Agent', input: { description: 'Acolyte:DM-819 queue the prompts', prompt: 'Work.' } }] } })
+  const ask = (id: string, title?: string) => {
+    send({ type: 'assistant', parent_tool_use_id: 'toolu_W', message: { id: `call-${id}`, content: [{ type: 'tool_use', id: `tool-${id}`, name: 'Bash', input: { command: `echo tool-input-${id}` } }] } })
+    send({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: 'Bash', tool_use_id: `tool-${id}`, input: { command: `echo tool-input-${id}` }, ...(title ? { title } : {}) } })
+  }
+  const attention = () => r.pushes.flatMap(event => event.type === 'attention' ? [event] : [])
+  return { r, chat, ask, send, attention }
+}
+const DM819: Callsign = { role: 'Acolyte', ticketKey: 'DM-819', ordinal: null, purpose: 'queue the prompts', ticketVerified: false }
+const waiting = (chatId: string, promptId: string, shown: boolean, arbitration: 'off' | 'deciding' | 'escalated' = 'off') =>
+  ({ chatId, promptId, kind: 'approval', threadId: 'thread:toolu_W', callsign: DM819, arbitration, title: 'Bash', shown })
+
+describe('attention across a chat’s queued prompts', () => {
+  it('lists two queued worker approvals (head shown) with thread and callsign, then pushes one item on an answer and [] on exit', async () => {
+    const { r, chat, ask, attention } = await attentionChat()
+    ask('first'); ask('second')
+    const both = [waiting(chat.id, 'first', true), waiting(chat.id, 'second', false)]
+    expect(r.sessions.attention(r.repo)).toEqual(both)
+    expect([r.sessions.attention(null), r.sessions.attention(join(r.root, 'other'))]).toEqual([[], []])
+    await r.sessions.answer(chat, { promptId: 'first', optionId: 'allow_once' })
+    expect(r.sessions.attention(r.repo)).toEqual([waiting(chat.id, 'second', true)])
+    await r.children[0].stop()
+    await eventually(() => !r.sessions.isLive(chat))
+    expect(r.sessions.attention(r.repo)).toEqual([])
+    expect(attention()).toEqual([[waiting(chat.id, 'first', true)], both, [waiting(chat.id, 'second', true)], []]
+      .map(items => ({ type: 'attention', folder: r.repo, chatId: chat.id, items })))
+    // Never tool input, prompt detail or options: only the masked, bounded title.
+    expect(JSON.stringify(attention())).not.toContain('tool-input-')
+  })
+
+  it('clips a masked title to 200 characters and never pushes a claim token from it', async () => {
+    const { r, chat, ask } = await attentionChat()
+    ask('long', `${'t'.repeat(150)} ${CLAIM} ${'u'.repeat(300)}`)
+    const [item] = r.sessions.attention(r.repo)
+    expect(item).toMatchObject({ chatId: chat.id, promptId: 'long', shown: true })
+    expect(item.title).toHaveLength(200)
+    expect(JSON.stringify([r.sessions.attention(r.repo), r.pushes])).not.toContain('fixtureSecret')
+  })
+})
+
+describe('attention pushes per queue or arbitration change', () => {
+  it('pushes an unchanged list only once, and once each for deciding → escalated, deciding → magos answer and deciding → person answer', async () => {
+    const verdicts: ((outcome: ArbiterOutcome) => void)[] = []
+    const arbitrate = vi.fn(() => ({ state: 'deciding' as const, result: new Promise<ArbiterOutcome>(settle => { verdicts.push(settle) }), cancel: vi.fn(), awaitingPerson: vi.fn() }))
+    const { r, chat, ask, send, attention } = await attentionChat({ arbitrate })
+    ask('first')
+    expect(attention().map(event => event.items)).toEqual([[waiting(chat.id, 'first', true, 'deciding')]])
+    // Lines that change neither the queue nor arbitration push nothing more.
+    send({ type: 'assistant', parent_tool_use_id: null, message: { id: 'chatter', content: [{ type: 'text', text: 'Still working.' }] } })
+    expect(attention()).toHaveLength(1)
+    verdicts[0]({ decision: 'escalate', reason: 'Ask the person.' })
+    await eventually(() => attention().length === 2)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(attention().map(event => event.items)).toEqual([[waiting(chat.id, 'first', true, 'deciding')], [waiting(chat.id, 'first', true, 'escalated')]])
+    ask('second')
+    expect(attention().at(-1)!.items).toEqual([waiting(chat.id, 'first', true, 'escalated'), waiting(chat.id, 'second', false)])
+    await r.sessions.answer(chat, { promptId: 'first', optionId: 'deny' })
+    expect(attention().at(-1)!.items).toEqual([waiting(chat.id, 'second', true, 'deciding')])
+    const beforeMagos = attention().length
+    verdicts[1]({ decision: 'allow_once', reason: 'Routine.' })
+    await eventually(() => r.sessions.snapshot(chat).pending === null)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(attention().slice(beforeMagos).map(event => event.items)).toEqual([[]])
+    ask('third')
+    const beforePerson = attention().length
+    await r.sessions.answer(chat, { promptId: 'third', optionId: 'allow_once' })
+    expect(attention().slice(beforePerson).map(event => event.items)).toEqual([[]])
+    expect(attention().slice(beforePerson - 1, beforePerson)[0].items).toEqual([waiting(chat.id, 'third', true, 'deciding')])
+  })
+})
+
 it('records injected OMP secret questions without persisting or pushing their input', async () => {
   const r = rig('omp'), chat = r.newChat(), start = r.deps.startProcess!
   let receive!: (raw: string) => void

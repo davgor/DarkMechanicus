@@ -164,3 +164,22 @@ it('never applies allow_chat or approval decisions to questions from the seam', 
   expect(other.snapshot()?.arbitration.state).toBe('escalated')
   expect(answer).not.toHaveBeenCalled()
 })
+
+it('exposes the whole queue head first and reports a change after every update, escalation and clear', async () => {
+  const job = deferred(), changed = vi.fn(), publish = vi.fn()
+  const registry = new PendingPrompts({ publish, answer: vi.fn(), arbitrate: () => job, changed })
+  expect(registry.queue()).toEqual([])
+  registry.update([prompt('first'), prompt('second')])
+  expect(registry.queue().map(entry => [entry.id, entry.arbitration.state])).toEqual([['first', 'deciding'], ['second', 'off']])
+  // The head is published before the change is reported, so a listener reads the new arbitration state.
+  expect(publish.mock.invocationCallOrder[0]).toBeLessThan(changed.mock.invocationCallOrder[0])
+  job.resolve({ decision: 'escalate', reason: 'Ask the person' })
+  await Promise.resolve()
+  expect(registry.queue().map(entry => entry.arbitration.state)).toEqual(['escalated', 'off'])
+  expect(changed).toHaveBeenCalledTimes(2)
+  registry.update([prompt('second')])
+  expect(registry.queue().map(entry => entry.id)).toEqual(['second'])
+  registry.clear()
+  expect(registry.queue()).toEqual([])
+  expect(changed).toHaveBeenCalledTimes(4)
+})

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type PendingPrompt } from '../../shared/agents/agentChat'
+import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, type Callsign } from '../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
@@ -62,6 +62,8 @@ export interface AgentChatSessions {
   interrupt(ref: ChatRef): Promise<void>
   answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
+  /** Every queued prompt of the folder's live GUI chats (null: project-less chats), head first per chat; never tool input. */
+  attention(folder: string | null): AttentionItem[]
   /**
    * A live terminal switches to the GUI only after `confirmTerminalStop` (Main-only, per call) resolves true for the
    * same owner generation; omitted, it refuses `busy`. Nothing renderer-supplied can stand in for it.
@@ -78,6 +80,8 @@ interface Entry {
   chat: ChatRecord
   status: AgentChatSnapshot['status']
   prompts?: PendingPrompts
+  /** The attention list last pushed for this entry, serialized: an unchanged list is not pushed again. */
+  attention: string
   todos: Map<string | null, AgentChatSnapshot['todos'][number]['phases']>
   queued: number
   turnActive: boolean
@@ -141,7 +145,7 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   const ready = new Promise<void>((resolve, reject) => { admit = resolve; rejectReady = reject })
   const closed = new Promise<void>((resolve, reject) => { completeClose = resolve; rejectClose = reject })
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
-  return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude',
+  return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude', attention: '[]',
     claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), grantIds: [], cancelled: false,
     cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose }
 }
@@ -208,6 +212,23 @@ class SessionManager {
     return mask({ items: this.deps.store.readTranscript(chat)?.items ?? [], status: entry?.status ?? 'exited',
       pending: entry?.prompts ? entry.prompts.snapshot() : null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
       todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [] })
+  }
+  attention(folder: string | null): AttentionItem[] {
+    return [...this.entries.values()].filter(entry => entry.chat.folder === folder).flatMap(entry => this.attentionOf(entry))
+  }
+  /** The entry's queue, head `shown`: masked, bounded titles and never tool input, prompt detail or options. */
+  private attentionOf(entry: Entry): AttentionItem[] {
+    return mask((entry.prompts?.queue() ?? []).map((prompt, index) => ({
+      chatId: entry.chat.id, promptId: prompt.id, kind: prompt.kind, threadId: prompt.threadId, callsign: prompt.callsign,
+      arbitration: prompt.arbitration.state, title: mask(prompt.title).slice(0, 200), shown: index === 0
+    })))
+  }
+  /** Pushes the entry's attention list whenever it differs from the one last pushed; `[]` once it empties. */
+  private pushAttention(entry: Entry): void {
+    const items = this.attentionOf(entry), serialized = JSON.stringify(items)
+    if (serialized === entry.attention) return
+    entry.attention = serialized
+    this.deps.push({ type: 'attention', folder: entry.chat.folder, chatId: entry.chat.id, items })
   }
   private heldPrompts(entry: Entry): PendingPrompt[] {
     return entry.protocol === 'claude' ? [...entry.claude.pending.values()].map(held => held.prompt) : entry.omp.pending.map(held => held.prompt)
@@ -569,7 +590,8 @@ class SessionManager {
       ...(deps.arbitrate ? { arbitrate: prompt => deps.arbitrate!({ ref: { folder: chat.folder, id: chat.id }, chat: entry.chat, agent, prompt,
         // OMP prompts carry no translator-clipped input record: count them as clipped (OMP is never arbitrated today).
         inputClipped: entry.protocol === 'claude' ? claudeInputClipped(entry.claude, prompt.id) : true }) } : {}),
-      answer: (prompt, verdict) => this.answerEntry(entry, { promptId: prompt.id, optionId: verdict.decision }, { decidedBy: 'magos', reason: verdict.reason })
+      answer: (prompt, verdict) => this.answerEntry(entry, { promptId: prompt.id, optionId: verdict.decision }, { decidedBy: 'magos', reason: verdict.reason }),
+      changed: () => this.pushAttention(entry)
     })
     const auth = await this.step(entry, deps.checkAuth(agent.kind, agent.executablePath))
     if (auth.state === 'signed_out') {
@@ -810,5 +832,5 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
     send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
-    busy: () => manager.busy(), dispose: () => manager.dispose() }
+    busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder) }
 }
