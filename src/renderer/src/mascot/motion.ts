@@ -15,6 +15,8 @@ export interface MotionSurfaces {
   mascotSize: { width: number; height: number }
   tickets: MotionRect[]
   shakeId?: number
+  /** Opt-in: only roam (wander, run, jump, climb, stumble) and never seek the highest ticket. */
+  freeRoam?: boolean
 }
 
 /** `x` is the sprite center and `y` is the feet line, both in CSS pixels. */
@@ -445,6 +447,14 @@ function goalBelow(state: MotionState, context: { support: MotionRect; path: Mot
   return !localGoal?.inProgress || globalGoal.y < localGoal.y ? globalGoal : undefined
 }
 
+/** With `freeRoam` the draw is still taken, so the seeded sequence keeps its shape. */
+function guidedChoice(ready: MotionState, support: MotionRect | undefined, tickets: MotionRect[],
+  surfaces: MotionSurfaces): MotionState | null {
+  const [guideDraw, guideSeed] = random(ready)
+  return !surfaces.freeRoam && guideDraw < 0.88
+    ? guidedAction({ ...ready, randomState: guideSeed }, support, tickets, surfaces) : null
+}
+
 function nextAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
   const { width, height, half } = dimensions(surfaces)
   const tickets = visibleTickets(surfaces)
@@ -457,11 +467,8 @@ function nextAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
     const point = safePoint(ready.x, height, surfaces)
     return action({ ...ready, ...point }, { kind: 'idle', ...point, duration: 700 })
   }
-  const [guideDraw, guideSeed] = random(ready)
-  if (guideDraw < 0.88) {
-    const guided = guidedAction({ ...ready, randomState: guideSeed }, support, tickets, surfaces)
-    if (guided) return guided
-  }
+  const guided = guidedChoice(ready, support, tickets, surfaces)
+  if (guided) return guided
   return chooseAction(ready, choice, { support, tickets, surfaces })
 }
 
