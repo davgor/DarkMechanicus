@@ -34,6 +34,8 @@ interface ProvisioningOptions {
   withWorld<T>(root: string, change: () => Promise<T>): Promise<T>
   synchronize(root: string, assertCurrent: () => void): Promise<void>
   onProject?(member: string, agent?: string): Promise<void>
+  /** Told the code of each busy manifest rename that is asked again (the main process logs it). */
+  onManifestRetry?(code: string): void
 }
 
 type Receipt = { path: string; identity: string }
@@ -493,7 +495,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
       this.checkMember(member)
       updateForge(root, world => {
         if (vacantMapping(world.projects, mapping, true)) world.projects.push(mapping)
-      })
+      }, this.deps.onManifestRetry)
       const { home } = this.deps
       const epoch = forgeBindingEpoch(nodeFs, home, checkout)
       if (epoch === null) bindForge(home, checkout, path, pointerNote(worldUrl(intent), folder))

@@ -6,6 +6,9 @@ import { knowledgeStatus } from './fixtures'
 import { idleCrossRepoCorrections } from './idleCrossRepoCorrections'
 import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
+import { FakeAgentChat } from './fakeAgentChat'
+import { FakeSettings } from './fakeSettings'
+import { FakeNotifications } from './fakeNotifications'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView } from '../../../shared/domain/views'
@@ -63,8 +66,11 @@ export class FakeDm implements DmApi {
   async pairTelegram() { return 'pair-code' }
   chats = new FakeChats()
   terminals = idleTerminals()
+  agentChat = new FakeAgentChat()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
+  settings = new FakeSettings()
+  notifications = new FakeNotifications()
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {

@@ -146,12 +146,17 @@ describe('the live feed of a run orchestrated in a chat', () => {
 })
 
 describe('the live feed linking to the chat', () => {
-  it('opens the chat that orchestrates the run', async () => {
+  it('shows the chat that orchestrates the run in the Agent tab with its node selected, navigating nowhere', async () => {
+    host = fakeOrchestration({ chats: [chatRecord({ id: 'chat_o', folder: FOLDER, role: 'orchestrator', runId: 'rn_2', epicId: 'ep_1', surface: 'gui' })] })
     const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')]))
 
     fireEvent.click(within(feed).getByRole('button', { name: 'Open chat' }))
 
-    expect(host.openedChats).toEqual(['chat_o'])
+    expect(screen.queryByRole('region', { name: 'Orchestrator feed' })).toBe(null)
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('true')
+    const tree = within(screen.getByRole('complementary', { name: 'Epic agents' }))
+    expect((await tree.findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
+    expect(host.openedChats).toEqual([])
   })
 
   it('reads nothing until the feed is opened, and stops showing the chat once it is closed', async () => {

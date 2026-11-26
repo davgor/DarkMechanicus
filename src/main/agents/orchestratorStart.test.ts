@@ -11,9 +11,10 @@ import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import { builtInAgent, connectedAgents } from './__mocks__/chatFixtures'
+import { onTerminalSurface, recordingAgentChats, type RecordingAgentChats } from './__mocks__/agentChatDoubles'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from './claimTokenMask'
-import { orchestratorGuidance } from './orchestratorKickoff'
+import { orchestratorGuidance, orchestratorKickoff } from './orchestratorKickoff'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import { settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { endingTerminals } from '../terminals/terminalSessions'
@@ -36,17 +37,19 @@ interface Rig {
 }
 
 let terminals: TerminalRig
+let agentChats: RecordingAgentChats
 
 beforeEach(() => {
   terminals = terminalRig()
+  agentChats = recordingAgentChats()
 })
 
 afterEach(() => {
   terminals.cleanup()
 })
 
-/** The chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them. */
-function rig(runs: Partial<OrchestratorRuns> = {}): Rig {
+/** The chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them; `gui` keeps the surface the agent gets, otherwise every chat is a terminal chat. */
+function rig(runs: Partial<OrchestratorRuns> = {}, gui = false): Rig {
   const errors: unknown[] = []
   const calls: string[] = []
   const records = createChatRecords({ store: terminals.store, agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('autonomous')]) })
@@ -55,7 +58,8 @@ function rig(runs: Partial<OrchestratorRuns> = {}): Rig {
     queueRun: (_folder, epicId) => (calls.push(`queueRun ${epicId}`), Promise.resolve(RUN)),
     ...runs
   }
-  return { terminals, records: endingTerminals(records, terminals.sessions), calls, errors, runs: wired }
+  const ending = endingTerminals(records, terminals.sessions)
+  return { terminals, records: gui ? ending : onTerminalSurface(ending, terminals.store), calls, errors, runs: wired }
 }
 
 function request(agent = 'claude', model: string | null = 'haiku'): { folder: string; epicId: string; agent: string; model?: string } {
@@ -74,7 +78,7 @@ describe('Start run with an agent', () => {
   it('queues the run, creates the orchestrator chat with its run id, and starts its terminal before answering', async () => {
     const { records, runs, calls } = rig()
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect(calls).toEqual(['getEpic ep_1', 'queueRun ep_1'])
     expect(result.run).toBe(RUN)
@@ -86,14 +90,49 @@ describe('Start run with an agent', () => {
       role: 'orchestrator',
       allowSave: true,
       title: 'Orchestrator · Agent chats',
-      runId: 'rn_2'
+      runId: 'rn_2',
+      epicId: 'ep_1',
+      surface: 'terminal'
     })
     expect(chats().map((chat) => chat.id)).toEqual([result.chat?.id])
     expect(terminals.host.spawns).toHaveLength(1)
     expect(terminals.steps).toEqual(['auth', 'grant:gr_1', 'spawn'])
     expect(terminals.store.readTranscript(result.chat as ChatRecord)?.items ?? []).toEqual([])
+    expect(agentChats.calls).toEqual([])
+  })
+})
+
+describe('Start run with an agent on the GUI surface', () => {
+  it('stores the epic id and starts a GUI chat through the agent-chat sessions, with the kickoff as its first message', async () => {
+    const { records, runs } = rig({}, true)
+
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
+
+    const kickoff = orchestratorKickoff({ epicId: 'ep_1', epicTitle: 'Agent chats', branch: 'epic/agent-chats', repositoryBranches: undefined, runId: 'rn_2' })
+    expect(result.problem).toBeNull()
+    expect(result.chat).toMatchObject({ role: 'orchestrator', runId: 'rn_2', epicId: 'ep_1', surface: 'gui' })
+    expect(terminals.store.getChat(result.chat as ChatRecord)).toMatchObject({ epicId: 'ep_1', surface: 'gui' })
+    expect(agentChats.calls).toHaveLength(1)
+    const [method, chat, options] = agentChats.calls[0] as [string, ChatRecord, { firstMessage: string }]
+    expect([method, chat.id]).toEqual(['start', result.chat?.id])
+    expect(options.firstMessage.startsWith(kickoff)).toBe(true)
+    expect(terminals.host.spawns).toEqual([])
   })
 
+  it('removes a GUI chat whose agent is signed out, leaving the run queued with the reason', async () => {
+    agentChats = recordingAgentChats('signed_out')
+    const { records, runs } = rig({}, true)
+
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
+
+    expect([result.run, result.chat]).toEqual([RUN, null])
+    expect(result.problem).toContain('signed out')
+    expect(chats()).toEqual([])
+    expect(terminals.host.spawns).toEqual([])
+  })
+})
+
+describe('Start run with an agent: a CLI that exits', () => {
   it('keeps the chat of a CLI that starts and then exits: the person can read it and start it again', async () => {
     const { records, runs } = rig()
     terminals.host.onSpawn = (pty) => {
@@ -102,7 +141,7 @@ describe('Start run with an agent', () => {
       })
     }
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
     await settle()
 
     expect(result.problem).toBeNull()
@@ -124,10 +163,10 @@ describe('Start run with an agent: a folder of repositories', () => {
     const { records, runs } = rig({ getEpic: () => Promise.resolve(folderEpic) })
     const lines = '- api → epic/agent-chats\n- web → epic/agent-chats\n'
 
-    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
     expect(argsOf(0).at(-1)).toContain(lines)
 
-    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request('autonomous', null))
+    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request('autonomous', null))
     const pty = terminals.host.last()
     pty.emitData('\x1b[?2004hAutonomous')
     await settle()
@@ -141,7 +180,7 @@ describe('Start run with an agent: the guidance and the kickoff', () => {
   it('gives Claude Code the kickoff as its prompt: fixed text and the run lines, no guidance and no claim token', async () => {
     const { records, runs } = rig()
 
-    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     const kickoff = argsOf().at(-1) ?? ''
     for (const wanted of ['Epic: Agent chats (ep_1)', 'Branch: epic/agent-chats', 'Run: rn_2', 'First step: ']) {
@@ -156,7 +195,7 @@ describe('Start run with an agent: the guidance and the kickoff', () => {
   it('gives Claude Code the run lines with the person’s instructions appended once, recorded as the chat’s first input', async () => {
     const { records, runs } = rig()
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, { ...request(), instructions: 'Run the UI tickets first.' })
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, { ...request(), instructions: 'Run the UI tickets first.' })
 
     const kickoff = argsOf().at(-1) ?? ''
     expect(kickoff).toContain('Run: rn_2')
@@ -169,7 +208,7 @@ describe('Start run with an agent: the guidance and the kickoff', () => {
   it('puts the orchestrator and worker guidance in the chat\'s instructions file, with an orchestrator grant that may save', async () => {
     const { records, runs } = rig()
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     const file = argsOf()[argsOf().indexOf('--append-system-prompt-file') + 1] ?? ''
     expect(file).toBe(join(terminals.userData, 'agents', 'instructions', `${result.chat?.id ?? ''}.md`))
@@ -182,7 +221,7 @@ describe('Start run with an agent: the guidance and the kickoff', () => {
   it('pastes the kickoff into Autonomous once its first screen has settled', async () => {
     const { records, runs } = rig()
 
-    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request('autonomous', null))
+    await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request('autonomous', null))
     const pty = terminals.host.last()
     pty.emitData('\x1b[?2004hAutonomous')
     await settle()
@@ -203,7 +242,7 @@ describe('Start run with an agent: failures before the chat', () => {
     const refusal = new DomainError('conflict', 'Epic ep_1 already has an active run.')
     const { records, runs } = rig({ queueRun: () => Promise.reject(refusal) })
 
-    await expect(startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())).rejects.toBe(refusal)
+    await expect(startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())).rejects.toBe(refusal)
 
     expect(chats()).toEqual([])
     expect(terminals.host.spawns).toEqual([])
@@ -213,7 +252,7 @@ describe('Start run with an agent: failures before the chat', () => {
     const refusal = new DomainError('not_found', 'Epic ep_1 was not found.')
     const { calls, records, runs } = rig({ getEpic: () => Promise.reject(refusal) })
 
-    await expect(startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())).rejects.toBe(refusal)
+    await expect(startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())).rejects.toBe(refusal)
 
     expect(calls).toEqual([])
   })
@@ -227,7 +266,7 @@ describe('Start run with an agent: failures before the chat', () => {
       }
     }
 
-    const result = await startOrchestratorRun({ runs, chats: failing, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: failing, terminals: terminals.sessions, agentChats }, request())
 
     expect([result.run, result.chat]).toEqual([RUN, null])
     expect(result.problem).toContain('Run #2 is queued')
@@ -248,7 +287,7 @@ describe('Start run with an agent: a terminal that cannot start', () => {
     const { records, runs } = rig()
     arrange()
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect([result.run, result.chat]).toEqual([RUN, null])
     expect(result.problem).toContain('Run #2 is queued, but Claude Code could not be started')
@@ -263,7 +302,7 @@ describe('Start run with an agent: a terminal that cannot start', () => {
     terminals = terminalRig({ agents: [builtInAgent('autonomous')] })
     const { records, runs } = rig()
 
-    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, request())
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions, agentChats }, request())
 
     expect(result.chat).toBeNull()
     expect(result.problem).toContain('No connected agent has the id claude')
@@ -275,7 +314,7 @@ describe('Start run with an agent: a terminal that cannot start', () => {
     terminals.host.failNextSpawn(new Error('posix_spawnp failed.'))
     const stuck: ChatRecords = { ...records, deleteChat: () => Promise.reject(new Error('disk is read-only')) }
 
-    const result = await startOrchestratorRun({ runs, chats: stuck, terminals: terminals.sessions, onError: (error) => errors.push(error) }, request())
+    const result = await startOrchestratorRun({ runs, chats: stuck, terminals: terminals.sessions, agentChats, onError: (error) => errors.push(error) }, request())
 
     expect(result.chat).toMatchObject({ runId: 'rn_2' })
     expect(result.problem).toContain('posix_spawnp failed')

@@ -15,6 +15,7 @@ import { hasValidatedRepositoryCache } from '../../core/repo/validatedCache'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
+import { claimedAttemptOf } from '../../core/services/attempts'
 import { assertGrantCapability, assertGrantUsable, revokeGrant } from '../../core/services/grants'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
@@ -140,6 +141,8 @@ function grantOperations(workspace: Workspace, ctx: Context) {
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)
     },
+    /** Read-only: the attempt a worker's claim token is the live claim of, or null. Never settles leases or logs the token. */
+    claimedAttempt: (token: string) => claimedAttemptOf(ctx(), token),
     bindYoloGrant(yolo: YoloBinding) { bindYoloChat(ctx(), yolo) },
     endYolo: (grantId: string) => endYoloChat(ctx(), grantId),
     refuseYolo: (grantId: string, runId: string | null) => auditYolo(ctx(), { grantId, runId, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' }),

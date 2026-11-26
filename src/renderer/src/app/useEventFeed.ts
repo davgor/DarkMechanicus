@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { Dispatch } from 'react'
+import type { EventView } from '../../../shared/domain/views'
 import { runCommand } from '../api/dm'
 import { createEventPoller, type EventPoller } from './eventPoller'
 import { EMPTY_TOKENS, routeEvents, tokenReducer, type TokenAction, type Tokens } from './eventRouting'
+import { notificationRaises } from './runNotifications'
 import type { Scheduler } from './scheduler'
 import { useLatest } from './useLatest'
 
@@ -23,11 +25,34 @@ interface FeedPoller {
   poller: EventPoller
 }
 
-function createFeedPoller(path: string, identity: string, dispatch: Dispatch<TokenAction>, onError: (error: unknown) => void): FeedPoller {
+/**
+ * Asks main to notify each new checkpoint-ready or run-failed event once per key. The poller only delivers events after
+ * its baseline, so history never notifies; `notified` outlives a re-created poller so a refetch cannot repeat one.
+ * A failed raise is dropped without a toast: main logs it.
+ */
+function raiseNotifications(events: EventView[], folder: string, notified: Set<string>): void {
+  for (const { key, request } of notificationRaises(events, folder)) {
+    if (notified.has(key)) continue
+    notified.add(key)
+    void Promise.resolve().then(() => window.dm.notifications.raise(request)).catch(() => undefined)
+  }
+}
+
+/** Where a folder's poller reports: token actions, the keys already notified, and feed failures. */
+interface FeedSinks {
+  dispatch: Dispatch<TokenAction>
+  notified: Set<string>
+  onError(error: unknown): void
+}
+
+function createFeedPoller(path: string, identity: string, { dispatch, notified, onError }: FeedSinks): FeedPoller {
   return { identity, poller: createEventPoller({
     fetchHead: () => runCommand(path, 'getEventHead', undefined),
     fetchPage: (request) => runCommand(path, 'listEvents', request),
-    onEvents: (events) => dispatch({ type: 'events', path, route: routeEvents(events) }),
+    onEvents: (events) => {
+      dispatch({ type: 'events', path, route: routeEvents(events) })
+      raiseNotifications(events, path, notified)
+    },
     onReady: () => dispatch({ type: 'baseline', path, identity }),
     onError
   }) }
@@ -41,6 +66,7 @@ export function useEventFeed({ paths, identities, selectedPath, scheduler, onErr
 } {
   const [tokens, dispatch] = useReducer(tokenReducer, EMPTY_TOKENS)
   const pollers = useRef(new Map<string, FeedPoller>())
+  const notified = useRef(new Set<string>())
   const report = useLatest(onError)
   const key = JSON.stringify(paths.map(path => [path, identities?.get(path) ?? path]))
 
@@ -55,7 +81,7 @@ export function useEventFeed({ paths, identities, selectedPath, scheduler, onErr
     const stops = Array.from(watched, ([path, identity]) => {
       let entry = pollers.current.get(path)
       if (entry === undefined) {
-        entry = createFeedPoller(path, identity, dispatch, (error) => report.current(error))
+        entry = createFeedPoller(path, identity, { dispatch, notified: notified.current, onError: (error) => report.current(error) })
         pollers.current.set(path, entry)
         void entry.poller.tick()
       }

@@ -149,4 +149,30 @@ describe('answerView', () => {
     })
     expect(answerView(decision('a', 'cancelled'))).toMatchObject({ state: 'canceled', label: 'Cancelled', detail: 'No answer reached the agent.' })
   })
+
+  it('says the Magos allowed or denied, with its reason as the detail', () => {
+    const magos = (outcome: Outcome, reason?: string): DecisionItem => ({ ...decision('a', outcome), decidedBy: 'magos', ...(reason === undefined ? {} : { reason }) })
+
+    expect(answerView(magos('allow_once', 'Routine test run'))).toEqual({ state: 'accepted', label: 'Allowed by the Magos', detail: 'The Magos decided: Routine test run' })
+    expect(answerView(magos('allow_chat', 'Same tool as before'))).toEqual({ state: 'accepted', label: 'Allowed by the Magos', detail: 'The Magos decided: Same tool as before' })
+    expect(answerView(magos('deny', 'Writes outside the worktree'))).toEqual({ state: 'blocked', label: 'Denied by the Magos', detail: 'The Magos decided: Writes outside the worktree' })
+    expect(answerView(magos('deny'))).toEqual({ state: 'blocked', label: 'Denied by the Magos', detail: 'The Magos decided.' })
+    expect(answerView(magos('cancelled', 'ignored'))).toEqual({ state: 'canceled', label: 'Cancelled', detail: 'No answer reached the agent.' })
+  })
+
+  it('keeps the Magos detail to 500 characters', () => {
+    const view = answerView({ ...decision('a', 'deny'), decidedBy: 'magos', reason: 'x'.repeat(500) })
+
+    expect(view.detail).toHaveLength(500)
+    expect(view.detail?.startsWith('The Magos decided: x')).toBe(true)
+    expect(view.detail?.endsWith('…')).toBe(true)
+  })
+
+  it('leaves person and legacy decisions as they were, an automatic one included', () => {
+    expect(answerView({ ...decision('a', 'allow_chat', true), decidedBy: 'person' })).toEqual({
+      state: 'accepted', label: 'Allowed for this chat', detail: 'Answered automatically by an earlier Allow for this chat.'
+    })
+    expect(answerView({ ...decision('a', 'deny'), decidedBy: 'person', reason: 'not shown' })).toEqual({ state: 'blocked', label: 'Denied', detail: null })
+    expect(answerView(decision('a', 'allow_once'))).toEqual({ state: 'accepted', label: 'Allowed once', detail: null })
+  })
 })

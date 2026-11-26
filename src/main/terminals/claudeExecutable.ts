@@ -9,7 +9,7 @@ import { win32 } from 'node:path'
 const SHIM_EXTENSION = /\.(?:cmd|bat)$/i
 /** What an npm `.cmd` shim runs: a quoted path under `%dp0%`, the folder holding the shim. */
 const SHIM_TARGET = /"%dp0%\\([^"]+\.(?:js|exe))"/gi
-const SHIM_HELP =
+export const SHIM_HELP =
   'Dark Mechanicus cannot launch Claude Code through that .cmd shim. Connect claude.exe instead (the native installer puts it in %USERPROFILE%\\.local\\bin).'
 
 /**

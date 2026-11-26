@@ -1,0 +1,2 @@
+{"type":"prompt","id":"req_T1_prompt","message":"Ask which database"}
+{"type":"extension_ui_response","id":"ui_T1_question","answers":[{"id":"q_T1_database","selectedOptions":["SQLite"]}]}

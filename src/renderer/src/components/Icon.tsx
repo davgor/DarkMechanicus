@@ -2,9 +2,14 @@ import { classNames } from './classNames'
 
 /** 16×16 stroke icons, drawn inline so they follow `currentColor` and need no asset loading. */
 const ICON_PATHS = {
+  'list-checks': 'M2 4l1 1 2-2M7 4h7M2 8l1 1 2-2M7 8h7M2 12l1 1 2-2M7 12h7',
+  circle: 'M8 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z',
+  'circle-dashed': 'M8 2a6 6 0 0 1 3 0.8M13.2 5a6 6 0 0 1 0.8 3M13.2 11a6 6 0 0 1-2.2 2.2M8 14a6 6 0 0 1-3-0.8M2.8 11A6 6 0 0 1 2 8M2.8 5A6 6 0 0 1 5 2.8',
+  pause: 'M5 3v10M11 3v10',
   'chevron-down': 'M4 6l4 4 4-4',
   'chevron-right': 'M6 4l4 4-4 4',
   folder: 'M2 4.5h4l1.5 1.5H14v6.5H2z',
+  agent: 'M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5',
   plus: 'M8 3v10M3 8h10',
   warning: 'M8 2.5l6 11H2zM8 6.5v3M8 11.5h.01',
   bell: 'M3 11.5h10l-1.5-2V7a3.5 3.5 0 0 0-7 0v2.5zM6.5 13.5a1.7 1.7 0 0 0 3 0',
@@ -25,6 +30,8 @@ const ICON_PATHS = {
   lock: 'M4 7.5h8v6H4zM5.5 7.5v-2a2.5 2.5 0 0 1 5 0v2',
   /** A bar chart: the Metrics dashboard. */
   chart: 'M2.5 13.5h11M4.5 11V8.5M8 11V4M11.5 11V6.5',
+  /** A gear: the app Settings screen. */
+  settings: 'M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4',
   /** The GitHub mark (Octocat silhouette), drawn as an outline. */
   github:
     'M6 13c-3 .9-3-1.5-4.2-1.8M10.2 14.5v-2.3c0-.7-.1-1.2-.5-1.6 1.7-.2 3.5-.8 3.5-3.8a3 3 0 0 0-.8-2 2.7 2.7 0 0 0-.1-2s-.6-.2-2.1.8a7.3 7.3 0 0 0-3.8 0C4.9 2.6 4.3 2.8 4.3 2.8a2.7 2.7 0 0 0-.1 2 3 3 0 0 0-.8 2c0 3 1.8 3.6 3.5 3.8-.4.4-.5.9-.5 1.6v2.3'

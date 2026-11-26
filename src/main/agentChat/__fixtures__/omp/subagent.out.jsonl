@@ -1,0 +1,12 @@
+{"type":"response","command":"prompt","id":"req_T1_prompt","success":true}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"subagent_lifecycle","payload":{"id":"agent_T1_worker","agent":"task","description":"Servitor:READ Read file","task":"Read a.txt","status":"running"}}
+{"type":"subagent_progress","payload":{"agent":"task","task":"Read a.txt","progress":{"id":"agent_T1_worker","status":"running","description":"Servitor:READ Read file"}}}
+{"type":"response","command":"get_subagent_messages","id":"req_T1_tail_agent_T1_worker","success":true,"data":{"messages":[{"role":"assistant","content":[{"type":"toolCall","id":"call_T1_nestedread","name":"read","arguments":{"path":"a.txt"}}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse"},{"role":"toolResult","toolCallId":"call_T1_nestedread","toolName":"read","content":[{"type":"text","text":"alpha"}],"isError":false}],"nextByte":512,"reset":false}}
+{"type":"subagent_lifecycle","payload":{"id":"agent_T1_worker","agent":"task","description":"Servitor:READ Read file","task":"Read a.txt","status":"completed"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"alpha"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"alpha"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"},"toolResults":[]}
+{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"alpha"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}]}
+{"type":"prompt_result","id":"req_T1_prompt","agentInvoked":true,"status":"completed"}

@@ -4,6 +4,7 @@
  * clipboard, and external links are separate narrow methods.
  */
 import type { ChatsApi } from '../agents/chatApi'
+import type { AgentChatApi } from '../agents/agentChat'
 import type { TerminalColors } from '../agents/terminalColors'
 import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
@@ -13,6 +14,8 @@ import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../d
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { ForgeSetupApi } from './forgeSetup'
 import type { ForgeApi, ForgeWorld } from './forgeWorld'
+import type { SettingsApi } from './notificationSettings'
+import type { NotificationsApi } from './notifications'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
@@ -277,12 +280,16 @@ export interface DmApi {
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
+  /** Structured CLI chats: validated `agentChat:*` requests and events. */
+  agentChat: AgentChatApi
   /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
   terminals: TerminalsApi
   /** The local Dark Mechanicus source checkout: the `sourceCheckout:*` channels. */
   sourceCheckout: SourceCheckoutApi
   /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
   crossRepoCorrections: CrossRepoCorrectionsApi
+  /** The "Notifications & approvals" settings main owns: the `settings:*Notifications` channels. */
+  settings: SettingsApi
   listFolders(): Promise<TrackedFolderView[]>
   onFoldersChanged?(receive: () => void): () => void
   pickFolder(mode?: 'forge-world'): Promise<FolderPickResult>
@@ -375,6 +382,8 @@ export interface DmApi {
   chooseKnowledgeRepository(): Promise<KnowledgeChooseResult>
   /** Removes `<home>/knowledge.json`, so no overall repository is set. */
   clearKnowledgeRepository(): Promise<void>
+  /** OS notifications: `notifications:raise` for a run event the renderer observed, and `notifications:navigate` pushes. */
+  notifications: NotificationsApi
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */

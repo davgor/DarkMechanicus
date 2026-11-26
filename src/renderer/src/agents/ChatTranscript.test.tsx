@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { IDLE_STOP_CODE, type ChatItem } from '../../../shared/agents/chat'
 import { ChatTranscript } from './ChatTranscript'
+import { RevealThreadContext } from './revealThread'
 
 afterEach(cleanup)
 
@@ -125,5 +126,37 @@ describe('ChatTranscript: subagent threads', () => {
     expect(within(log).queryByText('Inside the worker')).toBe(null)
     fireEvent.click(within(thread).getByRole('button', { name: /Worker DM-9/ }))
     expect(within(thread).getByText('Inside the worker')).toBeTruthy()
+  })
+
+  it('opens every block on a RevealThreadContext path, through the memoized rows', () => {
+    const entries: ChatItem[] = [
+      { id: 'spawn', at: AT, kind: 'tool_call', name: 'Task', input: { description: 'Outer' }, status: 'running', resultSummary: null },
+      { id: 'outer', at: AT, kind: 'thread', parentItemId: 'spawn', label: 'Outer worker', state: 'running' },
+      { id: 'spawn-in', at: AT, kind: 'tool_call', threadId: 'outer', name: 'Task', input: { description: 'Inner' }, status: 'running', resultSummary: null },
+      { id: 'inner', at: AT, kind: 'thread', threadId: 'outer', parentItemId: 'spawn-in', label: 'Inner reviewer', state: 'running' },
+      { id: 'deep', at: AT, kind: 'assistant_text', text: 'Inside the reviewer', threadId: 'inner' }
+    ]
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    const reveal = { path: new Set(['outer', 'inner']), target: 'inner', nonce: 1 }
+    const view = render(
+      <RevealThreadContext.Provider value={reveal}>
+        <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} />
+      </RevealThreadContext.Provider>
+    )
+    const outer = screen.getByRole('listitem', { name: 'Thread: Outer worker' })
+    const inner = within(outer).getByRole('listitem', { name: 'Thread: Inner reviewer' })
+    expect(within(outer).getAllByRole('button', { name: /Outer worker/ })[0].getAttribute('aria-expanded')).toBe('true')
+    expect(within(inner).getByRole('button', { name: /Inner reviewer/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(within(inner).getByText('Inside the reviewer')).toBeTruthy()
+    expect(inner.getAttribute('data-thread-id')).toBe('inner')
+    expect(scroll.mock.contexts).toEqual([inner])
+    view.rerender(
+      <RevealThreadContext.Provider value={{ ...reveal }}>
+        <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} />
+      </RevealThreadContext.Provider>
+    )
+    expect(scroll).toHaveBeenCalledTimes(1)
+    delete (Element.prototype as Partial<Element>).scrollIntoView
   })
 })

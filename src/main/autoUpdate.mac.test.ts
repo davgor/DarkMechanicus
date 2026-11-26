@@ -215,6 +215,42 @@ describe('macOS restart handling', () => {
   })
 })
 
+describe('macOS Restart now and the before-install hook', () => {
+  it('a refused install never runs the before-install hook', async () => {
+    const nothingStaged = await load()
+    const hook = vi.fn()
+    nothingStaged.setBeforeInstall(hook)
+    expect(() => nothingStaged.quitAndInstallUpdate()).toThrow('No staged update')
+
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    checkForUpdates.mockResolvedValue(feed('2.0.0'))
+    vi.mocked(canReplaceBundle).mockReturnValue(false)
+    const notWritable = await load()
+    notWritable.setBeforeInstall(hook)
+    await notWritable.checkForUpdatesNow()
+    expect(() => notWritable.quitAndInstallUpdate()).toThrow('not writable')
+
+    expect(callCount(hook)).toBe(0)
+    expect(callCount(startInstallHelper)).toBe(0)
+  })
+
+  it('an accepted install runs the hook once, before the install helper, also after a second Restart click', async () => {
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    checkForUpdates.mockResolvedValue(feed('2.0.0'))
+    const updater = await load()
+    await updater.checkForUpdatesNow()
+    const order: string[] = []
+    updater.setBeforeInstall(() => { order.push('hook') })
+    vi.mocked(startInstallHelper).mockImplementation(() => { order.push('install') })
+
+    updater.quitAndInstallUpdate()
+    updater.quitAndInstallUpdate()
+
+    expect(order).toEqual(['hook', 'install'])
+    expect(callCount(quit)).toBe(1)
+  })
+})
+
 describe('macOS startup', () => {
   it('sweeps leftover staging folders on macOS only', async () => {
     vi.useFakeTimers()

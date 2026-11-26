@@ -1,0 +1,2 @@
+{"type":"prompt","id":"req_T1_prompt","message":"Run echo hello"}
+{"type":"extension_ui_response","id":"ui_T1_approval","value":"Approve bash for this session"}

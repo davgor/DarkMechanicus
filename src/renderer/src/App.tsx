@@ -3,7 +3,7 @@ import type { ComponentProps, ComponentType, MutableRefObject } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
-import { epicLandingFor, threadLandingFor } from './app/landing'
+import { epicLandingFor, sourceFileLandingFor, threadLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
 import { listFor } from './app/useEpicLists'
@@ -25,6 +25,7 @@ import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
 import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
+import { AgentChat } from './agentChat/AgentChat'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
@@ -51,6 +52,7 @@ import { useSourceTarget, type SourceTargetModel } from './source/useSourceTarge
 import type { FolderTab } from './app/folderTabs'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
+import { SettingsView } from './settings/SettingsView'
 import { UntrackDialog } from './sidebar/UntrackDialog'
 
 type EpicView = ComponentType<EpicWorkspaceProps>
@@ -91,6 +93,7 @@ function orchestrationFor(shell: ShellModel, folder: TrackedFolderView): Orchest
     onChatsChanged: () => shell.chats.reload(folder.path),
     onAddAgent: actions.openAddAgent,
     onAgentStatus: shell.agents.recordStatus,
+    onOpenSourceFile: (absolutePath) => actions.openSourceFile(folder.path, absolutePath),
     onOpenChat: (chatId, threadId) => (threadId === undefined ? actions.selectChat(folder.path, chatId) : actions.openThread(folder.path, chatId, threadId))
   }
 }
@@ -137,21 +140,26 @@ interface ChatPaneProps {
   terminalKit: TerminalKit
 }
 
-/**
- * An open chat: its terminal. A link that asked for one of its threads (a transcript view's) has opened the chat,
- * which is all a terminal can show of it, so the request is taken at once rather than left for a later view.
- */
+/** The persisted surface owns the pane; a surface command waits for the chats_changed record push. */
 function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
-  const landing = threadLandingFor(shell.landing, chat.id) !== null
+  const threadId = threadLandingFor(shell.landing, chat.id)?.threadId ?? null
+  const gui = chat.surface === 'gui'
+  // A GUI chat acknowledges the landing once it revealed the thread; a terminal has nothing to reveal.
   useEffect(() => {
-    if (landing) actions.current.landed()
-  }, [actions, landing])
+    if (threadId !== null && !gui) actions.current.landed()
+  }, [actions, threadId, gui])
+  const onRevealed = useCallback(() => actions.current.landed(), [actions])
+  if (gui) {
+    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler}
+      rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} />
+  }
   return (
     <TerminalPane
       folder={folder}
       chat={chat}
       agentName={agentName(chat.agent, shell.agents.agents)}
+      agentKind={shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind}
       kit={terminalKit}
       scheduler={scheduler}
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
@@ -242,7 +250,8 @@ async function openForgeOnboarding(shell: ShellModel, member: string, chatId: st
 
 function ForgeProjectSource({ shell, folder, scheduler, sourceTarget }: FolderContentsProps): JSX.Element {
   const api = window.dm.forgeSetup
-  const source = <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  const source = <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget}
+    focusPath={sourceFileLandingFor(shell.landing, folder.path)?.absolutePath} onFocused={shell.actions.landed} />
   if (api === undefined) return source
   const status = sourceTarget.state
   const checkout = status.status === 'ready' && status.value.kind === 'available' ? status.value.path : null
@@ -273,7 +282,8 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
 
 function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvision }: FolderContentsProps): JSX.Element | null {
   if (tab === 'standards') return null
-  if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget}
+    focusPath={sourceFileLandingFor(shell.landing, folder.path)?.absolutePath} onFocused={shell.actions.landed} />
   if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource
     key={folder.path} folder={folder} folders={shell.folders} status={shell.status} agents={shell.agents.agents}
     initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })}
@@ -283,6 +293,7 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvi
 
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
+  if (view.kind === 'settings') return <SettingsView />
   if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics' || view.kind === 'learnings') && view.folder.forgeParent) {
     return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
@@ -361,6 +372,8 @@ function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
       onOpenMetrics={() => {
         if (folder !== null) shell.actions.selectMetrics(folder.path)
       }}
+      settingsOpen={view.kind === 'settings'}
+      onOpenSettings={shell.actions.openSettings}
       onFlush={() => void shell.actions.flush()}
       onReconcile={() => void shell.actions.reconcile()}
     >

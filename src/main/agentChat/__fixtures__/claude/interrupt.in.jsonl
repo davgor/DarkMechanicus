@@ -1,0 +1,2 @@
+{"type":"user","session_id":"session_T1","uuid":"uuid_T1_50","parent_tool_use_id":null,"message":{"role":"user","content":"Start a reply"}}
+{"type":"control_request","request_id":"req_T1_interrupt","request":{"subtype":"interrupt"}}

@@ -53,7 +53,41 @@ function leftBehind(): { before: Rig; chat: ChatRecord } {
   return { before, chat }
 }
 
+describe('chat records: central surface defaults', () => {
+  it.each([
+    ['claude', 'gui'], ['omp', 'gui'], ['codex', 'terminal'], ['cursor', 'terminal'],
+    ['autonomous', 'terminal']
+  ] as const)('defaults %s by its connected kind, independent of signed-in Claude', (kind, surface) => {
+    const store = memoryChatStore()
+    const chosen = builtInAgent(kind, { id: 'cu_00000000000000000000000001' })
+    const signedInClaude = { ...builtInAgent('claude'), auth: { state: 'signed_in', reason: 'Signed in.' } }
+    const records = createChatRecords({ store, agentFor: connectedAgents([chosen, signedInClaude]) })
+    for (const context of [{}, { runId: RUN_ID }, { transferEpicId: 'ep_transfer' },
+      { cardId: 'kc_card' }, { epicId: 'ep_planner' }]) {
+      const chat = records.createChat({ folder: REPO, agent: chosen.id, role: 'planner', ...context })
+      expect(chat.surface).toBe(surface)
+      expect(store.getChat(chat)?.surface).toBe(surface)
+    }
+    expect(records.createChat({ folder: null, agent: chosen.id, role: 'worker' }).surface).toBe(surface)
+  })
+
+  it('keeps disconnected and custom kinds terminal rather than guessing from their id', () => {
+    const agent = { ...builtInAgent('claude'), kind: 'custom' as const }
+    const records = createChatRecords({ store: memoryChatStore(), agentFor: connectedAgents([agent]) })
+    expect(records.createChat({ folder: REPO, agent: agent.id, role: 'worker' }).surface).toBe('terminal')
+    expect(records.createChat({ folder: REPO, agent: 'omp', role: 'worker' }).surface).toBe('terminal')
+  })
+
+  it.each(['claude', 'omp'] as const)('keeps a %s Forge setup chat terminal so it stays on the guarded setup path', kind => {
+    const store = memoryChatStore(), records = createChatRecords({ store, agentFor: connectedAgents([builtInAgent(kind)]) })
+    const forgeSetup = { intentId: '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f', mode: 'onboarding', stepId: '7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d' } as const
+    const chat = records.createChat({ folder: REPO, agent: kind, role: 'worker', forgeSetup })
+    expect([chat.surface, store.getChat(chat)?.surface, store.getChat(chat)?.forgeSetup]).toEqual(['terminal', 'terminal', forgeSetup])
+  })
+})
+
 describe('chat records: creating, listing and renaming', () => {
+
   it('creates a chat with the defaults (allow save, the CLI model) and lists it', () => {
     const { records } = rig()
 
@@ -314,6 +348,33 @@ describe('chat records: reading an old transcript', () => {
 
     expect(state.records.readChat(chat)).toEqual({ chat, items: [] })
     expect(() => state.records.readChat({ folder: REPO, id: 'chat_gone' })).toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
+  })
+})
+
+describe('chat records: reading a live transcript', () => {
+  it('preserves running calls, threads and pending approvals without changing storage', () => {
+    const state = rig()
+    const chat = newChat(state.records)
+    const items = [call('c1'), thread('th1'), call('c2', 'running', 'th1'), request('q1', 'th1'), call('c3', 'completed')]
+    state.store.appendItems(chat, items)
+    const stored = everythingStored(state.fs)
+
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items })
+    const settled = state.records.readChat(chat)
+    expect(settled.items.find(item => item.id === 'c1')).toMatchObject({ status: 'cancelled' })
+    expect(settled.items.find(item => item.id === 'th1')).toMatchObject({ state: 'failed' })
+    expect(settled.items.find(item => item.id === 'item_q1:cancelled')).toMatchObject({ decision: 'cancelled' })
+    expect(state.records.readChat(chat, { live: false })).toEqual(settled)
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items })
+    expect(everythingStored(state.fs)).toBe(stored)
+  })
+
+  it('keeps live empty and missing-chat semantics', () => {
+    const state = rig()
+    const chat = newChat(state.records)
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items: [] })
+    expect(() => state.records.readChat({ ...chat, id: 'chat_gone' }, { live: true }))
+      .toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
   })
 })
 
