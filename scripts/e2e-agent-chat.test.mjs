@@ -9,14 +9,20 @@ import {
   assertHandoffOrder,
   assertToggleLaunches,
   chatLaunches,
+  claudeSessionPath,
   failureScreenshotName,
   fakeAgentLog,
   fakeAgentPids,
   isAlive,
   isolatedEnv,
+  newerVersion,
   parseArgs,
   pngSize,
   replyAfter,
+  restartChat,
+  restartMarker,
+  restartResumeText,
+  restartTurn,
   runStep,
   turnEnded,
   verdict,
@@ -184,20 +190,22 @@ describe('writeShim', () => {
 })
 
 describe('wrapperSource', () => {
-  it('points Electron home at the isolated home before loading the built app', () => {
-    const source = wrapperSource({ repo: 'C:\\repo', main: 'C:\\repo\\out\\main\\index.js', home: 'C:\\tmp\\run\\home' })
+  it('points Electron home at the isolated home and sets the package version before loading the built app', () => {
+    const source = wrapperSource({ repo: 'C:\\repo', main: 'C:\\repo\\out\\main\\index.js', home: 'C:\\tmp\\run\\home', version: '0.83.0' })
     const lines = source.split('\n')
     const home = lines.indexOf(`app.setPath('home', ${JSON.stringify('C:\\tmp\\run\\home')})`)
+    const version = lines.indexOf(`app.setVersion("0.83.0")`)
     const main = lines.indexOf(`require(${JSON.stringify('C:\\repo\\out\\main\\index.js')})`)
     expect(home).toBeGreaterThan(0)
-    expect(main).toBeGreaterThan(home)
+    expect(version).toBeGreaterThan(0)
+    expect(main).toBeGreaterThan(Math.max(home, version))
     expect(source).toContain(`app.setAppPath(${JSON.stringify('C:\\repo')})`)
   })
 
   it('quits and resizes the app window on the harness\'s messages, and quits when the harness goes away', () => {
     const listeners = {}
     const window = { maximized: true, size: null, isMaximized() { return this.maximized }, unmaximize() { this.maximized = false }, setContentSize(width, height) { this.size = [width, height] } }
-    const app = { quits: 0, setAppPath() {}, setPath() {}, quit() { this.quits += 1 } }
+    const app = { quits: 0, setAppPath() {}, setPath() {}, setVersion() {}, quit() { this.quits += 1 } }
     const fakeRequire = (name) => (name === 'electron' ? { app, BrowserWindow: { getAllWindows: () => [window] } } : {})
     const fakeProcess = { on: (event, listener) => { listeners[event] = listener } }
     new Function('require', 'process', wrapperSource({ repo: 'r', main: 'm', home: 'h' }))(fakeRequire, fakeProcess)
@@ -331,7 +339,8 @@ describe('pngSize', () => {
 
 describe('parseArgs', () => {
   it('runs every step in scenario order without --steps, and refuses unknown steps', () => {
-    expect(parseArgs(['--out', 'x']).keys).toEqual(['ready', 'new-chat', 'stream', 'tool', 'approval', 'todo', 'toggle', 'epic-agent', 'quit'])
+    expect(parseArgs(['--out', 'x']).keys).toEqual(['ready', 'new-chat', 'stream', 'tool', 'approval', 'todo', 'toggle', 'epic-agent', 'quit', 'restart-resume'])
+    expect(parseArgs(['--out', 'x', '--steps', 'restart-resume']).keys).toEqual(['restart-resume'])
     expect(parseArgs(['--out', 'x', '--steps', 'ready,quit']).keys).toEqual(['ready', 'quit'])
     expect(() => parseArgs(['--out', 'x', '--steps', 'ready,nope'])).toThrow('Unknown step(s) nope')
     expect(() => parseArgs([])).toThrow('Usage')
@@ -352,5 +361,65 @@ describe('isAlive', () => {
     expect(isAlive(process.pid)).toBe(true)
     const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' })
     expect(isAlive(Number(child.stdout))).toBe(false)
+  })
+})
+
+/** `restartResume.ts`'s `restartMarkerSchema`, restated: strict, `x.y.z`, an ISO datetime, at most 20 non-empty chats. */
+function assertRestartMarkerShape(marker) {
+  expect(Object.keys(marker).sort()).toEqual(['chats', 'fromVersion', 'writtenAt'])
+  expect(marker.fromVersion).toMatch(/^\d+\.\d+\.\d+$/)
+  expect(marker.writtenAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/)
+  expect(Number.isNaN(Date.parse(marker.writtenAt))).toBe(false)
+  expect(Array.isArray(marker.chats) && marker.chats.length <= 20).toBe(true)
+  for (const chat of marker.chats) {
+    expect(Object.keys(chat).sort()).toEqual(['chatId', 'folder'])
+    expect(typeof chat.folder === 'string' && chat.folder.length > 0).toBe(true)
+    expect(typeof chat.chatId === 'string' && chat.chatId.length > 0).toBe(true)
+  }
+}
+
+describe('restart-resume seeding', () => {
+  const folder = join(tmpdir(), 'e2e-repo')
+
+  it('writes a marker the marker schema accepts, listing the seeded chat', () => {
+    const marker = restartMarker({ fromVersion: '0.0.1', writtenAt: new Date().toISOString(), folder, chatId: 'ch_1' })
+    assertRestartMarkerShape(marker)
+    expect(marker).toEqual({ fromVersion: '0.0.1', writtenAt: expect.any(String), chats: [{ folder, chatId: 'ch_1' }] })
+  })
+
+  it('creates a run-bound orchestrator GUI chat of the claude-kind fake through the store, then gives it session U', () => {
+    const sessionId = '0d5c8e2a-7f41-4b6e-9a3d-5e8f1c2b4a60'
+    const { create, patch } = restartChat({ folder, epicId: 'ep_1', sessionId })
+    expect(create).toEqual({
+      folder, agent: 'claude', model: null, role: 'orchestrator', allowSave: true, epicId: 'ep_1', surface: 'gui', title: 'Restart resume Magos'
+    })
+    // Only NewChat's fields: the seeder adds the started run's id, and the patch sets the session id createChat leaves null.
+    const newChat = ['folder', 'agent', 'model', 'role', 'allowSave', 'epicId', 'surface', 'title', 'runId']
+    expect(Object.keys(create).filter((key) => !newChat.includes(key))).toEqual([])
+    expect(patch).toEqual({ sessionId })
+  })
+
+  it('puts the fake session where claudeSession.ts looks for it', () => {
+    expect(claudeSessionPath(join('C:', 'cfg'), 'C:\\Users\\a b\\e2e-repo', 'u-1'))
+      .toBe(join('C:', 'cfg', 'projects', 'C--Users-a-b-e2e-repo', 'u-1.jsonl'))
+  })
+
+  it('builds the fixed restart text and compares versions numerically', () => {
+    expect(restartResumeText('0.0.1', '0.83.0')).toBe('[App restarted after an update from v0.0.1 to v0.83.0: resume your run from get_run]')
+    expect(newerVersion('0.83.0', '0.0.1')).toBe(true)
+    expect(newerVersion('0.10.0', '0.9.9')).toBe(true)
+    expect(newerVersion('0.83.0', '0.83.0')).toBe(false)
+    expect(newerVersion('0.0.1', '0.83.0')).toBe(false)
+  })
+
+  it('accepts exactly one restart message followed by the reply', () => {
+    const text = restartResumeText('0.0.1', '0.83.0')
+    const user = (id, value) => ({ id, kind: 'user_message', text: value })
+    const reply = (id, value) => ({ id, kind: 'assistant_text', text: value })
+    expect(restartTurn([user('1', text), reply('2', 'Hello world')], text, 'Hello world')).toEqual({ ok: true, messages: 1, reply: 'Hello world' })
+    expect(restartTurn([user('1', text)], text, 'Hello world').ok).toBe(false)
+    expect(restartTurn([user('1', text), reply('2', 'Hello world'), user('3', text), reply('4', 'Hello world')], text, 'Hello world'))
+      .toEqual({ ok: false, messages: 2, reply: 'Hello world' })
+    expect(restartTurn([user('1', 'hello'), reply('2', 'Hello world')], text, 'Hello world').messages).toBe(0)
   })
 })

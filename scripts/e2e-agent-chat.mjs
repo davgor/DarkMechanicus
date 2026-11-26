@@ -3,13 +3,15 @@
  * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent, drives it over CDP and runs named
  * steps, each exactly once under a 10 s condition-based deadline with no retries.
  *
- *   node scripts/e2e-agent-chat.mjs --out <dir> [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *
  * Without `--steps` every step runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
- * only in the isolated app it launched, so it runs on Windows only.
+ * only in the isolated app it launched, so it runs on Windows only. The `restart-resume` step starts the app itself
+ * (with the app stopped: alone, or after `quit`) on a seeded restart marker, as Restart now leaves it, and runs in
+ * phases, each under the same deadline.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
@@ -243,7 +245,8 @@ function createSession(out) {
     out, root, env: withNodeFirst(isolatedEnv(process.env, root)),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     shim: null, child: null, exited: null, port: null, socket: null, pending: new Map(), nextId: 0,
-    stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null
+    stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
+    store: null, restart: null
   }
 }
 
@@ -316,15 +319,17 @@ function seedStores(session) {
 
 /**
  * The Electron entry the harness launches: the app's own `home` path is the isolated one (Electron reads the real
- * profile otherwise), a `quit` message asks for a normal quit, with the app's process disposal, on every platform, and
- * a `resize` message sets the app window's content size. A harness that goes away (crash, kill) closes the IPC
- * channel: the app then quits the same way, so it never outlives the run.
+ * profile otherwise), its version is the package's (an unpackaged entry file otherwise reports Electron's own), a
+ * `quit` message asks for a normal quit, with the app's process disposal, on every platform, and a `resize` message
+ * sets the app window's content size. A harness that goes away (crash, kill) closes the IPC channel: the app then
+ * quits the same way, so it never outlives the run.
  */
-export function wrapperSource({ repo, main, home }) {
+export function wrapperSource({ repo, main, home, version }) {
   return [
     `const { app, BrowserWindow } = require('electron')`,
     `app.setAppPath(${JSON.stringify(repo)})`,
     `app.setPath('home', ${JSON.stringify(home)})`,
+    `app.setVersion(${JSON.stringify(version)})`,
     `process.on('disconnect', () => app.quit())`,
     `process.on('message', (message) => {`,
     `  if (message === 'quit') app.quit()`,
@@ -388,7 +393,8 @@ function setup(session) {
   session.shim = writeShim(join(session.root, 'shim'), FAKE_AGENT_CLI)
   seedRepository(session)
   seedStores(session)
-  writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME }))
+  const { version } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
+  writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME, version }))
   if (process.platform === 'win32') startDialogHelper(session)
   return { shim: session.shim, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME }
 }
@@ -632,6 +638,7 @@ async function resizeWindow(session, signal, size) {
   session.child.send({ type: 'resize', ...size })
   await waitFor(async () => {
     const view = await evaluate(session, '({ width: innerWidth, height: innerHeight })')
+    session.lastProbe = { resize: size, view }
     return view.width === size.width && view.height === size.height
   }, signal)
 }
@@ -1031,6 +1038,233 @@ async function quitApp(session, signal) {
   return { ...exited, ...await fakeProcessesExited(session, signal), screenshot }
 }
 
+/** The fixed session id of the seeded Magos chat, and the version its restart marker says the app was updated from. */
+const RESTART_SESSION_ID = '0d5c8e2a-7f41-4b6e-9a3d-5e8f1c2b4a60'
+const RESTART_FROM_VERSION = '0.0.1'
+const RESTART_REPLY = 'Hello world'
+const NO_RESUME_WINDOW_MS = 5_000
+
+/** The marker Restart now writes (`restartResume.ts`, `writeRestartMarker`), listing one chat. */
+export function restartMarker({ fromVersion, writtenAt, folder, chatId }) {
+  return { fromVersion, writtenAt, chats: [{ folder, chatId }] }
+}
+
+/**
+ * The seeded Magos: `create` is the chat store's `createChat` input (an orchestrator GUI chat of the claude-kind fake,
+ * bound to the epic; the seeder adds the started run's id), `patch` then gives it its fixed session id.
+ */
+export function restartChat({ folder, epicId, sessionId }) {
+  return {
+    create: { folder, agent: 'claude', model: null, role: 'orchestrator', allowSave: true, epicId, surface: 'gui', title: 'Restart resume Magos' },
+    patch: { sessionId }
+  }
+}
+
+/** Where Claude Code keeps a session (`claudeSession.ts`): `<config>/projects/<folder, non-alphanumerics as ->/<id>.jsonl`. */
+export function claudeSessionPath(configDir, folder, sessionId) {
+  return join(configDir, 'projects', folder.replace(/[^a-zA-Z0-9]/g, '-'), `${sessionId}.jsonl`)
+}
+
+/** The app's one restart message (`restartResume.ts`, `restartResumeText`); scripts cannot import TypeScript. */
+export function restartResumeText(from, to) {
+  return `[App restarted after an update from v${from} to v${to}: resume your run from get_run]`
+}
+
+/** Whether `x.y.z` version `a` is newer than `b`. */
+export function newerVersion(a, b) {
+  const [left, right] = [a, b].map((version) => version.split('.').map(Number))
+  const index = left.findIndex((part, at) => part !== right[at])
+  return index >= 0 && left[index] > right[index]
+}
+
+/**
+ * The restart messages `text` in a transcript's items and the reply right after the last one: `ok` when there is
+ * exactly one and the assistant's `reply` follows it.
+ */
+export function restartTurn(items, text, reply) {
+  const sent = items.flatMap((item, index) => (item.kind === 'user_message' && item.text === text ? [index] : []))
+  const after = sent.length > 0 ? items.slice(sent.at(-1) + 1).find((item) => item.kind === 'assistant_text') : undefined
+  return { ok: sent.length === 1 && after?.text === reply, messages: sent.length, reply: after?.text ?? null }
+}
+
+/** Starts a run of the seeded epic, then creates its Magos through the app's chat store and gives it its session. */
+const RESTART_SEED_SOURCE = `
+import { openWorkspace } from './src/core/workspace'
+import { createChatStore } from './src/main/agents/chatStore'
+const seed = JSON.parse(process.argv[2])
+async function main() {
+  const workspace = openWorkspace({ repoRoot: seed.folder, homeDir: seed.dmHome, role: 'orchestrator', transport: 'in_process', label: 'e2e restart seed' })
+  let runId
+  try {
+    runId = (await workspace.startRun({ epicId: seed.epicId })).id
+  } finally {
+    workspace.close()
+  }
+  const store = createChatStore({ root: seed.chats })
+  const created = store.createChat({ ...seed.chat, runId })
+  const chat = store.updateChat({ folder: created.folder, id: created.id }, seed.patch)
+  process.stdout.write(JSON.stringify({ runId, chat }))
+}
+main().catch((error) => { console.error(error); process.exitCode = 1 })
+`
+
+const chatsRoot = (session) => join(session.userData, 'agents', 'chats')
+const markerFile = (session) => join(session.userData, 'agents', 'restart-resume.json')
+
+function bundle(session, name, contents) {
+  const outfile = join(session.root, name)
+  buildSync({
+    absWorkingDir: REPO, stdin: { resolveDir: REPO, contents, loader: 'ts' }, outfile,
+    bundle: true, platform: 'node', format: 'cjs', target: 'node24', logLevel: 'warning'
+  })
+  return outfile
+}
+
+/** The app's own chat store over the isolated profile, read in this process. */
+function chatStore(session) {
+  session.store ??= require(bundle(session, 'chat-store.cjs', `export { createChatStore } from './src/main/agents/chatStore'`))
+    .createChatStore({ root: chatsRoot(session) })
+  return session.store
+}
+
+function writeMarker(session, fromVersion) {
+  const { folder, chatId } = session.restart
+  const marker = restartMarker({ fromVersion, writtenAt: new Date().toISOString(), folder, chatId })
+  mkdirSync(dirname(markerFile(session)), { recursive: true })
+  writeFileSync(markerFile(session), JSON.stringify(marker))
+  return marker
+}
+
+function restartTranscript(session) {
+  const { folder, chatId } = session.restart
+  const transcript = chatStore(session).readTranscript({ folder, id: chatId })
+  if (transcript === null) throw new Error(`The chat store has no chat ${chatId}.`)
+  return transcript
+}
+
+/**
+ * Restart phase 1, with the app stopped: the run's Magos (a GUI chat on session U) through the app's chat store, the
+ * fake's session file for U, so the app resumes it, and the marker Restart now would leave, from v0.0.1.
+ */
+async function restartSeed(session) {
+  if (session.child !== null && isRunning(session.child)) {
+    throw new Error('restart-resume starts the app itself: run it alone or after quit.')
+  }
+  const folder = realpathSync.native(session.folder)
+  const { create, patch } = restartChat({ folder, epicId: session.epicId, sessionId: RESTART_SESSION_ID })
+  const seeder = bundle(session, 'restart-seed.cjs', RESTART_SEED_SOURCE)
+  const input = { folder, dmHome: session.env.DARKMECHANICUS_HOME, epicId: session.epicId, chats: chatsRoot(session), chat: create, patch }
+  const result = spawnSync(process.execPath, [seeder, JSON.stringify(input)], { env: session.env, encoding: 'utf8', windowsHide: true })
+  if (result.status !== 0) throw new Error(`Seeding the restart chat failed: ${result.stderr || result.error}`)
+  const { runId, chat } = JSON.parse(result.stdout)
+  const stored = chatStore(session).getChat({ folder, id: chat.id })
+  if (stored?.sessionId !== RESTART_SESSION_ID || stored.role !== 'orchestrator' || stored.surface !== 'gui' || stored.runId !== runId) {
+    throw new Error(`The chat store does not hold the seeded Magos: ${JSON.stringify(stored)}`)
+  }
+  const sessionFile = claudeSessionPath(session.env.CLAUDE_CONFIG_DIR, folder, RESTART_SESSION_ID)
+  mkdirSync(dirname(sessionFile), { recursive: true })
+  writeFileSync(sessionFile, `${JSON.stringify({ type: 'system', sessionId: RESTART_SESSION_ID })}\n`)
+  session.restart = { folder, chatId: chat.id, runId, version: null, launchesBefore: null }
+  const marker = writeMarker(session, RESTART_FROM_VERSION)
+  const { id, agent, role, surface, sessionId, epicId } = stored
+  return { chat: { id, agent, role, surface, sessionId, runId: stored.runId, epicId }, sessionFile, marker }
+}
+
+/** Launches the app on the seeded profile and reads its runtime version, the one the header shows. */
+async function restartLaunch(session, signal) {
+  const ready = await appReady(session, signal)
+  const version = await evaluate(session, 'window.appInfo.getVersion()')
+  const fixture = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).version
+  if (!/^\d+\.\d+\.\d+$/.test(version) || !newerVersion(version, RESTART_FROM_VERSION)) {
+    throw new Error(`The app's runtime version ${version} is not newer than v${RESTART_FROM_VERSION}.`)
+  }
+  return { runtimeVersion: version, packageJsonVersion: fixture, folder: ready.folder, cdpPort: ready.cdpPort }
+}
+
+/** Phase 3: one protocol launch with `--resume U`, the fixed message and the fake's reply stored, the marker gone. */
+async function restartResumed(session, signal) {
+  const text = restartResumeText(RESTART_FROM_VERSION, await evaluate(session, 'window.appInfo.getVersion()'))
+  const launch = await waitFor(() => chatLaunches(readLog(session), RESTART_SESSION_ID)[0], signal)
+  const resumeLaunch = fakeAgentLog(readLog(session)).find((entry) => entry.pid === launch.pid)
+  if (resumeLaunch.mode !== 'claude' || launch.flag !== '--resume') {
+    throw new Error(`The chat was launched ${resumeLaunch.mode} ${launch.flag}, not in protocol mode with --resume.`)
+  }
+  const turn = await waitFor(() => {
+    session.lastProbe = restartTurn(restartTranscript(session).items, text, RESTART_REPLY)
+    return session.lastProbe.ok && session.lastProbe
+  }, signal)
+  if (existsSync(markerFile(session))) throw new Error('The restart marker is still present.')
+  const launches = chatLaunches(readLog(session), RESTART_SESSION_ID)
+  if (launches.length !== 1) throw new Error(`The chat was launched ${launches.length} times: ${JSON.stringify(launches)}`)
+  session.restart.text = text
+  return { text, launch: { mode: resumeLaunch.mode, argv: resumeLaunch.argv, pid: launch.pid }, turn, markerRemoved: true }
+}
+
+/** Opens the epic (unless a remembered selection already shows it). */
+function openEpic(h, title) {
+  if (document.querySelector('section.ew[aria-label="Epic workspace"]')) return { ok: true, already: true }
+  const row = [...document.querySelectorAll('button.epic-row')].find((button) => button.querySelector('.epic-row-title')?.textContent === title)
+  if (!row) return { ok: false }
+  row.click()
+  return { ok: true, already: false }
+}
+
+/**
+ * Phase 4: the epic's Agent tab shows the Magos with the restart message and the fake's reply. Captured at the
+ * standard window: the wide one does not fit some hosts' scaled work area (see the `epic-agent` step's 1024 capture).
+ */
+async function restartShown(session, signal) {
+  const { chatId, text } = session.restart
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  const shown = await until(session, signal, guiShows, chatId, text, RESTART_REPLY)
+  return { section: shown.section, answered: shown.answered, screenshot: await capture(session, 'e2e-restart-resume.png', WINDOW) }
+}
+
+function leaveEpic(_h, name) {
+  const epic = document.querySelector('section.ew[aria-label="Epic workspace"]')
+  if (!epic) return { ok: true }
+  const folder = [...document.querySelectorAll('button.folder-main')].find((button) => button.querySelector('.folder-name')?.textContent === name)
+  folder?.click()
+  return { ok: false, folder: !!folder }
+}
+
+/**
+ * Phase 5: a plain quit, with the folder home shown so the next start opens no chat view (which would start the
+ * chat). The app's processes all exit and no marker is written: only Restart now writes one.
+ */
+async function restartPlainQuit(session, signal) {
+  await until(session, signal, leaveEpic, FOLDER_NAME)
+  const exited = await quit(session, signal)
+  const fakes = await fakeProcessesExited(session, signal)
+  if (existsSync(markerFile(session))) throw new Error('A plain quit wrote a restart marker.')
+  return { ...exited, ...fakes, markerWritten: false }
+}
+
+/** Phase 6: a marker from the version the app runs now, then a start. */
+async function restartEqualLaunch(session, signal) {
+  const version = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).version
+  session.restart.launchesBefore = chatLaunches(readLog(session), RESTART_SESSION_ID).length
+  const marker = writeMarker(session, version)
+  const launched = await restartLaunch(session, signal)
+  if (launched.runtimeVersion !== version) throw new Error(`The marker says v${version}; the app runs v${launched.runtimeVersion}.`)
+  return { marker, ...launched }
+}
+
+/** Phase 7: in 5 s the equal-version marker launches nothing for the chat and adds no message; it is consumed. */
+async function restartEqualVersion(session, signal) {
+  await delay(NO_RESUME_WINDOW_MS, undefined, { signal })
+  const launches = chatLaunches(readLog(session), RESTART_SESSION_ID)
+  if (launches.length !== session.restart.launchesBefore) {
+    throw new Error(`The equal-version start launched the chat: ${JSON.stringify(launches.slice(session.restart.launchesBefore))}`)
+  }
+  if (existsSync(markerFile(session))) throw new Error('The equal-version marker was not consumed.')
+  const turn = restartTurn(restartTranscript(session).items, session.restart.text, RESTART_REPLY)
+  if (!turn.ok) throw new Error(`The transcript no longer holds exactly one restart message: ${JSON.stringify(turn)}`)
+  const exited = await quit(session, signal)
+  return { waitedMs: NO_RESUME_WINDOW_MS, launches: launches.length, markerRemoved: true, turn, ...exited, ...await fakeProcessesExited(session, signal) }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -1040,7 +1274,18 @@ const STEPS = {
   todo: { name: 'todo', run: todo },
   toggle: { name: 'toggle', run: toggle },
   'epic-agent': { name: 'epic-agent', run: epicAgent },
-  quit: { name: 'quit', run: quitApp }
+  quit: { name: 'quit', run: quitApp },
+  'restart-resume': {
+    phases: [
+      { name: 'restart-resume seed', run: restartSeed },
+      { name: 'restart-resume launch', run: restartLaunch },
+      { name: 'restart-resume resumed', run: restartResumed },
+      { name: 'restart-resume shown', run: restartShown },
+      { name: 'restart-resume plain quit', run: restartPlainQuit },
+      { name: 'restart-resume equal-version launch', run: restartEqualLaunch },
+      { name: 'restart-resume equal version', run: restartEqualVersion }
+    ]
+  }
 }
 
 async function captureFailure(session, step) {
@@ -1057,10 +1302,12 @@ async function runSteps(session, keys, steps) {
   const onFailure = (step) => captureFailure(session, step)
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
-  for (const key of prepared.ok ? keys : []) {
-    const result = await runStep(STEPS[key].name, (signal) => STEPS[key].run(session, signal), { onFailure })
-    steps.push(result)
-    if (!result.ok) break
+  steps: for (const key of prepared.ok ? keys : []) {
+    for (const phase of STEPS[key].phases ?? [STEPS[key]]) {
+      const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
+      steps.push(result)
+      if (!result.ok) break steps
+    }
   }
   // Whatever stopped before the quit step still ends the app and checks its fakes.
   if (session.child === null || isRunning(session.child)) {
