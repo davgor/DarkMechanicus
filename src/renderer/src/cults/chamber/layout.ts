@@ -55,8 +55,8 @@ export interface ChamberLayout {
   teleportPad: PlacedProp & { centerX: number }
   viewscreen: { rect: Rect; window: Rect }
   consoles: ChamberConsole[]
-  /** Motion-engine surfaces: the floor line is the viewport bottom; console tops and the helm are platforms;
-   * acolytes free-roam rather than seek the highest platform. */
+  /** Motion-engine surfaces: the floor line is the viewport bottom; console tops are platforms; the helm is the
+   * Magos's alone, so it is not one. Acolytes free-roam rather than seek the highest platform. */
   surfaces: MotionSurfaces
 }
 
@@ -200,7 +200,7 @@ export function chamberLayout(size: Size, props: ChamberPropMetrics, headcount: 
     surfaces: {
       viewport: { width: room.width, height: floorY },
       mascotSize: spriteSize,
-      tickets: [...consoles.map((item) => item.top), helm.top],
+      tickets: consoles.map((item) => item.top),
       freeRoam: true
     }
   }

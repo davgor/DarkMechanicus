@@ -211,7 +211,27 @@ describe('acolyte modes', () => {
     for (const pose of ['walk', 'jump', 'climb', 'stumble']) expect(poses).toContain(pose)
     expect([...supports].some((id) => id.startsWith('console-'))).toBe(true)
   })
+})
 
+describe('the helm', () => {
+  it('never puts an acolyte on the helm, which is the Magos\'s alone, over a long seeded run', () => {
+    const layout = chamberLayout({ width: 1280, height: 720 }, PROPS, 24)
+    const state = populate(11, 24, layout, 0)
+    const { top } = layout.helm
+    let checked = 0
+    run(state, layout, 180_000, (next) => {
+      for (const acolyte of next.acolytes) {
+        checked += 1
+        expect(acolyte.motion.supportId).not.toBe('helm')
+        const overHelm = acolyte.x >= top.x && acolyte.x <= top.x + top.width
+        if (overHelm) expect(acolyte.y).toBeGreaterThan(top.y + 1)
+      }
+    })
+    expect(checked).toBeGreaterThan(0)
+  })
+})
+
+describe('acolyte work and exits', () => {
   it('send working acolytes to their consoles to type; the 7th worker drills', () => {
     let state = populate(17, 7, wide)
     expect(wide.consoles).toHaveLength(6)

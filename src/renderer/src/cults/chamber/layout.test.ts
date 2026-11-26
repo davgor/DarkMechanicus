@@ -90,10 +90,10 @@ describe('chamberLayout surfaces and scale', () => {
     expect(viewscreen.window.x + viewscreen.window.width).toBeLessThan(viewscreen.rect.x + viewscreen.rect.width)
   })
 
-  it.each(ROOMS)('gives the motion engine console tops and the helm as platforms at %o', (size) => {
+  it.each(ROOMS)('gives the motion engine only the console tops as platforms, never the helm, at %o', (size) => {
     const layout = chamberLayout(size, PROPS, 6)
     const ids = layout.surfaces.tickets.map((ticket) => ticket.id)
-    expect(ids).toEqual([...layout.consoles.map((item) => item.id), 'helm'])
+    expect(ids).toEqual(layout.consoles.map((item) => item.id))
     expect(layout.surfaces.viewport).toEqual({ width: size.width, height: layout.floorY })
     for (const ticket of layout.surfaces.tickets) {
       expect(ticket.width).toBeGreaterThanOrEqual(layout.spriteSize.width + 4)
