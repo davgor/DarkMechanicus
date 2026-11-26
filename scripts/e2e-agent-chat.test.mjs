@@ -202,10 +202,17 @@ describe('wrapperSource', () => {
     expect(source).toContain(`app.setAppPath(${JSON.stringify('C:\\repo')})`)
   })
 
+  it('turns off Windows native occlusion before the app loads, so a covered window still lays out its resizes', () => {
+    const lines = wrapperSource({ repo: 'r', main: 'm', home: 'h', version: '1.0.0' }).split('\n')
+    const occlusion = lines.indexOf(`app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')`)
+    expect(occlusion).toBeGreaterThan(0)
+    expect(occlusion).toBeLessThan(lines.indexOf('require("m")'))
+  })
+
   it('quits and resizes the app window on the harness\'s messages, and quits when the harness goes away', () => {
     const listeners = {}
     const window = { maximized: true, size: null, isMaximized() { return this.maximized }, unmaximize() { this.maximized = false }, setContentSize(width, height) { this.size = [width, height] } }
-    const app = { quits: 0, setAppPath() {}, setPath() {}, setVersion() {}, quit() { this.quits += 1 } }
+    const app = { quits: 0, commandLine: { appendSwitch() {} }, setAppPath() {}, setPath() {}, setVersion() {}, quit() { this.quits += 1 } }
     const fakeRequire = (name) => (name === 'electron' ? { app, BrowserWindow: { getAllWindows: () => [window] } } : {})
     const fakeProcess = { on: (event, listener) => { listeners[event] = listener } }
     new Function('require', 'process', wrapperSource({ repo: 'r', main: 'm', home: 'h' }))(fakeRequire, fakeProcess)

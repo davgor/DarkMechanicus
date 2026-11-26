@@ -323,10 +323,15 @@ function seedStores(session) {
  * `quit` message asks for a normal quit, with the app's process disposal, on every platform, and a `resize` message
  * sets the app window's content size. A harness that goes away (crash, kill) closes the IPC channel: the app then
  * quits the same way, so it never outlives the run.
+ *
+ * Windows' native occlusion tracking is off. An unattended run's window is often covered by other windows. Chromium
+ * then marks its page hidden and does not lay out a larger content size until the window is shown again: the
+ * `epic-agent` step's grow to 1440x900 then never reached the page within its deadline, while shrinking still did.
  */
 export function wrapperSource({ repo, main, home, version }) {
   return [
     `const { app, BrowserWindow } = require('electron')`,
+    `app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')`,
     `app.setAppPath(${JSON.stringify(repo)})`,
     `app.setPath('home', ${JSON.stringify(home)})`,
     `app.setVersion(${JSON.stringify(version)})`,
@@ -1211,7 +1216,7 @@ function openEpic(h, title) {
 
 /**
  * Phase 4: the epic's Agent tab shows the Magos with the restart message and the fake's reply. Captured at the
- * standard window: the wide one does not fit some hosts' scaled work area (see the `epic-agent` step's 1024 capture).
+ * standard window, the size every step but `epic-agent` uses and the size the relaunched app is set to on start.
  */
 async function restartShown(session, signal) {
   const { chatId, text } = session.restart
