@@ -31,8 +31,24 @@ interface EpicScorecardLanding {
   epicId: string
 }
 
+/**
+ * Open an epic's workspace on its Agent tab with the chat that holds a card selected. Never at a thread: a worker's
+ * pending prompt lives in its owning chat, and a thread view has no prompt card.
+ */
+interface EpicAgentLanding {
+  kind: 'epicAgent'
+  epicId: string
+  chatId: string
+}
+
+/** Open an epic's workspace on its checkpoint panel. */
+interface EpicCheckpointLanding {
+  kind: 'epicCheckpoint'
+  epicId: string
+}
+
 /** What an epic's workspace can be asked to open. */
-export type EpicLanding = TicketLanding | TicketScorecardLanding | EpicScorecardLanding
+export type EpicLanding = TicketLanding | TicketScorecardLanding | EpicScorecardLanding | EpicAgentLanding | EpicCheckpointLanding
 
 /** Open a chat with one of its threads (a `thread` item's id) expanded and scrolled into view. */
 interface ThreadLandingRequest {

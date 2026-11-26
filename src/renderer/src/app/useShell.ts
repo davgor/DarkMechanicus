@@ -22,6 +22,7 @@ import { folderIdentity } from './folderList'
 import { epicToken, folderToken, kanbanToken } from './eventRouting'
 import type { Landing } from './landing'
 import type { Tokens } from './eventRouting'
+import { useNotificationNavigate } from './notificationNavigate'
 import { EMPTY_SELECTION, findFolder, isSelection, resolveSelection } from './selection'
 import type { Selection } from './selection'
 import type { Scheduler } from './scheduler'
@@ -214,8 +215,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const actions = createShellActions({
     toasts,
     folders,
-    select, setFolderTab,
-    land: setLanding,
+    select, setFolderTab, land: setLanding,
     ...navigationExpansion(folders.folders, expansion),
     chats: { create: chats.create },
     bucketOf: (path, epicId) => bucketOfEpic(listFor(lists, path).epics, epicId),
@@ -223,6 +223,8 @@ export function useShell(scheduler: Scheduler): ShellModel {
     setBusy: (key, value) => setBusy((previous) => ({ ...previous, [key]: value })),
     selectedPath: selection.folderPath
   })
+
+  useNotificationNavigate({ folders: folders.folders, chats: allChats.chats, actions })
 
   return {
     folders: folders.folders, reloadFolders: folders.reload,

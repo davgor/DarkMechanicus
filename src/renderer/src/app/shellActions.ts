@@ -103,6 +103,10 @@ export interface ShellActions {
   openSourceFile(folderPath: string, absolutePath: string): void
   /** Opens an epic's workspace on its Scorecard (a Metrics dashboard row). */
   openEpicScorecard(path: string, epicId: string): void
+  /** Opens an epic's workspace on its Agent tab with the chat that holds the card selected (a clicked notification). */
+  openEpicAgent(path: string, epicId: string, chatId: string): void
+  /** Opens an epic's workspace on its checkpoint panel (a clicked notification). */
+  openEpicCheckpoint(path: string, epicId: string): void
   /** Opens a ticket in its epic's workspace on its Scorecard tab (a Metrics dashboard gap). */
   openTicketScorecard(path: string, link: TicketScorecardLink): void
   /** The screen opened by a link took its request: forget it. */
@@ -212,8 +216,10 @@ function selectionActions(deps: ShellDeps): SelectionActions {
   }
 }
 
+type LinkActions = 'openTicket' | 'openThread' | 'openSourceFile' | 'openEpicScorecard' | 'openEpicAgent' | 'openEpicCheckpoint' | 'openTicketScorecard' | 'landed'
+
 /** Links from one screen to another: the screen is opened, then asked for what the link points at. */
-function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'openSourceFile' | 'openEpicScorecard' | 'openTicketScorecard' | 'landed'> {
+function linkActions(deps: ShellDeps): Pick<ShellActions, LinkActions> {
   return {
     openSourceFile: (folderPath, absolutePath) => {
       deps.setFolderTab(folderPath, 'source')
@@ -232,6 +238,14 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
     openEpicScorecard: (path, epicId) => {
       showEpic(deps, path, epicId)
       deps.land({ kind: 'epicScorecard', epicId })
+    },
+    openEpicAgent: (path, epicId, chatId) => {
+      showEpic(deps, path, epicId)
+      deps.land({ kind: 'epicAgent', epicId, chatId })
+    },
+    openEpicCheckpoint: (path, epicId) => {
+      showEpic(deps, path, epicId)
+      deps.land({ kind: 'epicCheckpoint', epicId })
     },
     openTicketScorecard: (path, link) => {
       showEpic(deps, path, link.epicId)
