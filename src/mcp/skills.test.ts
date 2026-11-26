@@ -165,6 +165,18 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
   })
+
+  it('moved past 1.14.0 when the guides started defining the worker-relay marker', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
+  })
+
+  it('defines the worker-relay marker for the orchestrator and the worker', () => {
+    const marker = '[Message from the person for your worker subagent, thread <id>]'
+    expect(orchestratorFactBodies('orchestrator.worker-relay').join('\n')).toContain(marker)
+    expect(skill('orchestrator').body).toContain('`orchestrator.worker-relay`')
+    expect(skill('worker').body).toContain(marker)
+  })
 })
 
 /** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts (those whose id starts with `idPrefix`). */
