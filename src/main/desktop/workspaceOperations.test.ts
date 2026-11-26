@@ -1,6 +1,8 @@
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { AGENT_MAIL_LIMITS, getBinding, getEndpoint, provisionEndpoint } from '../../core/services/agentMailStore'
+import { createStagedAttachment } from '../../core/services/attachments'
+import { pngBytes } from '../../test/images'
 import { createHarness } from '../../test/workspaceHarness'
 import { createChatStore } from '../agents/chatStore'
 import { testWorkspace } from './__mocks__/projectWorkspaceFixture'
@@ -65,4 +67,15 @@ it('revokes the durable grant even if its mailbox binding cannot be closed', asy
   }
   await expect(workspace.call('revokeChatGrant', grant.id, true)).resolves.toBe(false)
   expect(getBinding(ctx, grant.id)?.closedAt).not.toBeNull()
+})
+
+it('serves an attachment\'s stored bytes, and nothing for one marked missing or unknown', async () => {
+  const { workspace, ctx } = await fixture()
+  const png = pngBytes(4, 3)
+  const image = createStagedAttachment(ctx, { bytes: png, label: 'Pasted image', purpose: 'reference' })
+  const served = await workspace.call('attachment', image.id)
+  expect([served?.mime, Buffer.from(served!.bytes).equals(png)]).toEqual(['image/png', true])
+  ctx.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', image.id)
+  await expect(workspace.call('attachment', image.id)).resolves.toBeNull()
+  await expect(workspace.call('attachment', 'at_unknown')).resolves.toBeNull()
 })

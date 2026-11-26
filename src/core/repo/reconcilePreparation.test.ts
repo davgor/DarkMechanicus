@@ -64,3 +64,18 @@ describe('observeRepository', () => {
     expect(again.unchanged()).toBe(false)
   })
 })
+
+describe('observeRepository real paths', () => {
+  it('asks a path\'s real path once per scan, and still reports a real path that moved by the time of the lock', () => {
+    const fs = createMemoryFs()
+    fs.put(FILE, 'body')
+    const asked: string[] = []
+    let real = '/repo/.darkmechanicus/epics/e'
+    const observed = observeRepository({ ...readingWith(fs, (path) => fs.readFile(path)), realpath: (path) => { asked.push(path); return real } })
+    expect([observed.fs.realpath('/repo/.darkmechanicus/epics/e'), observed.fs.realpath('/repo/.darkmechanicus/epics/e')]).toEqual([real, real])
+    expect(asked).toEqual(['/repo/.darkmechanicus/epics/e'])
+    expect(observed.unchanged()).toBe(true)
+    real = '/elsewhere/e'
+    expect(observed.unchanged()).toBe(false)
+  })
+})

@@ -89,9 +89,13 @@ function gitExits(trace: ForgeFixtureTiming): GitExits {
  * these tests prove crash recovery after a process dies, which the operating system's cache survives.
  */
 function fixturePool(home: string, gits: GitExits, trace: ForgeFixtureTiming): TestWorkspacePool {
-  const pool = createWorkspacePool(repoRoot => openWorkspace({
+  const pool = createWorkspacePool((repoRoot, deferOpenReconcile) => openWorkspace({
     repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' },
-    git: gits.adapter(repoRoot), ...TEST_STORAGE
+    deferOpenReconcile, git: gits.adapter(repoRoot), ...TEST_STORAGE,
+    onTransaction: ({ tag, acquireMs, holdMs }) => {
+      trace.record(`sqlite:${tag ?? 'untagged'}:lock wait`, acquireMs, holdMs)
+      trace.record(`sqlite:${tag ?? 'untagged'}:lock hold`, holdMs)
+    }
   }), home)
   const { close, closeAll } = pool
   pool.close = path => trace.observe('fixture:owner close', () => close(path))
@@ -594,7 +598,7 @@ it('resumes a restore from the source pointer after the final publication was in
 })
 
 it('reports preparing until the local member owner reconciles and does no remote Git work for readiness', async () => {
-  const { world, call, pool, probes, close } = fixture()
+  const { world, home, call, pool, probes, close } = fixture()
   let release = () => {}
   const blocked = new Promise<void>(resolve => { release = resolve })
   const reconcile = pool.reconcile
@@ -606,14 +610,62 @@ it('reports preparing until the local member owner reconciles and does no remote
     const member = join(world, 'LocalOnly')
     mkdirSync(member)
     await pool.get(member).initializeRepository({ name: 'Local tickets' })
+    // Never imported on this machine: only the portable records exist, no local database.
+    await pool.close(member)
+    renameSync(join(member, '.darkmechanicus', 'local'), join(home, 'other-machine-local'))
     updateForge(world, manifest => manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' }))
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    // The owner answered that no validated import exists yet: the member keeps the cold gate.
+    expect(await pool.get(member).call('hasValidatedCache')).toBe(false)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect(intercept).toHaveBeenCalledTimes(1)
     release()
     await prepared
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'ready' })
     expect(probes).toEqual([])
+  } finally {
+    release()
+    intercept.mockRestore()
+    await close()
+  }
+})
+
+it('after a restart shows a member with a validated local import as ready and syncing until its reconcile resolves', async () => {
+  const { world, call, pool, registry, forge, close } = fixture()
+  const reconcile = pool.reconcile
+  let release = () => {}
+  let held: ReturnType<typeof reconcile> | undefined
+  const intercept = vi.spyOn(pool, 'reconcile')
+  try {
+    await call('create', world)
+    const member = join(world, 'Warm')
+    mkdirSync(member)
+    await pool.get(member).initializeRepository({ name: 'Warm tickets' })
+    await pool.get(member).createKanbanCard({ title: 'Already imported here' })
+    updateForge(world, manifest => manifest.projects.push({ folder: 'Warm', repository: 'https://github.com/example/code.git' }))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
+    await intercept.mock.results[0]!.value
+    // The preparation chain after the owner reply is microtasks only; setImmediate runs after all of them.
+    await new Promise(resolve => setImmediate(resolve))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'ready', syncing: false })
+
+    // Restart: the owner and every in-memory readiness record are gone; the local database stays.
+    await pool.close(member)
+    registry.untrack(world)
+    registry.track(world)
+    await forge.openWorld(world)
+    const blocked = new Promise<void>(resolve => { release = resolve })
+    intercept.mockImplementation(path => (held ??= blocked.then(() => reconcile(path))))
+    expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
+    // Owner work runs in order, so this answer follows the service's own validated-import check.
+    expect(await pool.get(member).call('hasValidatedCache')).toBe(true)
+    expect(await call('memberStatus', world, member)).toEqual({ readiness: 'ready', syncing: true, error: null })
+    expect(intercept).toHaveBeenCalledTimes(2)
+    release()
+    await held
+    await new Promise(resolve => setImmediate(resolve))
+    expect(await call('memberStatus', world, member)).toEqual({ readiness: 'ready', syncing: false, error: null })
   } finally {
     release()
     intercept.mockRestore()

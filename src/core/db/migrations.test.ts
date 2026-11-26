@@ -105,6 +105,24 @@ it('retires legacy holds, restores the prior run state and credits an open lease
   } finally { vi.useRealTimers() }
 })
 
+it('v30 keeps every pending outbox entry and adds an unset retry time', () => {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter(migration => migration.version < 30))
+  db.run(
+    `INSERT INTO outbox (kind, epic_id, revision_id, entity_id, state, attempts, last_error, created_at) VALUES
+      ('snapshot', 'ep1', 'rv1', NULL, 'pending', 0, NULL, 't'),
+      ('epic_state', 'ep1', NULL, NULL, 'pending', 2, 'disk full', 't'),
+      ('comment', 'ep1', NULL, 'cm1', 'pending', 1, 'not here', 't')`
+  )
+  expect(migrate(db, MIGRATIONS.filter(migration => migration.version <= 30))).toEqual({ from: 29, to: 30 })
+  expect(db.all('SELECT id, kind, state, attempts, last_error, next_attempt_at FROM outbox ORDER BY id')).toEqual([
+    { id: 1, kind: 'snapshot', state: 'pending', attempts: 0, last_error: null, next_attempt_at: null },
+    { id: 2, kind: 'epic_state', state: 'pending', attempts: 2, last_error: 'disk full', next_attempt_at: null },
+    { id: 3, kind: 'comment', state: 'pending', attempts: 1, last_error: 'not here', next_attempt_at: null }
+  ])
+  expect(readSchemaVersion(db)).toBe(30)
+})
+
 const EXPECTED_TABLES = [
   'agent_mail_bindings',
   'agent_mail_endpoints',
@@ -1477,8 +1495,11 @@ const LEARNING_HASH = `sha256:${'b'.repeat(64)}`
 
 const legacyText = (...parts: string[]): string => readFileSync(join(LEGACY_DIR, ...parts), 'utf8').replace(/\r\n/g, '\n')
 
-/** A v29 database holding an imported legacy run and an approved Kanban card, as an installed build left it. */
-function v29WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
+/**
+ * A v30 database (the last released schema, whose v30 added `outbox.next_attempt_at`) holding an imported legacy run,
+ * an approved Kanban card and an outbox entry waiting out its retry time, as an installed build left it.
+ */
+function v30WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
   const source = createRepoEnv({ root: '/legacy' })
   initProject(source)
   const paths = ownedPaths(source.layout)
@@ -1490,7 +1511,7 @@ function v29WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
   reconcileRepository(importerDeps(source, createStubGit()))
   const cardId = doneCard(kanbanSessions(source), 'Keep the upload test stable').cardId
   const db = freshDb()
-  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 29))
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 30))
   for (const table of LEGACY_COPIED) {
     for (const row of source.db.all<Record<string, string | number | null>>(`SELECT * FROM ${table}`)) {
       const columns = Object.keys(row)
@@ -1498,6 +1519,11 @@ function v29WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
     }
   }
   source.db.close()
+  db.run(
+    `INSERT INTO outbox (kind, epic_id, state, attempts, last_error, created_at, next_attempt_at)
+     VALUES ('epic_state', ?, 'pending', 2, 'disk full', 't', '2026-01-01T00:00:15.000Z')`,
+    LEGACY_EPIC
+  )
   const eventIds = db.all<{ id: string }>('SELECT id FROM kanban_events ORDER BY id').map((row) => row.id)
   return { db, cardId, eventIds }
 }
@@ -1542,9 +1568,9 @@ function expectAdditiveUpgrade(db: Db, from: number, added: Record<string, Recor
   }
 }
 
-/** What v33 (sprint learning card links) and v35 (integration authority) add to rows that existed before them. */
-const V33_CARD_DEFAULTS = { checkpoint_id: null, revision_id: null, snapshot_json: null, bases_json: '[]' }
-const V35_INTEGRATION_DEFAULTS = { owner_machine_id: null, superseded_by: null }
+/** What v34 (sprint learning card links) and v36 (integration authority) add to rows that existed before them. */
+const V34_CARD_DEFAULTS = { checkpoint_id: null, revision_id: null, snapshot_json: null, bases_json: '[]' }
+const V36_INTEGRATION_DEFAULTS = { owner_machine_id: null, superseded_by: null }
 
 function insertLearning(db: Db, spec: { id: string; state?: string; replaces?: string | null; replacedBy?: string | null; retiredAt?: string | null }): void {
   db.run(
@@ -1563,13 +1589,13 @@ function insertGeneratedCard(db: Db, cardId: string, runId: string, sprintId: st
   )
 }
 
-describe('v30 learning storage upgrade', () => {
-  it('upgrades a v29 database without changing a row, or the hash of a Kanban, plan or run record', () => {
-    const { db, cardId, eventIds } = v29WithRecords()
+describe('v31 learning storage upgrade', () => {
+  it('upgrades a released v30 database without changing a row, or the hash of a Kanban, plan or run record', () => {
+    const { db, cardId, eventIds } = v30WithRecords()
     const rows = JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))
     const hashes = recordHashes(db, cardId, eventIds)
     expect(eventIds.length).toBeGreaterThan(0)
-    expect(migrate(db)).toEqual({ from: 29, to: SCHEMA_VERSION })
+    expect(migrate(db)).toEqual({ from: 30, to: SCHEMA_VERSION })
     expect(JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))).toBe(rows)
     expect(recordHashes(db, cardId, eventIds)).toEqual(hashes)
     expect(prettyJson(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(legacyText('history', LEGACY_RUN, 'run.json'))
@@ -1581,7 +1607,7 @@ describe('v30 learning storage upgrade', () => {
 
   it('leaves an upgraded database with exactly the schema of a clean install', () => {
     const upgraded = freshDb()
-    migrate(upgraded, MIGRATIONS.filter((migration) => migration.version <= 29))
+    migrate(upgraded, MIGRATIONS.filter((migration) => migration.version <= 30))
     migrate(upgraded)
     expect(schemaOf(upgraded)).toEqual(schemaOf(migratedDb()))
   })
@@ -1597,7 +1623,7 @@ describe('v30 learning storage upgrade', () => {
   })
 })
 
-describe('v30 learning storage invariants', () => {
+describe('v31 learning storage invariants', () => {
   it('keeps a learning record definition and source immutable while its lifecycle changes', () => {
     const db = migratedDb()
     insertLearning(db, { id: 'lr1' })
@@ -1639,7 +1665,7 @@ describe('v30 learning storage invariants', () => {
   })
 })
 
-describe('v30 learning integration storage', () => {
+describe('v31 learning integration storage', () => {
   it('allows one open integration per card and keeps finished ones as history', () => {
     const db = migratedDb()
     const insert = (id: string, state: string): void => {
@@ -1670,16 +1696,16 @@ describe('v30 learning integration storage', () => {
   })
 })
 
-describe('v31 learning history upgrade', () => {
-  it('upgrades a v30 database with learnings without changing a row, and matches a clean install', () => {
+describe('v32 learning history upgrade', () => {
+  it('upgrades a v31 database with learnings without changing a row, and matches a clean install', () => {
     const db = freshDb()
-    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 30))
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 31))
     insertLearning(db, { id: 'lr1' })
     insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
-    expectAdditiveUpgrade(db, 30, {
+    expectAdditiveUpgrade(db, 31, {
       learning_records: {},
-      sprint_learning_cards: V33_CARD_DEFAULTS,
-      learning_integrations: V35_INTEGRATION_DEFAULTS
+      sprint_learning_cards: V34_CARD_DEFAULTS,
+      learning_integrations: V36_INTEGRATION_DEFAULTS
     })
     expect(db.all('SELECT * FROM learning_events')).toEqual([])
     expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))
@@ -1737,24 +1763,24 @@ function insertPublication(db: Db, attemptId: string, cardId = 'kc1'): void {
   )
 }
 
-describe('v32 learning publication storage', () => {
+describe('v33 learning publication storage', () => {
   const stage = stageDrafts
   const publish = insertPublication
 
-  it('upgrades a v31 database with learnings and history without changing a row, and matches a clean install', () => {
+  it('upgrades a v32 database with learnings and history without changing a row, and matches a clean install', () => {
     const db = freshDb()
-    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 31))
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 32))
     insertLearning(db, { id: 'lr1' })
     insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
     db.run(
       `INSERT INTO learning_events (learning_id, kind, reason, revision, actor_role, actor_label, run_id, sprint_id, card_id, attempt_id, at)
        VALUES ('lr1', 'published', 'why', 1, 'desktop', 'person', 'rn1', 'sp1', 'kc1', 'ka1', 't')`
     )
-    expectAdditiveUpgrade(db, 31, {
+    expectAdditiveUpgrade(db, 32, {
       learning_records: {},
       learning_events: {},
-      sprint_learning_cards: V33_CARD_DEFAULTS,
-      learning_integrations: V35_INTEGRATION_DEFAULTS
+      sprint_learning_cards: V34_CARD_DEFAULTS,
+      learning_integrations: V36_INTEGRATION_DEFAULTS
     })
     expect(db.all('SELECT * FROM learning_stagings')).toEqual([])
     expect(db.all('SELECT * FROM learning_publications')).toEqual([])
@@ -1779,16 +1805,16 @@ describe('v32 learning publication storage', () => {
   })
 })
 
-// ─── DM-935: v34 learning kinds in the outbox and sync state ───
-describe('v34 learning record kinds', () => {
-  function v32Db(): Db {
-    const db = freshDb()
-    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 32))
-    return db
-  }
+// ─── DM-935: v35 learning kinds in the outbox and sync state ───
+function v33Db(): Db {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 33))
+  return db
+}
 
-  it('upgrades a v32 database keeping every outbox and sync state row, the outbox id sequence and its index', () => {
-    const db = v32Db()
+describe('v35 learning record kinds', () => {
+  it('upgrades a v33 database keeping every outbox and sync state row, its retry times, the outbox id sequence and its index', () => {
+    const db = v33Db()
     db.run(
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', NULL, 'pending', 0, NULL, 't'),
@@ -1796,15 +1822,20 @@ describe('v34 learning record kinds', () => {
               ('kanban_card', NULL, NULL, NULL, 'kc1', 'done', 1, NULL, 't')`
     )
     db.run('DELETE FROM outbox WHERE id = 3')
+    db.run("UPDATE outbox SET next_attempt_at = '2026-01-01T00:00:15.000Z' WHERE id = 2")
     db.run(
       `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
        VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('metric_observation', 'mo1', NULL, 0, 'sha256:c', NULL, 't2')`
     )
     expect(() => db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('learning_record', 'lr1', 'pending', 't')")).toThrow(/CHECK constraint failed/)
-    expect(migrate(db)).toEqual({ from: 32, to: SCHEMA_VERSION })
+    expect(migrate(db)).toEqual({ from: 33, to: SCHEMA_VERSION })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },
       { id: 2, kind: 'metric_observation', epic_id: null, run_id: null, revision_id: null, entity_id: 'mo1', state: 'failed', attempts: 5, last_error: 'disk full' }
+    ])
+    expect(db.all('SELECT id, next_attempt_at FROM outbox ORDER BY id')).toEqual([
+      { id: 1, next_attempt_at: null },
+      { id: 2, next_attempt_at: '2026-01-01T00:00:15.000Z' }
     ])
     expect(db.all('SELECT * FROM sync_state ORDER BY kind')).toEqual([
       { kind: 'epic', entity_id: 'ep1', exported_hash: 'sha256:a', generation: 4, imported_hash: 'sha256:b', conflict: 'diverged', updated_at: 't1' },
@@ -1816,7 +1847,7 @@ describe('v34 learning record kinds', () => {
   })
 
   it('builds the same schema on upgrade as on a clean install', () => {
-    const upgraded = v32Db()
+    const upgraded = v33Db()
     migrate(upgraded)
     expect(schemaOf(upgraded)).toEqual(schemaOf(migratedDb()))
   })
@@ -1833,18 +1864,18 @@ describe('v34 learning record kinds', () => {
 })
 // ─── End DM-935 ───
 
-// ─── DM-950: v35 machine-local integration authority ───
-describe('v35 learning integration authority', () => {
-  it('upgrades a v34 database keeping every integration, each inert, and builds the clean-install schema', () => {
+// ─── DM-950: v36 machine-local integration authority ───
+describe('v36 learning integration authority', () => {
+  it('upgrades a v35 database keeping every integration, each inert, and builds the clean-install schema', () => {
     const db = freshDb()
-    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 34))
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 35))
     db.run(
       `INSERT INTO learning_integrations (id, card_id, attempt_id, state, manifest_json, manifest_hash, failure_json, revision, created_at, updated_at)
        VALUES ('li1', 'kc1', 'ka1', 'integrating', '{"a":1}', 'sha256:a', NULL, 3, 't1', 't2'),
               ('li2', 'kc2', 'ka2', 'aborted', '{"b":2}', 'sha256:b', '{"code":"x","message":"y"}', 2, 't3', 't4')`
     )
     const before = db.all('SELECT * FROM learning_integrations ORDER BY id')
-    expect(migrate(db)).toEqual({ from: 34, to: SCHEMA_VERSION })
+    expect(migrate(db)).toEqual({ from: 35, to: SCHEMA_VERSION })
     // Named columns: a cached `SELECT *` statement would keep the pre-upgrade column list.
     expect(db.all('SELECT learning_integrations.*, owner_machine_id, superseded_by FROM learning_integrations ORDER BY id')).toEqual(
       before.map((row) => ({ ...(row as Record<string, unknown>), owner_machine_id: null, superseded_by: null }))

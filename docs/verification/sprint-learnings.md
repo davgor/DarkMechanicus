@@ -13,7 +13,7 @@ The automated proof of every rule behind these screens is in the lifecycle tests
   guardrail commit on the isolated branch, submission to Ready for review, the person's approval through main's
   coordinator, selection of the published learning by role and path in later claim packets and orchestrator context,
   replacement and retirement; repository-mode clone round trip of the learning, its integration record and the submitted
-  card event; database mode settling without files; an ordinary card, a legacy run and a pre-v33 card link.
+  card event; database mode settling without files; an ordinary card, a legacy run and a pre-v34 card link.
 - `src/main/kanban/learningWorkflow.test.ts`: two repositories through the real desktop coordinator: a conflict in one
   repository is refused (card stays Ready for review, no branch moves, nothing published), a resolving attempt is
   approved, the app dies after the first repository's receipt, and the next launch's recovery completes that same

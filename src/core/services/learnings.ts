@@ -5,7 +5,7 @@
  *
  * A replacement is a new record: it keeps its predecessor's evidence and source, links to it (`replaces`), and the
  * predecessor is retired with the reason and a link to its successor. A record's definition and source never change
- * (v30 triggers). Each change appends one entry per learning it touched to `learning_events`, which v31 makes
+ * (v31 triggers). Each change appends one entry per learning it touched to `learning_events`, which v32 makes
  * append-only; listing searches the learnings' content, source links and that history.
  */
 import {

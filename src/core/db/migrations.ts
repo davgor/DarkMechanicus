@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 35
+export const SCHEMA_VERSION = 36
 
 export interface Migration {
   version: number
@@ -1060,13 +1060,13 @@ function retireToolingHolds(db: Db): void {
 }
 
 /**
- * v30 stores the learning loop: published learning records (`src/shared/domain/learnings.ts`), the one generated
+ * v31 stores the learning loop: published learning records (`src/shared/domain/learnings.ts`), the one generated
  * learning card of each run and sprint, and the recoverable integration that publishes an approved card's records.
  * It only adds tables, so no existing row, Kanban or run record (or its content hash) changes. Sources are kept by id
  * without foreign keys, as plans and imported records may arrive in any order; a record's definition and source are
  * immutable, only its lifecycle columns change, and a replacement chain can never close on itself.
  */
-const V30 = `
+const V31 = `
 CREATE TABLE learning_records (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
@@ -1132,11 +1132,11 @@ CREATE UNIQUE INDEX learning_integrations_one_open_per_card ON learning_integrat
 `
 
 /**
- * v31 adds the append-only history of human learning management. Each publication, retirement and replacement
+ * v32 adds the append-only history of human learning management. Each publication, retirement and replacement
  * appends one row per learning it touched, carrying who acted, why, the learning's revision afterwards and its
  * immutable source links; no row is ever updated or deleted. Only a table is added, so no existing row changes.
  */
-const V31 = `
+const V32 = `
 CREATE TABLE learning_events (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   learning_id TEXT NOT NULL REFERENCES learning_records(id),
@@ -1161,13 +1161,13 @@ BEGIN SELECT RAISE(ABORT, 'Learning history is append-only'); END;
 `
 
 /**
- * v32 adds the durable identity of learning publication. A sprint learning card's attempt stages its proposed drafts
+ * v33 adds the durable identity of learning publication. A sprint learning card's attempt stages its proposed drafts
  * with the evidence items they cite, quoted verbatim (`learning_stagings`, one row per attempt, replaceable only while
  * no publication exists for it). Publishing the approved attempt records which attempt, which exact drafts and which
  * records it created (`learning_publications`, one per attempt and one per card), so a replay never publishes twice.
  * A publication is never updated or deleted. No foreign key reaches Kanban tables, so card deletion is unchanged.
  */
-const V32 = `
+const V33 = `
 CREATE TABLE learning_stagings (
   attempt_id TEXT PRIMARY KEY,
   card_id TEXT NOT NULL,
@@ -1206,12 +1206,12 @@ BEGIN SELECT RAISE(ABORT, 'A learning publication is immutable'); END;
 `
 
 /**
- * v33 (DM-937) completes the link of a generated sprint learning card. Advancing a checkpoint writes, with the card,
+ * v34 (DM-937) completes the link of a generated sprint learning card. Advancing a checkpoint writes, with the card,
  * the checkpoint it followed, the run's pinned revision, the exact evidence snapshot (`snapshot_json`, whose hash is
  * `evidence_hash`) and the completed increment of every affected repository (`bases_json`). Columns are only added,
  * so no existing row changes; once written, the link never changes.
  */
-const V33 = `
+const V34 = `
 ALTER TABLE sprint_learning_cards ADD COLUMN checkpoint_id TEXT;
 ALTER TABLE sprint_learning_cards ADD COLUMN revision_id TEXT;
 ALTER TABLE sprint_learning_cards ADD COLUMN snapshot_json TEXT;
@@ -1220,15 +1220,15 @@ CREATE TRIGGER sprint_learning_cards_immutable BEFORE UPDATE ON sprint_learning_
 BEGIN SELECT RAISE(ABORT, 'A sprint learning card link is immutable'); END;
 `
 
-// ─── DM-935: v34 learning record kinds in the outbox and sync state ────────────────────────────────────────────────
+// ─── DM-935: v35 learning record kinds in the outbox and sync state ────────────────────────────────────────────────
 /**
- * v34 lets the outbox and sync state carry learning records (`learning_record`: a learning with its append-only
+ * v35 lets the outbox and sync state carry learning records (`learning_record`: a learning with its append-only
  * history) and learning integration recovery manifests (`learning_integration`), so both are exported to and
  * reconciled from portable files like every other record. SQLite cannot alter a CHECK constraint, so both tables are
- * rebuilt the way v17 rebuilt them, keeping every row, id, index and the outbox id sequence.
+ * rebuilt the way v17 rebuilt them, keeping every row, id, index, the outbox id sequence and v30's `next_attempt_at`.
  */
-const V34 = `
-CREATE TABLE outbox_v34 (
+const V35 = `
+CREATE TABLE outbox_v35 (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile','kanban_card','kanban_event','attachment','metric_observation','learning_record','learning_integration')),
   epic_id TEXT,
@@ -1239,17 +1239,18 @@ CREATE TABLE outbox_v34 (
   attempts INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,
   created_at TEXT NOT NULL,
-  done_at TEXT
+  done_at TEXT,
+  next_attempt_at TEXT
 );
-INSERT INTO outbox_v34 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
-  SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at FROM outbox;
-DELETE FROM sqlite_sequence WHERE name = 'outbox_v34';
-INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v34', seq FROM sqlite_sequence WHERE name = 'outbox';
+INSERT INTO outbox_v35 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at, next_attempt_at)
+  SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at, next_attempt_at FROM outbox;
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v35';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v35', seq FROM sqlite_sequence WHERE name = 'outbox';
 DROP TABLE outbox;
-ALTER TABLE outbox_v34 RENAME TO outbox;
+ALTER TABLE outbox_v35 RENAME TO outbox;
 CREATE INDEX outbox_state ON outbox(state, id);
 
-CREATE TABLE sync_state_v34 (
+CREATE TABLE sync_state_v35 (
   kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile','kanban_card','kanban_event','attachment','metric_observation','learning_record','learning_integration')),
   entity_id TEXT NOT NULL,
   exported_hash TEXT,
@@ -1259,21 +1260,21 @@ CREATE TABLE sync_state_v34 (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (kind, entity_id)
 );
-INSERT INTO sync_state_v34 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+INSERT INTO sync_state_v35 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
   SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
 DROP TABLE sync_state;
-ALTER TABLE sync_state_v34 RENAME TO sync_state;
+ALTER TABLE sync_state_v35 RENAME TO sync_state;
 `
 // ─── End DM-935 ───
 
 // ─── DM-950: machine-local execution authority over learning integrations ─────────────────────────────────────────
 /**
- * v35 records which machine may execute a learning integration. `owner_machine_id` is set only when this machine
+ * v36 records which machine may execute a learning integration. `owner_machine_id` is set only when this machine
  * prepared the integration itself; an imported integration, a changed import of a local one and every row that
  * existed before this version have none, so they are inert until a person re-prepares them. `superseded_by` names the
  * locally prepared integration that replaced an inert one. Both are local state: no portable file carries them.
  */
-const V35 = `
+const V36 = `
 ALTER TABLE learning_integrations ADD COLUMN owner_machine_id TEXT;
 ALTER TABLE learning_integrations ADD COLUMN superseded_by TEXT;
 `
@@ -1321,12 +1322,14 @@ export const MIGRATIONS: Migration[] = [
   { version: 28, sql: `CREATE INDEX kanban_cards_open_lanes ON kanban_cards(lane)
         WHERE lane IN ('backlog', 'in_progress', 'ready_for_review');` },
   { version: 29, sql: '', data: retireToolingHolds },
-  { version: 30, sql: V30 },
+  /** v30: when a failed outbox entry may be retried by an automatic flush (null: at once); an explicit flush ignores it. */
+  { version: 30, sql: 'ALTER TABLE outbox ADD COLUMN next_attempt_at TEXT;' },
   { version: 31, sql: V31 },
   { version: 32, sql: V32 },
   { version: 33, sql: V33 },
   { version: 34, sql: V34 },
-  { version: 35, sql: V35 }
+  { version: 35, sql: V35 },
+  { version: 36, sql: V36 }
 ]
 
 export function readSchemaVersion(db: Db): number {

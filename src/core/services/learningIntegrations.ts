@@ -1,5 +1,5 @@
 /**
- * DM-950: machine-local execution authority over learning integrations (`learning_integrations`, v30/v35).
+ * DM-950: machine-local execution authority over learning integrations (`learning_integrations`, v31/v36).
  *
  * An integration may be executed only by the machine that prepared it: `owner_machine_id` is set when this machine
  * prepares one and is never written to or read from a portable file. An imported integration is inert, and so is a

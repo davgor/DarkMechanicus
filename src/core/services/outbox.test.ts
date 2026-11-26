@@ -41,7 +41,8 @@ describe('enqueueOutbox row contents', () => {
         attempts: 0,
         last_error: null,
         created_at: '2026-04-05T06:07:08.009Z',
-        done_at: null
+        done_at: null,
+        next_attempt_at: null
       }
     ])
   })

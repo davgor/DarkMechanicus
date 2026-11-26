@@ -213,13 +213,11 @@ function isPrefix<T>(shorter: readonly T[], longer: readonly T[]): boolean {
   return shorter.length <= longer.length && shorter.every((entry, index) => sameJson(entry, longer[index]))
 }
 
-/** Sorts one changed file against the stored learning: new, a forward lifecycle change, synced, waiting, or rejected. */
-function classifyRecord(
-  deps: LearningImportDeps,
-  file: ChangedFile<LearningRecordFile>,
-  stored: StoredLearning | undefined,
-  now: string
-): RecordChange | null {
+/**
+ * Sorts one changed file against the stored learning: new, a forward lifecycle change, synced (its sync state is
+ * recorded), waiting (null), or rejected (throws). Writes nothing.
+ */
+function classifyRecord(file: ChangedFile<LearningRecordFile>, stored: StoredLearning | undefined): RecordChange | 'synced' | null {
   const incoming = file.value
   if (stored === undefined) {
     return { file, newEntries: incoming.history, isNew: true }
@@ -238,8 +236,7 @@ function classifyRecord(
     if (!sameJson(learning, stored.learning) || incoming.revision !== stored.revision) {
       reject(file.path, `records a different lifecycle for learning ${learning.id} than its history`)
     }
-    markSynced(deps.db, { kind: 'learning_record', entityId: learning.id, hash: file.trackedHash }, now)
-    return null
+    return 'synced'
   }
   if (isPrefix(stored.history, incoming.history)) {
     return { file, newEntries: incoming.history.slice(stored.history.length), isNew: false }
@@ -401,20 +398,31 @@ function applyRecords(db: Db, changes: RecordChange[], now: string, rejected: Re
   }
 }
 
-function importRecords(deps: LearningImportDeps, now: string, rejected: Rejection[]): string[] {
-  const dir = ownedPaths(deps.layout).learningRecordsDir()
-  const files = scanFolder(deps, dir, (id) => readRecordFile(deps, id), rejected)
-  const stored = storedLearnings(deps.db)
+/** The records of one scan against the stored learnings: changes to apply, files to mark synced, the rest rejected. */
+function classifyRecords(db: Db, files: ChangedFile<LearningRecordFile>[], rejected: Rejection[]): { changes: RecordChange[]; synced: ChangedFile<LearningRecordFile>[]; stored: Map<string, StoredLearning> } {
+  const stored = storedLearnings(db)
   const changes: RecordChange[] = []
+  const synced: ChangedFile<LearningRecordFile>[] = []
   for (const file of files) {
     try {
-      const change = classifyRecord(deps, file, stored.get(file.value.learning.id), now)
-      if (change !== null) changes.push(change)
+      const change = classifyRecord(file, stored.get(file.value.learning.id))
+      if (change === 'synced') synced.push(file)
+      else if (change !== null) changes.push(change)
     } catch (error: unknown) {
       rejected.push({ path: file.path, message: messageOf(error) })
     }
   }
-  return applyRecords(deps.db, consistentCandidates(stored, changes, rejected), now, rejected)
+  return { changes, synced, stored }
+}
+
+/** Classifies the scanned record files and applies them in one short transaction, against the database as it is then. */
+function importRecords(db: Db, files: ChangedFile<LearningRecordFile>[], now: string, rejected: Rejection[]): string[] {
+  if (files.length === 0) return []
+  return db.tx(() => {
+    const { changes, synced, stored } = classifyRecords(db, files, rejected)
+    for (const file of synced) markSynced(db, { kind: 'learning_record', entityId: file.value.learning.id, hash: file.trackedHash }, now)
+    return applyRecords(db, consistentCandidates(stored, changes, rejected), now, rejected)
+  })
 }
 
 // ─── Learning integration recovery manifests ───────────────────────────────────────────────────────────────────────
@@ -494,21 +502,14 @@ function manifestIdentityChanged(stored: StoredManifest, incoming: StoredManifes
   return stored.targets.some((target, index) => target.resultCommit !== null && incoming.targets[index]?.resultCommit !== target.resultCommit)
 }
 
-/** Imports one manifest, or explains why not; returns whether this database changed. */
-function importIntegration(deps: LearningImportDeps, file: ChangedFile<LearningIntegrationRecord>, now: string): boolean {
+/** What one changed manifest asks of this database, or throws why it is rejected. Writes nothing. */
+type IntegrationChange = 'insert' | 'update' | 'synced' | 'waiting'
+
+function classifyIntegration(db: Db, file: ChangedFile<LearningIntegrationRecord>): IntegrationChange {
   const incoming = file.value
-  const stored = readLearningIntegrationRecord(deps.db, incoming.id)
-  if (stored === null) {
-    deps.db.tx(() => {
-      writeIntegration(deps.db, incoming, true)
-      markSynced(deps.db, { kind: 'learning_integration', entityId: incoming.id, hash: file.trackedHash }, now)
-    })
-    return true
-  }
-  if (sameJson(stored, incoming)) {
-    markSynced(deps.db, { kind: 'learning_integration', entityId: incoming.id, hash: file.trackedHash }, now)
-    return false
-  }
+  const stored = readLearningIntegrationRecord(db, incoming.id)
+  if (stored === null) return 'insert'
+  if (sameJson(stored, incoming)) return 'synced'
   if (stored.cardId !== incoming.cardId || stored.attemptId !== incoming.attemptId || stored.createdAt !== incoming.createdAt) {
     reject(file.path, `names another card, attempt or start for learning integration ${incoming.id}; it was not imported`)
   }
@@ -518,39 +519,93 @@ function importIntegration(deps: LearningImportDeps, file: ChangedFile<LearningI
   const localRevision = Number(stored.revision)
   if (incoming.revision < localRevision) {
     // This machine's later state is exported over it.
-    return false
+    return 'waiting'
   }
-  if (incoming.revision === localRevision || hasPendingExport(deps.db, incoming.id)) {
+  if (incoming.revision === localRevision || hasPendingExport(db, incoming.id)) {
     reject(file.path, `changed learning integration ${incoming.id} while this machine changed it too; the local integration was kept`)
   }
-  deps.db.tx(() => {
-    writeIntegration(deps.db, incoming, false)
-    markSynced(deps.db, { kind: 'learning_integration', entityId: incoming.id, hash: file.trackedHash }, now)
-  })
-  return true
+  return 'update'
 }
 
-function importIntegrations(deps: LearningImportDeps, now: string, rejected: Rejection[]): string[] {
-  const dir = ownedPaths(deps.layout).learningIntegrationsDir()
+function rejectionOf(file: ChangedFile<unknown>, error: unknown): Rejection {
+  const message = messageOf(error)
+  return { path: file.path, message: message.includes(file.path) ? message : `Could not be applied: ${message}` }
+}
+
+/** Imports each scanned manifest in its own short transaction that classifies it against the database as it is then. */
+function importIntegrations(db: Db, files: ChangedFile<LearningIntegrationRecord>[], now: string, rejected: Rejection[]): string[] {
   const imported: string[] = []
-  for (const file of scanFolder(deps, dir, (id) => readIntegrationFile(deps, id), rejected)) {
+  for (const file of files) {
     try {
-      if (importIntegration(deps, file, now)) imported.push(file.value.id)
+      const changed = db.tx(() => {
+        const change = classifyIntegration(db, file)
+        if (change === 'waiting') return false
+        if (change !== 'synced') writeIntegration(db, file.value, change === 'insert')
+        markSynced(db, { kind: 'learning_integration', entityId: file.value.id, hash: file.trackedHash }, now)
+        return change !== 'synced'
+      })
+      if (changed) imported.push(file.value.id)
     } catch (error: unknown) {
-      const message = messageOf(error)
-      rejected.push({ path: file.path, message: message.includes(file.path) ? message : `Could not be applied: ${message}` })
+      rejected.push(rejectionOf(file, error))
     }
   }
   return imported
 }
 
+/** The learning files a reconcile read, outside the writer lock: the changed ones and those rejected while reading. */
+export interface LearningScan {
+  records: ChangedFile<LearningRecordFile>[]
+  recordsRejected: Rejection[]
+  integrations: ChangedFile<LearningIntegrationRecord>[]
+  integrationsRejected: Rejection[]
+}
+
+export function emptyLearningScan(): LearningScan {
+  return { records: [], recordsRejected: [], integrations: [], integrationsRejected: [] }
+}
+
+/** Reads the learning record files and integration manifests that differ from what this database last synced. */
+export function scanLearnings(deps: LearningImportDeps): LearningScan {
+  const paths = ownedPaths(deps.layout)
+  const recordsRejected: Rejection[] = []
+  const records = scanFolder(deps, paths.learningRecordsDir(), (id) => readRecordFile(deps, id), recordsRejected)
+  const integrationsRejected: Rejection[] = []
+  const integrations = scanFolder(deps, paths.learningIntegrationsDir(), (id) => readIntegrationFile(deps, id), integrationsRejected)
+  return { records, recordsRejected, integrations, integrationsRejected }
+}
+
 /**
- * Imports the learning record files and integration recovery manifests. Returns what was imported (`learning:<id>`,
- * `learning_integration:<id>`) and every file rejected, each on its own.
+ * The rejections applying `scan` would report when it would write nothing, else null; in the order `applyLearnings`
+ * reports them. Writes nothing.
  */
-export function importLearnings(deps: LearningImportDeps, now: string): { imported: string[]; rejected: Rejection[] } {
-  const rejected: Rejection[] = []
-  const records = importRecords(deps, now, rejected).map((id) => `learning:${id}`)
-  const integrations = importIntegrations(deps, now, rejected).map((id) => `learning_integration:${id}`)
+export function learningsSettled(db: Db, scan: LearningScan): Rejection[] | null {
+  const rejected = [...scan.recordsRejected]
+  const { changes, synced } = classifyRecords(db, scan.records, rejected)
+  if (changes.length > 0 || synced.length > 0) return null
+  rejected.push(...scan.integrationsRejected)
+  for (const file of scan.integrations) {
+    try {
+      if (classifyIntegration(db, file) !== 'waiting') return null
+    } catch (error: unknown) {
+      rejected.push(rejectionOf(file, error))
+    }
+  }
+  return rejected
+}
+
+/**
+ * Applies a scan: what was imported (`learning:<id>`, `learning_integration:<id>`) and every file rejected, each on
+ * its own. Records apply together in one short transaction, each manifest in its own.
+ */
+export function applyLearnings(deps: { db: Db }, scan: LearningScan, now: string): { imported: string[]; rejected: Rejection[] } {
+  const rejected = [...scan.recordsRejected]
+  const records = importRecords(deps.db, scan.records, now, rejected).map((id) => `learning:${id}`)
+  rejected.push(...scan.integrationsRejected)
+  const integrations = importIntegrations(deps.db, scan.integrations, now, rejected).map((id) => `learning_integration:${id}`)
   return { imported: [...records, ...integrations], rejected }
+}
+
+/** Reads and imports the learning record files and integration recovery manifests (`scanLearnings`, then `applyLearnings`). */
+export function importLearnings(deps: LearningImportDeps, now: string): { imported: string[]; rejected: Rejection[] } {
+  return applyLearnings(deps, scanLearnings(deps), now)
 }

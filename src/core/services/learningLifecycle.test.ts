@@ -227,7 +227,7 @@ describe('ordinary cards and legacy runs', () => {
     expect(requireRunView(ctx, runId).learningCard).toBeNull()
   })
 
-  it('a pre-v33 learning card link (no snapshot, no bases) is still claimed, and its submission is refused, not guessed', async () => {
+  it('a pre-v34 learning card link (no snapshot, no bases) is still claimed, and its submission is refused, not guessed', async () => {
     const ctx = createTestCtx({ role: 'desktop' })
     const { epicId, runId } = startedRun(ctx)
     const card = createKanbanCard(ctx, { title: 'Sprint 1 learnings', acceptanceCriteria: ['Classified'] })

@@ -376,6 +376,18 @@ export function createSaveHook(db: Db, clock: Clock): RecordingSaveHook {
           now
         )
       }
+    },
+    previewSavedRevision(revisionId) {
+      const row = db.get<{ epic_id: string; bundle_json: string; state: string }>(
+        'SELECT epic_id, bundle_json, state FROM plan_revisions WHERE id = ?',
+        revisionId
+      )
+      if (row === undefined || row.state === 'saved') {
+        return null
+      }
+      const title = db.get<{ title: string }>('SELECT title FROM epics WHERE id = ?', row.epic_id)?.title ?? ''
+      const bundle = JSON.parse(row.bundle_json) as { tickets: { id: string }[] }
+      return { title, ticketIds: bundle.tickets.map((ticket) => ticket.id) }
     }
   }
   return hook
