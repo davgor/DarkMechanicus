@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
@@ -27,14 +27,16 @@ const desktop = vi.hoisted(() => ({
   startPty: vi.fn(),
   keepAwake: vi.fn<() => number>(() => { throw new Error('Unexpected terminal start') }),
   send: vi.fn(),
-  closedWindowSend: vi.fn()
+  closedWindowSend: vi.fn(),
+  version: '1.0.0-test',
+  setBeforeInstall: vi.fn<(hook: () => void) => void>()
 }))
 
 vi.mock('electron', () => ({
   app: {
     getPath: (kind: 'home' | 'userData') => desktop[kind],
     getAppPath: () => desktop.appPath,
-    getVersion: () => '1.0.0-test',
+    getVersion: () => desktop.version,
     isPackaged: false
   },
   BrowserWindow: {
@@ -56,7 +58,8 @@ vi.mock('electron', () => ({
   utilityProcess: { fork: desktop.fork }
 }))
 
-vi.mock('../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../autoUpdate', () => ({ setBeforeInstall: desktop.setBeforeInstall }))
 vi.mock('../terminals/ptyHost', () => ({ createNodePtyHost: desktop.startPty }))
 
 class InProcessUtility extends EventEmitter {
@@ -87,14 +90,15 @@ afterEach(async () => {
   }
 })
 
-async function bridgeFixture() {
+async function bridgeFixture(options: { version?: string; seed?: (userData: string) => void } = {}) {
   vi.resetModules()
   const scratch = scratchDir('dm-bridge-')
   cleanups.push(scratch.cleanup)
   const userData = join(scratch.path, 'user-data')
   const appPath = join(scratch.path, 'app')
   mkdirSync(userData)
-  Object.assign(desktop, { home: scratch.path, userData, appPath })
+  options.seed?.(userData)
+  Object.assign(desktop, { home: scratch.path, userData, appPath, version: options.version ?? '1.0.0-test' })
   vi.stubEnv('DARKMECHANICUS_HOME', join(scratch.path, 'state'))
   const { serveWorkspaceOwner } = await import('./workspaceOwnerRuntime')
   const owners: InProcessUtility[] = []
@@ -349,4 +353,25 @@ it('dispatches the configured member host ahead of the world default from the bo
   } finally {
     for (const session of host.spawns) if (!session.exited) session.exit()
   }
+})
+
+it('registers the Restart now hook, which writes the marker beside the chat store', async () => {
+  await bridgeFixture({ version: '0.83.0' })
+  const file = join(desktop.userData, 'agents', 'restart-resume.json')
+  expect(existsSync(file)).toBe(false)
+  const hook = desktop.setBeforeInstall.mock.calls.at(-1)?.[0]
+  hook?.()
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ fromVersion: '0.83.0', writtenAt: expect.any(String), chats: [] })
+})
+
+it('a start after an update consumes the marker and skips a chat of an untracked folder without throwing', async () => {
+  await bridgeFixture({ version: '0.84.0', seed: userData => {
+    mkdirSync(join(userData, 'agents'))
+    writeFileSync(join(userData, 'agents', 'restart-resume.json'), JSON.stringify({
+      fromVersion: '0.83.0', writtenAt: new Date().toISOString(), chats: [{ folder: join(userData, 'gone'), chatId: 'magos-1' }]
+    }))
+  } })
+  expect(existsSync(join(desktop.userData, 'agents', 'restart-resume.json'))).toBe(false)
+  const { logger } = await import('../logger')
+  await vi.waitFor(() => expect(vi.mocked(logger.warn)).toHaveBeenCalledWith('Restart resume skipped chat magos-1: its folder is no longer tracked.'))
 })

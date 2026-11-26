@@ -50,6 +50,10 @@ xattr -cr /Applications/DarkMechanicus.app
 
 When an update is ready, the banner offers **Restart now**. Apply uses `quitAndInstall(true, true)`: silent NSIS (`/S`) and relaunch. Users should not see the installer wizard on update — only a brief restart.
 
+### Restart resume
+
+Before **Restart now** installs, the app writes `userData/agents/restart-resume.json`: its version and each live orchestrator chat that has a run (each run's Magos, in the GUI or a legacy terminal). A plain quit writes nothing. At the next start the app reads and deletes the marker. When the marker is under 15 minutes old and the app's version is newer, each listed chat whose folder is still tracked, whose record is still a run orchestrator and whose run is still active is resumed on its same session and sent one fixed message: `[App restarted after an update from v<from> to v<to>: resume your run from get_run]`. A legacy terminal Magos is switched to the GUI first; one whose terminal is already running is left alone. Every skipped or failed chat is logged, and nothing at startup throws.
+
 A ready update does not stop checks: the poll and the manual check still query the feed.
 
 - **Nothing newer** — the ready update and **Restart now** stay as they are.

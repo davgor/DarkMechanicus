@@ -403,3 +403,41 @@ describe('silent apply helpers', () => {
     expect(message).toBe('Version 2.0.0 is ready.')
   })
 })
+
+describe('the before-install hook', () => {
+  beforeEach(resetAutoUpdateTest)
+  afterEach(restoreAutoUpdateTest)
+
+  it('Restart now calls the hook before autoUpdater.quitAndInstall', async () => {
+    const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
+    const order: string[] = []
+    quitAndInstall.mockImplementation(() => { order.push('quitAndInstall') })
+    setBeforeInstall(() => { order.push('hook') })
+    quitAndInstallUpdate()
+    expect(order).toEqual(['hook', 'quitAndInstall'])
+  })
+
+  it('a throwing hook is logged and the update still installs', async () => {
+    const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
+    // resetModules re-creates the logger mock: only an import after it reaches the instance autoUpdate logs to.
+    const { logger } = await import('./logger')
+    setBeforeInstall(() => { throw new Error('marker write failed') })
+    quitAndInstallUpdate()
+    expect(quitAndInstall.mock.calls).toEqual([[true, true]])
+    expect(vi.mocked(logger.error).mock.calls).toEqual([['The before-install hook failed; installing anyway:', new Error('marker write failed')]])
+  })
+
+  it('the IPC Restart now runs the hook; startup and update checks never do', async () => {
+    const { initAutoUpdate, checkForUpdatesNow, registerAutoUpdateHandlers, setBeforeInstall, INITIAL_CHECK_DELAY_MS } = await loadModule()
+    const hook = vi.fn()
+    setBeforeInstall(hook)
+    initAutoUpdate()
+    await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS)
+    await checkForUpdatesNow()
+    expect(callCount(hook)).toBe(0)
+    const listeners = new Map<string, () => unknown>()
+    registerAutoUpdateHandlers({ handle: (channel, listener) => { listeners.set(channel, () => listener({} as IpcMainInvokeEvent)) } })
+    listeners.get('autoUpdate:quitAndInstall')?.()
+    expect([callCount(hook), callCount(quitAndInstall)]).toEqual([1, 1])
+  })
+})

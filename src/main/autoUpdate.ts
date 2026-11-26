@@ -59,7 +59,22 @@ export function isAutoUpdateEnabled(): boolean {
   return app.isPackaged && process.env['DISABLE_AUTO_UPDATE'] !== '1'
 }
 
+let beforeInstall: (() => void) | undefined
+
+/**
+ * Registers what runs synchronously when Restart now installs an update, before the app quits. A plain quit, which
+ * installs a downloaded update through `autoInstallOnAppQuit`, never runs it.
+ */
+export function setBeforeInstall(hook: () => void): void {
+  beforeInstall = hook
+}
+
 export function quitAndInstallUpdate(): void {
+  try {
+    beforeInstall?.()
+  } catch (error) {
+    logger.error('The before-install hook failed; installing anyway:', error)
+  }
   autoUpdater.quitAndInstall(true, true)
 }
 

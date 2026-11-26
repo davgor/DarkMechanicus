@@ -78,6 +78,8 @@ import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDep
 import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
 import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
+import { restartMarkerHook, resumeAfterRestart } from '../agentChat/restartResume'
+import { setBeforeInstall } from '../autoUpdate'
 import { createWorktreeRoots } from '../magos/worktreeRoots'
 import { getAgentAuthStatus } from './agentAuth'
 import {
@@ -1215,6 +1217,30 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
   })
 }
 
+/**
+ * Restart resume: Restart now lists each live run's Magos chat in `userData/agents/restart-resume.json`, beside the
+ * chat store; this start consumes the marker and, after an update, resumes each one that still qualifies on its session.
+ */
+function startRestartResume({ registry, pool, store, terminals, agentChats }: {
+  registry: Pick<FolderRegistry, 'resolve' | 'list'>; pool: Pick<WorkspacePool, 'get' | 'background'>
+  store: ChatStore; terminals: Pick<TerminalSessions, 'isLive'>; agentChats: AgentChatSessions
+}): void {
+  const file = join(app.getPath('userData'), 'agents', 'restart-resume.json')
+  setBeforeInstall(restartMarkerHook({
+    file, version: () => app.getVersion(), now: () => new Date(), folders: () => registry.list().map(folder => folder.path), store,
+    live: ref => agentChats.isLive(ref) || terminals.isLive(ref), log: logger
+  }))
+  const runs = chatRunCommands(registry, pool)
+  void resumeAfterRestart({
+    file, version: app.getVersion(), now: Date.now(), trackedFolder: folder => registry.resolve(folder), store,
+    runActive: async (folder, runId) => {
+      const run = await runs.getRun(folder, runId)
+      return run !== null && isActiveRunState(run.state)
+    },
+    sessions: agentChats, log: logger
+  })
+}
+
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
@@ -1256,5 +1282,6 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   startAgentChats(ipc, registry, agentChats)
+  startRestartResume({ registry, pool, store, terminals, agentChats })
   return { ...stoppingMailFirst(mail, quit, async () => { notifier.dispose(); await forge.stop(); await close() }), github }
 }
