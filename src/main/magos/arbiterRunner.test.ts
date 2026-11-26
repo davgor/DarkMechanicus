@@ -8,12 +8,13 @@ import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { killProcessTree, startsOwnGroup } from '../agents/processTree'
 import type * as ProcessTree from '../agents/processTree'
-import { logger } from '../logger'
 import { arbiterLaunch, type ArbiterLaunchSpec } from './arbiterLaunch'
 import { ARBITER_SYSTEM_PROMPT, buildArbiterRequest } from './arbiterPrompt'
-import { startArbiter } from './arbiterRunner'
+import { startArbiter as startRunner } from './arbiterRunner'
 
-vi.mock('../logger', () => ({ logger: { warn: vi.fn(), info: vi.fn() } }))
+/** The app logger the main process passes in; the runner never imports one. */
+const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
+const startArbiter = (options: Omit<Parameters<typeof startRunner>[0], 'log'>) => startRunner({ log, ...options })
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, mkdtemp: vi.fn(actual.mkdtemp), rm: vi.fn(actual.rm) }
@@ -99,7 +100,7 @@ it.each(verdicts)('maps fake %s and removes its isolated directory', async (mode
   if (!cause || cause === 'verdict') expect(result.reason).toBe(`fake ${decision}`)
   expect(logRecord()).toMatchObject({ cwd: dirs[0], stdinHasSecret: false })
   expect(existsSync(dirs[0])).toBe(false)
-  expect(logger.warn).toHaveBeenCalledTimes(mode === 'crash' ? 1 : 0)
+  expect(log.warn).toHaveBeenCalledTimes(mode === 'crash' ? 1 : 0)
 })
 
 it('kills the hanging fake at 500 ms and confirms ESRCH before resolving', async () => {
@@ -197,7 +198,7 @@ it('handles directory and factory failures without throwing', async () => {
   const failed = startArbiter({ launch: dir => { dirs.push(dir); throw new Error(GRANT) }, input: '', tempRoot: root })
   runs.push(failed)
   expect(await failed.result).toMatchObject({ cause: 'error' })
-  expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(GRANT)
+  expect(JSON.stringify(log.warn.mock.calls)).not.toContain(GRANT)
 })
 
 it('refuses an OMP candidate with config before any spawn', async () => {
@@ -294,7 +295,7 @@ it('logs only a masked 4 KiB stderr tail on error, removing a truncated leading 
   for (const part of [stderr.slice(0, -20), stderr.slice(-20)]) harness.child.stderr!.emit('data', Buffer.from(part))
   harness.child.emit('close', 3)
   expect(await harness.run.result).toMatchObject({ cause: 'error' })
-  const text = vi.mocked(logger.warn).mock.calls[0][1] as string
+  const text = log.warn.mock.calls[0][1] as string
   expect(Buffer.byteLength(text)).toBeLessThanOrEqual(4 * 1024)
   expect(text).not.toContain('old-prefix')
   expect(text).not.toContain(GRANT)
@@ -308,7 +309,7 @@ it('does not expose a token suffix cut by the stderr byte bound', async () => {
   harness.child.stderr!.emit('data', Buffer.from(`${GRANT}\n${'z'.repeat(4_090)}`))
   harness.child.emit('close', 3)
   await harness.run.result
-  expect(vi.mocked(logger.warn).mock.calls[0][1]).toBe('z'.repeat(4_090))
+  expect(log.warn.mock.calls[0][1]).toBe('z'.repeat(4_090))
 })
 
 it('fails closed on synchronous spawn throws, emitted errors and stdin errors', async () => {
@@ -322,7 +323,7 @@ it('fails closed on synchronous spawn throws, emitted errors and stdin errors', 
     ;(streamError ? harness.child.stdin! : harness.child).emit('error', new Error(GRANT))
     expect(await harness.run.result).toMatchObject({ cause: 'error' })
   }
-  expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(GRANT)
+  expect(JSON.stringify(log.warn.mock.calls)).not.toContain(GRANT)
 })
 
 it('uses the 60 s default and bounds finalization when neither killer settles', async () => {
@@ -375,14 +376,14 @@ it('removes its directory after Windows reports it busy, as a killed descendant 
   expect(await runFake('allow').result).toEqual({ decision: 'allow_once', reason: 'fake allow_once' })
   expect(rm).toHaveBeenCalledTimes(2)
   expect(existsSync(dirs[0])).toBe(false)
-  expect(vi.mocked(logger.info).mock.calls).toEqual([['Arbiter directory removal refused (EBUSY); trying again.']])
+  expect(log.info.mock.calls).toEqual([['Arbiter directory removal refused (EBUSY); trying again.']])
 })
 
 it('stops asking after four busy removals and reports the cleanup unconfirmed', async () => {
   for (let attempt = 0; attempt < 4; attempt++) vi.mocked(rm).mockRejectedValueOnce(removalError('EPERM'))
   expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
   expect(rm).toHaveBeenCalledTimes(4)
-  expect(vi.mocked(logger.info).mock.calls).toHaveLength(3)
+  expect(log.info.mock.calls).toHaveLength(3)
   rmSync(dirs[0], { recursive: true, force: true })
 })
 
@@ -390,7 +391,7 @@ it('fails closed at once on a removal error that is not a busy directory', async
   vi.mocked(rm).mockRejectedValueOnce(removalError('EIO'))
   expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
   expect(rm).toHaveBeenCalledOnce()
-  expect(vi.mocked(logger.info).mock.calls).toEqual([])
+  expect(log.info.mock.calls).toEqual([])
   rmSync(dirs[0], { recursive: true, force: true })
 })
 

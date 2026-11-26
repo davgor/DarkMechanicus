@@ -8,14 +8,14 @@ import { DEFAULT_NOTIFICATION_SETTINGS, type NotificationSettings } from '../../
 import { removeScratch } from '../../test/removeScratch'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { createChatStore } from '../agents/chatStore'
-import { logger } from '../logger'
 import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
 import { exclusionText, registerNeverArbitrate } from '../magos/arbitrationRules'
 import { claudeInputClipped, createClaudeProtocolState, translateClaudeLine } from './claudeProtocol'
 import { PendingPrompts } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
 
-vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn() } }))
+/** The app logger the main process passes in; the gate never imports one. */
+const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
 
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
 let root: string, folder: string, outside: string
@@ -23,7 +23,7 @@ beforeEach(() => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm prompt arbitration ')))
   folder = join(root, 'repo'); outside = join(root, 'elsewhere')
   mkdirSync(folder); mkdirSync(outside)
-  vi.mocked(logger.info).mockClear()
+  log.info.mockClear()
 })
 afterEach(() => { vi.useRealTimers(); removeScratch(root) })
 
@@ -62,7 +62,7 @@ function harness(options: { settings?: Pick<NotificationSettings, 'arbitration'>
   const runner = stubRunner(), onAttention = vi.fn(), settings = vi.fn(() => options.settings ?? DEFAULT_NOTIFICATION_SETTINGS)
   const readContext = vi.fn<ReadContext>(options.readContext ?? (async () => ({ ticket: null, standards: null })))
   const arbitration = createPromptArbitration({
-    settings, onAttention, readContext, platform: process.platform, env: { PATH: process.env.PATH }, arbiterRoot: join(root, 'arbiter'), startArbiter: runner.start
+    settings, onAttention, readContext, platform: process.platform, env: { PATH: process.env.PATH }, arbiterRoot: join(root, 'arbiter'), startArbiter: runner.start, log
   })
   const agent = builtInAgent(options.agent ?? 'claude', { executablePath: join(root, 'claude.exe') })
   /** `clipped`: prompt ids whose tool input the translator recorded as cut. */
@@ -238,7 +238,7 @@ describe('verdicts', () => {
     await settle()
     expect(r.answer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'p1' }), { decision, reason: expect.not.stringContaining('dmg_') })
     expect(h.onAttention).not.toHaveBeenCalled()
-    const lines = vi.mocked(logger.info).mock.calls
+    const lines = log.info.mock.calls
     expect(lines).toEqual([['Magos arbitration:', { chatId: r.chat.id, promptId: 'p1', decision, cause: 'verdict' }]])
     expect(JSON.stringify(lines)).not.toMatch(/npm test|Routine/)
   })
@@ -252,7 +252,7 @@ describe('verdicts', () => {
     expect(r.prompts.snapshot()).toMatchObject({ id: 'p1', arbitration: { state: 'escalated', reason: `Escalated by ${cause}.` } })
     expect(h.onAttention).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'approval_needed', prompt: r.prompts.snapshot() }))
     expect(r.answer).not.toHaveBeenCalled()
-    expect(vi.mocked(logger.info)).toHaveBeenLastCalledWith('Magos arbitration:', expect.objectContaining({ decision: 'escalate', cause }))
+    expect(log.info).toHaveBeenLastCalledWith('Magos arbitration:', expect.objectContaining({ decision: 'escalate', cause }))
   })
 
   it('a runner that throws on start, or failing context, still fails closed', async () => {

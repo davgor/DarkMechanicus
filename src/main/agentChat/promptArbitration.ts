@@ -9,10 +9,9 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import type { NotificationSettings } from '../../shared/desktop/notificationSettings'
 import type { ChatRef } from '../agents/chatStore'
-import { logger } from '../logger'
 import { arbiterLaunch } from '../magos/arbiterLaunch'
 import { ARBITER_SYSTEM_PROMPT, buildArbiterRequest } from '../magos/arbiterPrompt'
-import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
+import { startArbiter, type ArbiterLog, type ArbiterResult } from '../magos/arbiterRunner'
 import { arbitrationExclusion, exclusionText, type ExclusionReason } from '../magos/arbitrationRules'
 import type { ArbiterOutcome, ArbitrationGate, AttentionEvent } from './pendingPrompts'
 
@@ -50,6 +49,11 @@ interface PromptArbitrationDeps {
   timeoutMs?: number
   /** The isolated runner; tests substitute a stub. */
   startArbiter?: typeof startArbiter
+  /**
+   * The app logger, passed in by the main process: each decision's one line, and the runner's own reports. Never
+   * imported here, so loading the gate never loads Electron.
+   */
+  log: ArbiterLog
 }
 
 /** `inputClipped`: the translator recorded, at the cut, that the prompt's tool input is shorter than what the CLI runs. */
@@ -67,9 +71,9 @@ interface PromptArbitration {
 
 type Verdict = ArbiterResult | { decision: 'escalate'; cause: 'too_large'; reason: string }
 
-function log(input: ArbitrateInput, decision: string, cause: Cause | 'verdict'): void {
+function log(deps: PromptArbitrationDeps, input: ArbitrateInput, decision: string, cause: Cause | 'verdict'): void {
   try {
-    logger.info('Magos arbitration:', { chatId: input.chat.id, promptId: input.prompt.id, decision, cause })
+    deps.log.info('Magos arbitration:', { chatId: input.chat.id, promptId: input.prompt.id, decision, cause })
   } catch { /* Logging never changes an outcome. */ }
 }
 
@@ -80,7 +84,7 @@ function attention(deps: PromptArbitrationDeps, input: ArbitrateInput, prompt: P
 type Excluded = { state: 'off' | 'escalated'; reason: string | null }
 
 function excluded(deps: PromptArbitrationDeps, input: ArbitrateInput, { state, reason }: Excluded, cause: Cause): ArbitrationGate {
-  log(input, state, cause)
+  log(deps, input, state, cause)
   return { state, reason, awaitingPerson: prompt => attention(deps, input, prompt) }
 }
 
@@ -117,7 +121,7 @@ class ArbiterJob {
   cancel(): void {
     if (this.settled) return
     this.settled = true
-    log(this.input, 'dropped', 'cancelled')
+    log(this.deps, this.input, 'dropped', 'cancelled')
     this.complete({ decision: 'escalate', reason: 'Arbiter cancelled.' })
     try { this.cancelRunner?.() } catch { /* The runner's own fence still drops its result. */ }
   }
@@ -133,7 +137,7 @@ class ArbiterJob {
       mkdirSync(deps.arbiterRoot, { recursive: true })
       const runner = (deps.startArbiter ?? startArbiter)({
         launch: tempDir => arbiterLaunch({ agent, platform: deps.platform, baseEnv: deps.env, tempDir, systemPrompt: ARBITER_SYSTEM_PROMPT }),
-        input: request, tempRoot: deps.arbiterRoot, timeoutMs: deps.timeoutMs ?? ARBITER_TIMEOUT_MS
+        input: request, tempRoot: deps.arbiterRoot, log: deps.log, timeoutMs: deps.timeoutMs ?? ARBITER_TIMEOUT_MS
       })
       this.cancelRunner = runner.cancel
       this.finish(await runner.result)
@@ -158,7 +162,7 @@ class ArbiterJob {
   private finish(verdict: Verdict): void {
     if (this.settled) return
     this.settled = true
-    log(this.input, verdict.decision, verdict.decision === 'escalate' ? verdict.cause : 'verdict')
+    log(this.deps, this.input, verdict.decision, verdict.decision === 'escalate' ? verdict.cause : 'verdict')
     this.complete({ decision: verdict.decision, reason: verdict.reason })
   }
 }

@@ -18,7 +18,8 @@ import type { PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
 import { removeScratch } from '../../test/removeScratch'
 
-vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn() } }))
+/** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
+const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   vi.useRealTimers()
@@ -54,7 +55,7 @@ function magos(r: ReturnType<typeof rig>, options: { verdict?: ArbiterResult; re
   const arbitration = createPromptArbitration({
     settings: () => DEFAULT_NOTIFICATION_SETTINGS, onAttention, readContext: async () => ({ ticket: null, standards: null }),
     platform: process.platform, env: options.real?.env ?? r.env, arbiterRoot: join(r.root, 'arbiter'),
-    timeoutMs: options.real?.timeoutMs, startArbiter: run
+    timeoutMs: options.real?.timeoutMs, startArbiter: run, log
   })
   r.deps.arbitrate = arbitration.arbitrate
   // Before the rig's cleanup removes the scratch folder that holds the arbiter root.
@@ -1326,7 +1327,7 @@ it('takes one AttentionEvent notifier for both the prompt gate and the session m
   const r = rig('claude', { onAttention: notify }), chat = r.newChat()
   const arbitration = createPromptArbitration({
     settings: () => DEFAULT_NOTIFICATION_SETTINGS, onAttention: notify, readContext: async () => ({ ticket: null, standards: null }),
-    platform: process.platform, env: r.env, arbiterRoot: join(r.root, 'arbiter')
+    platform: process.platform, env: r.env, arbiterRoot: join(r.root, 'arbiter'), log
   })
   cleanups.unshift(async () => arbitration.dispose())
   const prompt: PendingPrompt = { id: 'p1', kind: 'approval', title: 'Bash p1', detail: '', threadId: null, callsign: null, attributed: true,
