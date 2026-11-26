@@ -18,6 +18,8 @@ interface HealthOptions {
   home: string
   /** What the sync running this check has just established about the world's repository; checked again when absent. */
   checked?: WorldCheckout
+  /** Told the code of each busy manifest rename that is asked again (the main process logs it). */
+  onManifestRetry?(code: string): void
 }
 const repairable = z.looseObject({ projects: z.array(z.looseObject({ folder: z.string(), repository: z.string().optional() })) })
 
@@ -60,7 +62,7 @@ async function checkedWorld(root: string, text: string, repository: string, git:
   return parseForge(JSON.stringify(data))
 }
 
-function saveRepairedManifest(root: string, before: string, world: ForgeWorld): void {
+function saveRepairedManifest(root: string, before: string, world: ForgeWorld, onRetry?: (code: string) => void): void {
   const parsed: unknown = JSON.parse(before)
   if (JSON.stringify(parsed) === JSON.stringify(world)) return
   const file = join(root, FORGE_FILE), lock = file + '.lock', temp = file + '.' + randomUUID()
@@ -68,7 +70,7 @@ function saveRepairedManifest(root: string, before: string, world: ForgeWorld): 
   try {
     if (readFileSync(file, 'utf8') !== before) throw new Error('Forge World manifest changed during its health check. Reopen it to check the new mapping.')
     writeFileSync(temp, JSON.stringify(world, null, 2) + '\n', { flag: 'wx' })
-    replaceForgeFile(temp, file)
+    replaceForgeFile(temp, file, onRetry)
   } finally {
     if (existsSync(temp)) unlinkSync(temp)
     unlinkSync(lock)
@@ -93,7 +95,7 @@ async function checkWorldRepository(root: string, git: HealthOptions['git']): Pr
 }
 
 /** The one idempotent upgrade/check path for boot, opening, sync and all Forge mutations. */
-export async function ensureForgeWorld(root: string, { git, home, checked }: HealthOptions): Promise<WorldCheckout> {
+export async function ensureForgeWorld(root: string, { git, home, checked, onManifestRetry }: HealthOptions): Promise<WorldCheckout> {
   assertForgeWorldSyncAllowed(nodeFs, home, root)
   ordinary(root, true)
   ordinary(join(root, FORGE_FILE), false)
@@ -107,7 +109,7 @@ export async function ensureForgeWorld(root: string, { git, home, checked }: Hea
     const source = await verifyForgeCheckout(member, project.repository, git, repository)
     if (source) checkouts.push({ source, member, folder: project.folder })
   }
-  saveRepairedManifest(root, text, world)
+  saveRepairedManifest(root, text, world, onManifestRetry)
   ensureForgeDirections(root)
   for (const checkout of checkouts) repairCodePointer(checkout, repository, home)
   return checkout

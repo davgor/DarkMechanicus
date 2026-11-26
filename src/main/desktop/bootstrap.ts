@@ -1169,6 +1169,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   const { registry, pool, github, skills } = options
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
+    onManifestRetry: code => logger.info(`Forge World manifest rename refused (${code}); trying again.`),
     onFoldersChanged: () => {
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('forge:foldersChanged')
     },

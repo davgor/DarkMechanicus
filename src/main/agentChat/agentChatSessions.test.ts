@@ -630,6 +630,7 @@ describe('claude Magos clipping recorded at the cut over the fake CLI', () => {
     for (const prefix of ['at_', 'ka_']) {
       const partial = `${prefix}0123456789abcdefghjkmnpqrs.abc`
       inject(`${prefix}command`, '', { name: 'Bash', input: { command: `${filler(1_000 - partial.length)}${partial}${tail}` } })
+      // A file path stays one long name: past Linux's limits it reads as outside, so for paths only the state is asserted.
       inject(`${prefix}path`, '', { name: 'Write', input: { file_path: `${join(r.repo, 'a'.repeat(4_096 - r.repo.length - 1 - partial.length))}${partial}${tail}`, content: '{}' } })
       ids.push(`${prefix}command`, `${prefix}path`)
     }

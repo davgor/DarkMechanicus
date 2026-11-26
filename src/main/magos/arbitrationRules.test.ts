@@ -32,7 +32,8 @@ function fsError(code: string, path: string): Error {
 
 /**
  * The disk as the OS reports it: existing roots, a real `.claude`, a link out, a committed dangling link `evil`, and
- * `locked`, `perm` and `loop` entries whose realpath fails with EACCES, EPERM and ELOOP; win32 looks up without case.
+ * `locked`, `perm`, `loop` and `long` entries whose realpath fails with EACCES, EPERM, ELOOP and ENAMETOOLONG (a name
+ * over Linux's 255 bytes); win32 looks up without case.
  */
 function fakeFs(platform: Platform): ArbitrationFs {
   const layout = LAYOUTS[platform]
@@ -44,7 +45,7 @@ function fakeFs(platform: Platform): ArbitrationFs {
   add(path.join(layout.folder, 'src'))
   add(path.join(layout.folder, '.claude'))
   add(layout.link, layout.linkTarget)
-  const failing = new Map([['locked', 'EACCES'], ['perm', 'EPERM'], ['loop', 'ELOOP']]
+  const failing = new Map([['locked', 'EACCES'], ['perm', 'EPERM'], ['loop', 'ELOOP'], ['long', 'ENAMETOOLONG']]
     .map(([name, code]) => [key(path.join(layout.folder, name)), code]))
   const dangling = key(path.join(layout.folder, 'evil'))
   return {
@@ -267,6 +268,8 @@ const OUTSIDE_COMMON: [string, Tool][] = [
   ['an EACCES entry', write('locked/a.ts')],
   ['an EPERM entry', write('perm/a.ts')],
   ['an ELOOP entry', write('loop')],
+  ['an ENAMETOOLONG name', write('long/a.ts')],
+  ['an ENAMETOOLONG word in a command', bash('cat long')],
   ['quotes that the shell joins into ..', bash('cat \'.\'./secret')],
   ['double quotes that the shell joins into ..', bash('cat "."./secret')],
   ['a backslash escape that the shell drops', bash('cat .\\./secret')],

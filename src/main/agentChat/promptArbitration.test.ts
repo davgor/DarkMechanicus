@@ -140,10 +140,13 @@ describe('escalating exclusions (fix 7 mapping, requirement b)', () => {
   })
 })
 
+// Size and clipping fixtures use short words. The path scan reads each word as a relative path, and a word over 255
+// bytes is a name Linux refuses (ENAMETOOLONG) and Windows reports absent (ENOENT): Linux reads it, fail-closed, as
+// outside the folder, an exclusion that is decided before size or the clip flag (see the precedence case below).
 describe('oversized and clipped tool input (fix 17, requirement a)', () => {
   it('a 4,001-character Bash command escalates as too large with zero spawns', async () => {
     const h = harness(), r = h.registry(chatOf())
-    r.prompts.update([approval('p1', { command: `echo ${'a'.repeat(3_996)}` })])
+    r.prompts.update([approval('p1', { command: `echo ${'a '.repeat(1_998)}` })])
     expect(r.prompts.snapshot()?.tool?.input.command).toHaveLength(4_001)
     await settle()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: TOO_LARGE })
@@ -153,7 +156,7 @@ describe('oversized and clipped tool input (fix 17, requirement a)', () => {
 
   it('a request whose masked input JSON exceeds 4,000 characters is refused by buildArbiterRequest without a spawn', async () => {
     const h = harness(), r = h.registry(chatOf())
-    const input = Object.fromEntries(['a', 'b', 'c', 'd', 'e'].map(key => [key, 'x'.repeat(900)]))
+    const input = Object.fromEntries(['a', 'b', 'c', 'd', 'e'].map(key => [key, 'x '.repeat(450)]))
     r.prompts.update([approval('p1', input, 'Lint')])
     expect(r.prompts.snapshot()?.arbitration.state).toBe('deciding')
     await settle()
@@ -168,9 +171,18 @@ describe('oversized and clipped tool input (fix 17, requirement a)', () => {
     await settle()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: TOO_LARGE })
     expect(h.runner.start).not.toHaveBeenCalled()
-    r.prompts.answer('p1', () => [approval('p2', { command: `echo ${'a'.repeat(995)}` })])
+    r.prompts.answer('p1', () => [approval('p2', { command: `echo ${'a '.repeat(497)}a` })])
     await settle()
     expect(h.runner.start).toHaveBeenCalledOnce()
+  })
+
+  it('an exclusion outranks the clip flag: a clipped input naming an outside path escalates as outside the folder', async () => {
+    const h = harness(), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
   })
 })
 
@@ -179,8 +191,12 @@ describe('clipping recorded at the cut (P1)', () => {
     it(`a partial ${prefix} token ending at the ${limit}-character ${key} cut is recorded as clipped and never decided (P1)`, async () => {
       // The whole token is followed by a space, so the first mask pass keeps it; after the cut it ends the text, and
       // the second pass shrinks it below the limit: the visible length would look unclipped.
-      const partial = `${prefix}${'0123456789abcdefghjkmnpqrs'}.abc`
-      const value = `${'a'.repeat(limit - partial.length)}${partial} && type "${join(outside, 'secret.txt')}"`
+      const partial = `${prefix}${'0123456789abcdefghjkmnpqrs'}.abc`, length = limit - partial.length
+      // A command uses short words, so the recorded clip decides its reason. A file path is one name however it is
+      // built; past Linux's limits (255-byte names, 4,096-byte paths) the scan cannot resolve it and reads it as
+      // outside the folder, so for a path only the escalated state is asserted, the same on every platform.
+      const filler = key === 'command' ? `${'a '.repeat(length).slice(0, length - 1)} ` : 'a'.repeat(length)
+      const value = `${filler}${partial} && type "${join(outside, 'secret.txt')}"`
       const translated = translateClaudeLine(JSON.stringify({ type: 'control_request', request_id: 'req_clip',
         request: { subtype: 'can_use_tool', tool_name: tool, input: { [key]: value, ...(tool === 'Write' ? { content: '{}' } : {}) } } }),
       createClaudeProtocolState(), new Date(0).toISOString())
