@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Epic Agent tab preview</title>
+    <script>
+      window.__errors = []
+      window.addEventListener('error', (event) => window.__errors.push(String(event.message || event.error)))
+      window.addEventListener('unhandledrejection', (event) => window.__errors.push(`unhandledrejection: ${String(event.reason && event.reason.message || event.reason)}`))
+    </script>
+  </head>
+  <body><div id="root"></div><script type="module" src="./agent.tsx"></script></body>
+</html>
