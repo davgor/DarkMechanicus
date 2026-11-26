@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { z } from 'zod'
 import { assertForgeWorldSyncAllowed, bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
@@ -11,7 +11,7 @@ import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { readForgeCheckout, verifyForgeCheckout } from './forgeCheckout'
 import { ensureForgeDirections } from './forgeDirections'
 import type { ForgeGit, WorldCheckout } from './forgeGit'
-import { FORGE_FILE, githubRemote, parseForge, projectName } from './forgeManifest'
+import { FORGE_FILE, githubRemote, parseForge, projectName, replaceForgeFile } from './forgeManifest'
 
 interface HealthOptions {
   git: Pick<ForgeGit, 'run' | 'inspectCheckout'>
@@ -68,7 +68,7 @@ function saveRepairedManifest(root: string, before: string, world: ForgeWorld): 
   try {
     if (readFileSync(file, 'utf8') !== before) throw new Error('Forge World manifest changed during its health check. Reopen it to check the new mapping.')
     writeFileSync(temp, JSON.stringify(world, null, 2) + '\n', { flag: 'wx' })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file)
   } finally {
     if (existsSync(temp)) unlinkSync(temp)
     unlinkSync(lock)
