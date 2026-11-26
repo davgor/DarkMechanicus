@@ -224,6 +224,7 @@ function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, chan
   needsYou: NeedsYouControls
   progress: (node: AgentTreeNode) => ReactNode
 }): RailTab[] {
+  const tree = buildAgentTree(nodes)
   const { needsYou: waiting, working } = tree.counts
   const badge: RailTab['badge'] = waiting > 0
     ? { text: String(waiting), tone: 'attention' }
