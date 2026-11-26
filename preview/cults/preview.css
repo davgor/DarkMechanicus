@@ -1,0 +1,11 @@
+body { margin: 0; background: var(--bg); }
+.preview { max-width: 1340px; margin: 24px auto; padding: 0 24px; color: var(--ink); font-family: var(--font-sans); }
+.preview h1 { margin: 0 0 6px; font-family: var(--font-serif); color: var(--ink-display); }
+.preview p { margin: 0 0 12px; color: var(--ink-2); }
+.preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.preview-button { padding: 6px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); cursor: pointer; font: 12px var(--font-mono); }
+.preview-button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.preview-state { margin-left: 8px; color: var(--ink-2); font: 12px var(--font-mono); }
+.preview-room { width: 1280px; height: 720px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.preview-viewscreen { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: radial-gradient(circle, #13240f, #070b06); color: var(--lens); font: 600 14px var(--font-mono); letter-spacing: 0.2em; }
+.preview-viewscreen small { color: var(--ink-soft); font-size: 11px; letter-spacing: 0.05em; }
