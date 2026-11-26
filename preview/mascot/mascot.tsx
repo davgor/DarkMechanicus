@@ -5,6 +5,7 @@ import '../../src/renderer/src/graph/graph.css'
 import './preview.css'
 import { MascotSprite } from '../../src/renderer/src/mascot/MascotSprite'
 import { createMotion, stepMotion, type MotionAction, type MotionState, type MotionSurfaces } from '../../src/renderer/src/mascot/motion'
+import { AcolyteLoop, ChamberComposition, type AcolyteAction } from './chamber'
 
 const actions: Array<MotionAction | 'drill'> = ['idle', 'walk', 'run', 'jump', 'climb', 'stumble', 'drill']
 const board: MotionSurfaces = {
@@ -24,7 +25,8 @@ function sideJump(): MotionState {
   }
 }
 
-function Preview(): JSX.Element {
+/** Playback clock and roaming board motion, advanced once per animation frame. */
+function usePlayback(): { time: number; motion: MotionState } {
   const [time, setTime] = useState(0)
   const [motion, setMotion] = useState(sideJump)
   useEffect(() => {
@@ -40,6 +42,11 @@ function Preview(): JSX.Element {
     id = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(id)
   }, [])
+  return { time, motion }
+}
+
+function Preview(): JSX.Element {
+  const { time, motion } = usePlayback()
   return <main className="preview">
     <h1>Mascot action preview</h1>
     <p>Live atlas playback at the same scale as the ticket board. The lower board starts with a side jump, climbs the center ticket, then roams.</p>
@@ -58,6 +65,17 @@ function Preview(): JSX.Element {
       <strong>fixed drill frame</strong>
       <MascotSprite motion={{ ...createMotion(2, { x: 100, y: 140 }), action: 'idle', elapsed: 250, working: true, resting: true }} playbackMs={time} />
     </div>
+    <h2>Acolyte salute and type</h2>
+    <section className="preview-actions" aria-label="Acolyte salute and type loops">
+      {(['salute', 'type'] as AcolyteAction[]).map((action) => <div className="preview-action" key={action}>
+        <strong>{action}</strong>
+        <AcolyteLoop action={action} time={time} x={100} y={140} size={100} />
+      </div>)}
+    </section>
+    <h2>Chamber composition (1280×800)</h2>
+    <p>Backdrop and props placed by the chamber layout from the measured props.json: a typing acolyte beside each console, the saluting Magos on the helm, the door toggling open and closed. Outlines mark the measured stand tops, screen window and doorway.</p>
+    <ChamberComposition time={time} outlines />
+    <ChamberComposition time={time} outlines={false} />
     <h2>Multi-ticket climb route</h2>
     <div className="preview-board">
       {board.tickets.map((ticket) => <div key={ticket.id} className="preview-ticket" style={{ left: ticket.x, top: ticket.y, width: ticket.width, height: ticket.height }}>{ticket.id}</div>)}

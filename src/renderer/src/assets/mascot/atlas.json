@@ -504,6 +504,40 @@
         { "name": "ready-again", "x": 1024, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 416 } }
       ],
       "renderScale": 1
+    },
+    "salute": {
+      "image": "salute.png",
+      "fps": 10,
+      "loop": false,
+      "playback": "once",
+      "facing": "center",
+      "footAnchor": { "x": 256, "y": 466 },
+      "frames": [
+        { "name": "relaxed", "x": 0, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 465 } },
+        { "name": "snap-to-attention", "x": 512, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 465 } },
+        { "name": "hands-rise", "x": 1024, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 465 } },
+        { "name": "cog-salute", "x": 0, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 466 } },
+        { "name": "hold-salute", "x": 512, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 466 } },
+        { "name": "release", "x": 1024, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 466 } }
+      ],
+      "renderScale": 1
+    },
+    "type": {
+      "image": "type.png",
+      "fps": 8,
+      "loop": true,
+      "playback": "loop",
+      "facing": "right; mirror horizontally for left-facing playback",
+      "footAnchor": { "x": 256, "y": 471 },
+      "frames": [
+        { "name": "left-key", "x": 0, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } },
+        { "name": "hands-lift", "x": 512, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } },
+        { "name": "right-key", "x": 1024, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } },
+        { "name": "lean-in", "x": 0, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } },
+        { "name": "both-tap", "x": 512, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } },
+        { "name": "return", "x": 1024, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 471 } }
+      ],
+      "renderScale": 1
     }
   }
 }
