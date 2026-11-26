@@ -1,0 +1,94 @@
+{
+  "measuredFrom": "alpha > 128 of each PNG (window and doorway: alpha <= 16); image pixels; see docs/mascot-sprites.md, Chamber scenery",
+  "backdrop": {
+    "image": "backdrop.png",
+    "width": 2400,
+    "height": 1200,
+    "floorY": 998
+  },
+  "helm": {
+    "image": "helm.png",
+    "width": 1536,
+    "height": 1024,
+    "footY": 809,
+    "opaqueBounds": {
+      "x": 103,
+      "y": 259,
+      "width": 1310,
+      "height": 550
+    },
+    "standTop": {
+      "left": 377,
+      "right": 1125,
+      "y": 433
+    }
+  },
+  "console": {
+    "image": "console.png",
+    "width": 1254,
+    "height": 1254,
+    "footY": 1053,
+    "opaqueBounds": {
+      "x": 91,
+      "y": 258,
+      "width": 1064,
+      "height": 795
+    },
+    "standTop": {
+      "left": 242,
+      "right": 826,
+      "y": 269
+    }
+  },
+  "teleportPad": {
+    "image": "teleport-pad.png",
+    "width": 1536,
+    "height": 1024,
+    "footY": 866,
+    "opaqueBounds": {
+      "x": 270,
+      "y": 321,
+      "width": 989,
+      "height": 545
+    }
+  },
+  "door": {
+    "images": {
+      "closed": "door-closed.png",
+      "open": "door-open.png"
+    },
+    "width": 1024,
+    "height": 1536,
+    "footY": 1440,
+    "doorway": {
+      "x": 243,
+      "y": 594,
+      "width": 538,
+      "height": 846
+    },
+    "opaqueBounds": {
+      "x": 70,
+      "y": 151,
+      "width": 885,
+      "height": 1289
+    }
+  },
+  "viewscreen": {
+    "image": "viewscreen.png",
+    "width": 1536,
+    "height": 1024,
+    "footY": 955,
+    "opaqueBounds": {
+      "x": 95,
+      "y": 40,
+      "width": 1346,
+      "height": 915
+    },
+    "window": {
+      "x": 288,
+      "y": 265,
+      "width": 960,
+      "height": 464
+    }
+  }
+}

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { frameForMotion, spritePlacement } from './sprite'
+import type { MotionAction } from './motion'
 import atlas from '../assets/mascot/atlas.json'
 
-function expectAlignedFrames(action: keyof typeof atlas.actions): void {
+function expectAlignedFrames(action: MotionAction): void {
   const clip = atlas.actions[action]
   for (let index = 0; index < clip.frames.length; index += 1) {
     const progress = action === 'jump' ? [0, 0.14, 0.32, 0.5, 0.68, 0.86][index]! : index / clip.frames.length
