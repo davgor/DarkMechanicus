@@ -1,4 +1,4 @@
-.preview { max-width: 1100px; margin: 32px auto; padding: 0 24px; color: var(--ink); font-family: var(--font-sans); }
+.preview { max-width: 1340px; margin: 32px auto; padding: 0 24px; color: var(--ink); font-family: var(--font-sans); }
 .preview h1, .preview h2 { font-family: var(--font-serif); color: var(--ink-display); }
 .preview p { color: var(--ink-2); }
 .preview-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -10,3 +10,9 @@
 .preview-graph { height: 680px; margin-top: 18px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .preview-fixture-button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); cursor: pointer; }
 .preview-fixture-state { margin-left: 16px; color: var(--ink-2); font: 12px var(--font-mono); }
+.preview-chamber { position: relative; margin: 18px 0 32px; border: 1px solid var(--line); border-radius: 12px; background-color: #1b1412; background-repeat: no-repeat; background-position: center top; overflow: hidden; }
+.preview-prop { position: absolute; pointer-events: none; }
+.preview-metric { position: absolute; box-sizing: border-box; pointer-events: none; border: 2px dashed; }
+.preview-metric-window { border-color: #48e05a; }
+.preview-metric-doorway { border-color: #f0c040; }
+.preview-metric-stand { border: 0; background: #ff3df0; }

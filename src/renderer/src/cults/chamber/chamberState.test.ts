@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import measured from '../../assets/chamber/props.json'
 import {
   applyChamberEvent, BUBBLE_MAX_CHARS, clipDuration, createChamber, DEFAULT_CLIP_TIMINGS, MAGOS_ID,
   staticChamber, stepChamber, type ChamberEvent, type ChamberState
 } from './chamberState'
 import type { PacketEffect } from './effects'
-import { chamberLayout, type ChamberLayout, type Size } from './layout'
+import { chamberLayout, type ChamberLayout, type ChamberPropMetrics, type Size } from './layout'
 import { PROPS, ROOMS } from './testFixtures'
 
 const STEP = 16
@@ -210,7 +211,27 @@ describe('acolyte modes', () => {
     for (const pose of ['walk', 'jump', 'climb', 'stumble']) expect(poses).toContain(pose)
     expect([...supports].some((id) => id.startsWith('console-'))).toBe(true)
   })
+})
 
+describe('the helm', () => {
+  it('never puts an acolyte on the helm, which is the Magos\'s alone, over a long seeded run', () => {
+    const layout = chamberLayout({ width: 1280, height: 720 }, PROPS, 24)
+    const state = populate(11, 24, layout, 0)
+    const { top } = layout.helm
+    let checked = 0
+    run(state, layout, 180_000, (next) => {
+      for (const acolyte of next.acolytes) {
+        checked += 1
+        expect(acolyte.motion.supportId).not.toBe('helm')
+        const overHelm = acolyte.x >= top.x && acolyte.x <= top.x + top.width
+        if (overHelm) expect(acolyte.y).toBeGreaterThan(top.y + 1)
+      }
+    })
+    expect(checked).toBeGreaterThan(0)
+  })
+})
+
+describe('acolyte work and exits', () => {
   it('send working acolytes to their consoles to type; the 7th worker drills', () => {
     let state = populate(17, 7, wide)
     expect(wide.consoles).toHaveLength(6)
@@ -299,9 +320,12 @@ describe('run-state theatrics: kill, warning and bounds', () => {
     expect(state.warning).toBe(false)
   })
 
-  it.each(ROOMS.flatMap((size) => [6, 24].map((count): [Size, number] => [size, count])))(
-    'keeps every acolyte inside the room through orders, ending and kill at %o with %i acolytes', (size, count) => {
-      const layout = chamberLayout(size, PROPS, count)
+  const metrics = [['fixture', PROPS], ['props.json', measured]] as const
+  it.each(metrics.flatMap(([source, props]) => ROOMS.flatMap((size) =>
+    [6, 24].map((count): [string, ChamberPropMetrics, Size, number] => [source, props, size, count]))))(
+    'keeps every acolyte inside the room through orders, ending and kill (%s) at %o with %i acolytes',
+    (_source, props, size, count) => {
+      const layout = chamberLayout(size, props, count)
       let state = populate(count + size.width, count, layout, 1000)
       state = apply(state, layout, ...ids(count).filter((_, index) => index % 2 === 0)
         .map((id): ChamberEvent => ({ type: 'working', id, on: true })), { type: 'orderSent', to: 'all', orderId: 'o' })
