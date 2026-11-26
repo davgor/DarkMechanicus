@@ -97,7 +97,7 @@ function conversationGuidance(conversation: ConversationTarget): string {
   ].join('\n')
 }
 
-/** The guidance for what the chat is for: Skitarii mail, the run it orchestrates, the epic it transfers, the card it carries. */
+/** The guidance for what the chat is for: Skitarii mail, the run it orchestrates, the epic it transfers, the card it carries, its cult rules. */
 function taskGuidance(options: InstructionOptions): string[] {
   return [
     ...(options.skitariiMail === true ? [skitariiMailGuidance()] : []),
@@ -105,7 +105,8 @@ function taskGuidance(options: InstructionOptions): string[] {
     ...(options.orchestratesRun ? [orchestratorGuidance()] : []),
     ...(options.transferEpicId === undefined ? [] : [transferGuidance(options.transferEpicId)]),
     ...(options.cardId === undefined ? [] : [kanbanGuidance(options.cardId)]),
-    ...(options.conversation === undefined ? [] : [conversationGuidance(options.conversation)])
+    ...(options.conversation === undefined ? [] : [conversationGuidance(options.conversation)]),
+    ...(options.cultRules === undefined ? [] : [options.cultRules])
   ]
 }
 
@@ -120,8 +121,7 @@ export function terminalInstructions(options: InstructionOptions): string {
     skillBody('collaboration'),
     ...(options.repositoryContext ? [options.repositoryContext] : []),
     ...(options.forgeWorld ? ['This world-level chat has no project mailbox. Use the per-project dm commands above; open a project-level agent when its Skitarii mailbox is needed.'] : []),
-    ...taskGuidance(options),
-    ...(options.cultRules === undefined ? [] : [options.cultRules])
+    ...taskGuidance(options)
   ]
   // A project-less chat that reaches no folder has no dm line to name itself with.
   if (options.nameFirstPrompt && options.reach?.length !== 0) sections.push([

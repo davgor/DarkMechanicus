@@ -219,8 +219,9 @@ async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: st
   }
 }
 
-/** Deletes one member chat; one already gone is not an error. */
+/** Ends the member's terminal (its grants revoked), then deletes its chat; one already gone is not an error. */
 async function deleteMemberChat(deps: CultLauncherDeps, ref: Pick<ChatRecord, 'folder' | 'id'>): Promise<void> {
+  await deps.terminals.endChat(ref.id)
   try {
     await deps.chats.deleteChat(ref)
   } catch (error) {

@@ -500,12 +500,16 @@ function hasLaunchMailbox(context: StartContext): boolean {
   return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
 }
 
+/** A cult member starts only with the rules its launcher wrote (`cultLauncher.ts`): a missing file fails the start. */
+async function cultRulesOf(userData: string, chat: ChatRecord): Promise<{ cultRules?: string }> {
+  return chat.cultRunId === undefined ? {} : { cultRules: await readCultRules(userData, chat.id) }
+}
+
 async function writeStartFiles(context: StartContext, repairCheckout: string | undefined): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(reach === undefined ? folder : null)
-  // A cult member starts only with the rules its launcher wrote (`cultLauncher.ts`): a missing file fails the start.
-  const cultRules = chat.cultRunId === undefined ? undefined : await readCultRules(userData, chat.id)
+  const cultRules = await cultRulesOf(userData, chat)
   const files = await writeTerminalFiles({
     forgeResolver: chat.forgeResolver !== undefined,
     userData,
@@ -523,7 +527,7 @@ async function writeStartFiles(context: StartContext, repairCheckout: string | u
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     conversation: chat.conversation,
     ...(reach === undefined ? {} : { reach }),
-    ...(cultRules === undefined ? {} : { cultRules })
+    ...cultRules
   })
   if (agent.kind === 'omp') {
     // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
@@ -1482,7 +1486,10 @@ async function endChat(manager: Manager, chatId: string, graceful?: { input: str
     await Promise.race([live.ended, late])
     cancel()
   }
-  await endTerminal(manager, chatId, ENDED)
+  const entry = manager.entries.get(chatId) ?? live ?? undefined
+  const ended = entry === undefined ? null : await endEntry(manager, entry, ENDED)
+  // Resolves once its grants are revoked too, so a caller may close or remove their workspace next.
+  await Promise.all([ended?.kill, ended?.live.revoke()])
 }
 
 /** `TerminalSessions.deleteChat`. */
