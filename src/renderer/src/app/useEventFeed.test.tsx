@@ -151,3 +151,88 @@ describe('useEventFeed failures', () => {
     expect((errors[0] as Error).message).toBe('main process unavailable')
   })
 })
+
+describe('useEventFeed notifications', () => {
+  const RUN = 'rn_0000000000000000000000000a'
+  const SPRINT_1 = 'sp_0000000000000000000000000a'
+  const SPRINT_2 = 'sp_0000000000000000000000000b'
+
+  /** Shaped like the event `submitSprintReport` appends (src/core/services/reports.ts). */
+  function reportSubmitted(path: string, sprintId: string, reportRevision: number): void {
+    logFor(path).append({ kind: 'report.submitted', epicId: EPIC_A, runId: RUN, payload: { sprintId, reportRevision } })
+  }
+
+  function runFailed(path: string, runId = RUN): void {
+    logFor(path).append({ kind: 'run.failed', epicId: EPIC_A, runId, payload: { reason: 'ticket failed', canceledAttempts: [] } })
+  }
+
+  it('raises nothing for the events before the baseline', async () => {
+    reportSubmitted('/a', SPRINT_1, 1)
+    runFailed('/a')
+    await mount({ paths: ['/a'], selected: '/a' })
+    await poll()
+    expect(dm.notifications.raised).toEqual([])
+  })
+
+  it('raises a new run.failed once with the folder and ids', async () => {
+    await mount({ paths: ['/a'], selected: '/a' })
+    runFailed('/a')
+    logFor('/a').append({ kind: 'run.failed', epicId: null, runId: RUN })
+    logFor('/a').append({ kind: 'run.canceled', epicId: EPIC_A, runId: RUN })
+    await poll()
+    await poll()
+    expect(dm.notifications.raised).toEqual([{ folder: '/a', kind: 'run_failed', epicId: EPIC_A, runId: RUN }])
+  })
+
+  it('raises checkpoint_ready once per sprint across report revisions', async () => {
+    await mount({ paths: ['/a'], selected: '/a' })
+    reportSubmitted('/a', SPRINT_1, 1)
+    await poll()
+    reportSubmitted('/a', SPRINT_1, 2)
+    await poll()
+    reportSubmitted('/a', SPRINT_2, 1)
+    reportSubmitted('/a', SPRINT_2, 2)
+    await poll()
+    expect(dm.notifications.raised).toEqual([
+      { folder: '/a', kind: 'checkpoint_ready', epicId: EPIC_A, runId: RUN },
+      { folder: '/a', kind: 'checkpoint_ready', epicId: EPIC_A, runId: RUN }
+    ])
+  })
+
+  it('does not repeat a notification when a re-created poller refetches', async () => {
+    const view = await mount({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'old']]) })
+    runFailed('/a')
+    await poll()
+    view.rerender({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'new']]) })
+    await settle()
+    reportSubmitted('/a', SPRINT_1, 1)
+    runFailed('/a')
+    await poll()
+    expect(dm.notifications.raised.map(raised => raised.kind)).toEqual(['run_failed', 'checkpoint_ready'])
+  })
+
+  it('drops a failed raise without reporting it and keeps notifying', async () => {
+    const view = await mount({ paths: ['/a'], selected: '/a' })
+    const raise = dm.notifications.raise.bind(dm.notifications)
+    let calls = 0
+    dm.notifications.raise = (request) => {
+      calls += 1
+      if (calls === 1) return Promise.reject(new Error('main unavailable'))
+      if (calls === 2) return Promise.resolve({ ok: false, error: { code: 'not_found', message: 'untracked' } })
+      if (calls === 3) throw new Error('bridge gone')
+      return raise(request)
+    }
+    runFailed('/a', 'rn_00000000000000000000000001')
+    await poll()
+    runFailed('/a', 'rn_00000000000000000000000002')
+    await poll()
+    runFailed('/a', 'rn_00000000000000000000000003')
+    await poll()
+    runFailed('/a')
+    await poll()
+    expect(errors).toEqual([])
+    expect(calls).toBe(4)
+    expect(dm.notifications.raised).toEqual([{ folder: '/a', kind: 'run_failed', epicId: EPIC_A, runId: RUN }])
+    expect(folderToken(view.result.current.tokens, '/a')).toBe(5)
+  })
+})
