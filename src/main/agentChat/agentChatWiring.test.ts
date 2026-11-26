@@ -50,6 +50,7 @@ function app(
   const arbiter: ArbiterWiring = {
     settings: () => DEFAULT_NOTIFICATION_SETTINGS, arbiterReads: () => { throw new Error('No workspace in this test.') },
     bindings: gui.deps.bindings, allowedRoots: () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
+    log: { info: vi.fn(), warn: vi.fn() },
     ...arbiterOverrides
   }
   const notify = vi.fn<AgentChatAttention['notify']>(), onError = vi.fn<AgentChatAttention['onError']>()

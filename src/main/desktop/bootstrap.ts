@@ -735,7 +735,8 @@ function arbiterWiring(
     allowedRoots: folder => worktrees.rootsOf(folder),
     platform: process.platform,
     env: process.env,
-    arbiterRoot: join(app.getPath('userData'), 'agents', 'arbiter')
+    arbiterRoot: join(app.getPath('userData'), 'agents', 'arbiter'),
+    log: logger
   }
 }
 

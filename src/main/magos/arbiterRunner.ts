@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import { killProcessTree, startsOwnGroup } from '../agents/processTree'
-import { logger } from '../logger'
 import type { ArbiterLaunchSpec as Launch } from './arbiterLaunch'
 import { parseArbiterVerdict } from './arbiterPrompt'
 
@@ -12,11 +11,18 @@ export type ArbiterResult =
   | { decision: 'allow_once' | 'deny'; reason: string }
   | { decision: 'escalate'; reason: string; cause: 'verdict' | 'invalid' | 'timeout' | 'error' | 'cancelled' }
 
+/**
+ * Where the runner reports a retried busy removal and a failed process's masked stderr tail. The main process passes
+ * its app logger; this module never imports it, so loading the runner never loads Electron (tests and Node scripts).
+ */
+export type ArbiterLog = Pick<Console, 'info' | 'warn'>
+
 interface ArbiterOptions {
   /** Called only after the runner has created its fresh, owned working directory. */
   launch: (tempDir: string) => Launch
   input: string
   tempRoot: string
+  log: ArbiterLog
   timeoutMs?: number
   spawn?: typeof spawnChild
   killTree?: typeof killProcessTree
@@ -50,7 +56,7 @@ const REMOVE_ATTEMPTS = 4
  * for its direct child's exit, so a descendant can still be releasing its handles (its cwd is this directory) when the
  * removal starts. A busy removal is asked again after 50, 100 and 150 ms: 300 ms in all, inside `removeTemp`'s bound.
  */
-async function removeDirectory(dir: string): Promise<void> {
+async function removeDirectory(dir: string, log: ArbiterLog): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
       await rm(dir, { recursive: true, force: true })
@@ -58,16 +64,16 @@ async function removeDirectory(dir: string): Promise<void> {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? ''
       if (attempt >= REMOVE_ATTEMPTS || !Object.hasOwn(BUSY_CODES, code)) throw error
-      noteBusyRemoval(code)
+      noteBusyRemoval(log, code)
     }
     await delay(50 * attempt)
   }
 }
 
 /** Records a busy removal that is asked again; logging never changes the removal's outcome. */
-function noteBusyRemoval(code: string): void {
+function noteBusyRemoval(log: ArbiterLog, code: string): void {
   try {
-    logger.info(`Arbiter directory removal refused (${code}); trying again.`)
+    log.info(`Arbiter directory removal refused (${code}); trying again.`)
   } catch {
     // A failed log must not turn a retry into a failure.
   }
@@ -186,7 +192,7 @@ class ArbiterRun {
     // A retained suffix may start inside a secret. Drop that entire partial line before masking.
     if (this.stderrTruncated) text = text.includes('\n') ? text.slice(text.indexOf('\n') + 1) : ''
     try {
-      logger.warn('Arbiter process error:', maskAgentChatSecretsDeep(text))
+      this.options.log.warn('Arbiter process error:', maskAgentChatSecretsDeep(text))
     } catch {
       // Logging must not turn a fail-closed result into a rejected promise.
     }
@@ -194,7 +200,7 @@ class ArbiterRun {
 
   private removeTemp(): Promise<boolean> {
     if (!this.tempDir) return Promise.resolve(!this.creatingDirectory)
-    this.tempRemoved ??= bounded(removeDirectory(this.tempDir), 500)
+    this.tempRemoved ??= bounded(removeDirectory(this.tempDir, this.options.log), 500)
     return this.tempRemoved
   }
 

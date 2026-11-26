@@ -35,7 +35,7 @@ export type AgentChatOwnerDeps = Required<Pick<AgentChatSessionsDeps,
 type ArbitrationDeps = Parameters<typeof createPromptArbitration>[0]
 
 /** The Magos arbiter's main-side dependencies; its attention events go to the wiring's `attention` notifier. */
-export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'platform' | 'env' | 'arbiterRoot' | 'startArbiter'> {
+export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'platform' | 'env' | 'arbiterRoot' | 'startArbiter' | 'log'> {
   /** The read-only workspace of a tracked folder (its own desktop workspace); throws for an untracked one. */
   arbiterReads(folder: string): ArbiterReads
   /** Verified worker attempts of chat threads (`activity`), shared with the GUI owner. */
@@ -91,7 +91,7 @@ function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent
   }
   return createPromptArbitration({
     settings: arbiter.settings, onAttention, platform: arbiter.platform, env: arbiter.env,
-    arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter,
+    arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter, log: arbiter.log,
     allowedRoots: chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
     // An async body turns a throwing lookup into a rejection, which the gate reads as nulls.
     readContext: async ({ chat, prompt }) => {
