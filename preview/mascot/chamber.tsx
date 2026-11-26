@@ -63,7 +63,7 @@ export function ChamberComposition({ time, outlines }: { time: number; outlines:
     <Prop src={helmImage} rect={layout.helm.rect} label="helm" />
     {layout.consoles.map((item) => <Prop key={item.id} src={consoleImage} rect={item.rect} label={item.id} />)}
     {layout.consoles.map((item) => <AcolyteLoop key={item.id} action="type" time={time} size={size}
-      x={item.rect.x + item.rect.width} y={layout.floorY} facing="left" />)}
+      x={item.operatorX} y={layout.floorY} facing={item.operatorFacing} />)}
     <AcolyteLoop action="salute" time={time} size={size * 1.45} x={layout.magos.x} y={layout.magos.y} />
     {outlines && <>
       <Outline rect={layout.viewscreen.window} kind="window" />
