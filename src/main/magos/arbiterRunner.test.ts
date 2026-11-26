@@ -13,7 +13,7 @@ import { arbiterLaunch, type ArbiterLaunchSpec } from './arbiterLaunch'
 import { ARBITER_SYSTEM_PROMPT, buildArbiterRequest } from './arbiterPrompt'
 import { startArbiter } from './arbiterRunner'
 
-vi.mock('../logger', () => ({ logger: { warn: vi.fn() } }))
+vi.mock('../logger', () => ({ logger: { warn: vi.fn(), info: vi.fn() } }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, mkdtemp: vi.fn(actual.mkdtemp), rm: vi.fn(actual.rm) }
@@ -375,12 +375,14 @@ it('removes its directory after Windows reports it busy, as a killed descendant 
   expect(await runFake('allow').result).toEqual({ decision: 'allow_once', reason: 'fake allow_once' })
   expect(rm).toHaveBeenCalledTimes(2)
   expect(existsSync(dirs[0])).toBe(false)
+  expect(vi.mocked(logger.info).mock.calls).toEqual([['Arbiter directory removal refused (EBUSY); trying again.']])
 })
 
 it('stops asking after four busy removals and reports the cleanup unconfirmed', async () => {
   for (let attempt = 0; attempt < 4; attempt++) vi.mocked(rm).mockRejectedValueOnce(removalError('EPERM'))
   expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
   expect(rm).toHaveBeenCalledTimes(4)
+  expect(vi.mocked(logger.info).mock.calls).toHaveLength(3)
   rmSync(dirs[0], { recursive: true, force: true })
 })
 
@@ -388,6 +390,7 @@ it('fails closed at once on a removal error that is not a busy directory', async
   vi.mocked(rm).mockRejectedValueOnce(removalError('EIO'))
   expect(await runFake('allow').result).toMatchObject({ decision: 'escalate', cause: 'error', reason: 'Arbiter cleanup could not be confirmed.' })
   expect(rm).toHaveBeenCalledOnce()
+  expect(vi.mocked(logger.info).mock.calls).toEqual([])
   rmSync(dirs[0], { recursive: true, force: true })
 })
 

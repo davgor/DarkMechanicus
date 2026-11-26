@@ -56,9 +56,20 @@ async function removeDirectory(dir: string): Promise<void> {
       await rm(dir, { recursive: true, force: true })
       return
     } catch (error) {
-      if (attempt >= REMOVE_ATTEMPTS || !Object.hasOwn(BUSY_CODES, (error as NodeJS.ErrnoException).code ?? '')) throw error
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (attempt >= REMOVE_ATTEMPTS || !Object.hasOwn(BUSY_CODES, code)) throw error
+      noteBusyRemoval(code)
     }
     await delay(50 * attempt)
+  }
+}
+
+/** Records a busy removal that is asked again; logging never changes the removal's outcome. */
+function noteBusyRemoval(code: string): void {
+  try {
+    logger.info(`Arbiter directory removal refused (${code}); trying again.`)
+  } catch {
+    // A failed log must not turn a retry into a failure.
   }
 }
 

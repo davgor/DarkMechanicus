@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { FORGE_FILE, parseForgeManifest } from '../../core/repo/forgeManifest'
 import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { checkCloneName } from '../git/cloneInput'
+import { logger } from '../logger'
 
 export { FORGE_FILE, githubRemote } from '../../core/repo/forgeManifest'
 
@@ -46,10 +47,20 @@ export function replaceForgeFile(temp: string, file: string, rename: (from: stri
       rename(temp, file)
       return
     } catch (error) {
-      const pause = RENAME_PAUSES_MS[attempt]
-      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, (error as NodeJS.ErrnoException).code ?? '')) throw error
+      const pause = RENAME_PAUSES_MS[attempt], code = (error as NodeJS.ErrnoException).code ?? ''
+      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, code)) throw error
+      noteBusyRename(code)
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pause)
     }
+  }
+}
+
+/** Records a busy rename that is asked again; logging never changes the rename's outcome. */
+function noteBusyRename(code: string): void {
+  try {
+    logger.info(`Forge World manifest rename refused (${code}); trying again.`)
+  } catch {
+    // A failed log must not turn a retry into a failure.
   }
 }
 

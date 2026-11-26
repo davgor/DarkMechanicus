@@ -1,14 +1,18 @@
 import { readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scratchDir } from '../../test/gitScratch'
+import { logger } from '../logger'
 import { replaceForgeFile } from './forgeManifest'
+
+vi.mock('../logger', () => ({ logger: { info: vi.fn() } }))
 
 let scratch: ReturnType<typeof scratchDir>
 let file: string
 let temp: string
 
 beforeEach(() => {
+  vi.mocked(logger.info).mockClear()
   scratch = scratchDir('forge-manifest-')
   file = join(scratch.path, 'forge-world.json')
   temp = file + '.next'
@@ -42,6 +46,7 @@ describe('replaceForgeFile', () => {
     expect(rename.calls).toBe(2)
     expect(readFileSync(file, 'utf8')).toBe('after\n')
     expect(existsSync(temp)).toBe(false)
+    expect(vi.mocked(logger.info).mock.calls).toEqual([['Forge World manifest rename refused (EPERM); trying again.']])
   })
 
   it('throws the original busy error after four refusals and leaves the manifest untouched', () => {
@@ -50,6 +55,7 @@ describe('replaceForgeFile', () => {
     expect(rename.calls).toBe(4)
     expect(readFileSync(file, 'utf8')).toBe('before\n')
     expect(readFileSync(temp, 'utf8')).toBe('after\n')
+    expect(vi.mocked(logger.info).mock.calls.map(([message]) => message)).toEqual(['EPERM', 'EACCES', 'EBUSY'].map(code => `Forge World manifest rename refused (${code}); trying again.`))
   })
 
   it('throws any other error at once without asking again', () => {
@@ -57,5 +63,6 @@ describe('replaceForgeFile', () => {
     expect(() => replaceForgeFile(temp, file, rename.rename)).toThrow('ENOENT: rename refused')
     expect(rename.calls).toBe(1)
     expect(readFileSync(file, 'utf8')).toBe('before\n')
+    expect(vi.mocked(logger.info).mock.calls).toEqual([])
   })
 })
