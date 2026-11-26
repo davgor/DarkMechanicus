@@ -1,8 +1,17 @@
 import { DomainError } from '../../core/errors'
 import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { ChatRef } from '../agents/chatStore'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 
 export type ArbiterOutcome = { decision: 'allow_once' | 'deny' | 'escalate'; reason: string }
+/**
+ * What the person must look at, for one OS notifier: a prompt waiting on them (the Magos gate, `promptArbitration.ts`),
+ * or a run's Magos chat busy and silent too long (`run_stalled`, from the GUI session manager), which carries only the
+ * chat ref and the silence.
+ */
+export type AttentionEvent =
+  | { kind: 'approval_needed' | 'question'; ref: ChatRef; prompt: PendingPrompt }
+  | { kind: 'run_stalled'; ref: ChatRef; silentMs: number }
 /**
  * The arbiter gate's answer for a newly exposed head: an excluded prompt goes to the person at once (`off` shows no
  * Magos line, `escalated` shows its reason); otherwise the arbiter decides it. `awaitingPerson` is told, once, after

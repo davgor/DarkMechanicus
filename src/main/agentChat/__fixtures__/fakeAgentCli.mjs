@@ -19,6 +19,8 @@ const mode = argv.includes('--version') ? 'version'
       : argv.includes('--mode') && ['rpc-ui', 'rpc'].includes(option('--mode')) ? 'omp'
         : argv.includes('-p') && outputFormat === 'stream-json' ? 'claude' : 'tui'
 const root = dirname(fileURLToPath(import.meta.url))
+/** The `[slow]` scenario's pause between lines; a test raises it to hold a busy turn silent while it advances fake time. */
+const slowMs = Number(process.env.FAKE_AGENT_SLOW_MS) || 200
 /**
  * One line per invocation, written at launch. `at` is the launch time (epoch ms) and `grantHash` the SHA-256 of the
  * grant token, as the grants table stores it, so an e2e can order a launch against a grant's revocation. The token
@@ -181,7 +183,7 @@ class ProtocolReplay {
       this.active.index++
       if (this.active.hung) return
       if (this.active.slow && this.active.index < this.active.lines.length) {
-        this.timer = setTimeout(() => this.pump(), 200)
+        this.timer = setTimeout(() => this.pump(), slowMs)
         return
       }
     }

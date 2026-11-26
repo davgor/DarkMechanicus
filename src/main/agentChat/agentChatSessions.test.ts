@@ -1,12 +1,12 @@
 import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createActivityBindings } from '../agents/activityBindings'
 import { createChatStore, type ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
-import { createAgentChatSessions } from './agentChatSessions'
-import type { ArbiterOutcome } from './pendingPrompts'
+import { createAgentChatSessions, type AgentChatSessionsDeps } from './agentChatSessions'
+import type { ArbiterOutcome, AttentionEvent } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
 import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
 import { exclusionText } from '../magos/arbitrationRules'
@@ -879,6 +879,19 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inte
   })
 })
 
+it('omp treats an agent-started follow-up turn as active: it refuses a surface switch and interrupt writes an abort', async () => {
+  const r = rig('omp'), tap = lineTap(r), chat = r.newChat()
+  await r.sessions.send(chat, { text: '[slow]' })
+  // Sent while busy: a `follow_up` the agent starts on its own once the first turn ends, held there by `[hung]`.
+  await r.sessions.send(chat, { text: '[hung] queued' })
+  expect(r.writes.map(line => JSON.parse(line).type)).toContain('follow_up')
+  await eventually(() => tap.lines.filter(line => line.includes('"type":"agent_start"')).length === 2)
+  expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'busy', queued: 0, pending: null })
+  await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+  await r.sessions.interrupt(chat)
+  expect(JSON.parse(r.writes.at(-1)!)).toMatchObject({ type: 'abort' })
+})
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI input refusals`, () => {
 
   it('does not echo a refused transport write or change its turn state', async () => {
@@ -1275,4 +1288,131 @@ describe('callsigns across a restart', () => {
     expect(readFileSync(r.bindingsFile, 'utf8')).toBe(stored)
     await reopened.dispose()
   })
+})
+
+const STALL_MS = 300_000
+const KEEP_ALIVE = JSON.stringify({ type: 'keep_alive' })
+/** The transport's line listener, tapped: every stdout line the manager reads, and a way to hand it one more. */
+function lineTap(r: Rig) {
+  const start = r.deps.startProcess!, tap = { lines: [] as string[], receive: (_raw: string): void => undefined }
+  r.deps.startProcess = spec => {
+    const child = start(spec)
+    return { ...child, onLine: listener => { tap.receive = listener; return child.onLine(raw => { tap.lines.push(raw); listener(raw) }) } }
+  }
+  return tap
+}
+/** Waits on real child output while the manager's timeouts and clock are fake: polled on immediates, never timeouts. */
+async function settle(check: () => boolean) {
+  const deadline = performance.now() + 3000
+  while (!check()) {
+    if (performance.now() >= deadline) throw new Error('Expected session condition was not reached within 3 seconds.')
+    await new Promise(resolve => setImmediate(resolve))
+  }
+}
+
+it('takes one AttentionEvent notifier for both the prompt gate and the session manager', () => {
+  const notify = (_event: AttentionEvent): void => undefined
+  expectTypeOf(notify).toExtend<NonNullable<AgentChatSessionsDeps['onAttention']>>()
+  expectTypeOf(notify).toExtend<Parameters<typeof createPromptArbitration>[0]['onAttention']>()
+  // A stall names only the chat and the silence: no prompt, title or transcript text.
+  expectTypeOf<Extract<AttentionEvent, { kind: 'run_stalled' }>>().toEqualTypeOf<{ kind: 'run_stalled'; ref: ChatRef; silentMs: number }>()
+})
+
+/**
+ * A started chat that then sends `text` under fake timeouts and a fake clock; a `[slow]` turn holds its next line a real
+ * minute away. `magos` is a Start-run orchestrator, `new` an orchestrator with no run, `worker` a worker chat.
+ */
+async function stalled(kind: 'claude' | 'omp', role: 'magos' | 'new' | 'worker', text = '[slow]') {
+  const onAttention = vi.fn<(event: AttentionEvent) => void>(), r = rig(kind, { onAttention }), tap = lineTap(r)
+  r.env.FAKE_AGENT_SLOW_MS = '60000'
+  const chat = r.store.createChat({ folder: r.repo, agent: kind, role: role === 'worker' ? 'worker' : 'orchestrator', allowSave: false,
+    model: null, surface: 'gui', ...(role === 'magos' ? { runId: RUN } : {}) })
+  await r.sessions.start(chat)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+  await r.sessions.send(chat, { text })
+  // Each turn's first stdout line.
+  const marker = kind === 'claude' ? '"message_start"' : '"command":"prompt"'
+  const turns = () => tap.lines.filter(line => line.includes(marker)).length
+  const event = { kind: 'run_stalled', ref: { folder: chat.folder, id: chat.id }, silentMs: STALL_MS }
+  return { r, tap, chat, onAttention, turns, event }
+}
+
+/** A busy, silent chat that is not a run's Magos or has a prompt pending: no span is armed and nothing fires. */
+async function neverStalls(kind: 'claude' | 'omp', role: 'magos' | 'new' | 'worker', text: string, waitsOnPerson: boolean) {
+  const { r, chat, onAttention, turns } = await stalled(kind, role, text)
+  await settle(() => waitsOnPerson ? r.sessions.snapshot(chat).pending !== null : turns() === 1)
+  expect(r.sessions.snapshot(chat).status).toBe('busy')
+  expect(vi.getTimerCount()).toBe(0)
+  await vi.advanceTimersByTimeAsync(2 * STALL_MS)
+  expect(onAttention).not.toHaveBeenCalled()
+}
+
+const stallCases: Record<string, (kind: 'claude' | 'omp') => Promise<void>> = {
+  'fires one run_stalled after 300 s of busy silence, once per silent span': async kind => {
+    const { r, tap, chat, onAttention, turns, event } = await stalled(kind, 'magos')
+    await settle(() => turns() === 1)
+    expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'busy', pending: null })
+    await vi.advanceTimersByTimeAsync(STALL_MS - 1)
+    expect(onAttention).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
+    await vi.advanceTimersByTimeAsync(2 * STALL_MS)
+    expect(onAttention).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    // A line ends the reported span; the next silence is a new span that fires again.
+    tap.receive(KEEP_ALIVE)
+    await vi.advanceTimersByTimeAsync(STALL_MS)
+    expect(onAttention.mock.calls).toEqual([[event], [event]])
+    expect(r.sessions.snapshot(chat).status).toBe('busy')
+  },
+  'restarts the span at a line 299 s into the silence': async kind => {
+    const { tap, onAttention, turns, event } = await stalled(kind, 'magos')
+    await settle(() => turns() === 1)
+    await vi.advanceTimersByTimeAsync(299_000)
+    tap.receive(KEEP_ALIVE)
+    await vi.advanceTimersByTimeAsync(299_000)
+    expect(onAttention).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
+  },
+  'ends the span when the turn goes idle, and fires again in a later busy silence': async kind => {
+    const { r, chat, onAttention, turns, event } = await stalled(kind, 'magos', '[text]')
+    await settle(() => r.sessions.snapshot(chat).status === 'idle')
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(2 * STALL_MS)
+    expect(onAttention).not.toHaveBeenCalled()
+    await r.sessions.send(chat, { text: '[slow]' })
+    await settle(() => turns() === 2)
+    await vi.advanceTimersByTimeAsync(STALL_MS)
+    expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
+  },
+  'never fires while a prompt waits on the person': kind => neverStalls(kind, 'magos', '[approval]', true),
+  'never fires for a New chat': kind => neverStalls(kind, 'new', '[slow]', false),
+  'never fires for a worker chat': kind => neverStalls(kind, 'worker', '[slow]', false),
+  'leaves no stall timer once the agent exits': async kind => {
+    const { r, chat, onAttention, turns } = await stalled(kind, 'magos')
+    await settle(() => turns() === 1)
+    await vi.advanceTimersByTimeAsync(STALL_MS / 2)
+    expect(vi.getTimerCount()).toBe(1)
+    await r.children[0].stop()
+    await settle(() => !r.sessions.isLive(chat))
+    expect(r.sessions.snapshot(chat).status).not.toBe('busy')
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(2 * STALL_MS)
+    expect(onAttention).not.toHaveBeenCalled()
+  },
+  'leaves no stall timer after dispose': async kind => {
+    const { r, onAttention, turns } = await stalled(kind, 'magos')
+    await settle(() => turns() === 1)
+    await vi.advanceTimersByTimeAsync(STALL_MS / 2)
+    expect(vi.getTimerCount()).toBe(1)
+    await r.sessions.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(2 * STALL_MS)
+    expect(onAttention).not.toHaveBeenCalled()
+  }
+}
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} run-stalled attention`, () => {
+  for (const [name, run] of Object.entries(stallCases)) it(name, () => run(kind))
 })

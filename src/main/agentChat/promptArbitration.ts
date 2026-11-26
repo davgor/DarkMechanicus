@@ -14,7 +14,7 @@ import { arbiterLaunch } from '../magos/arbiterLaunch'
 import { ARBITER_SYSTEM_PROMPT, buildArbiterRequest } from '../magos/arbiterPrompt'
 import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
 import { arbitrationExclusion, exclusionText, type ExclusionReason } from '../magos/arbitrationRules'
-import type { ArbiterOutcome, ArbitrationGate } from './pendingPrompts'
+import type { ArbiterOutcome, ArbitrationGate, AttentionEvent } from './pendingPrompts'
 
 const MAX_ARBITERS = 3
 const ARBITER_TIMEOUT_MS = 60_000
@@ -28,14 +28,13 @@ const OFF_REASONS: ReadonlySet<ExclusionReason> = new Set(['disabled', 'not_mago
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
 
 type ArbiterTicket = Parameters<typeof buildArbiterRequest>[0]['ticket']
-type AttentionKind = 'approval_needed' | 'question'
 type Cause = ExclusionReason | 'too_large' | 'cancelled' | Extract<ArbiterResult, { decision: 'escalate' }>['cause']
 
 interface PromptArbitrationDeps {
   /** The main store's arbitration settings, read at the moment each prompt arrives. */
   settings(): Pick<NotificationSettings, 'arbitration'>
   /** The person must look at `prompt`: it was excluded, escalated, or the arbiter is off. */
-  onAttention(event: { kind: AttentionKind; ref: ChatRef; prompt: PendingPrompt }): void
+  onAttention(event: Extract<AttentionEvent, { prompt: PendingPrompt }>): void
   /** The bound ticket and the epic's Standards section (DM-821 `readArbiterContext`); a failure reads as nulls. */
   readContext(input: { chat: ChatRecord; prompt: PendingPrompt }): Promise<{ ticket: ArbiterTicket; standards: string | null }>
   /**

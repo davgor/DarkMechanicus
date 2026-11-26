@@ -20,7 +20,7 @@ import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
 import { claudeInitLines, claudeInputClipped, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
-import { PendingPrompts, type ArbitrationGate } from './pendingPrompts'
+import { PendingPrompts, type ArbitrationGate, type AttentionEvent } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import type { ThreadClaimEvent } from './translatorEvents'
 
@@ -52,6 +52,11 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   verifyAttemptClaim?: (folder: string, token: string) => Promise<{ attemptId: string; runId: string; ticketId: string } | null>
   /** The ticket key of a bound attempt; omitted or failing, the thread keeps its unverified label key. */
   ticketKeyOfAttempt?: (folder: string, attemptId: string) => Promise<string | null>
+  /**
+   * A run's Magos chat (`role` orchestrator with a `runId`) busy with no stdout line and no prompt pending for
+   * `STALL_NOTIFY_MS`: told once per silent span, with no chat content. Omitted, nothing is told.
+   */
+  onAttention?(event: Extract<AttentionEvent, { kind: 'run_stalled' }>): void
 }
 
 type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
@@ -87,6 +92,10 @@ interface Entry {
   turnActive: boolean
   interruptTimer?: NodeJS.Timeout
   interruptFailure?: string
+  /** The silent span's notification; armed only while a run's Magos chat is busy with no prompt pending. */
+  stallTimer?: NodeJS.Timeout
+  /** The current silent span was already reported: nothing more until a line, a non-busy status or a prompt ends it. */
+  stallReported?: boolean
   process?: AgentProcess
   protocol: 'claude' | 'omp'
   claude: ClaudeProtocolState
@@ -129,6 +138,11 @@ function startsMainTurn(event: OmpEvent): boolean {
   if (event.type !== 'item' || event.item.threadId) return false
   return event.item.kind === 'assistant_text' || event.item.kind === 'tool_call' && event.item.status === 'running'
 }
+/**
+ * Busy silence that reports a run's Magos chat stalled: well past the activity line's 30 s warning, because a long tool
+ * such as the full gate (about 3.5 minutes) prints nothing.
+ */
+const STALL_NOTIFY_MS = 300_000
 
 const repeat = (callback: () => void, ms: number): (() => void) => {
   const timer = setInterval(callback, ms)
@@ -199,6 +213,7 @@ class SessionManager {
         entry.turnActive = false
         this.clearInterrupt(entry)
       }
+      this.watchStall(entry)
     }
     if (safe.type === 'queued') entry.queued = safe.count
     if (safe.type === 'todos') {
@@ -408,6 +423,7 @@ class SessionManager {
     if (entry.ending) return entry.ending
     this.clearInterrupt(entry)
     this.clearPrompts(entry)
+    this.resetStall(entry)
     entry.release?.()
     entry.release = undefined
     entry.admit()
@@ -427,6 +443,7 @@ class SessionManager {
   }
   private stopEntry(entry: Entry): Promise<void> {
     this.clearInterrupt(entry)
+    this.resetStall(entry)
     entry.cancelled = true
     entry.cancel()
     this.clearPrompts(entry)
@@ -476,6 +493,8 @@ class SessionManager {
   }
   private line(entry: Entry, raw: string): void {
     if (entry.cancelled || entry.ending) return
+    // Any stdout line ends the silent span; one is started again below while the chat stays due.
+    this.resetStall(entry)
     try {
       if (entry.protocol === 'omp') this.ompLine(entry, raw)
       else this.claudeLine(entry, raw)
@@ -486,6 +505,36 @@ class SessionManager {
       this.emit(entry, { type: 'status', status: 'failed', detail: message(error) })
       void this.stopEntry(entry).catch(() => undefined) // stopEntry publishes a failed shutdown.
     }
+    this.watchStall(entry)
+  }
+  /** Ends the silent span: a stdout line, a non-busy status, a pending prompt, exit or stop. */
+  private resetStall(entry: Entry): void {
+    clearTimeout(entry.stallTimer)
+    entry.stallTimer = undefined
+    entry.stallReported = false
+  }
+  /** A run's Magos chat (orchestrator with a run), running, busy and with no prompt waiting on the person. */
+  private stallDue(entry: Entry): boolean {
+    const { chat } = entry
+    return chat.role === 'orchestrator' && chat.runId !== undefined && entry.status === 'busy'
+      && !entry.prompts?.snapshot() && !entry.cancelled && !entry.ending
+  }
+  /**
+   * Starts a silent span when the chat is due and no span is running or reported; ends it otherwise. The timer never
+   * holds the process open.
+   */
+  private watchStall(entry: Entry): void {
+    const { chat } = entry, onAttention = this.deps.onAttention
+    if (onAttention === undefined || !this.stallDue(entry)) { this.resetStall(entry); return }
+    if (entry.stallTimer || entry.stallReported) return
+    const since = Date.now()
+    entry.stallTimer = setTimeout(() => {
+      entry.stallTimer = undefined
+      entry.stallReported = true
+      try { onAttention({ kind: 'run_stalled', ref: { folder: chat.folder, id: chat.id }, silentMs: Date.now() - since }) }
+      catch { /* A notifier failure never reaches the session. */ }
+    }, STALL_NOTIFY_MS)
+    entry.stallTimer.unref()
   }
   private watch(entry: Entry): void {
     const every = this.deps.timers?.repeat ?? repeat
@@ -591,7 +640,7 @@ class SessionManager {
         // OMP prompts carry no translator-clipped input record: count them as clipped (OMP is never arbitrated today).
         inputClipped: entry.protocol === 'claude' ? claudeInputClipped(entry.claude, prompt.id) : true }) } : {}),
       answer: (prompt, verdict) => this.answerEntry(entry, { promptId: prompt.id, optionId: verdict.decision }, { decidedBy: 'magos', reason: verdict.reason }),
-      changed: () => this.pushAttention(entry)
+      changed: () => { this.pushAttention(entry); this.watchStall(entry) }
     })
     const auth = await this.step(entry, deps.checkAuth(agent.kind, agent.executablePath))
     if (auth.state === 'signed_out') {
