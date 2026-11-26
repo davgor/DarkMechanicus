@@ -5,6 +5,28 @@ import '../../src/renderer/src/graph/graph.css'
 import './preview.css'
 import { MascotSprite } from '../../src/renderer/src/mascot/MascotSprite'
 import { createMotion, stepMotion, type MotionAction, type MotionState, type MotionSurfaces } from '../../src/renderer/src/mascot/motion'
+import magosAtlas from '../../src/renderer/src/assets/magos/atlas.json'
+
+const magosImages = import.meta.glob<string>('../../src/renderer/src/assets/magos/*.png', { eager: true, import: 'default' })
+type MagosClip = (typeof magosAtlas.actions)['idle']
+const MAGOS_SCALE = 150 / magosAtlas.cell.width
+
+function MagosFrame({ name, clip, time }: { name: string; clip: MagosClip; time: number }): JSX.Element {
+  const elapsed = clip.loop ? time : time % (clip.frames.length * 1000 / clip.fps + 800)
+  const raw = Math.floor(elapsed * clip.fps / 1000)
+  const frame = clip.frames[clip.loop ? raw % clip.frames.length : Math.min(clip.frames.length - 1, raw)]!
+  const scale = MAGOS_SCALE * clip.renderScale
+  return <div className="preview-action preview-magos" aria-label={`Magos ${name}`}>
+    <strong>magos {name}</strong>
+    <div style={{
+      position: 'absolute', left: 100 - frame.footAnchor.x * scale, top: 150 - frame.footAnchor.y * scale,
+      width: frame.width * scale, height: frame.height * scale,
+      backgroundImage: `url("${magosImages[`../../src/renderer/src/assets/magos/${clip.image}`]}")`,
+      backgroundSize: `${1536 * scale}px ${1024 * scale}px`,
+      backgroundPosition: `${-frame.x * scale}px ${-frame.y * scale}px`
+    }} />
+  </div>
+}
 
 const actions: Array<MotionAction | 'drill'> = ['idle', 'walk', 'run', 'jump', 'climb', 'stumble', 'drill']
 const board: MotionSurfaces = {
@@ -52,6 +74,11 @@ function Preview(): JSX.Element {
           <MascotSprite motion={{ ...createMotion(2, { x: 100, y: 140 }), action: action === 'drill' ? 'idle' : action, elapsed, progress: elapsed / cycle, working: action === 'drill' }} playbackMs={time} />
         </div>
       })}
+    </section>
+    <h2>Magos actions</h2>
+    <p>The cult chamber Magos atlases, looping one-shots after a short hold, beside the mascot&apos;s.</p>
+    <section className="preview-actions" aria-label="Seven Magos actions">
+      {Object.entries(magosAtlas.actions).map(([name, clip]) => <MagosFrame key={name} name={name} clip={clip} time={time} />)}
     </section>
     <h2>Resting drill pose</h2>
     <div className="preview-action" aria-label="Paused drill frame">

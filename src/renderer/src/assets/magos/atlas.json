@@ -1,0 +1,572 @@
+{
+  "schemaVersion": 1,
+  "cell": {
+    "width": 512,
+    "height": 512,
+    "padding": "transparent; characters remain inside each cell",
+    "origin": "top-left"
+  },
+  "frameOrder": "row-major, left-to-right then top-to-bottom",
+  "actions": {
+    "idle": {
+      "image": "idle.png",
+      "fps": 6,
+      "loop": true,
+      "playback": "loop",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 466
+      },
+      "frames": [
+        {
+          "name": "settled",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 465
+          }
+        },
+        {
+          "name": "lens-blink",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 465
+          }
+        },
+        {
+          "name": "mechadendrite-twitch",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 465
+          }
+        },
+        {
+          "name": "staff-shift",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 466
+          }
+        },
+        {
+          "name": "mechadendrite-curl",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 466
+          }
+        },
+        {
+          "name": "return",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 466
+          }
+        }
+      ]
+    },
+    "speak": {
+      "image": "speak.png",
+      "fps": 8,
+      "loop": true,
+      "playback": "loop",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 469
+      },
+      "frames": [
+        {
+          "name": "neutral",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        },
+        {
+          "name": "grille-glow",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        },
+        {
+          "name": "open-hand",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        },
+        {
+          "name": "emphatic-fist",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        },
+        {
+          "name": "hand-lower",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        },
+        {
+          "name": "return",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 469
+          }
+        }
+      ]
+    },
+    "order_one": {
+      "image": "order_one.png",
+      "fps": 8,
+      "loop": false,
+      "playback": "once",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 444
+      },
+      "frames": [
+        {
+          "name": "staff-upright",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 439
+          }
+        },
+        {
+          "name": "staff-swing",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 439
+          }
+        },
+        {
+          "name": "point-forward",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 440
+          }
+        },
+        {
+          "name": "point-hold",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 444
+          }
+        },
+        {
+          "name": "staff-return",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 444
+          }
+        },
+        {
+          "name": "settled",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 444
+          }
+        }
+      ]
+    },
+    "order_all": {
+      "image": "order_all.png",
+      "fps": 8,
+      "loop": false,
+      "playback": "once",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 464
+      },
+      "frames": [
+        {
+          "name": "staff-upright",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        },
+        {
+          "name": "staff-lift",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        },
+        {
+          "name": "staff-overhead",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        },
+        {
+          "name": "head-flare",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        },
+        {
+          "name": "staff-lower",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        },
+        {
+          "name": "settled",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 464
+          }
+        }
+      ]
+    },
+    "summon": {
+      "image": "summon.png",
+      "fps": 8,
+      "loop": false,
+      "playback": "once",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 463
+      },
+      "frames": [
+        {
+          "name": "hand-at-chest",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        },
+        {
+          "name": "hand-sweep",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        },
+        {
+          "name": "palm-to-floor",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        },
+        {
+          "name": "palm-hold",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        },
+        {
+          "name": "hand-return",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        },
+        {
+          "name": "settled",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 463
+          }
+        }
+      ]
+    },
+    "petition": {
+      "image": "petition.png",
+      "fps": 4,
+      "loop": true,
+      "playback": "loop",
+      "facing": "viewer (front)",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 459
+      },
+      "frames": [
+        {
+          "name": "scroll-raised",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 459
+          }
+        },
+        {
+          "name": "scroll-lift",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 458
+          }
+        },
+        {
+          "name": "lens-blink",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 458
+          }
+        },
+        {
+          "name": "mechadendrite-sway",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 459
+          }
+        },
+        {
+          "name": "scroll-lower",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 459
+          }
+        },
+        {
+          "name": "return",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 459
+          }
+        }
+      ]
+    },
+    "chronicle": {
+      "image": "chronicle.png",
+      "fps": 6,
+      "loop": false,
+      "playback": "once",
+      "facing": "left; mirror horizontally for right-facing playback",
+      "renderScale": 1,
+      "footAnchor": {
+        "x": 256,
+        "y": 472
+      },
+      "frames": [
+        {
+          "name": "raise-slate",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 471
+          }
+        },
+        {
+          "name": "writing",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 471
+          }
+        },
+        {
+          "name": "mechadendrite-assist",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 471
+          }
+        },
+        {
+          "name": "final-stroke",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 472
+          }
+        },
+        {
+          "name": "bow",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 472
+          }
+        },
+        {
+          "name": "powered-down",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 472
+          }
+        }
+      ]
+    }
+  }
+}
