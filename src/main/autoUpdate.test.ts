@@ -426,6 +426,7 @@ describe('the before-install hook', () => {
   afterEach(restoreAutoUpdateTest)
 
   it('Restart now calls the hook before autoUpdater.quitAndInstall', async () => {
+    withPlatform('win32')
     const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
     const order: string[] = []
     quitAndInstall.mockImplementation(() => { order.push('quitAndInstall') })
@@ -435,6 +436,7 @@ describe('the before-install hook', () => {
   })
 
   it('a throwing hook is logged and the update still installs', async () => {
+    withPlatform('win32')
     const { quitAndInstallUpdate, setBeforeInstall } = await loadModule()
     // resetModules re-creates the logger mock: only an import after it reaches the instance autoUpdate logs to.
     const { logger } = await import('./logger')
@@ -445,6 +447,7 @@ describe('the before-install hook', () => {
   })
 
   it('the IPC Restart now runs the hook; startup and update checks never do', async () => {
+    withPlatform('win32')
     const { initAutoUpdate, checkForUpdatesNow, registerAutoUpdateHandlers, setBeforeInstall, INITIAL_CHECK_DELAY_MS } = await loadModule()
     const hook = vi.fn()
     setBeforeInstall(hook)
