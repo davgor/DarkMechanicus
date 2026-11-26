@@ -377,7 +377,10 @@ it('recovers learning approvals at startup only in set-up folders, opening no ow
   const restarted = await bridgeFixture(first.root)
   await vi.waitFor(() => expect(restarted.owners.flatMap(postedNames)).toContain('pendingLearningApprovals'))
   expect(restarted.owners).toHaveLength(1)
-  expect(postedNames(restarted.owners[0]!)).toEqual(['pendingLearningApprovals'])
+  // Like every owner it opens without reconciling and runs its open-time reconcile once on the sync lane; the only
+  // project work startup recovery posts is the pending-approvals read.
+  await vi.waitFor(() => expect(postedNames(restarted.owners[0]!).filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat']))
+  expect(postedNames(restarted.owners[0]!).filter(name => !name.startsWith('sync:'))).toEqual(['pendingLearningApprovals'])
   expect(existsSync(join(lazy.path, '.darkmechanicus'))).toBe(false)
   expect(restarted.bridge.chats.busy()).toBe(false)
 })
