@@ -61,7 +61,9 @@ export interface CultStore {
   listReports(runId: string): SpecialistReportView[]
   slotCoverage(runId: string): SlotCoverage[]
   createPetition(runId: string, input: PetitionInput, memberName?: string | null): CultPetitionView
-  decidePetition(petitionId: string, decision: PetitionDecisionInput): CultPetitionView
+  /** `memberName`: the member who raised it, named on the decision's event. */
+  decidePetition(petitionId: string, decision: PetitionDecisionInput, memberName?: string | null): CultPetitionView
+  getPetition(petitionId: string): CultPetitionView | null
   listPetitions(runId: string): CultPetitionView[]
   appendEvent(runId: string, input: CultEventInput): CultEventView
   pageEvents(runId: string, request?: CultEventPageRequest): CultEventPage
@@ -92,7 +94,8 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     listReports: (runId) => members.listReports(ctx, runId),
     slotCoverage: (runId) => members.slotCoverage(ctx, runId),
     createPetition: (runId, input, memberName) => petitions.createPetition(ctx, runId, input, memberName ?? null),
-    decidePetition: (petitionId, decision) => petitions.decidePetition(ctx, petitionId, decision),
+    decidePetition: (petitionId, decision, memberName) => petitions.decidePetition(ctx, petitionId, decision, memberName ?? null),
+    getPetition: (petitionId) => petitions.getPetition(ctx, petitionId),
     listPetitions: (runId) => petitions.listPetitions(ctx, runId),
     appendEvent: (runId, input) => petitions.appendEvent(ctx, runId, input),
     pageEvents: (runId, request) => petitions.pageEvents(ctx, runId, request)

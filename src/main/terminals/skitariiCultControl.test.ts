@@ -31,7 +31,7 @@ function fakeTimers(): Timers & { live: Map<number, number> } {
 }
 
 const doc = (actions: unknown[], extra: Record<string, unknown> = {}): string =>
-  JSON.stringify({ version: 1, chatId: CHAT, endpointId: null, actions, ...extra })
+  JSON.stringify({ version: 1, chatId: CHAT, actions, ...extra })
 
 function harness(files: string[] | (() => Promise<string>)) {
   const calls: string[] = []
@@ -75,7 +75,7 @@ describe('parseCultControl', () => {
   })
 
   const bad: [string, string][] = [
-    ['wrong version', JSON.stringify({ version: 2, chatId: CHAT, endpointId: null, actions: [] })],
+    ['wrong version', JSON.stringify({ version: 2, chatId: CHAT, actions: [] })],
     ['chat mismatch', doc([], { chatId: 'other' })],
     ['unknown action', doc([{ seq: 1, action: 'explode' }])],
     ['petition missing', doc([{ seq: 1, action: 'petition' }])],
@@ -93,7 +93,8 @@ describe('parseCultControl', () => {
     ['unknown kind', doc([{ seq: 1, action: 'petition', petition: { kind: 'other', approved: true } }])],
     ['too many', doc(Array.from({ length: 33 }, (_, i) => ({ seq: i + 1, action: 'resume' })))],
     ['not increasing', doc([{ seq: 2, action: 'resume' }, { seq: 2, action: 'resume' }])],
-    ['too large', doc([], { endpointId: 'x'.repeat(70_000) })]
+    ['endpoint id', doc([], { endpointId: 'me_x' })],
+    ['too large', doc([{ seq: 1, action: 'resume', pad: 'x'.repeat(70_000) }])]
   ]
   it.each(bad)('rejects %s', (_name, text) => {
     expect(() => parseCultControl(text, CHAT)).toThrow()
@@ -113,16 +114,18 @@ describe('CultControlWatcher actions', () => {
       doc([
         { seq: 1, action: 'resume' },
         { seq: 2, action: 'wind_down' },
-        { seq: 3, action: 'petition', petition: { kind: 'acolytes', approved: true, granted: 4 } },
-        { seq: 4, action: 'petition', petition: { kind: 'allow_save', approved: true } },
-        { seq: 5, action: 'petition', petition: { kind: 'folder_access', approved: true, folder: '/r "x"', tokenFile: '/t' } },
-        { seq: 6, action: 'petition', petition: { kind: 'folder_access', approved: false } }
+        { seq: 3, action: 'conclude' },
+        { seq: 4, action: 'petition', petition: { kind: 'acolytes', approved: true, granted: 4 } },
+        { seq: 5, action: 'petition', petition: { kind: 'allow_save', approved: true } },
+        { seq: 6, action: 'petition', petition: { kind: 'folder_access', approved: true, folder: '/r "x"', tokenFile: '/t' } },
+        { seq: 7, action: 'petition', petition: { kind: 'folder_access', approved: false } }
       ])
     ])
     await h.watcher.tick()
     expect(h.sent).toEqual([
       [`${P}resumed this cult. Continue your current task.`, true],
       ['[Dark Mechanicus desktop] This cult run is ending. Order every acolyte to conclude now, then write the chronicle and conclude the run within the times your cult rules give.', true],
+      ['[Dark Mechanicus desktop] This cult run is ending. Finish now, send your final report and conclude within the time your cult rules give.', true],
       [`${P}approved your petition: the cap rose by 4 acolytes.`, true],
       [`${P}approved your petition to save: Allow save is on for this run.`, true],
       [`${P}approved your petition for folder access: run dm --repo "/r \\"x\\"" --token-file "/t" <command> to act in that folder for this run.`, true],
@@ -130,12 +133,12 @@ describe('CultControlWatcher actions', () => {
     ])
   })
 
-  it('shutdown calls shutdown and stops polling', async () => {
+  it('shutdown interrupts the turn, closes the session and stops polling', async () => {
     const h = harness([doc([{ seq: 1, action: 'shutdown' }])])
     h.watcher.start()
     expect([...h.timers.live.values()]).toEqual([CULT_CONTROL_POLL_MS])
     await h.watcher.tick()
-    expect(h.calls).toEqual(['shutdown'])
+    expect(h.calls).toEqual(['abort', 'shutdown'])
     expect(h.timers.live.size).toBe(0)
   })
 
@@ -165,7 +168,11 @@ describe('CultControlWatcher polling', () => {
   })
 
   it('skips a tick while one is running', async () => {
-    const { promise, resolve: release } = Promise.withResolvers<string>()
+    // `Promise.withResolvers` is outside this project's ES2022 lib.
+    let release: (text: string) => void = () => {}
+    const promise = new Promise<string>((resolve) => {
+      release = resolve
+    })
     const h = harness(() => promise)
     const first = h.watcher.tick()
     await h.watcher.tick()

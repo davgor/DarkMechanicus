@@ -25,11 +25,12 @@ import { createTestWorkspacePool, type TestWorkspacePool } from '../desktop/__mo
 import { ompFilePaths, removeOmpFolder } from '../terminals/ompSession'
 import { terminalFilePaths } from '../terminals/terminalFiles'
 import { endingTerminals } from '../terminals/terminalSessions'
-import { cliFor, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
+import { cliFor, eventually, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import type { FakePty } from '../terminals/__mocks__/fakePtyHost'
 import { openAppDatabase } from '../desktop/appDatabase'
 import { cheapest, parseOmpModels } from './ompModels'
-import { createCultLauncher, GRACEFUL_EXIT_MS, type CultLauncher } from './cultLauncher'
+import { createCultControl, cultControlPath } from './cultControl'
+import { createCultLauncher, EXIT_KEYS_AFTER_MS, GRACEFUL_EXIT_MS, type CultLauncher } from './cultLauncher'
 import { createCultStore, type CultStore } from './cultStore'
 import { createSanctumRegistry, withSanctums, type SanctumRegistry } from './sanctumRegistry'
 
@@ -116,6 +117,7 @@ async function harness(): Promise<Harness> {
   const cults = createCultStore({ db })
   const launcher = createCultLauncher({
     cults, folders: { resolve: (path) => (rig.tracked.has(path) ? path : null) }, sanctums, chats: records, terminals: rig.sessions,
+    control: createCultControl({ userData: rig.userData }),
     workspaceFor: (folder) => {
       if (gates.resolve(folder) !== folder) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
       const workspace = pool.get(folder)
@@ -351,20 +353,36 @@ describe('cult launcher: Plan Forge prompts', () => {
 })
 
 describe('cult launcher: ending a member', () => {
-  it('gives a graceful member Ctrl+D and lets it exit on its own, revoking its grant', async () => {
+  it('asks a graceful member to shut down through its control file, and lets it exit on its own, revoking its grant', async () => {
     const { run } = await h.launcher.launch(h.cults.createCult(folderCult()).id)
     const acolyte = await h.launcher.startAcolyte(run, { name: 'Acolyte Exit', mission: 'Leave.' })
     const pty = ptyOf(acolyte.chat)
     const ending = h.launcher.endMember(acolyte.chat.id, { graceful: true })
-    await settle()
+    await eventually(() => existsSync(cultControlPath(h.rig.userData, acolyte.chat.id)), 'the control file')
 
-    expect(pty.written).toContain('\x04')
+    const control = JSON.parse(readFileSync(cultControlPath(h.rig.userData, acolyte.chat.id), 'utf8'))
+    expect(control).toEqual({ version: 1, chatId: acolyte.chat.id, actions: [{ seq: 1, action: 'shutdown' }] })
+    expect(pty.written).not.toContain('\x04')
     pty.exit()
     await ending
     await settle()
     expect(pty.kills).toBe(0)
     const grantId = h.rig.store.getChat(acolyte.chat)!.grantIds![0]!
     expect((await grantsIn(h.rig.repo)).find((grant) => grant.id === grantId)?.active).toBe(false)
+  })
+
+  it('types Ctrl+D for a member whose extension did not act, then kills it at the graceful window', async () => {
+    const { run } = await h.launcher.launch(h.cults.createCult(folderCult()).id)
+    const deaf = await h.launcher.startAcolyte(run, { name: 'Acolyte Deaf', mission: 'Stay.' })
+    const ending = h.launcher.endMember(deaf.chat.id, { graceful: true })
+    await settle()
+    h.rig.clock.advance(EXIT_KEYS_AFTER_MS)
+
+    expect(ptyOf(deaf.chat).written).toContain('\x04')
+    expect(ptyOf(deaf.chat).kills).toBe(0)
+    h.rig.clock.advance(GRACEFUL_EXIT_MS - EXIT_KEYS_AFTER_MS)
+    await ending
+    expect(ptyOf(deaf.chat).kills).toBe(1)
   })
 
   it('kills a member that does not exit within the graceful window, and at once without it', async () => {

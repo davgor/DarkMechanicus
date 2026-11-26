@@ -17,7 +17,7 @@ const MAX_TEXT = 64 * 1024
 const MAX_ENTRIES = 32
 const MAX_PATH = 4096
 
-export type CultControlAction = 'interrupt' | 'resume' | 'wind_down' | 'shutdown' | 'petition'
+export type CultControlAction = 'interrupt' | 'resume' | 'wind_down' | 'conclude' | 'shutdown' | 'petition'
 export type CultPetitionKind = 'acolytes' | 'allow_save' | 'folder_access'
 
 export interface CultPetition {
@@ -34,7 +34,7 @@ export interface CultControlEntry {
   petition?: CultPetition
 }
 
-const ACTIONS: readonly string[] = ['interrupt', 'resume', 'wind_down', 'shutdown', 'petition']
+const ACTIONS: readonly string[] = ['interrupt', 'resume', 'wind_down', 'conclude', 'shutdown', 'petition']
 const KINDS: readonly string[] = ['acolytes', 'allow_save', 'folder_access']
 
 function fail(why: string): never {
@@ -80,10 +80,9 @@ function parseEntry(value: unknown, previous: number): CultControlEntry {
 }
 
 function parseHeader(value: unknown, chatId: string): unknown[] {
-  const doc = record(value, ['version', 'chatId', 'endpointId', 'actions'], 'file')
+  const doc = record(value, ['version', 'chatId', 'actions'], 'file')
   if (doc.version !== 1) fail('wrong version')
   if (doc.chatId !== chatId) fail('chatId mismatch')
-  if (doc.endpointId !== null && typeof doc.endpointId !== 'string') fail('bad endpointId')
   if (!Array.isArray(doc.actions) || doc.actions.length > MAX_ENTRIES) fail('bad actions')
   return doc.actions
 }
@@ -102,6 +101,7 @@ const PERSON = `${PREFIX}The person `
 export const PAUSED = `${PERSON}paused this cult. Stop and wait; you will be told when it resumes.`
 export const RESUMED = `${PERSON}resumed this cult. Continue your current task.`
 export const WIND_DOWN = `${PREFIX}This cult run is ending. Order every acolyte to conclude now, then write the chronicle and conclude the run within the times your cult rules give.`
+export const CONCLUDE = `${PREFIX}This cult run is ending. Finish now, send your final report and conclude within the time your cult rules give.`
 
 /** The fixed sentence for a petition decision. */
 export function petitionText(p: CultPetition): string {
@@ -169,8 +169,11 @@ export class CultControlWatcher {
       deps.send(PAUSED, false)
     } else if (entry.action === 'resume') deps.send(RESUMED, true)
     else if (entry.action === 'wind_down') deps.send(WIND_DOWN, true)
+    else if (entry.action === 'conclude') deps.send(CONCLUDE, true)
     else if (entry.action === 'shutdown') {
+      // A busy turn is interrupted first, so the close does not wait for it (`docs/design/cults.md`, section 3).
       this.stop()
+      deps.abort()
       deps.shutdown()
     } else if (entry.petition !== undefined) deps.send(petitionText(entry.petition), true)
   }

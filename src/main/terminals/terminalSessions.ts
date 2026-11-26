@@ -206,11 +206,23 @@ export interface TerminalSessions {
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /**
-   * Ends one chat's terminal (a cult member's end): with `graceful`, its `input` (the CLI's exit keys) is written and
-   * the PTY gets `withinMs` to exit on its own; then, or at once, its start is cancelled or its tree killed
-   * (`killPtyTree`) and its grants revoked. Resolves once the kill has settled.
+   * Ends one chat's terminal (a cult member's end): with `graceful`, the PTY gets `withinMs` to exit on its own (see
+   * `GracefulEnd`); then, or at once, its start is cancelled or its tree killed (`killPtyTree`) and its grants revoked.
+   * Resolves once the kill has settled.
    */
-  endChat(chatId: string, graceful?: { input: string; withinMs: number }): Promise<void>
+  endChat(chatId: string, graceful?: GracefulEnd): Promise<void>
+  /**
+   * Adds a grant issued while the chat runs (a cult petition's folder grant) to its running PTY, so it is renewed with
+   * the others and revoked when the PTY ends. False, and nothing held, when no PTY of the chat runs on: revoke it then.
+   */
+  attachGrant(chatId: string, grantId: string): boolean
+  /**
+   * Takes an attached grant back from the chat's running PTY; false when none runs, it is being stopped (its revoke,
+   * which took the grant, has run) or it does not hold the grant.
+   */
+  detachGrant(chatId: string, grantId: string): boolean
+  /** Tells `listener` the chat id of every PTY that exits, however it ended; the returned function stops that. */
+  onExit(listener: (chatId: string) => void): () => void
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
   /** Observed live PTY only; a queued start or stored chat is not a running agent. */
   /** Delivers advisory context only to an already live terminal. */
@@ -221,6 +233,18 @@ export interface TerminalSessions {
   /** Quit: see the module comment. */
   dispose(): Promise<void>
 }
+
+/** A graceful end: ask the CLI to exit, type its exit keys if it still runs, and give it `withinMs` in all. */
+export interface GracefulEnd {
+  /** Asks the CLI to exit through a trusted channel (a cult member's control file); it may not settle. */
+  request?: () => Promise<void>
+  /** The CLI's exit keys (Ctrl+D for OMP), typed `inputAfterMs` after the request when the PTY still runs. */
+  input: string
+  /** At once when absent or 0. */
+  inputAfterMs?: number
+  withinMs: number
+}
+
 
 interface TerminalTimers {
   /** Runs `callback` every `ms`; the returned function stops it. */
@@ -346,8 +370,8 @@ interface Live {
   pty: PtyProcess
   screen: TerminalScreen
   tree: PtyTree
-  /** The grants it runs on: one for a folder chat, one per reached folder for a project-less chat. */
-  grantIds: readonly string[]
+  /** The grants it runs on: one for a folder chat, one per reached folder for a project-less chat, and any attached. */
+  grantIds: string[]
   /** Why main stopped it, once it has; null while it runs on, or when it exited on its own. */
   stopMessage: string | null
   exited: boolean
@@ -397,6 +421,7 @@ interface Manager {
   /** Folders being untracked, in which nothing may start. */
   releasing: Set<string>
   closing: boolean
+  exitListeners: Set<(chatId: string) => void>
 }
 
 const nodeTimers: TerminalTimers = {
@@ -807,7 +832,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     chat,
     pty,
     screen,
-    grantIds,
+    grantIds: [...grantIds],
     stopMessage: null,
     exited: false,
     ended,
@@ -817,7 +842,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     marksStarted: started.marksStarted,
     pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
-    revoke: () => (revoked ??= Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId))).then(() => undefined)),
+    revoke: () => (revoked ??= Promise.all(live.grantIds.map((grantId) => revokeGrant(manager, grantId))).then(() => undefined)),
     stopWatch: () => {}
   }
   wireLive(manager, live, reportEnded, reportClosed)
@@ -864,6 +889,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     if (live.stopMessage === null) {
       void track(manager, pauseIfSignedOut(manager, chat))
     }
+    tellExit(manager, live)
     stopData()
     stopResponse()
     stopExit()
@@ -1473,23 +1499,60 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
-/** `TerminalSessions.endChat`: a running PTY may first exit on its own, within the time given; see the interface. */
-async function endChat(manager: Manager, chatId: string, graceful?: { input: string; withinMs: number }): Promise<void> {
-  const live = runningTerminal(manager, chatId)
-  if (live !== null && graceful !== undefined && live.stopMessage === null) {
-    // `Promise.withResolvers` is outside this project's ES2022 lib.
-    let cancel: () => void = () => {}
-    const late = new Promise<void>((resolve) => {
-      cancel = manager.deps.timers.after(resolve, graceful.withinMs)
-    })
-    live.pty.write(graceful.input)
-    await Promise.race([live.ended, late])
-    cancel()
+/** Gives a running PTY `withinMs` to exit on its own: the trusted request first, then its exit keys (at once or later). */
+async function exitOnItsOwn(manager: Manager, live: Live, graceful: GracefulEnd): Promise<void> {
+  const cancels: (() => void)[] = []
+  // `Promise.withResolvers` is outside this project's ES2022 lib.
+  const late = new Promise<void>((resolve) => {
+    cancels.push(manager.deps.timers.after(resolve, graceful.withinMs))
+  })
+  const typeKeys = (): void => {
+    if (!live.exited && live.stopMessage === null) live.pty.write(graceful.input)
   }
+  graceful.request?.().catch((error: unknown) => {
+    manager.onError(error)
+  })
+  if (graceful.inputAfterMs === undefined || graceful.inputAfterMs <= 0) typeKeys()
+  else cancels.push(manager.deps.timers.after(typeKeys, graceful.inputAfterMs))
+  await Promise.race([live.ended, late])
+  for (const cancel of cancels) cancel()
+}
+
+/** `TerminalSessions.endChat`: a running PTY may first exit on its own, within the time given; see the interface. */
+async function endChat(manager: Manager, chatId: string, graceful?: GracefulEnd): Promise<void> {
+  const live = runningTerminal(manager, chatId)
+  if (live !== null && graceful !== undefined && live.stopMessage === null) await exitOnItsOwn(manager, live, graceful)
   const entry = manager.entries.get(chatId) ?? live ?? undefined
   const ended = entry === undefined ? null : await endEntry(manager, entry, ENDED)
   // Resolves once its grants are revoked too, so a caller may close or remove their workspace next.
   await Promise.all([ended?.kill, ended?.live.revoke()])
+}
+
+/** `TerminalSessions.attachGrant`: only a PTY that runs on and is not being stopped takes a grant. */
+function attachGrant(manager: Manager, chatId: string, grantId: string): boolean {
+  const live = runningTerminal(manager, chatId)
+  if (live === null || live.stopMessage !== null) return false
+  if (!live.grantIds.includes(grantId)) live.grantIds.push(grantId)
+  return true
+}
+
+function detachGrant(manager: Manager, chatId: string, grantId: string): boolean {
+  const live = runningTerminal(manager, chatId)
+  const index = live === null || live.stopMessage !== null ? -1 : live.grantIds.indexOf(grantId)
+  if (live === null || index < 0) return false
+  live.grantIds.splice(index, 1)
+  return true
+}
+
+/** Tells the exit listeners of a PTY's exit; a listener that throws is reported, never in the exit's way. */
+function tellExit(manager: Manager, live: Live): void {
+  for (const listener of manager.exitListeners) {
+    try {
+      listener(live.chat.id)
+    } catch (error) {
+      manager.onError(error)
+    }
+  }
 }
 
 /** `TerminalSessions.deleteChat`. */
@@ -1579,15 +1642,14 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     pending: new Set(),
     deleting: new Set(),
     releasing: new Set(),
-    closing: false
+    closing: false,
+    exitListeners: new Set()
   }
   const running = (chatId: string) => runningTerminal(manager, chatId)
   return {
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
     start: (ref, options) => start(manager, ref, options),
-    detach: (chatId, listener) => {
-      manager.listeners.get(chatId)?.delete(listener)
-    },
+    detach: (chatId, listener) => void manager.listeners.get(chatId)?.delete(listener),
     write: (chatId, data) => {
       const live = running(chatId)
       if (live !== null) {
@@ -1605,12 +1667,27 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget, relatedFolders) => releaseFolder(manager, folder, forget, relatedFolders),
     endAgent: (id) => endAgent(manager, id),
-    endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
+    ...cultMemberEntries(manager),
     pasteIfRunning: (ref, text) => pasteIfRunning(manager, ref, text),
     activeChats: () => activeChats(manager),
     isRunning: (chatId) => running(chatId) !== null,
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
+  }
+}
+
+/** What a cult supervisor ends, upgrades and watches member terminals with. */
+function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit'> {
+  return {
+    endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
+    attachGrant: (chatId, grantId) => attachGrant(manager, chatId, grantId),
+    detachGrant: (chatId, grantId) => detachGrant(manager, chatId, grantId),
+    onExit: (listener) => {
+      manager.exitListeners.add(listener)
+      return () => {
+        manager.exitListeners.delete(listener)
+      }
+    }
   }
 }
 

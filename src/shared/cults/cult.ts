@@ -57,6 +57,8 @@ export const CULT_EVENT_KINDS = [
   'paused',
   'resumed',
   'shutdown_started',
+  /** A step of the graceful shutdown: the Magos window opened, or the backstop ended what was left. */
+  'shutdown_step',
   'ended',
   'shrine_published',
   'report_submitted',
