@@ -1,7 +1,7 @@
 /**
  * The Skitarii OMP extension: the mascot banner, the drill working indicator, the Mechanicus working messages and the
  * Skitarii title, the chat's private `dm` client (`dmClient.ts`), Skitarii mail's tools and inbox watcher and the
- * `dm_call` tool for every other Dark Mechanicus command (`messaging.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
+ * `dm_call` tool for every other Dark Mechanicus command (`messaging.ts`), and the cult control watcher (`cultControl.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
  * (`terminalLaunchSpec.ts`); it is never installed into the person's OMP folder. OMP runs it with its bundled Bun, which
  * reads the TypeScript and the JSON import directly. The logic is in `skitarii.ts`, `dmClient.ts` and `messaging.ts`;
  * this file only wires OMP's events.
@@ -14,6 +14,7 @@ import { worldMailClients } from './worldDmClient'
 import { attachWorldMessaging } from './worldMessaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
 import { attachHumanWait } from './humanWait'
+import { attachCultControl } from './cultControl'
 
 /** The slice of OMP's `ExtensionAPI` this extension uses (`packages/coding-agent/src/extensibility/extensions/types.ts`). */
 interface OmpContext extends MailContext {
@@ -114,5 +115,6 @@ export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   const home = process.env.DARKMECHANICUS_HOME
   attachHumanWait(pi, world === null ? { home, client } : { home, projects: world.projects })
   if (world === null && process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
+  if (world === null) attachCultControl(pi, PROCESS_TIMERS, process.env)
   attachDmClient(pi, client)
 }
