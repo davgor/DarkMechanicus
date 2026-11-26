@@ -594,10 +594,13 @@ function retire(manager: Manager, live: Live): Promise<void> {
 /**
  * Before a start: asks again for the chat's owners whose cleanup failed (an in-flight cleanup is left to finish).
  * The first success releases ownership; a repeated failure reports itself and stays fenced for the next stop, start or exit.
+ * Answers null, at once, when no owner of the chat waits for a retry: an attach then takes its snapshot in the same
+ * turn as the call, so output written right after the call reaches its listener and not the snapshot.
  */
-async function retryRetirements(manager: Manager, chatId: string): Promise<void> {
+function retryRetirements(manager: Manager, chatId: string): Promise<void> | null {
   const failed = [...manager.retiring].filter(live => live.chat.id === chatId && live.retirement === undefined)
-  await Promise.all(failed.map(live => retire(manager, live).catch(() => undefined)))
+  if (failed.length === 0) return null
+  return Promise.all(failed.map(live => retire(manager, live).catch(() => undefined))).then(() => undefined)
 }
 
 /**
@@ -1436,7 +1439,8 @@ async function attach(manager: Manager, ref: ChatRef, listener: TerminalListener
     if (chat === null) {
       return { state: 'refused', message: noChat(ref) }
     }
-    await retryRetirements(manager, chat.id)
+    const retrying = retryRetirements(manager, chat.id)
+    if (retrying !== null) await retrying
     const answer = await attachEntry(manager, chat, listener, options)
     if (!('kind' in answer)) {
       return answer
