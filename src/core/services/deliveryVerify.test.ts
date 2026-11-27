@@ -1,5 +1,5 @@
 /** Delivery verification against real temporary repositories: fast-forward, squash, release tags and installed builds. */
-import { rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { SprintDelivery } from '../../shared/domain/bundle'
@@ -357,6 +357,27 @@ describe('verifyDelivery: fail-closed on paths git could not read', () => {
     const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, git)
     expect(named(verdict, 'Carries the increment')?.status).toBe('passed')
     expect(paths).toBe(1)
+  })
+})
+
+describe('verifyDelivery: a project folder nested in a larger repository', () => {
+  it('fails closed for a project folder nested in a larger repository, where changed paths read absent everywhere', async () => {
+    const repo = createGitRepo()
+    try {
+      mkdirSync(join(repo.root, 'app'))
+      commitFiles(repo, { [join('app', 'package.json')]: '{"name":"app","version":"1.2.0"}\n' }, 'package')
+      repo.branch(EPIC)
+      const increment = commitFiles(repo, { [join('app', 'feature.txt')]: 'feature\n', [join('app', 'other.txt')]: 'other\n' }, 'increment')
+      repo.switchTo('main')
+      const merged = squashed(repo)
+      const nested = createGitAdapter(join(repo.root, 'app'))
+      expect(await nested.changedPaths(repo.rev(`${increment}^`), increment)).toEqual(['app/feature.txt', 'app/other.txt'])
+      const verdict = await verifyDelivery(nested, contextOf({ repo, increment }), { commit: merged, releaseTag: 'v1.2.0' }, NOW)
+      expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'failed', detail: 'Git could not read these paths: app/feature.txt, app/other.txt.' })
+      expect(verdict.passed).toBe(false)
+    } finally {
+      repo.cleanup()
+    }
   })
 })
 

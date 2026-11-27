@@ -127,9 +127,13 @@ async function contentAt(git: GitAdapter, ref: string, path: string): Promise<Co
   return listing !== null && listing.length === 0 ? null : UNKNOWN
 }
 
-/** The commits the squash comparison reads: the increment, the merge commit M, M's first parent T and B = merge-base(I, T). */
+/**
+ * The commits the squash comparison reads: the increment I, its first parent, the merge commit M, M's first parent T
+ * and B = merge-base(I, T).
+ */
 interface Squash {
   increment: string
+  parent: string
   merged: string
   target: string
   base: string
@@ -137,10 +141,23 @@ interface Squash {
 
 type PathVerdict = 'match' | 'target' | 'differs' | 'unknown'
 
+/**
+ * A path the increment changed but that reads absent at both I and M is a genuine delete-on-both only when I's parent
+ * had it. Absent at the parent too means the read itself is wrong (for example a project folder nested in a larger
+ * repository, where changedPaths names repository-root paths and the reads resolve under the project folder): unknown.
+ */
+async function absentOnBoth(git: GitAdapter, squash: Squash, path: string): Promise<PathVerdict> {
+  const before = await contentAt(git, squash.parent, path)
+  return typeof before === 'string' ? 'match' : 'unknown'
+}
+
 async function comparePath(git: GitAdapter, squash: Squash, path: string): Promise<PathVerdict> {
   const [mine, theirs] = await Promise.all([contentAt(git, squash.increment, path), contentAt(git, squash.merged, path)])
   if (mine === UNKNOWN || theirs === UNKNOWN) {
     return 'unknown'
+  }
+  if (mine === null && theirs === null) {
+    return absentOnBoth(git, squash, path)
   }
   if (mine === theirs) {
     return 'match'
@@ -164,7 +181,7 @@ async function squashOf(git: GitAdapter, increment: string, merged: Commit): Pro
   if (paths === null || base === null) {
     return `Git could not compare the increment ${short(own.commit)} with ${short(merged.commit)}.`
   }
-  return { squash: { increment: own.commit, merged: merged.commit, target, base }, paths }
+  return { squash: { increment: own.commit, parent, merged: merged.commit, target, base }, paths }
 }
 
 async function squashCheck(git: GitAdapter, increment: string, merged: Commit): Promise<CheckResult> {
