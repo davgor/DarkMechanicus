@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Icon } from '../components/Icon'
 import { formatElapsed } from '../epic/time'
 import { elapsedMs, headerText, type AgentTreeNode, type AgentTreeModel } from './agentTreeModel'
@@ -59,6 +59,57 @@ function rowsFor(roots: AgentTreeNode[], expansion: ReadonlyMap<string, boolean>
     if (row.open) stack.push(...row.children.slice().reverse())
   }
   return rows
+}
+
+/**
+ * The keys of the rows that hold the node with `id` (its ancestors and a Finished group), outermost first; null when
+ * the tree has no such node. Walks with a stack, as `rowsFor` does, so a deep model never recurses.
+ */
+function ancestorKeys(roots: AgentTreeNode[], id: string): string[] | null {
+  const stack = roots.map((node) => ({ node, ancestors: [] as string[] }))
+  while (stack.length) {
+    const { node, ancestors } = stack.pop()!
+    if (node.id === id) return ancestors
+    const key = JSON.stringify(['node', node.id])
+    const finished = JSON.stringify(['finished', node.id])
+    for (const child of node.children) stack.push({ node: child, ancestors: [...ancestors, key] })
+    for (const child of node.finished) stack.push({ node: child, ancestors: [...ancestors, key, finished] })
+  }
+  return null
+}
+
+/**
+ * Opens the rows that hide the selected node (a collapsed ancestor, a closed Finished group) and scrolls its row into
+ * view, once per selection, so an agent selected from outside the tree (a landing, a link) is shown. A row the person
+ * picked in the tree is already in view, so the returned `picked` marks it shown. Later toggles by the person stand
+ * until the selection changes again.
+ */
+function useRevealSelected(roots: AgentTreeNode[], selectedId: string | null,
+  setExpansion: (update: (previous: ReadonlyMap<string, boolean>) => ReadonlyMap<string, boolean>) => void,
+  elements: ReadonlyMap<string, HTMLLIElement>): (id: string) => void {
+  const revealed = useRef<string | null>(null)
+  const scroll = useRef<string | null>(null)
+  useEffect(() => {
+    if (selectedId === null || revealed.current === selectedId) return
+    const ancestors = ancestorKeys(roots, selectedId)
+    if (ancestors === null) return
+    revealed.current = selectedId
+    scroll.current = JSON.stringify(['node', selectedId])
+    if (ancestors.length > 0) setExpansion((previous) => {
+      if (ancestors.every((key) => previous.get(key) === true)) return previous
+      const next = new Map(previous)
+      for (const key of ancestors) next.set(key, true)
+      return next
+    })
+  }, [roots, selectedId, setExpansion])
+  useEffect(() => {
+    const element = scroll.current === null ? undefined : elements.get(scroll.current)
+    if (element === undefined) return
+    scroll.current = null
+    // jsdom has no scrollIntoView.
+    element.scrollIntoView?.({ block: 'nearest' })
+  })
+  return (id) => { revealed.current = id }
 }
 
 const statuses = {
@@ -202,6 +253,7 @@ export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', n
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(() => new Map())
   const [focused, setFocused] = useState<string>()
   const elements = useRef(new Map<string, HTMLLIElement>())
+  const picked = useRevealSelected(tree.roots, selectedId, setExpansion, elements.current)
   const rows = rowsFor(tree.roots, expansion)
   const active = rows.find((row) => row.key === focused) ?? rows.find((row) => row.node?.id === selectedId) ?? rows[0]
   function focus(key: string): void {
@@ -215,7 +267,7 @@ export function AgentTree({ tree, selectedId, onSelect, now, label = 'Agents', n
   const controls: Controls = {
     focused: active?.key, selectedId, now, needsYou, progress, focus, toggle,
     register: (key, element) => { if (element) elements.current.set(key, element); else elements.current.delete(key) },
-    activate: (row) => { focus(row.key); if (row.node) onSelect(row.node.id); else toggle(row) },
+    activate: (row) => { focus(row.key); if (row.node) { picked(row.node.id); onSelect(row.node.id) } else toggle(row) },
     keyDown: (event, row) => navigate(event, row, rows, controls)
   }
   return <div className="at-tree">

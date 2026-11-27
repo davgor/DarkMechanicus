@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import type { FormEvent } from 'react'
 import { NOTIFICATION_EVENTS, type NotificationSettings as Settings } from '../../../shared/desktop/notificationSettings'
-import { CommandError } from '../api/dm'
+import { Button } from '../components/Button'
+import { CommandError, errorMessage } from '../api/dm'
 import { useToasts } from '../app/toasts'
 import {
   NOTES_LIMIT,
@@ -29,39 +30,66 @@ const ARBITRATE_HELP =
 const NOT_CONFIRMED = 'Not changed: you did not confirm it.'
 
 interface NotificationForm {
+  kind: 'ready'
   baseline: Settings
   form: Settings
   notice: string | null
   saving: boolean
+  /** Bumped on a revert or a finished save, so per-field drafts and their inline errors start over. */
+  generation: number
   edit(next: Settings): void
   revert(): void
   save(): Promise<void>
 }
 
-/** Loads main's settings once, tracks the edited copy and saves the whole object, taking main's answer as the baseline. */
-function useNotificationForm(): NotificationForm | null {
-  const toasts = useToasts()
-  const [baseline, setBaseline] = useState<Settings | null>(null)
-  const [form, setForm] = useState<Settings | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+type NotificationFormState =
+  | { kind: 'loading' }
+  | { kind: 'failed'; message: string; retry(): void }
+  | NotificationForm
+
+type LoadState = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'loaded'; settings: Settings }
+
+/** Reads main's settings, again each time `retry` is pressed after a failure. */
+function useStoredSettings(): { load: LoadState; retry(): void } {
+  const [attempt, setAttempt] = useState(0)
+  const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   useEffect(() => {
     let live = true
     window.dm.settings
       .getNotifications()
       .then((result) => {
-        if (!live) return
         if (!result.ok) throw new CommandError(result.error)
-        setBaseline(result.data)
-        setForm(result.data)
+        if (live) setLoad({ kind: 'loaded', settings: result.data })
       })
-      .catch(toasts.reportError)
+      .catch((error: unknown) => {
+        if (live) setLoad({ kind: 'failed', message: errorMessage(error) })
+      })
     return () => {
       live = false
     }
-  }, [toasts])
-  if (baseline === null || form === null) return null
+  }, [attempt])
+  const retry = (): void => {
+    setLoad({ kind: 'loading' })
+    setAttempt((count) => count + 1)
+  }
+  return { load, retry }
+}
 
+/** Loads main's settings, tracks the edited copy and saves the whole object, taking main's answer as the baseline. */
+function useNotificationForm(): NotificationFormState {
+  const toasts = useToasts()
+  const { load, retry } = useStoredSettings()
+  const [saved, setSaved] = useState<Settings | null>(null)
+  const [edited, setEdited] = useState<Settings | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [generation, setGeneration] = useState(0)
+  if (load.kind === 'loading') return load
+  if (load.kind === 'failed') return { ...load, retry }
+  const baseline = saved ?? load.settings
+  const form = edited ?? baseline
+
+  const restart = (): void => setGeneration((count) => count + 1)
   const save = async (): Promise<void> => {
     const next = validForm(form)
     if (next === null) return
@@ -70,11 +98,13 @@ function useNotificationForm(): NotificationForm | null {
     try {
       const result = await window.dm.settings.setNotifications(next)
       if (result.ok) {
-        setBaseline(result.data)
-        setForm(result.data)
+        setSaved(result.data)
+        setEdited(null)
+        restart()
       } else if (result.error.code === 'cancelled') {
-        setForm(baseline)
+        setEdited(null)
         setNotice(NOT_CONFIRMED)
+        restart()
       } else {
         toasts.reportError(new CommandError(result.error))
       }
@@ -86,16 +116,33 @@ function useNotificationForm(): NotificationForm | null {
   }
   const edit = (next: Settings): void => {
     setNotice(null)
-    setForm(next)
+    setEdited(next)
   }
-  return { baseline, form, notice, saving, edit, revert: () => edit(baseline), save }
+  const revert = (): void => {
+    setNotice(null)
+    setEdited(null)
+    restart()
+  }
+  return { kind: 'ready', baseline, form, notice, saving, generation, edit, revert, save }
 }
 
 /** The "Notifications & approvals" section: edits main's settings and saves the whole object at once. */
 export function NotificationSettings(): JSX.Element {
   const state = useNotificationForm()
-  if (state === null) return <p className="settings-empty">Loading…</p>
-  const { baseline, form, notice, saving, edit, revert, save } = state
+  if (state.kind === 'loading') return <p className="settings-empty">Loading…</p>
+  if (state.kind === 'failed') {
+    return (
+      <div className="settings-load-failed">
+        <p className="form-error" role="alert">
+          Could not load the notification settings. {state.message}
+        </p>
+        <Button size="sm" onClick={state.retry}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
+  const { baseline, form, notice, saving, generation, edit, revert, save } = state
   const dirty = isDirty(form, baseline)
   return (
     <div className="notification-settings">
@@ -103,6 +150,7 @@ export function NotificationSettings(): JSX.Element {
       <FocusedGroup form={form} edit={edit} />
       <ArbitrationGroup
         arbitration={form.arbitration}
+        generation={generation}
         change={(patch) => edit({ ...form, arbitration: { ...form.arbitration, ...patch } })}
       />
       {notice === null ? null : (
@@ -183,10 +231,11 @@ function FocusedGroup({ form, edit }: GroupProps): JSX.Element {
 
 interface ArbitrationProps {
   arbitration: Arbitration
+  generation: number
   change(patch: Partial<Arbitration>): void
 }
 
-function ArbitrationGroup({ arbitration, change }: ArbitrationProps): JSX.Element {
+function ArbitrationGroup({ arbitration, generation, change }: ArbitrationProps): JSX.Element {
   const helpId = useId()
   return (
     <fieldset className="settings-group">
@@ -204,7 +253,7 @@ function ArbitrationGroup({ arbitration, change }: ArbitrationProps): JSX.Elemen
       <p id={helpId} className="field-hint settings-help">
         {ARBITRATE_HELP}
       </p>
-      <AlwaysAskEditor list={arbitration.alwaysAsk} change={(alwaysAsk) => change({ alwaysAsk })} />
+      <AlwaysAskEditor key={generation} list={arbitration.alwaysAsk} change={(alwaysAsk) => change({ alwaysAsk })} />
       <NotesField notes={arbitration.autoHandleNotes} change={(autoHandleNotes) => change({ autoHandleNotes })} />
     </fieldset>
   )

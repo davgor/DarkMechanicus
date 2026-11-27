@@ -4,9 +4,10 @@
  * live, through a lazy mutual `isLive`: the terminals are built first, so theirs reads the GUI owner through a
  * closure. The GUI owner is also given the Magos arbiter (`createPromptArbitration`) over the main-side settings and
  * the ticket and Standards context of each run's folder. Quit waits for both owners and cancels every arbiter,
- * deleting a chat stops its GUI process before its terminal and record go, and the one native confirmation that may
- * stop a live terminal is built here over an injected dialog. Free of Electron runtime imports so it is unit tested;
- * `bootstrap.ts` only passes the real factories, settings, workspaces and Electron's dialog in.
+ * deleting a chat stops its GUI process before its terminal and record go, untracking a folder or removing an agent
+ * stops both owners' processes, and the one native confirmation that may stop a live terminal is built here over an
+ * injected dialog. Free of Electron runtime imports so it is unit tested; `bootstrap.ts` only passes the real
+ * factories, settings, workspaces and Electron's dialog in.
  */
 import type { MessageBoxOptions } from 'electron'
 import { readdirSync, rmSync } from 'node:fs'
@@ -14,6 +15,7 @@ import { join } from 'node:path'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { formatCallsign, rootCallsignOf } from '../../shared/agents/callsign'
+import type { AgentId } from '../../shared/desktop/api'
 import type { ActivityBindings } from '../agents/activityBindings'
 import type { ChatRef } from '../agents/chatStore'
 import { readArbiterContext, ticketKeyOfAttempt, type ArbiterReads } from '../magos/arbiterContext'
@@ -40,8 +42,8 @@ export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'platf
   arbiterReads(folder: string): ArbiterReads
   /** Verified worker attempts of chat threads (`activity`), shared with the GUI owner. */
   bindings: Pick<ActivityBindings, 'bind' | 'threadsOf'>
-  /** Canonical registered worktrees of the folder's repository, besides the folder (red-team fix 20). */
-  allowedRoots(folder: string): readonly string[]
+  /** The folder's place in each registered worktree of its repository, read off the main thread (red-team fix 20). */
+  allowedRoots(folder: string): Promise<readonly string[]>
 }
 
 interface AgentChatWiringOptions<T extends TerminalOwners> {
@@ -92,8 +94,8 @@ function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent
   return createPromptArbitration({
     settings: arbiter.settings, onAttention, platform: arbiter.platform, env: arbiter.env,
     arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter, log: arbiter.log,
-    allowedRoots: chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
-    // An async body turns a throwing lookup into a rejection, which the gate reads as nulls.
+    allowedRoots: async chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
+    // An async body turns a throwing lookup into a rejection, which the gate escalates to the person.
     readContext: async ({ chat, prompt }) => {
       const binding = chat.folder === null ? null
         : arbiter.bindings.threadsOf({ folder: chat.folder, id: chat.id }).find(bound => bound.kind === 'attempt' && bound.threadId === prompt.threadId) ?? null
@@ -158,6 +160,8 @@ function chatName(chat: ChatRecord | null): string {
  * The one attention seam of the Magos gate and the GUI session manager: each event becomes an OS notification that
  * names the chat (a prompt's callsign before the chat's title) and lands on the chat. Only the prompt's title reaches
  * the text, never its detail or tool input; the notifier strips control characters, masks secrets and clips it.
+ * A prompt's dedupe key is scoped to its chat ref (folder and chat id) as well as the prompt id: each chat's agent
+ * numbers its own prompts, so two chats can hold the same prompt id and each must notify.
  */
 function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) => void {
   const translate = (event: AttentionEvent): NotificationEvent => {
@@ -172,7 +176,7 @@ function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) =>
     const { prompt } = event
     const name = prompt.callsign === null ? chatName(chat) : formatCallsign(prompt.callsign)
     return {
-      kind: event.kind, key: `prompt:${prompt.id}`, title: `${name} needs you`,
+      kind: event.kind, key: `prompt:${JSON.stringify([event.ref.folder, event.ref.id, prompt.id])}`, title: `${name} needs you`,
       body: event.kind === 'question' ? `has a question: ${prompt.title}` : `wants to run: ${prompt.title}`,
       target: { kind: 'chat', folder: event.ref.folder, chatId: event.ref.id, ...(prompt.threadId === null ? {} : { threadId: prompt.threadId }), promptId: prompt.id }
     }
@@ -195,6 +199,29 @@ export function endingAgentChats<C extends { deleteChat(ref: ChatRef): Promise<v
 ): C {
   const ending = endingTerminals(chats, terminals)
   return { ...ending, deleteChat: (ref: ChatRef) => agentChats.deleteChat(ref, () => ending.deleteChat(ref)) }
+}
+
+/** What a chat's two owners do together when its folder is untracked or its agent removed. */
+interface ChatOwnerRelease {
+  /**
+   * Untrack: the folders' terminals and GUI processes stopped, with every start of their chats refused, kills settled and
+   * grants revoked on both surfaces; then `forget` runs, before starts are let through again.
+   */
+  releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
+  /** A removed agent: the terminals and GUI processes of all its chats stopped, with their grants revoked. */
+  endAgent(id: AgentId): Promise<void>
+}
+
+export function releasingChatOwners(
+  terminals: Pick<TerminalSessions, 'releaseFolder' | 'endAgent'>, agentChats: Pick<AgentChatSessions, 'releaseFolder' | 'endAgent'>
+): ChatOwnerRelease {
+  return {
+    releaseFolder: (folder, forget, relatedFolders = []) =>
+      terminals.releaseFolder(folder, () => agentChats.releaseFolder(folder, forget, relatedFolders), relatedFolders),
+    endAgent: async (id) => {
+      await Promise.all([terminals.endAgent(id), agentChats.endAgent(id)])
+    }
+  }
 }
 
 /** The button the person clicks to stop a live terminal; Cancel (index 0) is the default and the escape answer. */

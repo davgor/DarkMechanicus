@@ -40,7 +40,8 @@ export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'r
 
 export interface CapabilitiesView {
   humanQuestions?: { available: boolean; guidance: string }
-  server: { name: string; version: string }
+  /** `packaged` is true only when this session's server runs from the installed (packaged) app. */
+  server: { name: string; version: string; packaged: boolean }
   apiVersion: number
   schemaVersion: number
   skillsVersion: string
@@ -290,6 +291,8 @@ export type Blocker =
   | { kind: 'run_state'; state: RunState }
   /** A prerequisite sits in a row of `sprintId` whose latest row check (`checkId`) did not pass. */
   | { kind: 'row_check_failed'; sprintId: string; row: number; checkId: string }
+  /** Sprint `ordinal` (`sprintId`) declares a delivery that has neither a passing latest check nor a waiver. */
+  | { kind: 'delivery_pending'; sprintId: string; ordinal: number }
 
 export interface PrerequisiteOutcome {
   ticketId: string
@@ -313,6 +316,31 @@ export interface RowCheckView {
   commit: string
   checks: CheckResult[]
   /** True only when every entry of `checks` passed (a skipped or failed entry means the check did not pass). */
+  passed: boolean
+  recordedBy: string | null
+  createdAt: string
+}
+
+/**
+ * A sprint delivery record of a run: the server's check that a sprint's increment is delivered (on the target branch,
+ * released, installed), or a person's waiver of that check.
+ */
+export interface DeliveryCheckView {
+  id: string
+  runId: string
+  sprintId: string
+  /** Counts the delivery records of the run in the order they were recorded; the highest number is the latest. */
+  number: number
+  kind: 'check' | 'waiver'
+  commit: string | null
+  releaseTag: string | null
+  releaseVersion: string | null
+  installedVersion: string | null
+  checks: CheckResult[]
+  reasons: string[]
+  /** A waiver's reason; null for a check. */
+  reason: string | null
+  /** A check: at least one entry and every entry passed. A waiver: true. Derived on read, never stored. */
   passed: boolean
   recordedBy: string | null
   createdAt: string
@@ -691,6 +719,8 @@ export interface RunView {
   rows: RowView[]
   /** The increment each sprint with an acceptance node named, in sprint order; sprints that named none are left out. */
   increments: SprintIncrementView[]
+  /** Every delivery check and waiver of the run, in number order. */
+  deliveries: DeliveryCheckView[]
   /** Server-computed facts for the active sprint, including all attempts; empty without an active sprint. */
   activeSprintTierFacts: TicketTierFacts[]
   attempts: AttemptView[]

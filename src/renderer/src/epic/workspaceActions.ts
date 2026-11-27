@@ -88,6 +88,11 @@ export interface WorkspaceActions extends TransferActions {
   approveWithRedraft(reportId: string, expectedDraftRevision: number): Promise<RedraftRefusal | null>
   retry(ticketId: string): Promise<void>
   setAutoContinue(enabled: boolean): Promise<void>
+  /**
+   * The person's waiver of an earlier sprint's delivery check, with why: releases the next sprint's held claims.
+   * Resolves true once recorded; a refusal shows the banner and resolves false.
+   */
+  waiveDelivery(sprintId: string, reason: string): Promise<boolean>
   /** Puts a report follow-up, a retro discovery or a retro leftover into the draft's next sprint; resolves with whether that worked. */
   addFollowUp(item: NextSprintItem, checkpointOrdinal: number): Promise<boolean>
   /** Reads what creating corrective work would add: read only, so the workspace is neither busy nor reloaded. */
@@ -346,7 +351,7 @@ async function approveWithRedraft(deps: ActionDeps, reportId: string, expectedDr
 
 function checkpointActions(
   deps: ActionDeps
-): Pick<WorkspaceActions, 'approve' | 'approveWithRedraft' | 'retry' | 'setAutoContinue'> {
+): Pick<WorkspaceActions, 'approve' | 'approveWithRedraft' | 'retry' | 'setAutoContinue' | 'waiveDelivery'> {
   return {
     async approve(reportId) {
       const run = currentRun(deps)
@@ -376,6 +381,15 @@ function checkpointActions(
       }
       const result = await perform(deps, () => deps.runner('authorizeAutoContinue', { runId: run.id, enabled }))
       feedback(deps, result, enabled ? 'Automatic continuation allowed for this run.' : 'Automatic continuation turned off.')
+    },
+    async waiveDelivery(sprintId, reason) {
+      const run = currentRun(deps)
+      if (run === null) {
+        return false
+      }
+      const result = await perform(deps, () => deps.runner('waiveDelivery', { runId: run.id, sprintId, reason }))
+      feedback(deps, result, 'Delivery check waived.')
+      return result.ok
     }
   }
 }

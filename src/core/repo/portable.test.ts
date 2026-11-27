@@ -8,6 +8,7 @@ import {
   insertAttempt,
   insertCheckpoint,
   insertComment,
+  insertDeliveryCheck,
   insertEpic,
   insertProfile,
   insertReport,
@@ -979,6 +980,100 @@ describe('run history row check validation', () => {
   it('rejects a repeated row check id or number', () => {
     expect(firstIssue(withRowChecks([rowCheckEntry(RK1, 1), rowCheckEntry(RK1, 2)]))).toBe(`Duplicate row check id: ${RK1}`)
     expect(firstIssue(withRowChecks([rowCheckEntry(RK1, 1), rowCheckEntry(RK2, 1)]))).toBe('Duplicate row check number: 1')
+  })
+})
+
+const DV1 = idOf('deliveryCheck', 1)
+const DV2 = idOf('deliveryCheck', 2)
+
+const CHECK_VERDICT = {
+  checks: [
+    { name: 'on target branch', status: 'passed', detail: '' },
+    { name: 'installed', status: 'failed', detail: 'installed 1.1.0' }
+  ],
+  reasons: ['The installed app runs 1.1.0, older than release 1.2.0.'],
+  releaseVersion: '1.2.0',
+  installedVersion: '1.1.0'
+}
+
+function deliveryCheckEntry(id: string, number: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id,
+    number,
+    sprintId: sid(1),
+    kind: 'check',
+    commit: ROW_COMMIT,
+    releaseTag: 'v1.2.0',
+    verdict: CHECK_VERDICT,
+    recordedBy: 'server',
+    createdAt: T0,
+    ...overrides
+  }
+}
+
+function waiverEntry(id: string, number: number): Record<string, unknown> {
+  return deliveryCheckEntry(id, number, {
+    kind: 'waiver',
+    commit: null,
+    releaseTag: null,
+    verdict: { reason: 'Released by hand.' },
+    recordedBy: 'desktop'
+  })
+}
+
+function withDeliveryChecks(entries: unknown[]): unknown {
+  return { ...(runRecord([]) as object), deliveryChecks: entries }
+}
+
+describe('run history delivery checks', () => {
+  it("exports a run's check and waiver in the order they were recorded and parses them back", () => {
+    const db = seededDb()
+    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+    insertDeliveryCheck(db, { id: DV2, runId: RUN, sprintId: sid(1), number: 2, kind: 'waiver' })
+    insertDeliveryCheck(db, { id: DV1, runId: RUN, sprintId: sid(1), number: 1, verdict: CHECK_VERDICT })
+    const record = buildRunHistoryRecord(db, RUN)
+    expect(record.deliveryChecks).toEqual([deliveryCheckEntry(DV1, 1), waiverEntry(DV2, 2)])
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('leaves the key out for a run without delivery checks, so a run recorded before them exports byte-identically', () => {
+    const db = seededDb()
+    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+    const record = buildRunHistoryRecord(db, RUN)
+    expect(Object.keys(record)).not.toContain('deliveryChecks')
+    const text = prettyJson(record)
+    expect(text).not.toContain('deliveryChecks')
+    expect(prettyJson(parseRecord(runHistoryRecord, text, 'run.json'))).toBe(text)
+    expect(prettyJson(buildRunHistoryRecord(db, RUN))).toBe(text)
+  })
+
+  it('accepts a run history that has none, and one that lists a check and a waiver', () => {
+    expect(firstIssue(runRecord([]))).toBe('ok')
+    expect(firstIssue(withDeliveryChecks([deliveryCheckEntry(DV1, 1), waiverEntry(DV2, 2)]))).toBe('ok')
+    expect(firstIssue(withDeliveryChecks([deliveryCheckEntry(DV1, 1, { verdict: { ...CHECK_VERDICT, checks: [] }, commit: null })]))).toBe('ok')
+  })
+})
+
+describe('run history delivery check validation', () => {
+  it.each([
+    ['a kind other than check or waiver', { kind: 'other' }],
+    ['a commit that is not a hash', { commit: 'main' }],
+    ['number 0', { number: 0 }],
+    ['an id of another kind', { id: idOf('rowCheck', 1) }],
+    ['an unknown key', { passed: true }],
+    ['a check verdict holding a waiver reason', { verdict: { reason: 'skip' } }],
+    ['a check verdict with an unknown key', { verdict: { ...CHECK_VERDICT, passed: true } }],
+    ['an entry with an unknown status', { verdict: { ...CHECK_VERDICT, checks: [{ name: 'x', status: 'maybe', detail: '' }] } }],
+    ['a waiver with a check verdict', { kind: 'waiver' }],
+    ['a waiver without a reason', { kind: 'waiver', verdict: {} }]
+  ])('refuses to import a delivery check with %s', (_label, overrides) => {
+    const text = prettyJson(withDeliveryChecks([deliveryCheckEntry(DV1, 1, overrides)]))
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+
+  it('rejects a repeated delivery check id or number', () => {
+    expect(firstIssue(withDeliveryChecks([deliveryCheckEntry(DV1, 1), waiverEntry(DV1, 2)]))).toBe(`Duplicate delivery check id: ${DV1}`)
+    expect(firstIssue(withDeliveryChecks([deliveryCheckEntry(DV1, 1), waiverEntry(DV2, 1)]))).toBe('Duplicate delivery check number: 1')
   })
 })
 

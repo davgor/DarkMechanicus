@@ -76,6 +76,7 @@ const MAX_ATTEMPTS = 10_000
 const MAX_REPORTS = 5_000
 const MAX_CHECKPOINTS = 1_000
 const MAX_ROW_CHECKS = 5_000
+const MAX_DELIVERY_CHECKS = 5_000
 const MAX_EXPERIMENT_EVENTS = 10_000
 
 const idOf = (kind: IdKind) => z.string().refine((value) => isStableId(value, kind), { message: `Expected a ${kind} id` })
@@ -491,6 +492,33 @@ const rowCheckRecord = z.strictObject({
   createdAt: isoTime
 })
 
+/** A check's stored verdict: its named entries, why it failed, and the release and installed versions it saw. */
+const deliveryCheckVerdict = z.strictObject({
+  checks: z.array(checkResult).max(LIMITS.listItems),
+  reasons: textList,
+  releaseVersion: label.nullable(),
+  installedVersion: label.nullable()
+})
+
+/** A person's waiver of a delivery check: why they waived it. */
+const deliveryWaiverVerdict = z.strictObject({ reason: shortText })
+
+const deliveryCheckFields = {
+  id: idOf('deliveryCheck'),
+  number: positiveInt,
+  sprintId: idOf('sprint'),
+  commit: commitHash.nullable(),
+  releaseTag: label.nullable(),
+  recordedBy: label.nullable(),
+  createdAt: isoTime
+}
+
+/** The server's sprint delivery check or a person's waiver of it; `number` orders a run's records as recorded. */
+const deliveryCheckRecord = z.discriminatedUnion('kind', [
+  z.strictObject({ ...deliveryCheckFields, kind: z.literal('check'), verdict: deliveryCheckVerdict }),
+  z.strictObject({ ...deliveryCheckFields, kind: z.literal('waiver'), verdict: deliveryWaiverVerdict })
+])
+
 const runHistoryShape = z.strictObject({
   format: z.literal('darkmechanicus.run'),
   formatVersion: z.literal(1),
@@ -514,6 +542,8 @@ const runHistoryShape = z.strictObject({
   checkpoints: z.array(checkpointRecord).max(MAX_CHECKPOINTS),
   // No default: run history written before row checks existed must parse and re-export byte for byte.
   rowChecks: z.array(rowCheckRecord).max(MAX_ROW_CHECKS).optional(),
+  // No default: run history written before delivery checks existed must parse and re-export byte for byte.
+  deliveryChecks: z.array(deliveryCheckRecord).max(MAX_DELIVERY_CHECKS).optional(),
   // Later statuses and results of the reports' experiments, never inside a report. Left out when the run has none,
   // so run history written before experiments keeps its bytes.
   experimentEvents: z.array(experimentEventSchema).max(MAX_EXPERIMENT_EVENTS).optional()
@@ -554,6 +584,16 @@ const RUN_UNIQUENESS: { what: string; path: string; keys: (record: RunHistorySha
   { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) },
   { what: 'row check id', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => item.id) },
   { what: 'row check number', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => String(item.number)) },
+  {
+    what: 'delivery check id',
+    path: 'deliveryChecks',
+    keys: (record) => (record.deliveryChecks ?? []).map((item) => item.id)
+  },
+  {
+    what: 'delivery check number',
+    path: 'deliveryChecks',
+    keys: (record) => (record.deliveryChecks ?? []).map((item) => String(item.number))
+  },
   { what: 'experiment event id', path: 'experimentEvents', keys: (record) => (record.experimentEvents ?? []).map((item) => item.id) },
   {
     what: 'experiment event number',
@@ -1092,6 +1132,18 @@ interface RowCheckRow {
   created_at: string
 }
 
+interface DeliveryCheckRow {
+  id: string
+  number: number
+  sprint_id: string
+  kind: string
+  commit_ref: string | null
+  release_tag: string | null
+  verdict_json: string
+  recorded_by: string | null
+  created_at: string
+}
+
 function runFields(run: RunRow): Record<string, unknown> {
   return {
     format: 'darkmechanicus.run',
@@ -1192,12 +1244,30 @@ function rowCheckEntry(row: RowCheckRow): Record<string, unknown> {
   }
 }
 
+/** Delivery checks and waivers in the order they were recorded; the record leaves the key out when a run has none. */
+function deliveryCheckEntry(row: DeliveryCheckRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    number: row.number,
+    sprintId: row.sprint_id,
+    kind: row.kind,
+    commit: row.commit_ref,
+    releaseTag: row.release_tag,
+    verdict: parseJson<unknown>(row.verdict_json, null),
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at
+  }
+}
+
 export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
   const run = db.get<RunRow>('SELECT * FROM runs WHERE id = ?', runId)
   if (run === undefined) {
     fail('not_found', `Run ${runId} does not exist.`)
   }
   const rowChecks = db.all<RowCheckRow>('SELECT * FROM row_checks WHERE run_id = ? ORDER BY number', runId).map(rowCheckEntry)
+  const deliveryChecks = db
+    .all<DeliveryCheckRow>('SELECT * FROM delivery_checks WHERE run_id = ? ORDER BY number', runId)
+    .map(deliveryCheckEntry)
   const experimentEvents = db
     .all<{ event_json: string }>('SELECT event_json FROM experiment_events WHERE run_id = ? ORDER BY experiment_id, number', runId)
     .map((row) => parseJson<unknown>(row.event_json, null))
@@ -1213,6 +1283,7 @@ export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
     reports: reports.map(reportEntry),
     checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry),
     ...(rowChecks.length > 0 ? { rowChecks } : {}),
+    ...(deliveryChecks.length > 0 ? { deliveryChecks } : {}),
     ...(experimentEvents.length > 0 ? { experimentEvents } : {})
   }
   const exported = exportable(runHistoryRecord, record, `run history ${runId}`)

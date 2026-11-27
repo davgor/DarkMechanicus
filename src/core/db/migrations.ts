@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 36
+export const SCHEMA_VERSION = 37
 
 export interface Migration {
   version: number
@@ -1280,6 +1280,31 @@ ALTER TABLE learning_integrations ADD COLUMN superseded_by TEXT;
 `
 // ─── End DM-950 ───
 
+// ─── DM-835: sprint delivery checks ─────────────────────────────────────────
+/**
+ * v37 stores sprint delivery checks and person waivers, following v5's row checks. `number` counts a run's delivery
+ * records in the order they were recorded. `verdict_json` holds `{checks, reasons, releaseVersion, installedVersion}`
+ * for a check and `{reason}` for a waiver. Whether a record passed is derived on read, never stored. Exported with the
+ * run history only when a run has any.
+ */
+const V37 = `
+CREATE TABLE delivery_checks (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES runs(id),
+  number INTEGER NOT NULL CHECK (number >= 1),
+  sprint_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('check','waiver')),
+  commit_ref TEXT,
+  release_tag TEXT,
+  verdict_json TEXT NOT NULL,
+  recorded_by TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (run_id, number)
+);
+CREATE INDEX delivery_checks_run ON delivery_checks(run_id, sprint_id);
+`
+// ─── End DM-835 ───
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -1329,7 +1354,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 33, sql: V33 },
   { version: 34, sql: V34 },
   { version: 35, sql: V35 },
-  { version: 36, sql: V36 }
+  { version: 36, sql: V36 },
+  { version: 37, sql: V37 }
 ]
 
 export function readSchemaVersion(db: Db): number {

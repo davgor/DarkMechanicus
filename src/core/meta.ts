@@ -7,6 +7,8 @@ export const META_KEYS = {
   projectName: 'project_name',
   keyPrefix: 'key_prefix',
   machineId: 'machine_id',
+  /** The desktop app's own observation of the installed build on this machine (`installedApp.ts`). */
+  installedApp: 'installed_app',
   /** Checkout branch recorded at the last reconcile; a different current branch means `branch_changed`. */
   checkoutBranch: 'checkout_branch',
   lastFlushAt: 'last_flush_at',

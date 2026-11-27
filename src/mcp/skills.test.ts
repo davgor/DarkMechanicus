@@ -171,6 +171,17 @@ describe('SKILLS_VERSION', () => {
   })
 })
 
+describe('the sprint-delivery guidance', () => {
+  it('moved past 1.17.0 when the guides started covering structured sprint delivery (`orchestrator.sprint-delivery`)', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 18)).toBe(true)
+    const delivery = orchestratorFactBodies('orchestrator.sprint-delivery').join('\n')
+    expect(delivery).toContain('`record_delivery`')
+    expect(delivery).toContain('[App restarted after an update from vA to vB: resume your run from get_run]')
+    expect(skill('orchestrator').body).toContain('`sprint-delivery`')
+  })
+})
+
 describe('the worker-relay marker', () => {
   const marker = '[Message from the person for your worker subagent, thread <id>]'
 

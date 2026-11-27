@@ -16,6 +16,7 @@ import {
   lastEventPayload,
   pendingOutbox,
   runRow,
+  seedDeliveryCheck,
   seedEpic,
   seedRevision,
   startedRun
@@ -551,6 +552,22 @@ describe('getRun — view', () => {
     const { runId } = startedRun(ctx)
     giveAway(ctx, runId)
     expect(getRun(ctx, { runId })).toMatchObject({ ownerMachineId: 'mc_other', ownedByThisMachine: false })
+  })
+
+  it('lists every delivery check and waiver of the run as deliveries, in number order', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1], [2]]) })
+    expect(getRun(ctx, { runId })?.deliveries).toEqual([])
+    const waiver = seedDeliveryCheck(ctx, runId, { number: 3, sprint: 1, kind: 'waiver' })
+    const failed = seedDeliveryCheck(ctx, runId, { number: 1, sprint: 1, kind: 'check', passed: false })
+    const passed = seedDeliveryCheck(ctx, runId, { number: 2, sprint: 1, kind: 'check', passed: true })
+    const deliveries = getRun(withRole(ctx, 'reviewer'), { runId })?.deliveries ?? []
+    expect(deliveries.map((item) => [item.id, item.number, item.kind, item.passed])).toEqual([
+      [failed, 1, 'check', false],
+      [passed, 2, 'check', true],
+      [waiver, 3, 'waiver', true]
+    ])
+    expect(deliveries[2]).toMatchObject({ runId, sprintId: sid(1), reason: 'Shipped by hand', checks: [] })
   })
 })
 

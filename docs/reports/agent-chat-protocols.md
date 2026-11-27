@@ -74,6 +74,14 @@ Live terminal activity is not observable through the current PTY contract, so it
 
 After a confirmed stop, `gui` is persisted only if no terminal owner of the chat is still live: an earlier owner kept fenced by a failed cleanup makes the switch refuse `busy` with the surface unchanged and no push. Retry outcomes depend on `processTree.killPtyTree`: on POSIX a settled post-exit kill result is shared rather than repeated, and on Windows `endLeftovers` answers `true` once the PTY has exited. The manager tests inject `killTree`, so they prove the retry contract, not those platform kill results.
 
+The tree-kill retry is bounded (DM-1022): one PTY gets at most three `killPtyTree` calls in all (its stop or exit, then the retries above). Once the third has failed, the manager logs one error naming the chat and pid, asks for no further kill, and keeps the owner fenced, so the chat cannot start again in this app session; a revocation failure is still retried as before.
+
+### Shared launch, untrack and agent removal (DM-1022)
+
+Every launch goes through `chatSurfaceStart`: `launchChatOnSurface` (with `startChatOnSurface` as its message-only form) starts a chat with its kickoff on its stored surface, and `resumeChatOnSurface` wakes an existing chat with no kickoff for peer and board delivery, starting a GUI chat through the one GUI session manager and attaching a terminal chat as before. The Forge World merge resolver launches through `launchChatOnSurface`; its records (`forgeResolver`) are terminal-only like Forge setup and tooling repair, because the GUI launch gives no Forge World member reach or resolver context: the resolver stores `surface: 'terminal'` on its record before launching, the GUI start and `setSurface(ref, 'gui')` refuse it with `unsupported`, and the chat header offers no GUI switch for it. A kickoff the resolver already delivered is pasted again into its resumed terminal session.
+
+Untracking a folder (`releasingChatOwners(...).releaseFolder`) stops both owners: the terminals refuse the folders' starts and stop their PTYs, then `AgentChatSessions.releaseFolder` refuses GUI starts of the folders' chats, stops their processes and starts, and waits for process close and grant revocation before the untrack's `forget` runs; starts are let through again after it. Removing an agent (`endAgent`) stops its chats' terminals and GUI processes with their grants revoked, and its sign-in terminal.
+
 
 ## Claude host → CLI
 
@@ -409,6 +417,8 @@ Claude queue accounting consumes each queued turn once: on its first main text/t
 `interrupt(ref)` writes Claude's control interrupt or OMP's abort without stopping an idle chat. A turn completion cancels the five-second watchdog. If the original turn does not finish, the watchdog forces the retained process-tree owner to stop immediately, keeps the chat failed and resumable, and still waits for the original composite cleanup barrier. Repeated interrupts do not extend the deadline. The main-only transport's `stop({force:true})` also escalates an already-pending graceful stop without changing its promise or looking up an ended process again; ordinary stop retains its three-second escalation.
 
 Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identity/persistence mode; ordinary golden replay remains byte-for-byte unchanged. With `FAKE_AGENT_CONTINUE_TURNS=1` as well, a Claude-protocol run records its turns in its session file and a `--resume` of it continues the turn numbering, so a resumed process never reuses an earlier turn's message ids (the built-app e2e sets both). `[hung]` emits its first turn frame but never completes or acknowledges interrupt, providing a real-child watchdog test without network or credentials.
+
+With `FAKE_AGENT_NAME_CHATS=1` (the built-app e2e sets it), a protocol run whose instructions file holds the "First-message chat naming" section names its chat on the first user message as a real agent does: it runs the instructions' own `dm` line with `call name_chat '{"title":"Fake agent conversation"}'`, beside the turn, and reports a failing call on stderr. Without it the chat stays "Naming chat…".
 
 ## Arbiter (not GUI launch configuration)
 

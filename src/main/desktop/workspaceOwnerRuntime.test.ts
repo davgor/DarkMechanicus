@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { AsyncResource } from 'node:async_hooks'
 import { EventEmitter } from 'node:events'
 import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
@@ -12,6 +12,20 @@ import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } fro
 import { inThreadLane, type SyncLane } from './syncLane'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
+import { readInstalledApp } from '../../core/installedApp'
+import type * as InstalledApp from '../../core/installedApp'
+
+const installedApp = vi.hoisted(() => ({ fail: false }))
+vi.mock('../../core/installedApp', async (importOriginal) => {
+  const actual = await importOriginal<typeof InstalledApp>()
+  return {
+    ...actual,
+    recordInstalledApp: (...args: Parameters<typeof actual.recordInstalledApp>) => {
+      if (installedApp.fail) throw new Error('database is locked')
+      actual.recordInstalledApp(...args)
+    }
+  }
+})
 
 const harness = new Set<ReturnType<typeof createHarness>>()
 const closers = new Set<() => Promise<unknown>>()
@@ -28,11 +42,11 @@ function fixture() {
   return h
 }
 
-function owner(home: string, generation = 1, lane?: SyncLane) {
+function owner(home: string, generation = 1, lane?: SyncLane, packaged = false) {
   const parent = new EventEmitter()
   const child = new EventEmitter()
   const observed: WorkspaceResponse[] = []
-  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', ownerPid: process.pid, ...(lane ? { lane } : {}) }, {
+  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', packaged, ownerPid: process.pid, ...(lane ? { lane } : {}) }, {
     on(_event, listener) { child.on('message', listener); return this as Electron.ParentPort },
     postMessage(response: WorkspaceResponse) {
       observed.push(response)
@@ -106,6 +120,55 @@ it('lazily initializes the requested project and refuses a different path or inj
   expect(worker.observed.every(response => response.generation === 4)).toBe(true)
 })
 
+it('serves as the desktop with its packaged state and records its own observation of the installed build', async () => {
+  const h = fixture()
+  const worker = owner(h.homeDir, 1, undefined, true)
+  // A folder initialized through the owner is observed right after the command, not only at the next open.
+  await expect(worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Observed' } })).resolves.toMatchObject({ ok: true })
+  const capabilities = await worker.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined })
+  expect(capabilities).toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop', version: '1.0.0-test', packaged: true } } } })
+  const ctx = h.open('desktop').ctx()
+  expect(readInstalledApp(ctx)).toEqual({ version: '1.0.0-test', packaged: true, machineId: ctx.machineId, observedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) })
+  expect(readInstalledApp({ db: ctx.db, machineId: 'another-machine' })).toBeNull()
+})
+
+it('records an unpackaged desktop as unpackaged when it opens an initialized project', async () => {
+  const h = fixture()
+  await h.open('desktop').initializeRepository({ name: 'Dev build' })
+  const worker = owner(h.homeDir, 1, undefined, false)
+  await expect(worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })).resolves.toMatchObject({ ok: true })
+  const ctx = h.open('desktop').ctx()
+  expect(readInstalledApp(ctx)).toMatchObject({ version: '1.0.0-test', packaged: false, machineId: ctx.machineId })
+})
+
+it('keeps opening and serving its project when the installed app cannot be recorded', async () => {
+  const h = fixture()
+  installedApp.fail = true
+  onTestFinished(() => { installedApp.fail = false })
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  onTestFinished(() => warn.mockRestore())
+  // A project initialized through the owner is observed after the command; that observation fails, the command stands.
+  const initializing = owner(h.homeDir, 1)
+  await expect(initializing.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Unrecorded' } }))
+    .resolves.toMatchObject({ ok: true, result: { binding: expect.any(String) } })
+  await expect(initializing.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined }))
+    .resolves.toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop' } } } })
+  await expect(initializing.close()).resolves.toMatchObject({ ok: true })
+  // A new owner observes on open and fails; it is open and bound all the same, so every later request is served.
+  const reopened = owner(h.homeDir, 2)
+  const opened = await reopened.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+  expect(opened).toMatchObject({ ok: true, result: { value: true, binding: expect.any(String) } })
+  if (!opened.ok) throw new Error(opened.error.message)
+  await expect(reopened.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined }, opened.result.binding))
+    .resolves.toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop' } } } })
+  await expect(reopened.sync(h.root, 'heartbeat', opened.result.binding)).resolves.toMatchObject({ ok: true })
+  expect(warn.mock.calls).toEqual([
+    [expect.stringContaining('The installed app could not be recorded')],
+    [expect.stringContaining('The installed app could not be recorded')]
+  ])
+  expect(readInstalledApp(h.open('desktop').ctx())).toBeNull()
+})
+
 it('answers a heartbeat on an uninitialized folder without reconciling, and refuses a sync once closed', async () => {
   const h = fixture()
   const held = heldLane()
@@ -155,7 +218,7 @@ it('validates the live reservation on the receiving end before admitting a migra
       },
       postMessage: resolve
     }
-    serveWorkspaceOwner({ generation: 7, home: h.homeDir, ownerPid: process.pid, version: '1.0.0-test' }, replyPort)
+    serveWorkspaceOwner({ generation: 7, home: h.homeDir, ownerPid: process.pid, version: '1.0.0-test', packaged: false }, replyPort)
   })
   await expect(reply).resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The Forge conversion reservation ended.' } })
 })
@@ -336,7 +399,7 @@ it('refuses a source path whose link would open a different project inside the o
 Project folder: Member
 `
   writeFileSync(join(h.root, FORGE_POINTER), pointer)
-  bindForge(h.homeDir, h.root, member, pointer)
+  bindForge(h.homeDir, h.root, { member, note: pointer })
   const worker = owner(h.homeDir)
   await expect(worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Must not initialize' } }))
     .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
@@ -459,7 +522,7 @@ it('still rejects a changed project, a hard-linked database, a new binding and a
   const bound = await warmOwner('Bound later')
   const member = join(bound.h.homeDir, 'member')
   mkdirSync(member)
-  bindForge(bound.h.homeDir, bound.h.root, member, '')
+  bindForge(bound.h.homeDir, bound.h.root, { member, note: '' })
   await expect(bound.worker.work(bound.h.root, bound.read, bound.binding))
     .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
 

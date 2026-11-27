@@ -61,7 +61,7 @@ describe('needsYouRows', () => {
     expect(total(counts)).toBe(1)
   })
 
-  it('ignores prompts of unknown chats or threads and survives a parent cycle', () => {
+  it('ignores prompts of unknown chats, and of unknown threads in a chat without its own row, and survives a parent cycle', () => {
     const cyclic: NeedsYouRow[] = [
       { id: 'a', chatId: 'chat', threadId: 'a', parentId: 'b' },
       { id: 'b', chatId: 'chat', threadId: 'b', parentId: 'a' }
@@ -69,6 +69,30 @@ describe('needsYouRows', () => {
     const counts = needsYouRows(cyclic, attention(prompt('chat', 'a', 'off'), prompt('other', null, 'off'), prompt('chat', 'zz', 'off')))
     expect(counts.get('a')).toEqual({ own: 1, descendants: 0, deciding: 0 })
     expect(counts.get('b')).toEqual({ own: 0, descendants: 1, deciding: 0 })
+  })
+})
+
+describe('needsYouRows: queued prompts and unlisted threads', () => {
+  it('counts only the shown head: prompts queued behind it keep `off` but never count, bubble or show as deciding', () => {
+    const queued = (threadId: string | null, arbitration: AttentionItem['arbitration'], promptId: string): AttentionItem =>
+      ({ ...prompt('chat_orch', threadId, arbitration, promptId), shown: false })
+    const counts = needsYouRows(rows, attention(
+      prompt('chat_orch', 'th_r', 'deciding', 'head'),
+      queued('th_r', 'off', 'q1'),
+      queued('th_s', 'off', 'q2'),
+      queued(null, 'escalated', 'q3')
+    ))
+    expect(counts.get('th_r')).toEqual({ own: 0, descendants: 0, deciding: 1 })
+    expect(counts.get('th_s')).toEqual({ own: 0, descendants: 0, deciding: 0 })
+    expect(counts.get('chat_orch')).toEqual({ own: 0, descendants: 0, deciding: 0 })
+    expect(total(counts)).toBe(0)
+  })
+
+  it('badges the chat row for a subagent prompt in a chat whose threads are not listed (an unwatched chat)', () => {
+    const counts = needsYouRows(rows, attention(prompt('chat_plan', 'th_unlisted', 'off'), prompt('chat_orch', 'th_new', 'escalated')))
+    expect(counts.get('chat_plan')).toEqual({ own: 1, descendants: 0, deciding: 0 })
+    expect(counts.get('chat_orch')).toEqual({ own: 1, descendants: 0, deciding: 0 })
+    expect(total(counts)).toBe(2)
   })
 })
 

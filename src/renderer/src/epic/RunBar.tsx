@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { RunView } from '../../../shared/domain/views'
 import { agentName } from '../agents/agentText'
 import { SignInOffer } from '../agents/SignInPrompt'
+import { deliveryLine, type DeliveryLine as DeliveryHold } from './deliveryView'
 import { orchestratingChat } from './orchestration'
 import { OrchestratorEntry } from './OrchestratorFeed'
 import {
@@ -106,6 +108,87 @@ function OrchestratorLine({ ws, note }: { ws: WorkspaceHandle; note: Orchestrato
   )
 }
 
+function DeliveryChecks({ checks }: { checks: DeliveryHold['checks'] }): JSX.Element | null {
+  return checks.length === 0 ? null : (
+    <ul className="ew-delivery-checks" aria-label="Delivery checks">
+      {checks.map((check, index) => (
+        // Two checks can share a name, so the position identifies the entry.
+        <li key={`${index}:${check.name}`} className={`is-${check.status}`}>
+          <span className="cp-icon" role="img" aria-label={check.status}>
+            {check.icon}
+          </span>
+          <span>{check.name}</span>
+          <span className="ew-muted">{check.detail}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Waive…, then the reason box: Waive delivery stays disabled until the trimmed reason is non-empty. */
+function WaiveDelivery({ ws, sprintId }: { ws: WorkspaceHandle; sprintId: string }): JSX.Element {
+  // null while the reason box is closed.
+  const [reason, setReason] = useState<string | null>(null)
+  const busy = ws.state.busy
+  if (reason === null) {
+    return (
+      <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setReason('')}>
+        Waive…
+      </button>
+    )
+  }
+  const text = reason.trim()
+  const waive = async (): Promise<void> => {
+    if (text !== '' && (await ws.actions.waiveDelivery(sprintId, text))) {
+      setReason(null)
+    }
+  }
+  return (
+    <form
+      className="ew-delivery-waive"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void waive()
+      }}
+    >
+      <input
+        type="text"
+        className="input"
+        aria-label="Why waive the delivery check"
+        placeholder="Why the delivery check can be skipped"
+        maxLength={2000}
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+      />
+      <button type="submit" className="btn" disabled={busy || text === ''}>
+        Waive delivery
+      </button>
+      <button type="button" className="btn btn-ghost" onClick={() => setReason(null)}>
+        Cancel
+      </button>
+    </form>
+  )
+}
+
+/**
+ * An earlier sprint's delivery that holds the run's next claims: no check yet, or the latest check's named results,
+ * with the person's Waive…. Nothing once every earlier delivering sprint passed its latest check or was waived.
+ */
+function DeliveryLine({ ws, run }: { ws: WorkspaceHandle; run: RunView }): JSX.Element | null {
+  const line = deliveryLine(run, ws.data.saved?.bundle ?? null)
+  if (line === null) {
+    return null
+  }
+  const head = `Sprint ${line.ordinal} delivery to ${line.target}`
+  return (
+    <div className="ew-bar-note ew-bar-delivery" role="group" aria-label="Sprint delivery">
+      <span>{line.state === 'pending' ? `${head}: waiting for the Magos to record it` : `${head}: the latest check failed`}</span>
+      <DeliveryChecks checks={line.checks} />
+      <WaiveDelivery key={line.sprintId} ws={ws} sprintId={line.sprintId} />
+    </div>
+  )
+}
+
 /**
  * A run paused because its orchestrator's agent signed out: says so, links the orchestrator chat (shown in the Agent
  * tab), and offers Sign in right here (or Check again for a state that could not be told). Resume waits for the agent.
@@ -164,6 +247,7 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       </div>
       {signedOut === null ? null : <SignedOutLine ws={ws} note={signedOut} />}
       {orchestrator === null ? null : <OrchestratorLine ws={ws} note={orchestrator} />}
+      <DeliveryLine ws={ws} run={run} />
       {adopt === null ? null : <AdoptLine ws={ws} notice={adopt} />}
       <OwnershipLine run={run} />
     </div>

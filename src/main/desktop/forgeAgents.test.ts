@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import type { AgentAuthState } from '../../shared/desktop/api'
+import { connectedAgents } from '../agents/__mocks__/chatFixtures'
 import { createChatRecords } from '../agents/chatRecords'
 import { createChatStore } from '../agents/chatStore'
 import { scratchDir } from '../../test/gitScratch'
@@ -16,7 +17,9 @@ function resolverChats(checkAuth: (id: string) => Promise<AgentAuthState> = asyn
   const otherWorld = join(fixture.path, 'other-world')
   mkdirSync(member, { recursive: true })
   const store = createChatStore({ root: join(fixture.path, 'chats') })
-  const chats = createChatRecords({ store, agentFor: () => null })
+  // Claude is GUI-capable, so the record starts on the GUI surface; the resolver must still run only in the terminal.
+  const chats = createChatRecords({ store, agentFor: connectedAgents() })
+  const guiStarts: string[] = []
   const live = new Set<string>()
   const continuations: string[] = []
   const connected = [{ id: 'codex' }, { id: 'claude' }]
@@ -26,6 +29,7 @@ function resolverChats(checkAuth: (id: string) => Promise<AgentAuthState> = asyn
     agents: { list: () => connected }, folderDefaults: { get: folder => folder === root ? 'claude' : null },
     checkAuth,
     registry: { list: () => [{ path: member, forgeParent: root }] },
+    agentChats: { start: async ref => { guiStarts.push(ref.id); throw new Error('A resolver never starts on the GUI.') } },
     terminals: {
       isRunning: id => live.has(id),
       paste: async (ref, text) => { continuations.push(text); await Promise.resolve(); live.add(ref.id); return { state: 'running', pid: 8 } },
@@ -40,18 +44,19 @@ function resolverChats(checkAuth: (id: string) => Promise<AgentAuthState> = asyn
       deleteChat: async (ref, archive) => { live.delete(ref.id); await archive() }
     }
   })
-  return { root, otherWorld, store, chats, live, continuations, connected, session,
+  return { root, otherWorld, store, chats, live, continuations, connected, session, guiStarts,
     allow: () => { refused = false }, signOutOnStart: (id: string) => { signedOutOnStart = id }, cleanup: fixture.cleanup }
 }
 
 it('reuses the resolver record, stops its terminal and retains its archived history', async () => {
-  const { root, otherWorld, store, chats, live, continuations, connected, session, allow, cleanup } = resolverChats()
+  const { root, otherWorld, store, chats, live, continuations, connected, session, guiStarts, allow, cleanup } = resolverChats()
   try {
     await expect(session.onConflict(root)).rejects.toThrow('unavailable')
     allow()
     await session.onConflict(root)
     const [chat] = chats.listChats(root)
-    expect(chat).toMatchObject({ agent: 'claude', role: 'worker', allowSave: false, forgeResolver: root })
+    expect(chat).toMatchObject({ agent: 'claude', role: 'worker', allowSave: false, forgeResolver: root, surface: 'terminal' })
+    expect(guiStarts).toEqual([])
     expect(live.has(chat.id)).toBe(true)
     store.updateChat(chat, { kickoffSent: true, firstPromptDelivery: 'submitted' })
     await session.onConflict(root)
@@ -76,6 +81,19 @@ it('reuses the resolver record, stops its terminal and retains its archived hist
     expect(live.size).toBe(0)
     connected.length = 0
     await expect(session.onConflict(root)).rejects.toThrow('Connect an agent')
+  } finally { cleanup() }
+})
+
+it('moves a resolver record left on the GUI surface back to the terminal before the shared launch starts it', async () => {
+  const { root, store, chats, live, session, guiStarts, allow, cleanup } = resolverChats()
+  try {
+    allow()
+    const earlier = chats.createChat({ folder: root, agent: 'claude', role: 'worker', allowSave: false, title: 'Resolve Forge World merge', firstPrompt: 'Resolve' })
+    store.updateChat(earlier, { forgeResolver: root })
+    expect(store.getChat(earlier)!.surface).toBe('gui')
+    await session.onConflict(root)
+    expect(store.getChat(earlier)).toMatchObject({ forgeResolver: root, surface: 'terminal' })
+    expect([[...live], guiStarts]).toEqual([[earlier.id], []])
   } finally { cleanup() }
 })
 
@@ -176,6 +194,7 @@ it('runs resolver cleanup after stopping it and keeps unrelated callers active',
       agents: { list: () => [] }, folderDefaults: { get: () => null },
       checkAuth: async () => 'unknown',
       registry: { list: () => [{ path: h.root, forgeParent: root }] },
+      agentChats: { start: async () => { throw new Error('A resolver never starts on the GUI.') } },
       terminals: {
         isRunning: () => false,
         paste: async () => ({ state: 'running', pid: 7 }),

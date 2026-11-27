@@ -1,3 +1,4 @@
+import { renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
@@ -40,4 +41,40 @@ export function forgeWorldAt(root: string): ForgeWorld | undefined {
   if (!nodeFs.exists(file) && !nodeFs.isSymlink(file)) return undefined
   if (nodeFs.fileStamp(file) === null) throw new Error('Invalid Forge World manifest.')
   return parseForgeManifest(nodeFs.readFile(file))
+}
+
+/** Told the code of each busy rename that is asked again, and the file it replaces; the main process logs it. */
+export type RenameRetryNote = (code: string, file: string) => void
+
+/** What Windows answers a rename onto a file another handle holds open (a scan, a reader) for a moment. */
+const RENAME_BUSY: Record<string, true> = { EPERM: true, EACCES: true, EBUSY: true }
+/** Waits after each busy refusal: 300 ms in all. */
+const RENAME_PAUSES_MS = [50, 100, 150]
+
+/**
+ * Renames the written `temp` over `file`. A busy refusal is asked again after each of `RENAME_PAUSES_MS`, after
+ * telling `onRetry` its code; any other error, or the last refusal, is thrown as it came, with the target untouched.
+ * This module logs nothing itself: plain Node scripts bundle it, so the main process passes its logger in.
+ */
+export function replaceForgeFile(temp: string, file: string, onRetry?: RenameRetryNote, rename: (from: string, to: string) => void = renameSync): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rename(temp, file)
+      return
+    } catch (error) {
+      const pause = RENAME_PAUSES_MS[attempt], code = (error as NodeJS.ErrnoException).code ?? ''
+      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, code)) throw error
+      noteRetry(onRetry, code, file)
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pause)
+    }
+  }
+}
+
+/** Tells `onRetry` of a busy rename that is asked again; a failing note never changes the rename's outcome. */
+function noteRetry(onRetry: RenameRetryNote | undefined, code: string, file: string): void {
+  try {
+    onRetry?.(code, file)
+  } catch {
+    // A failed note must not turn a retry into a failure.
+  }
 }

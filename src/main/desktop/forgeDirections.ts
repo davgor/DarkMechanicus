@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { replaceForgeFile, type RenameRetryNote } from '../../core/repo/forgeManifest'
 import {
   FORGE_RECIPEBOOK_FILE, FORGE_SETUP_DIRECTORY, FORGE_SETUP_GUIDE_FILE, FORGE_SETUP_WORKFLOW_FILE
 } from '../../shared/desktop/forgeSetup'
@@ -46,29 +47,33 @@ function currentDirections(existing: string): string {
   return existing + '\n\n' + block + '\n'
 }
 
-function replaceDirections(file: string, before: string, after: string): void {
+function replaceDirections(file: string, before: string, after: string, onRetry?: RenameRetryNote): void {
   const temporary = file + '.' + randomUUID() + '.tmp'
   try {
     writeFileSync(temporary, after, { flag: 'wx' })
     const stat = lstatSync(file)
     if (!stat.isFile() || stat.isSymbolicLink() || readFileSync(file, 'utf8') !== before) throw new Error('Forge World directions changed during their update. Reopen the world to check them again.')
-    renameSync(temporary, file)
+    replaceForgeFile(temporary, file, onRetry)
   } finally {
     if (existsSync(temporary)) unlinkSync(temporary)
   }
 }
 
-/** Upgrade only the marked app-owned section; custom prose remains byte-for-byte intact. */
-export function ensureForgeDirections(root: string): void {
+/**
+ * Upgrade only the marked app-owned section; custom prose remains byte-for-byte intact. `onRetry` is told of each busy
+ * rename that is asked again (the main process logs it).
+ */
+export function ensureForgeDirections(root: string, onRetry?: RenameRetryNote): void {
   const file = join(root, FORGE_DIRECTIONS)
   try {
     const stat = lstatSync(file)
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Forge World repository directions must be an ordinary file.')
     const before = readFileSync(file, 'utf8')
     const after = currentDirections(before)
-    if (after !== before) replaceDirections(file, before, after)
+    if (after !== before) replaceDirections(file, before, after, onRetry)
   } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    // Only a missing directions file is written afresh; an ENOENT from replacing an existing one is thrown as it came.
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT') || existsSync(file)) throw error
     writeFileSync(file, currentDirections(''), { flag: 'wx' })
   }
 }

@@ -53,7 +53,7 @@ it.each(['repo', 'db'] as const)('preserves and resumes a paused %s run after Fo
     renameSync(oldStore, oldStore + '.archived')
     const note = 'Forge World: https://github.com/test/world.git\nProject folder: Project\n'
     writeFileSync(join(h.root, FORGE_POINTER), note)
-    bindForge(h.homeDir, h.root, member, note)
+    bindForge(h.homeDir, h.root, { member, note })
   })
   expect(existsSync(join(h.root, '.darkmechanicus'))).toBe(false)
   const destination = h.open('orchestrator', { git: createGitAdapter(member) })

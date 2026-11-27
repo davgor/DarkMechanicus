@@ -2,9 +2,9 @@ import { readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scratchDir } from '../../test/gitScratch'
-import { replaceForgeFile } from './forgeManifest'
+import { replaceForgeFile, type RenameRetryNote } from './forgeManifest'
 
-const onRetry = vi.fn<(code: string) => void>()
+const onRetry = vi.fn<RenameRetryNote>()
 
 let scratch: ReturnType<typeof scratchDir>
 let file: string
@@ -45,16 +45,18 @@ describe('replaceForgeFile', () => {
     expect(rename.calls).toBe(2)
     expect(readFileSync(file, 'utf8')).toBe('after\n')
     expect(existsSync(temp)).toBe(false)
-    expect(onRetry.mock.calls).toEqual([['EPERM']])
+    expect(onRetry.mock.calls).toEqual([['EPERM', file]])
   })
 
-  it('throws the original busy error after four refusals and leaves the manifest untouched', () => {
+  it('throws the original busy error after four refusals, 300 ms of waits, and leaves the manifest untouched', () => {
     const rename = refusing('EPERM', 'EACCES', 'EBUSY', 'EPERM', 'EPERM')
+    const started = performance.now()
     expect(() => replaceForgeFile(temp, file, onRetry, rename.rename)).toThrow('EPERM: rename refused')
+    expect(performance.now() - started).toBeGreaterThanOrEqual(295)
     expect(rename.calls).toBe(4)
     expect(readFileSync(file, 'utf8')).toBe('before\n')
     expect(readFileSync(temp, 'utf8')).toBe('after\n')
-    expect(onRetry.mock.calls).toEqual([['EPERM'], ['EACCES'], ['EBUSY']])
+    expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
   })
 
   it('throws any other error at once without asking again', () => {

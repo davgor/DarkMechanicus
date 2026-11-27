@@ -230,6 +230,27 @@ describe('terminal sessions: exit cleanup retry', () => {
   })
 })
 
+describe('terminal sessions: bounded tree kill retry', () => {
+  it('asks for the tree kill at most three times, logs the exhausted retry once and keeps the chat fenced', async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig('kill', Number.POSITIVE_INFINITY)
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat), generation = rig.sessions.owner(chat)!
+    const first = rig.sessions.stop(chat, generation)
+    pty.exit()
+    await expect(first).rejects.toThrow('process tree did not stop')
+    for (let retry = 0; retry < 4; retry++) await expect(rig.sessions.stop(chat, generation)).rejects.toThrow('process tree did not stop')
+    expect(rig.steps.filter(step => step === 'kill')).toHaveLength(3)
+    const messages = rig.errors.map(error => (error as Error).message)
+    expect(messages.filter(message => message === 'The terminal process tree did not stop.')).toHaveLength(3)
+    expect(messages.filter(message => message.includes('did not stop after 3 kill attempts'))).toEqual([
+      `The terminal process tree of chat ${chat.id} (pid ${pty.pid}) did not stop after 3 kill attempts; it is not retried, and the chat cannot start again until the app restarts.`
+    ])
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy' })
+    expect(rig.host.spawns).toHaveLength(1)
+  })
+})
+
 describe('terminal sessions: what may start', () => {
 
   it('starts nothing for a signed-out built-in, and says so to the attach that is waiting', async () => {

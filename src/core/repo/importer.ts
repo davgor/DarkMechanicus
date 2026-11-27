@@ -644,6 +644,11 @@ const RUN_CHILD_TABLES = [
   { table: 'checkpoints', what: 'Checkpoint', ids: (record: RunHistoryRecord) => record.checkpoints.map((item) => item.id) },
   { table: 'row_checks', what: 'Row check', ids: (record: RunHistoryRecord) => (record.rowChecks ?? []).map((item) => item.id) },
   {
+    table: 'delivery_checks',
+    what: 'Delivery check',
+    ids: (record: RunHistoryRecord) => (record.deliveryChecks ?? []).map((item) => item.id)
+  },
+  {
     table: 'experiment_events',
     what: 'Experiment event',
     ids: (record: RunHistoryRecord) => (record.experimentEvents ?? []).map((item) => item.id)
@@ -1407,6 +1412,28 @@ function upsertRowChecks(db: Db, record: RunHistoryRecord): void {
   }
 }
 
+function upsertDeliveryChecks(db: Db, record: RunHistoryRecord): void {
+  for (const check of record.deliveryChecks ?? []) {
+    db.run(
+      `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET number = excluded.number, sprint_id = excluded.sprint_id, kind = excluded.kind,
+         commit_ref = excluded.commit_ref, release_tag = excluded.release_tag, verdict_json = excluded.verdict_json,
+         recorded_by = excluded.recorded_by`,
+      check.id,
+      record.runId,
+      check.number,
+      check.sprintId,
+      check.kind,
+      check.commit,
+      check.releaseTag,
+      toJson(check.verdict),
+      check.recordedBy,
+      check.createdAt
+    )
+  }
+}
+
 /** Added to an event's number while it moves, so no move lands on a number another moving event has not left yet. */
 const MOVING = 1_000_000
 
@@ -1506,6 +1533,7 @@ function applyRun(db: Db, run: RunFiles, at: { now: string; clock: Clock }): voi
   }
   upsertReportsAndCheckpoints(db, record, run.scorecards, run.written)
   upsertRowChecks(db, record)
+  upsertDeliveryChecks(db, record)
   insertExperimentEvents(db, record, at.clock)
   markSynced(db, { kind: 'run', entityId: run.runId, hash: run.trackedHash, generation: null, now: at.now })
   indexRun(db, record)

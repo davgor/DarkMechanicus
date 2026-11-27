@@ -31,7 +31,8 @@ const NAMES: IconName[] = [
   'download',
   'hourglass',
   'lock',
-  'github'
+  'github',
+  'settings'
 ]
 
 function svgOf(name: IconName, props: { size?: number; strokeWidth?: number } = {}): SVGElement {
@@ -72,5 +73,13 @@ describe('Icon', () => {
     })
     expect(paths.every((d) => d.length > 0)).toBe(true)
     expect(new Set(paths).size).toBe(NAMES.length)
+  })
+
+  it('draws Settings as a gear: one closed toothed outline round a closed hub, no loose sun rays (DM-1018 c1)', () => {
+    const d = svgOf('settings').querySelector('path')?.getAttribute('d') ?? ''
+    const subpaths = d.split(/(?=M)/)
+    expect(subpaths).toHaveLength(2)
+    expect(subpaths.every((part) => part.endsWith('z'))).toBe(true)
+    expect(subpaths[0].length).toBeGreaterThan(subpaths[1].length)
   })
 })

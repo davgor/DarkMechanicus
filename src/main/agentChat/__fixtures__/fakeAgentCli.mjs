@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Offline CLI for protocol, process, session and packaged-app tests. Golden JSONL is authoritative. */
+import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -154,6 +155,43 @@ function tailBindings(name, turn) {
   return new Map(inputs.filter((frame) => frame.type === 'get_subagent_messages').map((frame) => [frame.id, frame.subagentId]))
 }
 
+/** The title the fake names a chat with; it never repeats the start of a prompt, which the app refuses. */
+const FAKE_CHAT_TITLE = 'Fake agent conversation'
+
+/** The `dm` line of this run's instructions, as words: the command line the app tells the agent to run commands with. */
+function dmCommandOf(instructions) {
+  const line = instructions.split(/\r?\n/).find((text) => text.includes(" call get_capabilities '{}'"))
+  if (line === undefined) return null
+  const words = [...line.slice(0, line.indexOf(' call get_capabilities')).matchAll(/'([^']*)'|(\S+)/g)].map((match) => match[1] ?? match[2])
+  const env = {}
+  while (words.length > 0 && /^[A-Z_]+=/.test(words[0])) {
+    const [key, ...value] = words.shift().split('=')
+    env[key] = value.join('=')
+  }
+  const [command, ...args] = words
+  return command === undefined ? null : { command, args, env }
+}
+
+/**
+ * With FAKE_AGENT_NAME_CHATS, a chat whose instructions ask for first-message naming is named as a real agent names
+ * it: through the instructions' own `dm` line, `call name_chat` with a fixed title. The call runs beside the turn, so
+ * the reply never waits on it; a failure goes to stderr.
+ */
+function nameChat() {
+  const flag = mode === 'claude' ? '--append-system-prompt-file' : '--append-system-prompt'
+  if (process.env.FAKE_AGENT_NAME_CHATS !== '1' || !argv.includes(flag) || !existsSync(option(flag))) return
+  const instructions = readFileSync(option(flag), 'utf8')
+  const dm = instructions.includes('## First-message chat naming') ? dmCommandOf(instructions) : null
+  if (dm === null) return
+  const call = spawn(dm.command, [...dm.args, 'call', 'name_chat', JSON.stringify({ title: FAKE_CHAT_TITLE })], {
+    env: { ...process.env, ...dm.env }, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true
+  })
+  let stderr = ''
+  call.stderr.on('data', (chunk) => { stderr += chunk })
+  call.on('error', (error) => process.stderr.write(`fake-agent name_chat failed: ${error.message}\n`))
+  call.on('exit', (code) => { if (code !== 0) process.stderr.write(`fake-agent name_chat exited ${code}: ${stderr}\n`) })
+}
+
 class ProtocolReplay {
   turn = 0
   active = null
@@ -161,6 +199,7 @@ class ProtocolReplay {
   queue = []
   chunks = []
   tailQueries = new Map()
+  named = false
 
   constructor(input, stop) {
     this.stop = stop
@@ -328,6 +367,7 @@ class ProtocolReplay {
     if (this.command(message)) return
     const user = message.type === (mode === 'claude' ? 'user' : 'prompt')
     if (user) {
+      if (!this.named) { this.named = true; nameChat() }
       if (this.active) this.queue.push(message)
       else this.start(message)
     }

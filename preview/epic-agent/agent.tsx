@@ -6,21 +6,24 @@ import './preview.css'
 import type { AgentChatEvent, AgentChatSnapshot, AttentionItem, PendingPrompt } from '../../src/shared/agents/agentChat'
 import type { Callsign } from '../../src/shared/agents/callsign'
 import type { ChatItem, ChatRecord } from '../../src/shared/agents/chat'
+import type { TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
+import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
 import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
+import type { EpicLanding } from '../../src/renderer/src/app/landing'
 import { ToastProvider } from '../../src/renderer/src/app/toasts'
 import { ClockContext, type Clock } from '../../src/renderer/src/epic/clock'
 import { EpicWorkspace } from '../../src/renderer/src/epic/EpicWorkspace'
 import { ViewMemoryContext, createViewMemory } from '../../src/renderer/src/epic/viewMemory'
-import { FakeBackend, scenario } from '../../src/renderer/src/epic/__mocks__/fakeBackend'
+import { FakeBackend, deliveryScenario, scenario } from '../../src/renderer/src/epic/__mocks__/fakeBackend'
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
-import { bundle, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
+import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
 
 /**
@@ -45,6 +48,11 @@ interface Seeded {
   chatApi: FakeAgentChat
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
+  folder: TrackedFolderView
+  /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
+  finishedExpandedAtStart: boolean | null
+  /** What another screen asked the workspace to open as it mounts (a clicked notification, a ticket's Activity link). */
+  landing: EpicLanding | null
 }
 
 const STEP_MS = 12_000
@@ -53,10 +61,17 @@ const RUN = runView()
 const ORCHESTRATOR = chatRecord({
   id: 'chat_orch', folder: FOLDER.path, role: 'orchestrator', runId: RUN.id, epicId: 'ep_1', surface: 'gui', title: 'Orchestrator · Plan'
 })
+const PLANNER = chatRecord({
+  id: 'chat_plan', folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+})
 const scenarios = agentChatScenarios
 const conversation = scenarios.streaming.snapshot.items
 const AT = conversation[0].at
 const DM442: Callsign = { role: 'Acolyte', ticketKey: 'DM-442', ordinal: null, purpose: null, ticketVerified: true }
+/** A worker running in a GUI chat of its own, bound to the epic: what a clicked notification lands on. */
+const WORKER_DM2 = chatRecord({
+  id: 'chat_dm2', folder: FOLDER.path, role: 'worker', epicId: 'ep_1', surface: 'gui', title: 'Acolyte:DM-2', createdAt: '2026-03-01T09:00:00.000Z'
+})
 
 // ---------------------------------------------------------------------------------------------- DOM helpers
 
@@ -121,17 +136,6 @@ function verifiedTree(): ChatItem[] {
 }
 
 const treeSnapshot = (): AgentChatSnapshot => ({ ...scenarios.tree.snapshot, items: verifiedTree() })
-
-/**
- * The tool scenario with the callsign main stamps on a worker's thread item (the scenario's thread predates
- * callsigns, so the tree would list it as an unnamed Servitor): the rail names it Acolyte:DM-785.
- */
-const toolSnapshot = (): AgentChatSnapshot => ({
-  ...scenarios.tool.snapshot,
-  items: scenarios.tool.snapshot.items.map((item) => item.kind === 'thread'
-    ? { ...item, callsign: { role: 'Acolyte', ticketKey: 'DM-785', ordinal: null, purpose: null, ticketVerified: false } }
-    : item)
-})
 
 /** The sample saved plan plus DM-1 and DM-2 in sprint 1: the tree scenario's Acolytes name these keys. */
 function planWithTreeTickets(): PlanView {
@@ -211,7 +215,7 @@ const agentStates: Record<string, StateDef> = {
   },
   'agent-tool': {
     mount: 'epic',
-    seed: (context) => snapshot(context, toolSnapshot()),
+    seed: (context) => snapshot(context, scenarios.tool.snapshot),
     reach: async () => {
       await openAgentTab()
       await until(() => $('.agent-chat .chat-thread') && $('.agent-chat .chat-tool-name, .agent-chat [class*="chat-tool"]'), 'the tool card and subagent thread')
@@ -236,11 +240,24 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('[aria-label="Acolyte:DM-2 thread"]') && $('.agent-chat-hint'), 'the worker thread with its relay note')
     }
   },
+  'agent-legacy-thread': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, scenarios.legacy.snapshot),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => treeItem('Servitor-2') && treeItem('Servitor-3'), 'the legacy parent and its nested legacy helper in the tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Servitor-2 thread"] [aria-label="Thread: Servitor-3"]'),
+        'the nested legacy helper named Servitor-3 in its parent’s thread view')
+    }
+  },
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),
-    reach: async () => {
+    reach: async (context) => {
       await openAgentTab()
+      const finished = await until(() => treeItem('Finished 1'), 'the Finished 1 group')
+      context.finishedExpandedAtStart = finished.getAttribute('aria-expanded') === 'true'
       await clickWhenPresent(() => buttonNamed('Expand Finished 1'), 'the Finished 1 group')
       await until(() => treeItem('Acolyte:DM-1') && treeItem('Inquisitor:DM-2') && treeItem('Servitor-1'), 'the expanded agent tree')
     }
@@ -253,6 +270,33 @@ const agentStates: Record<string, StateDef> = {
       await until(() => treeItem('Acolyte:DM-2'), 'the agent tree')
       await clickWhenPresent(() => buttonNamed('Collapse Epic agents'), 'Collapse Epic agents')
       await until(() => $('aside[aria-label="Epic agents"][data-collapsed="true"]'), 'the collapsed rail')
+    }
+  },
+  // Landings never click Expand Epic agents: below 1100 px the rail starts collapsed and the landing itself must show the agent.
+  'landing-notification': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, scenarios.streaming.snapshot)
+      context.chats.push(WORKER_DM2)
+      context.landing = { kind: 'epicAgent', epicId: 'ep_1', chatId: WORKER_DM2.id }
+    },
+    reach: async () => {
+      await until(() => treeItem('Acolyte:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Acolyte:DM-2 row')
+    }
+  },
+  'landing-activity': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, treeSnapshot())
+      const chats = new FakeChats()
+      chats.bound.attempts.at_202_2 = [{ folder: FOLDER.path, chatId: ORCHESTRATOR.id, threadId: 'th-dm1', role: 'worker' }]
+      context.backend.chats = chats
+      context.landing = { kind: 'ticket', epicId: 'ep_1', ticketId: 'tk_202', attemptId: 'at_202_2' }
+    },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('Open chat', $('.tp') ?? document), 'the Activity tab’s Open chat link')
+      await until(() => $('.tp') === null && treeItem('Acolyte:DM-1')?.getAttribute('aria-selected') === 'true',
+        'the selected Acolyte:DM-1 row with the ticket panel closed')
     }
   },
   'agent-todos': {
@@ -310,23 +354,98 @@ const agentStates: Record<string, StateDef> = {
   },
   'agent-needs-you': {
     mount: 'epic',
+    // The planner chat is not watched (no transcript, so no subagent rows): its subagent's prompt badges its own row.
+    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing.
     seed: (context) => {
       snapshot(context, treeSnapshot())
+      context.chats.push(PLANNER)
       context.backend.agentChat.attentionResult = {
-        ok: true, data: [attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?')]
+        ok: true, data: [
+          attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?'),
+          { ...attention('th-plan-look', 'off', 'Read the plan?'), chatId: PLANNER.id, callsign: null },
+          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false }
+        ]
       }
     },
     reach: async () => {
       await openAgentTab()
       await until(() => buttonNamed('Servitor-1 needs you'), 'the worker’s needs-you dot')
+      await until(() => buttonNamed('Lexmechanic needs you'), 'the unwatched planner’s needs-you dot')
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
+    }
+  },
+  // Ten GUI chats: the run's Magos and nine planners, each named apart, with the second planner selected.
+  'agent-planners': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, { ...scenarios.empty.snapshot, items: conversation })
+      for (let index = 1; index <= 9; index++) {
+        context.chats.push(chatRecord({
+          id: `chat_plan_${index}`, folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',
+          createdAt: `2026-02-0${index}T10:00:00.000Z`
+        }))
+      }
+    },
+    reach: async () => {
+      await openAgentTab()
+      await selectNode('Lexmechanic-2')
+      await until(() => treeItem('Lexmechanic-2')?.getAttribute('aria-selected') === 'true' && treeItem('Lexmechanic-9'), 'the selected Lexmechanic-2')
+      await chatLoaded()
+    }
+  }
+}
+
+async function reachGraph(): Promise<void> {
+  await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph')
+}
+
+/** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
+const deliveryStates: Record<string, StateDef> = {
+  'delivery-editor': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('draft')) },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('View draft'), 'View draft')
+      await clickWhenPresent(() => [...document.querySelectorAll<HTMLElement>('[aria-label="Plan graph"] .pg-card')]
+        .find((card) => text($('.pg-card-title', card)) === 'Sprint 1 acceptance') ?? null, 'the Sprint 1 acceptance node in the draft graph')
+      const section = await until(() => $('[aria-label="Edit ticket DM-199"] section[aria-label="Sprint delivery"]'), 'the acceptance node’s Sprint delivery section')
+      section.scrollIntoView({ block: 'center' })
+    }
+  },
+  'delivery-pending': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('run')) },
+    reach: async () => {
+      await reachGraph()
+      await until(() => $('[aria-label="Run"] [role="group"][aria-label="Sprint delivery"] li.is-failed'), 'the run bar’s Sprint delivery line')
+    }
+  },
+  'delivery-checkpoint': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('checkpoint')) },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('Sprint report', $('[aria-label="Run"]') ?? document), 'the run bar’s Sprint report button')
+      await until(() => $('[aria-label="Delivery on approval"]'), 'the checkpoint gate’s Delivery on approval note')
+      const previous = await until(() => $('section[aria-label="Previous sprint delivery"]:has(li.is-failed)'), 'the report’s Previous sprint delivery checks')
+      previous.scrollIntoView({ block: 'nearest' })
     }
   }
 }
 
 const STATES: Record<string, StateDef> = {
-  graph: { mount: 'epic', reach: async () => { await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph') } },
+  graph: { mount: 'epic', reach: reachGraph },
+  'header-long': {
+    mount: 'epic',
+    seed: (context) => {
+      context.folder = { ...FOLDER, name: `a-very-long-repository-folder-name-${'that-cannot-fit-beside-the-view-group-'.repeat(3)}at-any-width` }
+      context.backend = new FakeBackend(scenario({
+        saved: planWithTreeTickets(), run: RUN,
+        epic: epicDetail({ title: 'An epic title long enough to need truncating beside the View group and plan actions at 1024 px' })
+      }))
+    },
+    reach: reachGraph
+  },
   ...agentStates,
   'chat-rail': {
     mount: 'chat',
@@ -337,10 +456,31 @@ const STATES: Record<string, StateDef> = {
       await until(() => treeItem('Inquisitor:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Inquisitor:DM-2 node')
     }
   },
+  'chat-rail-collapsed': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.tree.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await clickWhenPresent(() => buttonNamed('Collapse Chat agents'), 'Collapse Chat agents')
+      await until(() => $('aside[aria-label="Chat agents"]') === null && $('.agent-chat-agents')?.getAttribute('aria-pressed') === 'false',
+        'the rail closed by its chevron and the Agents toggle released')
+    }
+  },
+  'chat-rail-legacy': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.legacy.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await until(() => treeItem('Servitor-1') && treeItem('Servitor-2'), 'both Servitors in the agent tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Thread: Servitor-2"]') && $('[aria-label="Thread: Servitor-1"]'), 'both Servitor thread blocks in the transcript')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
-  }
+  },
+  ...deliveryStates
 }
 
 // ---------------------------------------------------------------------------------------------- observations
@@ -374,13 +514,50 @@ function todoObservations(): Record<string, unknown> {
   }
 }
 
-function observe(state: string): Record<string, unknown> {
+/** The epic header's row: the breadcrumb and title truncation and tooltips, and their place beside the View group. */
+function headerObservations(): Record<string, unknown> | null {
+  const heading = $('.ew-heading')
+  const crumb = $('.ew-crumb')
+  const title = $('.ew-title')
+  const view = $('[role="group"][aria-label="View"]')
+  if (heading === null || crumb === null || title === null || view === null) return null
+  const box = { heading: heading.getBoundingClientRect(), crumb: crumb.getBoundingClientRect(), view: view.getBoundingClientRect() }
+  return {
+    crumb: crumb.textContent, crumbTitle: crumb.title, crumbTruncated: crumb.scrollWidth > crumb.clientWidth,
+    crumbOneLine: box.crumb.height <= parseFloat(getComputedStyle(crumb).lineHeight) + 1,
+    title: title.textContent, titleTitle: title.title, titleTruncated: title.scrollWidth > title.clientWidth,
+    besideView: box.heading.right <= box.view.left + 0.5,
+    sameRow: box.crumb.top < box.view.bottom && box.crumb.bottom > box.view.top,
+    contained: [...heading.querySelectorAll('*')].every((element) => element.getBoundingClientRect().right <= box.heading.right + 0.5)
+  }
+}
+
+/**
+ * The delivery regions: the acceptance node's Sprint delivery section, the run bar's Sprint delivery line, the
+ * checkpoint's Delivery on approval note and Previous sprint delivery section, and the first failed check as
+ * "name: detail" (from the previous-sprint section when shown, else from the run bar's line).
+ */
+function deliveryObservations(): Record<string, unknown> {
+  const line = $('[aria-label="Run"] [role="group"][aria-label="Sprint delivery"]')
+  const previous = $('section[aria-label="Previous sprint delivery"]')
+  const failed = (previous ?? line)?.querySelector('li.is-failed') ?? null
+  return {
+    sprintDeliveryRegion: $('[aria-label^="Edit ticket"] section[aria-label="Sprint delivery"]') !== null,
+    deliveryLine: text(line?.querySelector(':scope > span') ?? null),
+    deliveryApproval: text($('[aria-label="Delivery on approval"]')),
+    previousDelivery: previous !== null,
+    firstFailedCheck: failed === null ? null : `${text(failed.children[1] ?? null)}: ${text(failed.children[2] ?? null)}`
+  }
+}
+
+function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
   return {
     state,
     viewButtons: view === null ? [] : [...view.querySelectorAll('button')].map((button) => text(button)),
     agentFontWeight: agentLabel === null ? null : getComputedStyle(agentLabel).fontWeight,
+    header: headerObservations(),
     planGraph: $('[aria-label="Plan graph"]') !== null,
     planList: $('[aria-label="Plan list"]') !== null,
     scorecard: $('section.es') !== null,
@@ -392,6 +569,7 @@ function observe(state: string): Record<string, unknown> {
       expanded: row.hasAttribute('aria-expanded') ? row.getAttribute('aria-expanded') === 'true' : null,
       selected: row.getAttribute('aria-selected') === 'true'
     })),
+    finishedExpandedAtStart: context?.finishedExpandedAtStart ?? null,
     ...todoObservations(),
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
@@ -399,7 +577,10 @@ function observe(state: string): Record<string, unknown> {
     approvalRecord: text($('.chat-approval-card')),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
+    ticketPanel: $('.tp') !== null,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
+    agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
+    ...deliveryObservations(),
     errors: [...window.__errors]
   }
 }
@@ -418,7 +599,10 @@ function publish(observations: Record<string, unknown>): void {
 function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
-  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR] }
+  return {
+    backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER, finishedExpandedAtStart: null,
+    landing: null
+  }
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -439,8 +623,9 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   window.dm = context.backend
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
     <div className="preview-epic-agent">
-      <EpicWorkspace folder={FOLDER} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
-        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })} />
+      <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
+        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })}
+        landing={context.landing} onLanded={() => undefined} />
     </div>
   </ViewMemoryContext.Provider></ClockContext.Provider>
 }
@@ -452,7 +637,7 @@ async function main(): Promise<void> {
   const definition = STATES[state]
   if (definition === undefined) {
     window.__errors.push(`Unknown state "${state}"`)
-    publish(observe(state))
+    publish(observe(state, null))
     return
   }
   const context = seeded()
@@ -464,7 +649,7 @@ async function main(): Promise<void> {
   } catch (cause) {
     window.__errors.push(cause instanceof Error ? cause.message : String(cause))
   }
-  publish(observe(state))
+  publish(observe(state, context))
 }
 
 void main()

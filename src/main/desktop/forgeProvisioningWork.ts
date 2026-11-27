@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, forgeBindingEpoch, FORGE_POINTER } from '../../core/repo/forgeBinding'
+import type { RenameRetryNote } from '../../core/repo/forgeManifest'
 import { gitCheckoutStamp, gitOriginExecutionStamp, readLocalGitOrigin } from '../../core/repo/git'
 import { LocalGitOriginConfigCache } from '../../core/repo/gitOriginConfig'
 import { readProject } from '../../core/repo/initialize'
@@ -34,8 +35,8 @@ interface ProvisioningOptions {
   withWorld<T>(root: string, change: () => Promise<T>): Promise<T>
   synchronize(root: string, assertCurrent: () => void): Promise<void>
   onProject?(member: string, agent?: string): Promise<void>
-  /** Told the code of each busy manifest rename that is asked again (the main process logs it). */
-  onManifestRetry?(code: string): void
+  /** Told the code and file of each busy rename that is asked again (the main process logs it). */
+  onRenameRetry?: RenameRetryNote
 }
 
 type Receipt = { path: string; identity: string }
@@ -495,10 +496,10 @@ class ProvisioningWork implements ForgeProvisioningWork {
       this.checkMember(member)
       updateForge(root, world => {
         if (vacantMapping(world.projects, mapping, true)) world.projects.push(mapping)
-      }, this.deps.onManifestRetry)
+      }, this.deps.onRenameRetry)
       const { home } = this.deps
       const epoch = forgeBindingEpoch(nodeFs, home, checkout)
-      if (epoch === null) bindForge(home, checkout, path, pointerNote(worldUrl(intent), folder))
+      if (epoch === null) bindForge(home, checkout, { member: path, note: pointerNote(worldUrl(intent), folder), onRetry: this.deps.onRenameRetry })
       else if (boundForgeRoot(nodeFs, home, checkout) !== path) throw new Error('The code checkout is already bound to a different ticket folder.')
       return member
     })
