@@ -24,7 +24,7 @@ interface CultSlotInput {
 }
 
 /** Founding or editing a cult. A folder cult's folder must be tracked; a Plan Forge's target epic must be in it. */
-type CultDefinitionInput = CultScopeInput & {
+export type CultDefinitionInput = CultScopeInput & {
   name: string
   charter: string
   archetype: CultArchetype
