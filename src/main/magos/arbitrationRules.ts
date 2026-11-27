@@ -51,6 +51,17 @@ const ARBITRABLE_KINDS: ReadonlySet<string> = new Set(GUI_PROTOCOL_KINDS.filter(
 const MAX_DEPTH = 8
 const MAX_STRINGS = 2000
 const PATH_KEYS: ReadonlySet<string> = new Set(['file_path', 'path', 'notebook_path', 'cwd', 'directory'])
+/**
+ * Claude's file-editing tools: the key naming the file they write, and the keys holding the text written, never a path
+ * the tool opens. `$HOME`, `//`, `\d` or `*` there is file content, so it is not path-scanned; the path key still is,
+ * and must be there.
+ */
+const FILE_EDITS: ReadonlyMap<string, { pathKey: string; contentKeys: ReadonlySet<string> }> = new Map([
+  ['Write', { pathKey: 'file_path', contentKeys: new Set(['content']) }],
+  ['Edit', { pathKey: 'file_path', contentKeys: new Set(['old_string', 'new_string']) }],
+  ['MultiEdit', { pathKey: 'file_path', contentKeys: new Set(['edits']) }],
+  ['NotebookEdit', { pathKey: 'notebook_path', contentKeys: new Set(['new_source']) }]
+])
 const TOKEN_SPLIT = /[\s"'`=;|&<>(),@]+/
 /** Words as a shell sees them once quotes and escapes are gone; commas stay so brace expansions stay whole. */
 const SHELL_WORD_SPLIT = /[\s=;|&<>()@]+/
@@ -125,7 +136,12 @@ function toolExclusion(input: ArbitrationInput, folder: string): ExclusionReason
   const { tool } = prompt
   if (tool !== undefined && alwaysAsked(tool.name, settings.arbitration.alwaysAsk)) return 'always_ask'
   if (tool === undefined || !isPlainObject(tool.input)) return 'no_tool_input'
-  return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, tool.input], folder, input)]
+  const edit = FILE_EDITS.get(tool.name)
+  if (edit === undefined) return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, tool.input], folder, input)]
+  // A file edit with no file named cannot be placed, so it is outside.
+  if (typeof tool.input[edit.pathKey] !== 'string') return 'outside_folder'
+  const scanned = Object.fromEntries(Object.entries(tool.input).filter(([key]) => !edit.contentKeys.has(key)))
+  return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, scanned], folder, input)]
 }
 
 function registeredExclusion(input: ArbitrationInput): 'never_arbitrate' | null {

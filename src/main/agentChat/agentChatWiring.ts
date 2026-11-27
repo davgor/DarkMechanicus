@@ -40,8 +40,8 @@ export interface ArbiterWiring extends Pick<ArbitrationDeps, 'settings' | 'platf
   arbiterReads(folder: string): ArbiterReads
   /** Verified worker attempts of chat threads (`activity`), shared with the GUI owner. */
   bindings: Pick<ActivityBindings, 'bind' | 'threadsOf'>
-  /** Canonical registered worktrees of the folder's repository, besides the folder (red-team fix 20). */
-  allowedRoots(folder: string): readonly string[]
+  /** The folder's place in each registered worktree of its repository, read off the main thread (red-team fix 20). */
+  allowedRoots(folder: string): Promise<readonly string[]>
 }
 
 interface AgentChatWiringOptions<T extends TerminalOwners> {
@@ -92,8 +92,8 @@ function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent
   return createPromptArbitration({
     settings: arbiter.settings, onAttention, platform: arbiter.platform, env: arbiter.env,
     arbiterRoot: arbiter.arbiterRoot, startArbiter: arbiter.startArbiter, log: arbiter.log,
-    allowedRoots: chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
-    // An async body turns a throwing lookup into a rejection, which the gate reads as nulls.
+    allowedRoots: async chat => chat.folder === null ? [] : arbiter.allowedRoots(chat.folder),
+    // An async body turns a throwing lookup into a rejection, which the gate escalates to the person.
     readContext: async ({ chat, prompt }) => {
       const binding = chat.folder === null ? null
         : arbiter.bindings.threadsOf({ folder: chat.folder, id: chat.id }).find(bound => bound.kind === 'attempt' && bound.threadId === prompt.threadId) ?? null
