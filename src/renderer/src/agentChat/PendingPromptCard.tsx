@@ -72,6 +72,10 @@ function Progress({ prompt }: { prompt: PendingPrompt }): JSX.Element | null {
   return progress ? <p className="agent-prompt-progress">Question {progress.index} of {progress.total}</p> : null
 }
 
+function Detail({ text }: { text: string }): JSX.Element | null {
+  return text ? <p className="agent-prompt-detail">{clip(text, 600)}</p> : null
+}
+
 function Prompt({ prompt, answer }: { prompt: PendingPrompt; answer: Props['answer'] }): JSX.Element {
   const { busy, notice, closed, submit } = useAnswer(prompt, answer)
   if (closed) return <p className="agent-prompt-notice" role="status">{notice}</p>
@@ -80,11 +84,12 @@ function Prompt({ prompt, answer }: { prompt: PendingPrompt; answer: Props['answ
   const choices = prompt.options.filter((option) => option !== freeText)
   const multi = prompt.kind === 'question' && prompt.multi === true
   return (
-    <section className={`agent-prompt ${multi ? 'glass-strong' : 'glass'}`} role="alertdialog" aria-label={title} aria-busy={busy}>
+    <section className={multi ? 'agent-prompt agent-prompt-multi-card glass-strong' : 'agent-prompt glass'} role="alertdialog"
+      aria-label={title} aria-busy={busy}>
       <Progress prompt={prompt} />
       {!multi && <h3>{title}</h3>}
       {prompt.tool && <p className="agent-prompt-tool">Tool: {clip(prompt.tool.name, 120)}</p>}
-      {prompt.detail && <p className="agent-prompt-detail">{clip(prompt.detail, 600)}</p>}
+      {!multi && <Detail text={prompt.detail} />}
       <Arbitration prompt={prompt} />
       {notice && <p className="agent-prompt-error" role="alert">{notice}</p>}
       {multi
@@ -147,20 +152,23 @@ function MultiChoice({ prompt, title, choices, freeText, busy, submit }: ChoiceP
     }}>
       <fieldset disabled={busy}>
         <legend>{title}</legend>
-        {choices.map((option) => (
-          <label className="agent-prompt-check" key={option.id}>
-            <input type="checkbox" checked={checked.has(option.id)} onChange={(event) => toggle(option.id, event.target.checked)} />
-            <span className="agent-prompt-check-text">
-              <span className="agent-prompt-check-label">{clip(option.label, 120)}</span>
-              {option.description && <span className="agent-prompt-check-description">{clip(option.description, 300)}</span>}
-            </span>
-          </label>
-        ))}
-        {freeText && <div className="agent-prompt-other">
-          <label htmlFor={`prompt-answer-${prompt.id}`}>{clip(freeText.label, 120)}</label>
-          <textarea className="input" id={`prompt-answer-${prompt.id}`} value={text} maxLength={20_000} rows={2}
-            onChange={(event) => setText(event.target.value)} />
-        </div>}
+        <Detail text={prompt.detail} />
+        <div className="agent-prompt-choices">
+          {choices.map((option) => (
+            <label className="agent-prompt-check" key={option.id}>
+              <input type="checkbox" checked={checked.has(option.id)} onChange={(event) => toggle(option.id, event.target.checked)} />
+              <span className="agent-prompt-check-text">
+                <span className="agent-prompt-check-label">{clip(option.label, 120)}</span>
+                {option.description && <span className="agent-prompt-check-description">{clip(option.description, 300)}</span>}
+              </span>
+            </label>
+          ))}
+          {freeText && <div className="agent-prompt-other">
+            <label htmlFor={`prompt-answer-${prompt.id}`}>{clip(freeText.label, 120)}</label>
+            <textarea className="input" id={`prompt-answer-${prompt.id}`} value={text} maxLength={20_000} rows={2}
+              onChange={(event) => setText(event.target.value)} />
+          </div>}
+        </div>
         <div className="agent-prompt-submit">
           <span className="agent-prompt-count" aria-live="polite">{optionIds.length} selected</span>
           <button className="btn btn-primary" type="submit" disabled={optionIds.length === 0}>Submit</button>
