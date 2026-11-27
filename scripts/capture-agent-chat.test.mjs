@@ -90,6 +90,16 @@ const TRANSCRIPT = {
 }
 const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
 
+/** The image-result transcript's three thumbnails: the person's two (the second's file gone), then the tool's one. */
+const THUMBS = [
+  { under: 'you', name: 'Image from you, 1280x800', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 },
+  { under: 'you', name: 'Image from you, 1024x768 (image missing)', scheme: null, lazy: false, loaded: false, width: 160 },
+  { under: 'tool', name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 }
+]
+const VIEWER = { name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', loaded: true, closeFocused: true }
+const imageRecord = (state, thumbs = THUMBS, viewer = state === 'agent-image-viewer' ? VIEWER : null) =>
+  ready(state, { ...STANDALONE, chatImages: { thumbs, viewer } })
+
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
   return {
@@ -136,7 +146,9 @@ function passingChatStates() {
     }),
     'agent-composer': composerRecord(COMPOSERS),
     'agent-images': imagesRecord(),
-    'agent-transcript': transcriptRecord()
+    'agent-transcript': transcriptRecord(),
+    'agent-image-result': imageRecord('agent-image-result'),
+    'agent-image-viewer': imageRecord('agent-image-viewer')
   }
 }
 
@@ -222,23 +234,44 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 35 states once each, in capture order', () => {
+  it('lists the 37 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
-      'new-chat-picker', 'question-multi', 'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending',
-      'delivery-checkpoint'
+      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-image-result', 'agent-image-viewer', 'settings-notifications',
+      'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(35)
+    expect(new Set(STATES).size).toBe(37)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 540 s overall bound: 35 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 570 s overall bound: 37 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(540_000)
+    expect(OVERALL_LIMIT_MS).toBe(570_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: agent-image-result and agent-image-viewer', () => {
+  it('passes the thumbnails under the bubble and the tool card, and the viewer open on the tool image', () => {
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result'))).toEqual([])
+    expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer'))).toEqual([])
+  })
+
+  it('fails a gone image shown as loaded, a non-lazy or wide thumbnail, a stray viewer and an unfocused one', () => {
+    const loadedGone = THUMBS.map((thumb, index) => index === 1 ? { ...thumb, name: 'Image from you, 1024x768', loaded: true } : thumb)
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', loadedGone))).toEqual([
+      expect.stringMatching(/^agent-image-result: expected two thumbnails under the person’s bubble, the gone one a placeholder/),
+      expect.stringMatching(/^agent-image-result: expected every loaded thumbnail is a lazy dm-chat-image: picture; got /)
+    ])
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS.map((thumb) => ({ ...thumb, width: 240 })))))
+      .toEqual(['agent-image-result: expected every thumbnail at most 160 px wide; got [240,240,240]'])
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS, VIEWER)))
+      .toEqual(['agent-image-result: expected no lightbox open'])
+    expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer', THUMBS, { ...VIEWER, closeFocused: false })))
+      .toEqual([expect.stringMatching(/^agent-image-viewer: expected the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused; got /)])
   })
 })
 
