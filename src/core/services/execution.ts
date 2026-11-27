@@ -133,6 +133,8 @@ export interface RunContext {
   retryGrants: Record<string, number>
   /** Every row check of the run, in the order they were recorded. */
   rowChecks: RowCheckView[]
+  /** Every delivery check and waiver of the run, in number order. */
+  deliveries: DeliveryCheckView[]
 }
 
 /** Columns reported by SQLite when `attempts_one_open_per_ticket` rejects a second open attempt. */
@@ -286,7 +288,8 @@ export function loadRunContext(ctx: Ctx, runId: string): RunContext {
     bundle: loadBundle(ctx, run.revision_id),
     attempts: ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', runId),
     retryGrants: Object.fromEntries(grants.map((grant) => [grant.ticket_id, grant.extra])),
-    rowChecks: loadRowChecks(ctx, runId)
+    rowChecks: loadRowChecks(ctx, runId),
+    deliveries: loadDeliveryChecks(ctx, runId)
   }
 }
 
@@ -310,7 +313,8 @@ export function executionOf(context: RunContext): ExecutionSnapshot {
     runState: context.run.state,
     attempts: context.attempts.map(snapshotOf),
     retryGrants: context.retryGrants,
-    rowChecks: context.rowChecks
+    rowChecks: context.rowChecks,
+    deliveries: context.deliveries
   })
 }
 

@@ -291,6 +291,8 @@ export type Blocker =
   | { kind: 'run_state'; state: RunState }
   /** A prerequisite sits in a row of `sprintId` whose latest row check (`checkId`) did not pass. */
   | { kind: 'row_check_failed'; sprintId: string; row: number; checkId: string }
+  /** Sprint `ordinal` (`sprintId`) declares a delivery that has neither a passing latest check nor a waiver. */
+  | { kind: 'delivery_pending'; sprintId: string; ordinal: number }
 
 export interface PrerequisiteOutcome {
   ticketId: string
@@ -717,6 +719,8 @@ export interface RunView {
   rows: RowView[]
   /** The increment each sprint with an acceptance node named, in sprint order; sprints that named none are left out. */
   increments: SprintIncrementView[]
+  /** Every delivery check and waiver of the run, in number order. */
+  deliveries: DeliveryCheckView[]
   /** Server-computed facts for the active sprint, including all attempts; empty without an active sprint. */
   activeSprintTierFacts: TicketTierFacts[]
   attempts: AttemptView[]

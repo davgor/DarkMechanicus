@@ -199,6 +199,7 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
     tickets: execution.tickets,
     rows: execution.rows,
     increments: sprintIncrementViews(bundle, context.attempts),
+    deliveries: context.deliveries,
     activeSprintTierFacts: run.active_sprint_id === null ? [] : computeTierFacts({
       bundle,
       sprintId: run.active_sprint_id,

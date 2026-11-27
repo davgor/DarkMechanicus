@@ -12,6 +12,7 @@ import {
 } from '../../shared/domain/status'
 import type {
   Blocker,
+  DeliveryCheckView,
   PrerequisiteOutcome,
   RowCheckView,
   RowView,
@@ -38,6 +39,8 @@ export interface ReadinessInput {
   retryGrants: Record<string, number>
   /** The run's row checks, in any order; omitted when there are none. */
   rowChecks?: RowCheckView[]
+  /** The run's delivery checks and waivers, in any order; omitted when there are none. */
+  deliveries?: DeliveryCheckView[]
 }
 
 export interface ExecutionSnapshot {
@@ -75,6 +78,8 @@ interface Readiness {
   latestChecks: Map<string, RowCheckView>
   /** The sprint each acceptance node closes. */
   nodeSprint: Map<string, string>
+  /** One `delivery_pending` blocker per earlier sprint whose declared delivery is not yet satisfied. */
+  pendingDeliveries: Blocker[]
 }
 
 interface RowPlace {
@@ -241,8 +246,39 @@ function rowCheckBlockers(model: Readiness, ticketId: string): Blocker[] {
 }
 
 /**
- * Pending until every prerequisite is accepted and no prerequisite's row has a failed latest check
- * (`waiting`), or `blocked` when a prerequisite cannot progress without intervention.
+ * A sprint's delivery is satisfied when any waiver exists for it, or when its highest-numbered check passed.
+ * A later failed check overrides an earlier pass; a waiver is never overridden.
+ */
+export function deliverySatisfied(sprintId: string, deliveries: DeliveryCheckView[]): boolean {
+  let latest: DeliveryCheckView | null = null
+  for (const delivery of deliveries) {
+    if (delivery.sprintId !== sprintId) {
+      continue
+    }
+    if (delivery.kind === 'waiver') {
+      return true
+    }
+    if (delivery.number > (latest?.number ?? 0)) {
+      latest = delivery
+    }
+  }
+  return latest?.passed ?? false
+}
+
+/**
+ * One `delivery_pending` blocker for each sprint before the active one that declares `delivery` and is not
+ * satisfied. They hold every pending ticket of the active sprint; plans without delivery are never held.
+ */
+function deliveryBlockers(sprints: SprintDef[], activeOrdinal: number, deliveries: DeliveryCheckView[]): Blocker[] {
+  return sprints
+    .filter((sprint) => sprint.ordinal < activeOrdinal && sprint.delivery !== undefined && !deliverySatisfied(sprint.id, deliveries))
+    .map((sprint) => ({ kind: 'delivery_pending', sprintId: sprint.id, ordinal: sprint.ordinal }))
+}
+
+/**
+ * Pending until every prerequisite is accepted, no prerequisite's row has a failed latest check and every earlier
+ * delivering sprint is verified or waived (`waiting`), or `blocked` when a prerequisite cannot progress without
+ * intervention.
  */
 function prerequisiteEvaluation(model: Readiness, ticketId: string): Evaluation {
   const blockers: Blocker[] = []
@@ -254,7 +290,7 @@ function prerequisiteEvaluation(model: Readiness, ticketId: string): Evaluation 
       blocked = blocked || BLOCKING_PREREQUISITE.has(state)
     }
   }
-  blockers.push(...rowCheckBlockers(model, ticketId))
+  blockers.push(...rowCheckBlockers(model, ticketId), ...model.pendingDeliveries)
   if (blocked) {
     return { state: 'blocked', blockers }
   }
@@ -383,7 +419,8 @@ export function computeExecution(input: ReadinessInput): ExecutionSnapshot {
     rows,
     rowOf: new Map(rows.flatMap((item) => item.ticketIds.map((id) => [id, { sprintId: item.sprintId, row: item.row }] as const))),
     latestChecks: latestChecksOf(input.rowChecks ?? []),
-    nodeSprint: nodeSprintsOf(input.bundle)
+    nodeSprint: nodeSprintsOf(input.bundle),
+    pendingDeliveries: deliveryBlockers(sprints, activeSprint?.ordinal ?? 1, input.deliveries ?? [])
   }
   const capacity = capacityOf(model, activeSprint)
   const views = sprints.flatMap((sprint) =>
