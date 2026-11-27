@@ -93,10 +93,26 @@ async function warmUp() {
   try { await window.loadURL('about:blank') } finally { window.destroy() }
 }
 
-async function captureState({ state, viewport }) {
+/**
+ * Emulates the state's CSS media features (reduced transparency for a `-solid` state) before its page loads. CDP
+ * answers only once the window has a page, so the emulation is set on a blank one and holds across the navigation.
+ */
+async function emulateMedia(window, media) {
+  if (media.length === 0) return
+  await window.loadURL('about:blank')
+  window.webContents.debugger.attach('1.3')
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: media })
+}
+
+async function captureState({ state, viewport, media }) {
   const startedAt = Date.now()
   const window = captureWindow(viewport)
   try {
+    const emulation = await Promise.race([
+      emulateMedia(window, media).then(() => null, (error) => `emulating ${JSON.stringify(media)} failed: ${error.message}`),
+      sleep(config.deadlineMs).then(() => `emulating ${JSON.stringify(media)} took over ${config.deadlineMs} ms`)
+    ])
+    if (emulation !== null) return { state, ready: false, ms: Date.now() - startedAt, error: emulation }
     const url = `${config.base}?state=${encodeURIComponent(state)}`
     const loaded = window.loadURL(url).then(() => null, (error) => error.message)
     const observations = await waitForObservations(window)
