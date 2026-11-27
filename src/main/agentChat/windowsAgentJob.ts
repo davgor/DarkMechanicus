@@ -188,14 +188,16 @@ function quoteArgument(value: string): string {
   return `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/\\+$/, '$&$&')}"`
 }
 
-// PowerShell's module-loading UI progress otherwise contaminates stderr with CLIXML.
+// PowerShell's module-loading UI progress otherwise contaminates stderr with CLIXML. The CLI's exit code leaves
+// through PowerShell's own `exit`: `[Environment]::Exit` called from inside the running pipeline held every stop
+// in .NET shutdown for about 2.3 s after the CLI had already ended.
 const SUPERVISOR_SCRIPT = `$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try {
 Add-Type -TypeDefinition @'
 ${JOB_SOURCE}
 '@
-[Environment]::Exit([OwnedAgentJob]::Run())
+exit [OwnedAgentJob]::Run()
 } catch { [Console]::Error.WriteLine('Windows agent job setup failed: ' + $_.Exception.Message); exit 1 }
 `
 const ENCODED_SUPERVISOR = Buffer.from(SUPERVISOR_SCRIPT, 'utf16le').toString('base64')

@@ -80,7 +80,9 @@ export default defineConfig({
           ...shared,
           name: 'unit',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
-          exclude: [...configDefaults.exclude, ...GIT_HEAVY, ...FORGE_RECOVERY, ...MAIL_POLL_LOAD]
+          exclude: [...configDefaults.exclude, ...GIT_HEAVY, ...FORGE_RECOVERY, ...MAIL_POLL_LOAD],
+          // The agent launch tests are all in this group: a cold Windows runner's first launch is paid once, before them.
+          globalSetup: [...shared.globalSetup, 'src/test/warmAgentJob.ts']
         }
       },
       {
