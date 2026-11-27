@@ -1,27 +1,33 @@
 /**
  * The `agentChat:*` channels: exactly the contract's, every one behind the sender guard, each payload validated by the
  * strict schemas and its folder resolved through the registry before the session manager is reached; the push sends
- * only validated events.
+ * only validated events. `attachEvidence` runs against a real temp folder workspace.
  */
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { AGENT_CHAT_CHANNELS, type AgentChatEvent } from '../../shared/agents/agentChat'
+import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { AttachmentView, CommentView } from '../../shared/domain/views'
+import { webpBytes } from '../../test/images'
+import { createHarness, type Harness } from '../../test/workspaceHarness'
 import type { ChatWindow } from '../agents/chatIpc'
+import { createChatStore } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from './agentChatIpc'
 import type { AgentChatSessions } from './agentChatSessions'
+import { createChatImages } from './chatImages'
 import type { OmpModels } from './ompModels'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
 const REPO = '/work/repo'
-/** Contract channels whose main handlers land later: attachEvidence with evidence. */
-const NOT_YET_HANDLED: readonly string[] = [AGENT_CHAT_CHANNELS.attachEvidence]
-const INVOKED = Object.values(AGENT_CHAT_CHANNELS).filter(channel => channel !== AGENT_CHAT_CHANNELS.event && !NOT_YET_HANDLED.includes(channel)).sort()
+const INVOKED = Object.values(AGENT_CHAT_CHANNELS).filter(channel => channel !== AGENT_CHAT_CHANNELS.event).sort()
 const frame = (url: string, parent: object | null = null) => ({ url, parent, detached: false, isDestroyed: () => false })
 const TRUSTED = { sender: {}, senderFrame: frame(`${APP_URL}/`) } as unknown as IpcMainInvokeEvent
 const SNAPSHOT = { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] } as const
@@ -38,6 +44,7 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [AGENT_CHAT_CHANNELS.snapshot]: { folder: REPO, chatId: 'chat_1' },
   [AGENT_CHAT_CHANNELS.attention]: { folder: REPO },
   [AGENT_CHAT_CHANNELS.stageImage]: { folder: REPO, chatId: 'chat_1', data: SWATCH.toString('base64') },
+  [AGENT_CHAT_CHANNELS.attachEvidence]: { folder: REPO, chatId: 'chat_1', imageId: IMAGE.id, epicId: 'ep_1' },
   [AGENT_CHAT_CHANNELS.models]: { folder: REPO, chatId: 'chat_1' },
   [AGENT_CHAT_CHANNELS.setModel]: { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }
 }
@@ -61,7 +68,17 @@ function rig() {
     }
   }, { appUrl: APP_URL, onRefused: channel => { refused.push(channel) } })
   const models = { chatModels: record('chatModels', []), catalogModels: record('catalogModels', []) } as unknown as OmpModels
-  const handlers = createAgentChatHandlers({ registry: { resolve: path => (path === REPO ? REPO : null) }, sessions, confirmTerminalStop, models })
+  // The evidence path's own tests use a real workspace (below); here only the chat lookup is recorded.
+  const evidence = {
+    chats: { getChat: (ref: unknown) => { calls.push(['getChat', ref]); return { id: 'chat_1', folder: REPO, title: 'Chat', epicId: 'ep_1' } as ChatRecord } },
+    chatImages: { read: async () => ({ bytes: SWATCH, mime: 'image/png' as const }) },
+    workspace: () => ({
+      listComments: async () => [], getRun: async () => null,
+      uploadAttachment: async () => ({ id: 'im_1' }) as AttachmentView,
+      addComment: async () => ({ id: 'cm_1' }) as CommentView
+    })
+  }
+  const handlers = createAgentChatHandlers({ registry: { resolve: path => (path === REPO ? REPO : null) }, sessions, confirmTerminalStop, models, evidence })
   registerAgentChatIpc(guarded, handlers, event => event.sender)
   const invoke = async (channel: string, request: unknown, event = TRUSTED) => (await listeners.get(channel)!(event, request)) as CommandResult<unknown>
   return { calls, sessions, confirmTerminalStop, listeners, refused, invoke }
@@ -82,7 +99,7 @@ describe('agent chat IPC registration', () => {
     // `INVOKED` is sorted by channel name, so the manager is reached in that order.
     const ref = { folder: REPO, id: 'chat_1' }
     expect(state.calls.map(call => [call[0], call[1]])).toEqual([
-      ['answer', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setModel', ref], ['setSurface', ref], ['snapshot', ref], ['stageImage', ref], ['start', ref]
+      ['answer', ref], ['getChat', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setModel', ref], ['setSurface', ref], ['snapshot', ref], ['stageImage', ref], ['start', ref]
     ])
   })
 
@@ -252,6 +269,108 @@ describe('agent chat images over IPC', () => {
       ['send', { folder: REPO, id: 'chat_1' }, { text: '', imageIds: [IMAGE.id] }],
       ['send', { folder: REPO, id: 'chat_1' }, { text: 'Hello' }]
     ])
+  })
+})
+
+let harness: Harness | undefined
+let userData: string | undefined
+afterEach(() => {
+  harness?.cleanup()
+  if (userData !== undefined) rmSync(userData, { recursive: true, force: true })
+  harness = userData = undefined
+})
+
+/** A saved epic with one ticket in a temp repository, its desktop workspace, and the app's chat and image stores. */
+async function evidenceRig() {
+  const h = harness = createHarness()
+  const data = userData = mkdtempSync(join(tmpdir(), 'dm-evidence-'))
+  const orchestrator = h.open('orchestrator')
+  await orchestrator.initializeRepository({ name: 'evidence-repo' })
+  const epic = await orchestrator.createEpic({ title: 'Sign-in' })
+  const draft = await orchestrator.updatePlanDraft({ epicId: epic.id, ops: [{ op: 'add_ticket', ref: 'one', sprint: '1', ticket: { title: 'Fix the form' } }] })
+  await orchestrator.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+  const ticketId = draft.refMap['one'] ?? ''
+  const desktop = h.open('desktop', { transport: 'desktop' })
+  const upload = vi.spyOn(desktop, 'uploadAttachment')
+  const chatImages = createChatImages({ root: join(data, 'chat-images') })
+  const store = createChatStore({ root: join(data, 'chats'), images: chatImages })
+  const folder = h.root
+  const handlers = createAgentChatHandlers({
+    registry: { resolve: path => (path === folder ? folder : null) },
+    sessions: {} as AgentChatSessions, confirmTerminalStop: async () => false, models: {} as OmpModels,
+    evidence: { chats: store, chatImages, workspace: path => { expect(path).toBe(folder); return desktop } }
+  })
+  const listeners = new Map<string, Listener>()
+  registerAgentChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: APP_URL }), handlers, event => event.sender)
+  const attach = async (request: Record<string, unknown>) => (await listeners.get(AGENT_CHAT_CHANNELS.attachEvidence)!(TRUSTED, request)) as CommandResult<{ commentId: string; attachmentId: string }>
+  const chat = (fields: Partial<ChatRecord> = {}): ChatRecord =>
+    store.createChat({ folder, agent: 'omp', model: null, role: 'worker', allowSave: false, title: 'Sign-in review', ...fields })
+  const image = async (owner: ChatRecord) => (await chatImages.put({ folder: owner.folder, chatId: owner.id }, SWATCH)).id
+  const toolImage = async (owner: ChatRecord, bytes: Buffer) => (await chatImages.putToolImage({ folder: owner.folder, chatId: owner.id }, bytes)).id
+  return { desktop, upload, folder, epicId: epic.id, ticketId, attach, chat, image, toolImage }
+}
+
+describe('agentChat:attachEvidence on a real folder workspace', () => {
+  it('stores the image as one evidence attachment claimed by one comment on the bound ticket; a repeat returns that comment', async () => {
+    const r = await evidenceRig()
+    const bound = r.chat({ epicId: r.epicId })
+    const imageId = await r.image(bound)
+    const request = { folder: r.folder, chatId: bound.id, imageId, epicId: r.epicId, ticketId: r.ticketId }
+    const first = await r.attach(request)
+    expect(first).toEqual({ ok: true, data: { commentId: expect.stringMatching(/^cm_/), attachmentId: expect.stringMatching(/^im_/) } })
+    // A repeat after it, and two at once, all answer the first comment and stage nothing more.
+    expect(await r.attach(request)).toEqual(first)
+    expect(await Promise.all([r.attach(request), r.attach(request)])).toEqual([first, first])
+    expect(r.upload).toHaveBeenCalledTimes(1)
+    if (!first.ok) throw new Error(first.error.message)
+    const { commentId, attachmentId } = first.data
+    const comments = await r.desktop.listComments({ epicId: r.epicId })
+    expect(comments).toHaveLength(1)
+    expect(comments[0]).toMatchObject({
+      id: commentId, ticketId: r.ticketId, author: { role: 'desktop' }, body: `Evidence from Sign-in review (chat image ${imageId})`,
+      attachments: [{ id: attachmentId, mime: 'image/png', width: 64, height: 64, bytes: SWATCH.length, label: `Chat image ${imageId}`, purpose: 'evidence' }]
+    })
+    expect(await r.desktop.getAttachment({ attachmentId, as: 'metadata' })).toMatchObject({ owner: { kind: 'comment', id: commentId } })
+  })
+
+  it('comments on the epic itself without a ticket, and accepts a chat bound before epicId by its transfer', async () => {
+    const r = await evidenceRig()
+    const legacy = r.chat({ transferEpicId: r.epicId })
+    const imageId = await r.image(legacy)
+    const attached = await r.attach({ folder: r.folder, chatId: legacy.id, imageId, epicId: r.epicId })
+    expect(attached.ok).toBe(true)
+    const [comment] = await r.desktop.listComments({ epicId: r.epicId })
+    expect(comment).toMatchObject({ ticketId: null, attachments: [{ label: `Chat image ${imageId}`, purpose: 'evidence' }] })
+  })
+})
+
+describe('agentChat:attachEvidence refusals', () => {
+  it('refuses an unbound epic, a project-less chat and another chat’s image, attaching nothing', async () => {
+    const r = await evidenceRig()
+    const bound = r.chat({ epicId: r.epicId })
+    const elsewhere = r.chat({ epicId: 'ep_other' })
+    const unbound = r.chat()
+    const projectless = r.chat({ folder: null, epicId: r.epicId })
+    const foreign = await r.image(elsewhere)
+    const ask = (chat: ChatRecord, imageId: string) => r.attach({ folder: r.folder, chatId: chat.id, imageId, epicId: r.epicId, ticketId: r.ticketId })
+    expect(codeOf(await ask(elsewhere, foreign))).toBe('unauthorized')
+    expect(codeOf(await ask(unbound, await r.image(unbound)))).toBe('unauthorized')
+    // A project-less chat is in no folder: named with this one it is not found, and a null folder is no request.
+    expect(codeOf(await ask(projectless, await r.image(projectless)))).toBe('unauthorized')
+    expect(codeOf(await r.attach({ folder: null, chatId: projectless.id, imageId: foreign, epicId: r.epicId }))).toBe('invalid_input')
+    expect(codeOf(await ask(bound, foreign))).toBe('not_found')
+    expect(r.upload).not.toHaveBeenCalled()
+    expect(await r.desktop.listComments({ epicId: r.epicId })).toEqual([])
+  })
+
+  it('refuses a WebP tool image as invalid_input before staging anything', async () => {
+    const r = await evidenceRig()
+    const bound = r.chat({ epicId: r.epicId })
+    const webp = await r.toolImage(bound, webpBytes(64, 64))
+    const refused = await r.attach({ folder: r.folder, chatId: bound.id, imageId: webp, epicId: r.epicId, ticketId: r.ticketId })
+    expect(refused).toEqual({ ok: false, error: expect.objectContaining({ code: 'invalid_input', message: 'Only PNG and JPEG images can be attached as evidence; this one is WebP.' }) })
+    expect(r.upload).not.toHaveBeenCalled()
+    expect(await r.desktop.listComments({ epicId: r.epicId })).toEqual([])
   })
 })
 

@@ -165,7 +165,7 @@ function scenario(prompt, hasImages) {
   const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+)\]/g)].map((match) => match[1] === 'image' ? 'image_result' : match[1])
   if (mode === 'omp' && keywords.includes('tasks')) return 'todo'
   if (mode === 'claude' && keywords.includes('todo_clear')) return 'text'
-  return keywords.find((key) => ['slow', 'hung', 'leak', 'multiselect'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? (hasImages ? 'image_in' : 'text')
+  return keywords.find((key) => ['slow', 'hung', 'leak', 'multiselect', 'echo', 'markdown'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? (hasImages ? 'image_in' : 'text')
 }
 
 /** The images a user turn carries (Claude image content blocks, OMP `images`), in order. */
@@ -229,6 +229,35 @@ function echoImages(lines, echo, replay, message) {
   const sent = JSON.stringify(user.message.content)
   const received = JSON.stringify([{ type: 'text', text: message.message }, ...message.images])
   return echoed.map((line) => line.replaceAll(sent, received))
+}
+
+/** The `[markdown]` scenario's reply: Markdown with a fenced code block, whose Copy must give the code alone. */
+const MARKDOWN_REPLY = 'Here is the **fix**:\n\n```js\nconst answer = 42\nconsole.log(answer)\n```'
+
+/** The text of a user turn: Claude's string or text blocks, OMP's message. */
+function promptText(content) {
+  if (typeof content === 'string') return content
+  return Array.isArray(content) ? content.filter((block) => block?.type === 'text').map((block) => block.text).join('\n') : ''
+}
+
+/**
+ * The `text` replay answering `text` instead of its golden reply: the first streamed delta carries all of it and the
+ * golden's later text deltas are dropped, so the stream and the stored reply agree.
+ */
+function withReply(lines, text) {
+  let streamed = false
+  return withImageEcho(lines, [text], true).filter((line) => {
+    if (!textDelta(JSON.parse(line))) return true
+    const first = !streamed
+    streamed = true
+    return first
+  })
+}
+
+/** `[echo]` answers the turn's own text without the keyword (every line of it); `[markdown]` answers MARKDOWN_REPLY. */
+function scriptedReply(name, lines, content) {
+  if (name === 'echo') return withReply(lines, promptText(content).replace(/\[echo\]\s*/, ''))
+  return name === 'markdown' ? withReply(lines, MARKDOWN_REPLY) : lines
 }
 
 function leakToken(lines) {
@@ -398,8 +427,8 @@ class ProtocolReplay {
     if (prompt?.includes('[crash]')) { crash(); this.stop(); return }
     const echo = receivedImages(message)
     const name = scenario(prompt, echo.length > 0)
-    const replay = { slow: 'text', hung: 'text', leak: 'tool', multiselect: 'question_multi' }[name] ?? name
-    let lines = echoImages(this.turnLines(replay, message), echo, replay, message)
+    const replay = { slow: 'text', hung: 'text', leak: 'tool', multiselect: 'question_multi', echo: 'text', markdown: 'text' }[name] ?? name
+    let lines = scriptedReply(name, echoImages(this.turnLines(replay, message), echo, replay, message), content)
     if (name === 'leak') lines = leakToken(lines)
     this.tailQueries.clear()
     this.active = { lines, index: 0, waiting: null, slow: name === 'slow', hung: name === 'hung', promptId: message.id, tails: tailBindings(replay, this.turn) }

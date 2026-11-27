@@ -28,6 +28,7 @@ import {
   runStep,
   seededAgents,
   staleRoots,
+  stepPhases,
   turnEnded,
   verdict,
   waitFor,
@@ -446,6 +447,42 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit; stream drive the claude fake.')
     expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
     expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
+  })
+
+  it('runs the polish steps only when named, in the order given, after ready; claude only', () => {
+    const polish = ['polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack']
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('polish-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--steps', polish.join(',')]).keys).toEqual(['ready', ...polish])
+    expect(parseArgs(['--out', 'x', '--steps', `ready,${polish[0]}`]).keys).toEqual(['ready', polish[0]])
+    expect(parseArgs(['--out', 'x', '--steps', 'quit']).keys).toEqual(['ready', 'quit'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'polish-picker'])).toThrow('polish-picker drive the claude fake.')
+  })
+})
+
+describe('polish verdict', () => {
+  it('names one verdict step per polish step, each {name, ok, ms, detail}, run once under the deadline', async () => {
+    const keys = parseArgs(['--out', 'x', '--steps', 'polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack']).keys
+    const phases = stepPhases(keys)
+    expect(phases.map((phase) => phase.name)).toEqual([
+      'app ready', 'polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack'
+    ])
+    const runs = []
+    const steps = []
+    for (const phase of phases) {
+      steps.push(await runStep(phase.name, async () => { runs.push(phase.name); return { screenshot: { file: `e2e-${phase.name}.png` } } }))
+    }
+    const result = JSON.parse(JSON.stringify(verdict(steps)))
+    expect(runs).toEqual(phases.map((phase) => phase.name))
+    expect(result.ok).toBe(true)
+    for (const step of result.steps) {
+      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail'])
+      expect(step.ms).toBeLessThan(10_000)
+    }
+  })
+
+  it('keeps every classic step\'s phases, restart-resume\'s seven included', () => {
+    expect(stepPhases(['restart-resume']).map((phase) => phase.name)).toHaveLength(7)
+    expect(stepPhases(['ready', 'quit']).map((phase) => phase.name)).toEqual(['app ready', 'quit'])
   })
 })
 

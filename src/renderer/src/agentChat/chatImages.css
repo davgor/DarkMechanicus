@@ -65,3 +65,37 @@
 .chat-image-picture > .attachment-missing-label {
   white-space: normal;
 }
+
+/* Attach as evidence, inside an epic only: a quiet text button under its thumbnail, its failure under it. */
+.chat-image-evidence {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-image-evidence:hover:not(:disabled),
+.chat-image-evidence:focus-visible {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.chat-image-evidence:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.chat-image-error {
+  margin: 0;
+  color: var(--st-failed);
+  font-size: 12px;
+}
