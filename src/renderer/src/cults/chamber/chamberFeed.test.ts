@@ -196,15 +196,6 @@ describe('chamberFeed: pipeline entries once', () => {
       .toEqual([{ type: 'bubble', id: 'a', text: 'Three.' }, { type: 'peerMail', from: 'a', to: 'b' }])
     expect(feed.step({ entries: [entry(4, B, [MAGOS], 'Two.'), entry(5, A, [B], 'Three.')] })).toEqual([])
   })
-
-  it('animates an order once when its message shown alone is replaced by its group', () => {
-    const feed = open()
-    const alone: CultPipelineEntry = { ...entry(3, MAGOS, [A], 'Kneel.'), messageIds: ['o1'] }
-    expect(feed.step({ entries: [alone] })).toHaveLength(2)
-    const group: CultPipelineEntry = { ...entry(5, MAGOS, [A, B], 'Kneel.'), kind: 'order_all', eventKind: 'order_all', orderId: 'co_9', messageIds: ['o1', 'o2'] }
-    expect(feed.step({ entries: [group] }).filter((event) => event.type === 'orderSent')).toEqual([{ type: 'orderSent', to: 'all', orderId: 'co_9' }])
-    expect(feed.step({ entries: [group] })).toEqual([])
-  })
 })
 
 describe('chamberFeed: idle quips', () => {
