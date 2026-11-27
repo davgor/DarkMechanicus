@@ -219,6 +219,7 @@ const CULT_MEMBER_ONLY: CommandName[] = [
   'cultListAcolytes',
   'cultOrderAll',
   'cultPetition',
+  'cultRecordSynthesis',
   'cultStatus',
   'cultSummonAcolyte'
 ]
