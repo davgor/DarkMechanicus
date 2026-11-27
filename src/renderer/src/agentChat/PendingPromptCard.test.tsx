@@ -262,3 +262,161 @@ it('shows the next question of an ask as a new step with nothing checked', async
   expect(screen.getByText('0 selected')).toBeTruthy()
   expect(submitButton().disabled).toBe(true)
 })
+
+const form: QuestionPrompt = {
+  id: 'form-1', kind: 'question', title: 'Answer 3 questions', detail: '', threadId: null, attributed: false, callsign: null,
+  arbitration: { state: 'off', reason: null }, options: [],
+  form: { fields: [
+    { id: 'letters', title: 'Which letters?', multi: true, text: 'none', options: [
+      { id: 'A', label: 'Alpha', preselected: true }, { id: 'B', label: 'Bravo', description: 'Second letter' },
+      { id: 'C', label: 'Charlie', preselected: true }, { id: 'D', label: 'Delta' }
+    ] },
+    { id: 'region', title: 'Which region?', multi: false, text: 'other', options: [
+      { id: 'X', label: 'EU', preselected: true }, { id: 'Y', label: 'US' }, { id: 'Z', label: 'APAC' }
+    ] },
+    { id: 'note', title: 'Anything else?', multi: false, text: 'only', options: [] }
+  ] }
+}
+const group = (name: string) => screen.getByRole('group', { name })
+const checkedIn = (name: string) => [...group(name).querySelectorAll<HTMLInputElement>('input:checked')]
+  .map((input) => input.closest('label')?.querySelector('.agent-prompt-check-label')?.textContent)
+const control = (field: string, role: 'checkbox' | 'radio', name: string) =>
+  within(group(field)).getByRole(role, { name: new RegExp(`^${name}`) }) as HTMLInputElement
+
+it('shows every question of a form at once, each a fieldset with its legend, the defaults checked and Submit enabled', async () => {
+  await mount(form)
+  const card = screen.getByRole('alertdialog', { name: 'Answer 3 questions' })
+  expect(card.classList.contains('glass-strong')).toBe(true)
+  expect(within(card).getByRole('heading').textContent).toBe('Answer 3 questions')
+  expect(within(card).getAllByRole('group').map((fieldset) => [fieldset.tagName, fieldset.querySelector('legend')?.textContent]))
+    .toEqual([['FIELDSET', 'Which letters?'], ['FIELDSET', 'Which region?'], ['FIELDSET', 'Anything else?']])
+  expect(within(group('Which letters?')).getAllByRole('checkbox')).toHaveLength(4)
+  expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Charlie'])
+  expect(within(group('Which region?')).getAllByRole('radio').map((radio) => radio.closest('label')?.textContent)).toEqual(['EU', 'US', 'APAC', 'Other'])
+  expect(checkedIn('Which region?')).toEqual(['EU'])
+  expect((within(group('Anything else?')).getByRole('textbox', { name: 'Anything else?' }) as HTMLTextAreaElement).value).toBe('')
+  expect(screen.getByText('3 of 3 answered')).toBeTruthy()
+  expect(within(card).getAllByRole('button').map((button) => button.textContent)).toEqual(['Submit'])
+  expect(submitButton().disabled).toBe(false)
+  expect(screen.queryByText(/Question \d of \d/)).toBeNull()
+})
+
+it('toggles checkboxes on the box and on the label, switches radios, and sends every field once with one Submit', async () => {
+  const { api } = await mount(form)
+  fireEvent.click(control('Which letters?', 'checkbox', 'Charlie'))
+  fireEvent.click(within(group('Which letters?')).getByText('Bravo'))
+  expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Bravo'])
+  fireEvent.click(control('Which region?', 'radio', 'US'))
+  expect(checkedIn('Which region?')).toEqual(['US'])
+  fireEvent.change(screen.getByRole('textbox', { name: 'Anything else?' }), { target: { value: 'note' } })
+  fireEvent.click(submitButton())
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'form-1', fields: [
+    { fieldId: 'letters', optionIds: ['A', 'B'] }, { fieldId: 'region', optionIds: ['Y'] }, { fieldId: 'note', optionIds: [], text: 'note' }
+  ] }]])
+  expect(screen.getByText('Answer sent.')).toBeTruthy()
+})
+
+it('sends the untouched defaults, keeping a text field default by leaving its text out', async () => {
+  const withDefault = { ...form, form: { fields: [...form.form!.fields.slice(0, 2), { ...form.form!.fields[2], defaultText: 'No' }] } }
+  const { api } = await mount(withDefault)
+  expect((screen.getByRole('textbox', { name: 'Anything else?' }) as HTMLTextAreaElement).value).toBe('No')
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'form-1', fields: [
+    { fieldId: 'letters', optionIds: ['A', 'C'] }, { fieldId: 'region', optionIds: ['X'] }, { fieldId: 'note', optionIds: [] }
+  ] }]])
+})
+
+it('waits for an answer to every choice field: an empty group, no radio, or Other without text keep Submit disabled', async () => {
+  const { api } = await mount(form)
+  fireEvent.click(control('Which letters?', 'checkbox', 'Alpha'))
+  fireEvent.click(control('Which letters?', 'checkbox', 'Charlie'))
+  expect(screen.getByText('2 of 3 answered')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.click(control('Which letters?', 'checkbox', 'Delta'))
+  fireEvent.click(control('Which region?', 'radio', 'Other'))
+  expect(checkedIn('Which region?')).toEqual(['Other'])
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Other answer' }), { target: { value: '  ' } })
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.submit(submitButton().closest('form') as HTMLFormElement)
+  await settle()
+  expect(api.callsOf('answer')).toEqual([])
+})
+
+it('keeps Submit disabled until a single choice without a default gets its pick', async () => {
+  const region = form.form!.fields[1]
+  await mount({ ...form, form: { fields: [{ ...region, options: region.options.map(({ id, label }) => ({ id, label })) }] } })
+  expect(checkedIn('Which region?')).toEqual([])
+  expect(screen.getByText('0 of 1 answered')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.click(control('Which region?', 'radio', 'APAC'))
+  expect(submitButton().disabled).toBe(false)
+})
+
+it('sends Other text in place of a radio pick, and beside checked options in a checkbox group', async () => {
+  const withOther = { ...form, form: { fields: [{ ...form.form!.fields[0], text: 'other' as const }, ...form.form!.fields.slice(1)] } }
+  const { api } = await mount(withOther)
+  fireEvent.change(within(group('Which letters?')).getByRole('textbox', { name: 'Other' }), { target: { value: ' Echo ' } })
+  fireEvent.change(within(group('Which region?')).getByRole('textbox', { name: 'Other answer' }), { target: { value: 'Mars' } })
+  // Typing the other answer picks Other.
+  expect(checkedIn('Which region?')).toEqual(['Other'])
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'form-1', fields: [
+    { fieldId: 'letters', optionIds: ['A', 'C'], text: ' Echo ' }, { fieldId: 'region', optionIds: [], text: 'Mars' }, { fieldId: 'note', optionIds: [] }
+  ] }]])
+})
+
+it('disables every control while the answer is in flight', async () => {
+  const { api } = await mount(form)
+  const hold = api.hold('answer')
+  fireEvent.click(submitButton())
+  const card = screen.getByRole('alertdialog')
+  expect(card.getAttribute('aria-busy')).toBe('true')
+  const inputs = [...card.querySelectorAll('input, textarea')]
+  // Four checkboxes, four radios (Other among them), Other's answer and the text field.
+  expect(inputs).toHaveLength(10)
+  for (const input of inputs) expect(input.matches(':disabled')).toBe(true)
+  expect(submitButton().disabled).toBe(true)
+  await act(async () => { hold.resolve(); await settle() })
+  expect(api.callsOf('answer')).toHaveLength(1)
+})
+
+it('keeps every selection and text and shows the error inline when the answer fails, then resends the same fields', async () => {
+  const { api } = await mount(form)
+  fireEvent.click(control('Which letters?', 'checkbox', 'Delta'))
+  fireEvent.click(control('Which region?', 'radio', 'APAC'))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Anything else?' }), { target: { value: 'kept' } })
+  api.failures.answer = { code: 'invalid_input', message: 'The answer does not fit the form' }
+  fireEvent.click(submitButton())
+  await settle()
+  expect(screen.getByRole('alert').textContent).toBe('The answer does not fit the form')
+  expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Charlie', 'Delta'])
+  expect(checkedIn('Which region?')).toEqual(['APAC'])
+  expect((screen.getByRole('textbox', { name: 'Anything else?' }) as HTMLTextAreaElement).value).toBe('kept')
+  expect(submitButton().disabled).toBe(false)
+  delete api.failures.answer
+  fireEvent.click(submitButton())
+  await settle()
+  const fields = [{ fieldId: 'letters', optionIds: ['A', 'C', 'D'] }, { fieldId: 'region', optionIds: ['Z'] }, { fieldId: 'note', optionIds: [], text: 'kept' }]
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'form-1', fields }], [{ ...ref, promptId: 'form-1', fields }]])
+})
+
+it('keeps the drafts while the same prompt updates and resets them only for a new prompt id', async () => {
+  const { emit } = await mount(form)
+  fireEvent.click(control('Which letters?', 'checkbox', 'Delta'))
+  emit({ ...form, arbitration: { state: 'escalated', reason: 'Pick the regions yourself.' } })
+  expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Charlie', 'Delta'])
+  emit({ ...form, id: 'form-2' })
+  expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Charlie'])
+})
+
+it('heads a one-question form with its legend alone', async () => {
+  await mount({ ...form, title: 'Which region?', form: { fields: [form.form!.fields[1]] } })
+  const card = screen.getByRole('alertdialog', { name: 'Which region?' })
+  expect(within(card).queryByRole('heading')).toBeNull()
+  expect(within(card).getByRole('group', { name: 'Which region?' })).toBeTruthy()
+})

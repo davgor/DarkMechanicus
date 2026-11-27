@@ -96,6 +96,7 @@ afterEach(cleanup)
       await view.result.current.answer({ promptId: 'prompt', optionId: 'allow_once' })
       await view.result.current.answer({ promptId: 'question', optionId: 'other', text: 'Response' })
       await view.result.current.answer({ promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' })
+      await view.result.current.answer({ promptId: 'form', fields: [{ fieldId: 'databases', optionIds: ['option_0', 'option_1'] }, { fieldId: 'note', optionIds: [], text: 'No' }] })
       await view.result.current.start()
       await view.result.current.setSurface('terminal')
     })
@@ -105,7 +106,8 @@ afterEach(cleanup)
     expect(view.api.callsOf('answer')).toEqual([
       [{ ...ref, promptId: 'prompt', optionId: 'allow_once' }],
       [{ ...ref, promptId: 'question', optionId: 'other', text: 'Response' }],
-      [{ ...ref, promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' }]
+      [{ ...ref, promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' }],
+      [{ ...ref, promptId: 'form', fields: [{ fieldId: 'databases', optionIds: ['option_0', 'option_1'] }, { fieldId: 'note', optionIds: [], text: 'No' }] }]
     ])
     expect(view.api.callsOf('start')).toEqual([[ref]])
     expect(view.api.callsOf('setSurface')).toEqual([[{ ...ref, surface: 'terminal' }]])
