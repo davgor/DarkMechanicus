@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VIEWPORT,
+  MIN_COLORS,
   MIN_PNG_BYTES,
   OVERALL_LIMIT_MS,
+  S3_STATES,
   STATES,
   STATE_DEADLINE_MS,
   electronEnv,
   parseArgs,
   runFailures,
   validateCapture,
-  validateObservations
+  validateObservations,
+  viewportOf
 } from './capture-agent-chat.mjs'
 
 const HEADER = {
@@ -23,11 +26,14 @@ const BASE = {
   treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
   needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, sprintDeliveryRegion: false,
-  deliveryLine: null, deliveryApproval: null, previousDelivery: false, firstFailedCheck: null, errors: []
+  deliveryLine: null, deliveryApproval: null, previousDelivery: false, firstFailedCheck: null,
+  imageChips: 0, thumbnails: 0, composerHeights: { idle: null, busy: null }, copyButtons: 0, workedForRows: [], roleNames: [], checkedCount: null,
+  errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
-  state, ready: true, empty: false, bytes: MIN_PNG_BYTES, viewport: { ...DEFAULT_VIEWPORT }, observations: { ...BASE, state, ...patch }
+  state, ready: true, empty: false, bytes: MIN_PNG_BYTES, colors: MIN_COLORS, viewport: { ...viewportOf(state) },
+  observations: { ...BASE, state, ...patch }
 })
 /** The shipped agent-tree rows in document order, with the Finished group expanded by the state's click. */
 const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servitor-1', 2], ['Finished 1', 2], ['Acolyte:DM-1', 3]]
@@ -54,6 +60,10 @@ const ACTIVE_RUN_CARDS = [
   { ...ROLE_CARDS[0], checked: false, reason: 'A run is active; its Magos is in the list' },
   { ...ROLE_CARDS[1], checked: true }
 ]
+/** The role card names a picker state reports beside its cards. */
+const ROLE_NAMES = ['Magos', 'Lexmechanic']
+/** A role picker's observations: its cards and the names read off their radios. */
+const picked = (cards) => ({ rolePicker: { cards }, roleNames: cards.map((card) => card.name) })
 /** The new-chat-picker state's dialog: its name, the picker above the First prompt field, and no scrolling. */
 const NEW_CHAT = { title: 'Start a new chat', pickerAbovePrompt: true, scrolls: false }
 const STANDALONE = { viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null }
@@ -66,18 +76,21 @@ const COMPOSERS = [
   { ...COMPOSER, lines: 2, send: { radius: '50%', width: 32, height: 32 } },
   { ...COMPOSER, lines: 1, stop: { radius: '8px', width: 32, height: 32 } }
 ]
-/** An agent-composer record: a standalone chat page, so no epic header, View group or rail. */
-const composerRecord = (composers) => ready('agent-composer', {
-  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, composers
+/** The idle and busy composers' heights in px as the Windows host measured them: the idle draft's two lines stand taller. */
+const COMPOSER_HEIGHTS = { idle: 112, busy: 91 }
+/** An agent-composer record at either width: a standalone chat page, so no epic header, View group or rail. */
+const composerRecord = (composers, state = 'agent-composer-1440', heights = COMPOSER_HEIGHTS) => ready(state, {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, composers,
+  composerHeights: heights
 })
-/** An agent-images record: the standalone chat's one composer with four loaded chips, an enabled Send and the fifth refused. */
+/** A chat-images record: the standalone chat's one composer with four loaded chips, an enabled Send and the fifth refused. */
 const IMAGES_COMPOSER = {
   ...COMPOSER, chips: ['Magos · Skitarii', 'dark-mechanicus'], lines: 1, send: { radius: '50%', width: 32, height: 32 }, sendEnabled: true,
   attach: { radius: '50%', width: 28, height: 28 },
   images: { chips: 4, loaded: 4, removable: 4, aboveText: true, alert: 'At most 4 images can go with one message.' }
 }
-const imagesRecord = (patch = {}) => ready('agent-images', {
-  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, composers: [{ ...IMAGES_COMPOSER, ...patch }]
+const imagesRecord = (patch = {}, counts = { imageChips: 4, thumbnails: 0 }) => ready('chat-images', {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, composers: [{ ...IMAGES_COMPOSER, ...patch }], ...counts
 })
 
 /** The agent-transcript state's layout, as Chromium reports the shipped styles at 1280×800. */
@@ -88,7 +101,7 @@ const TRANSCRIPT = {
   reply: { background: 'rgba(0, 0, 0, 0)', border: '0px', width: 760 },
   replyActions: ['Copy'], codeCopy: 'Copy', codeCopyCorner: { top: 6, right: 6 }
 }
-const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
+const transcriptRecord = (patch = {}, copyButtons = 3) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch }, copyButtons })
 
 /** The mail-card state: the Magos chat with a received card and its sent answer between the ask and the reply. */
 const MAIL = {
@@ -107,7 +120,10 @@ const WORKED_FOR = {
   toggles: [['Worked for 28m 51s', false], ['Worked for 4m 05s', true]], afterFolded: 'Assistant',
   openedTools: ['Tool call: Read', 'Tool call: Edit', 'Tool call: Bash'], toolsOutside: 0
 }
-const workedForRecord = (patch = {}) => ready('agent-worked-for', { ...STANDALONE, workedFor: { ...WORKED_FOR, ...patch } })
+const WORKED_FOR_ROWS = ['Worked for 28m 51s', 'Worked for 4m 05s']
+const workedForRecord = (patch = {}, workedForRows = WORKED_FOR_ROWS) => ready('agent-worked-for', {
+  ...STANDALONE, workedFor: { ...WORKED_FOR, ...patch }, workedForRows
+})
 /** The image-result transcript's three thumbnails: the person's two (the second's file gone), then the tool's one. */
 const THUMBS = [
   { under: 'you', name: 'Image from you, 1280x800', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 },
@@ -115,8 +131,8 @@ const THUMBS = [
   { under: 'tool', name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 }
 ]
 const VIEWER = { name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', loaded: true, closeFocused: true }
-const imageRecord = (state, thumbs = THUMBS, viewer = state === 'agent-image-viewer' ? VIEWER : null) =>
-  ready(state, { ...STANDALONE, chatImages: { thumbs, evidence: [], viewer } })
+const imageRecord = (state, thumbs = THUMBS, viewer = state === 'agent-image-viewer' ? VIEWER : null, imageChips = 0) =>
+  ready(state, { ...STANDALONE, chatImages: { thumbs, evidence: [], viewer }, thumbnails: thumbs.length, imageChips })
 /** The agent-image-evidence state: the epic's chat with the person's image and the DM-1 thread's capture, attached to DM-1. */
 const EVIDENCE_BUTTONS = ['Attach Image from you, 1440x900 as evidence to the epic', 'Attach Image from agent, 1280x800 as evidence to DM-1']
 const EVIDENCE_REQUEST = { folder: '/home/u/code/darkmechanicus', chatId: 'fixture-magos', imageId: 'ci_01m8e000000000000000000032', epicId: 'ep_1', ticketId: 'tk_1' }
@@ -169,11 +185,12 @@ function passingChatStates() {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
-    'agent-composer': composerRecord(COMPOSERS),
-    'agent-images': imagesRecord(),
+    'agent-composer-1024': composerRecord(COMPOSERS, 'agent-composer-1024'),
+    'agent-composer-1440': composerRecord(COMPOSERS, 'agent-composer-1440'),
+    'chat-images': imagesRecord(),
     'agent-transcript': transcriptRecord(),
     'agent-worked-for': workedForRecord(),
-    'agent-image-result': imageRecord('agent-image-result'),
+    'image-result': imageRecord('image-result'),
     'agent-image-viewer': imageRecord('agent-image-viewer'),
     'agent-image-evidence': evidenceRecord(),
     'mail-card': mailRecord(),
@@ -232,7 +249,7 @@ function passing() {
       header: { ...HEADER, crumbTruncated: true, titleTruncated: true }
     }),
     'agent-empty': ready('agent-empty', { railWidth: null, railRightOfStage: null, rolePicker: { cards: ACTIVE_RUN_CARDS } }),
-    'epic-agent-picker': ready('epic-agent-picker', { railWidth: null, railRightOfStage: null, rolePicker: { cards: ROLE_CARDS } }),
+    'epic-agent-picker': ready('epic-agent-picker', { railWidth: null, railRightOfStage: null, ...picked(ROLE_CARDS) }),
     'agent-streaming': ready('agent-streaming'),
     'agent-tool': ready('agent-tool', { treeRows: [row('Magos', true), row('Acolyte:DM-785')] }),
     'agent-approval': ready('agent-approval', { cardHeading: 'The agent wants to run: Run tests?' }),
@@ -259,10 +276,12 @@ function passing() {
     'settings-notifications': ready('settings-notifications', {
       ...STANDALONE, settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
     }),
-    'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
-    'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT }),
-    'question-multi': ready('question-multi', { questionCard: QUESTION }),
-    'epic-agent-tabs': ready('epic-agent-tabs', { agentTabs: AGENT_TABS }),
+    'agent-role-picker-1024': ready('agent-role-picker-1024', { ...STANDALONE, ...picked(ROLE_CARDS) }),
+    'agent-role-picker-1440': ready('agent-role-picker-1440', { ...STANDALONE, ...picked(ROLE_CARDS) }),
+    'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, ...picked(ROLE_CARDS), newChat: NEW_CHAT }),
+    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
+    'epic-agent-tabs-1024': ready('epic-agent-tabs-1024', { agentTabs: AGENT_TABS }),
+    'epic-agent-tabs-1440': ready('epic-agent-tabs-1440', { agentTabs: AGENT_TABS }),
     'model-picker-epic': epicModelPickerRecord()
   }
 }
@@ -298,23 +317,41 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 43 states once each, in capture order', () => {
+  it('lists the 46 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
-      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
-      'agent-image-evidence', 'mail-card', 'epic-agent-tabs', 'model-picker', 'model-picker-epic', 'settings-notifications', 'delivery-editor',
-      'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
+      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
+      'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
+      'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'settings-notifications', 'delivery-editor', 'delivery-pending',
+      'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(43)
+    expect(new Set(STATES).size).toBe(46)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 660 s overall bound: 43 states at 15 s plus 15 s to start', () => {
+  it('captures the full Sprint 3 image and polish set, each state once', () => {
+    expect(S3_STATES).toEqual([
+      'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
+      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
+      'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
+    ])
+    expect(S3_STATES.filter((state) => !STATES.includes(state))).toEqual([])
+    expect(new Set(S3_STATES).size).toBe(S3_STATES.length)
+  })
+
+  it('captures a -1024 state at 1024x768, a -1440 one at 1440x900 and every other at the run’s size', () => {
+    expect(viewportOf('agent-composer-1024')).toEqual({ width: 1024, height: 768 })
+    expect(viewportOf('epic-agent-tabs-1440', { width: 1920, height: 1080 })).toEqual({ width: 1440, height: 900 })
+    expect(viewportOf('agent-transcript')).toEqual(DEFAULT_VIEWPORT)
+    expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
+  })
+
+  it('declares 15 s per state within a 705 s overall bound: 46 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(660_000)
+    expect(OVERALL_LIMIT_MS).toBe(705_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -354,20 +391,21 @@ describe('capture-agent-chat: model-picker-epic', () => {
   })
 })
 
-describe('capture-agent-chat: epic-agent-tabs', () => {
-  const tabsRecord = (patch) => ready('epic-agent-tabs', { agentTabs: { ...AGENT_TABS, ...patch } })
+describe('capture-agent-chat: epic-agent-tabs at 1024 and 1440 px', () => {
+  const tabsRecord = (patch, state = 'epic-agent-tabs-1024') => ready(state, { agentTabs: { ...AGENT_TABS, ...patch } })
 
-  it('passes the Magos selected without ✕ before a Lexmechanic with its unread dot, joined to the chat header', () => {
-    expect(validateObservations('epic-agent-tabs', tabsRecord({}))).toEqual([])
+  it('passes the Magos selected without ✕ before a Lexmechanic with its unread dot, joined to the chat header, at both widths', () => {
+    expect(validateObservations('epic-agent-tabs-1024', tabsRecord({}))).toEqual([])
+    expect(validateObservations('epic-agent-tabs-1440', tabsRecord({}, 'epic-agent-tabs-1440'))).toEqual([])
   })
 
   it('fails a strip without the unread dot, a Magos with ✕, a strip below the chat, or a detached active tab', () => {
     const [magos, planner] = AGENT_TABS.tabs
-    expect(validateObservations('epic-agent-tabs', tabsRecord({ tabs: [magos, { ...planner, unread: false }] }))).toHaveLength(1)
-    expect(validateObservations('epic-agent-tabs', tabsRecord({ tabs: [{ ...magos, closable: true }, planner] }))).toHaveLength(1)
-    expect(validateObservations('epic-agent-tabs', tabsRecord({ aboveChat: false }))).toHaveLength(1)
-    expect(validateObservations('epic-agent-tabs', tabsRecord({ activeJoined: false }))).toHaveLength(1)
-    expect(validateObservations('epic-agent-tabs', ready('epic-agent-tabs'))).toHaveLength(2)
+    expect(validateObservations('epic-agent-tabs-1024', tabsRecord({ tabs: [magos, { ...planner, unread: false }] }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs-1024', tabsRecord({ tabs: [{ ...magos, closable: true }, planner] }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs-1024', tabsRecord({ aboveChat: false }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs-1440', tabsRecord({ activeJoined: false }, 'epic-agent-tabs-1440'))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs-1440', ready('epic-agent-tabs-1440'))).toHaveLength(2)
   })
 })
 
@@ -405,43 +443,60 @@ describe('capture-agent-chat: mail-card', () => {
   })
 })
 
-describe('capture-agent-chat: agent-image-result and agent-image-viewer', () => {
+describe('capture-agent-chat: image-result and agent-image-viewer', () => {
   it('passes the thumbnails under the bubble and the tool card, and the viewer open on the tool image', () => {
-    expect(validateObservations('agent-image-result', imageRecord('agent-image-result'))).toEqual([])
+    expect(validateObservations('image-result', imageRecord('image-result'))).toEqual([])
     expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer'))).toEqual([])
   })
 
   it('fails a gone image shown as loaded, a non-lazy or wide thumbnail, a stray viewer and an unfocused one', () => {
     const loadedGone = THUMBS.map((thumb, index) => index === 1 ? { ...thumb, name: 'Image from you, 1024x768', loaded: true } : thumb)
-    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', loadedGone))).toEqual([
-      expect.stringMatching(/^agent-image-result: expected two thumbnails under the person’s bubble, the gone one a placeholder/),
-      expect.stringMatching(/^agent-image-result: expected every loaded thumbnail is a lazy dm-chat-image: picture; got /)
+    expect(validateObservations('image-result', imageRecord('image-result', loadedGone))).toEqual([
+      expect.stringMatching(/^image-result: expected two thumbnails under the person’s bubble, the gone one a placeholder/),
+      expect.stringMatching(/^image-result: expected every loaded thumbnail is a lazy dm-chat-image: picture; got /)
     ])
-    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS.map((thumb) => ({ ...thumb, width: 240 })))))
-      .toEqual(['agent-image-result: expected every thumbnail at most 160 px wide; got [240,240,240]'])
-    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS, VIEWER)))
-      .toEqual(['agent-image-result: expected no lightbox open'])
+    expect(validateObservations('image-result', imageRecord('image-result', THUMBS.map((thumb) => ({ ...thumb, width: 240 })))))
+      .toEqual(['image-result: expected every thumbnail at most 160 px wide; got [240,240,240]'])
+    expect(validateObservations('image-result', imageRecord('image-result', THUMBS, VIEWER)))
+      .toEqual(['image-result: expected no lightbox open'])
     expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer', THUMBS, { ...VIEWER, closeFocused: false })))
       .toEqual([expect.stringMatching(/^agent-image-viewer: expected the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused; got /)])
   })
+
+  it('counts three thumbnails and no chip, failing a missing thumbnail count or a stray composer chip', () => {
+    const counted = (patch) => validateObservations('image-result', { ...imageRecord('image-result'),
+      observations: { ...imageRecord('image-result').observations, ...patch } })
+    expect(counted({ thumbnails: 2 })).toEqual(['image-result: expected three transcript thumbnails and no composer chip; got [2,0]'])
+    expect(counted({ imageChips: 1 })).toEqual(['image-result: expected three transcript thumbnails and no composer chip; got [3,1]'])
+    const record = imageRecord('image-result')
+    delete record.observations.thumbnails
+    expect(validateObservations('image-result', record)).toEqual(['image-result: missing observation thumbnails'])
+  })
 })
 
-describe('capture-agent-chat: agent-images', () => {
+describe('capture-agent-chat: chat-images', () => {
   it('passes four loaded chips above the text, a leading round attach button, an enabled Send and the fifth refused', () => {
-    expect(validateObservations('agent-images', imagesRecord())).toEqual([])
+    expect(validateObservations('chat-images', imagesRecord())).toEqual([])
   })
 
   it('fails a broken thumbnail, chips under the text, a missing attach button and a disabled Send', () => {
-    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, loaded: 3 } })))
-      .toEqual([expect.stringMatching(/^agent-images: expected one composer holding four loaded image thumbnails, each removable; got /)])
-    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, aboveText: false } })))
-      .toEqual(['agent-images: expected the chips sit inside the card above the text area'])
-    expect(validateObservations('agent-images', imagesRecord({ attach: null })))
-      .toEqual(['agent-images: expected a round "+" attach button leads the row; got null'])
-    expect(validateObservations('agent-images', imagesRecord({ sendEnabled: false })))
-      .toEqual(['agent-images: expected Send is enabled with the images'])
-    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, alert: null } })))
-      .toEqual(['agent-images: expected the fifth image is refused inline; got null'])
+    expect(validateObservations('chat-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, loaded: 3 } })))
+      .toEqual([expect.stringMatching(/^chat-images: expected one composer holding four loaded image thumbnails, each removable; got /)])
+    expect(validateObservations('chat-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, aboveText: false } })))
+      .toEqual(['chat-images: expected the chips sit inside the card above the text area'])
+    expect(validateObservations('chat-images', imagesRecord({ attach: null })))
+      .toEqual(['chat-images: expected a round "+" attach button leads the row; got null'])
+    expect(validateObservations('chat-images', imagesRecord({ sendEnabled: false })))
+      .toEqual(['chat-images: expected Send is enabled with the images'])
+    expect(validateObservations('chat-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, alert: null } })))
+      .toEqual(['chat-images: expected the fifth image is refused inline; got null'])
+  })
+
+  it('counts four chips and no thumbnail, failing a wrong chip count or a stray transcript thumbnail', () => {
+    expect(validateObservations('chat-images', imagesRecord({}, { imageChips: 3, thumbnails: 0 })))
+      .toEqual(['chat-images: expected four image chips and no transcript thumbnail; got [3,0]'])
+    expect(validateObservations('chat-images', imagesRecord({}, { imageChips: 4, thumbnails: 1 })))
+      .toEqual(['chat-images: expected four image chips and no transcript thumbnail; got [4,1]'])
   })
 })
 
@@ -468,6 +523,12 @@ describe('capture-agent-chat: agent-transcript', () => {
     expect(validateObservations('agent-transcript', transcriptRecord({ codeCopyCorner: { top: 40, right: 6 } })))
       .toEqual(['agent-transcript: expected the code block’s Copy sits in its top-right corner; got ["Copy",{"top":40,"right":6}]'])
   })
+
+  it('counts three Copy buttons and fails any other count', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord({}, 2)))
+      .toEqual(['agent-transcript: expected three Copy buttons: the bubble’s, the reply’s and the code block’s; got 2'])
+    expect(validateObservations('agent-transcript', transcriptRecord({}, 4))).toHaveLength(1)
+  })
 })
 
 describe('capture-agent-chat: agent-worked-for', () => {
@@ -486,31 +547,50 @@ describe('capture-agent-chat: agent-worked-for', () => {
     expect(validateObservations('agent-worked-for', workedForRecord({ toolsOutside: 3 })))
       .toEqual([expect.stringMatching(/^agent-worked-for: expected the opened turn lists its tool cards in order, and no tool card shows outside it; got /)])
   })
+
+  it('reads the Worked for rows’ text and fails other text', () => {
+    expect(validateObservations('agent-worked-for', workedForRecord({}, ['Worked for 28m 51s'])))
+      .toEqual(['agent-worked-for: expected the Worked for rows read 28m 51s then 4m 05s; got ["Worked for 28m 51s"]'])
+  })
 })
 
-describe('capture-agent-chat: agent-composer', () => {
-  const composer = (patch) => composerRecord(COMPOSERS.map((card, index) => ({ ...card, ...patch(index) })))
+describe('capture-agent-chat: agent-composer at 1024 and 1440 px', () => {
+  const composer = (patch, state) => composerRecord(COMPOSERS.map((card, index) => ({ ...card, ...patch(index) })), state)
 
-  it('passes the idle and busy glass composers', () => {
-    expect(validateObservations('agent-composer', composer(() => ({})))).toEqual([])
+  it('passes the idle and busy glass composers at both widths', () => {
+    expect(validateObservations('agent-composer-1024', composer(() => ({}), 'agent-composer-1024'))).toEqual([])
+    expect(validateObservations('agent-composer-1440', composer(() => ({})))).toEqual([])
   })
 
   it('fails a busy composer that still shows Send, a square Send and a round Stop', () => {
-    expect(validateObservations('agent-composer', composer((index) => index === 1 ? { send: COMPOSERS[0].send } : {})))
-      .toEqual(['agent-composer: expected two composers: the idle one with Send and no Stop, the busy one with Stop and no Send; got ["send","both"]'])
-    expect(validateObservations('agent-composer', composer((index) => index === 0
+    expect(validateObservations('agent-composer-1440', composer((index) => index === 1 ? { send: COMPOSERS[0].send } : {})))
+      .toEqual(['agent-composer-1440: expected two composers: the idle one with Send and no Stop, the busy one with Stop and no Send; got ["send","both"]'])
+    expect(validateObservations('agent-composer-1440', composer((index) => index === 0
       ? { send: { ...COMPOSERS[0].send, radius: '8px' } }
       : { stop: { ...COMPOSERS[1].stop, radius: '50%' } })))
-      .toEqual([expect.stringMatching(/^agent-composer: expected a round 32 px Send and a square 32 px Stop; got /)])
+      .toEqual([expect.stringMatching(/^agent-composer-1440: expected a round 32 px Send and a square 32 px Stop; got /)])
   })
 
   it('fails a card rounded under 16 px, a missing queue chip and a draft that did not grow', () => {
-    expect(validateObservations('agent-composer', composer(() => ({ radius: '8px' }))))
-      .toEqual([expect.stringMatching(/^agent-composer: expected each composer is a frosted glass card rounded 16 px or more/)])
-    expect(validateObservations('agent-composer', composer(() => ({ chips: ['Magos · Skitarii', 'dark-mechanicus'] }))))
-      .toEqual([expect.stringMatching(/^agent-composer: expected both composers chip the agent, the context and 2 queued/)])
-    expect(validateObservations('agent-composer', composer(() => ({ lines: 1 }))))
-      .toEqual(['agent-composer: expected the idle draft grew to two lines and the empty busy composer holds one; got [1,1]'])
+    expect(validateObservations('agent-composer-1440', composer(() => ({ radius: '8px' }))))
+      .toEqual([expect.stringMatching(/^agent-composer-1440: expected each composer is a frosted glass card rounded 16 px or more/)])
+    expect(validateObservations('agent-composer-1440', composer(() => ({ chips: ['Magos · Skitarii', 'dark-mechanicus'] }))))
+      .toEqual([expect.stringMatching(/^agent-composer-1440: expected both composers chip the agent, the context and 2 queued/)])
+    expect(validateObservations('agent-composer-1440', composer(() => ({ lines: 1 }))))
+      .toEqual(['agent-composer-1440: expected the idle draft grew to two lines and the empty busy composer holds one; got [1,1]'])
+  })
+
+  it('reads the idle and busy heights and fails an idle composer no taller than the busy one or a missing one', () => {
+    expect(validateObservations('agent-composer-1024', composerRecord(COMPOSERS, 'agent-composer-1024', { idle: 88, busy: 88 })))
+      .toEqual(['agent-composer-1024: expected the idle composer stands taller than the busy one; got {"idle":88,"busy":88}'])
+    expect(validateObservations('agent-composer-1440', composerRecord(COMPOSERS, 'agent-composer-1440', { idle: 112, busy: null })))
+      .toEqual(['agent-composer-1440: expected the idle composer stands taller than the busy one; got {"idle":112,"busy":null}'])
+  })
+
+  it('judges each width’s capture at its own window size', () => {
+    const records = passing()
+    records['agent-composer-1024'] = { ...records['agent-composer-1024'], viewport: { ...DEFAULT_VIEWPORT } }
+    expect(runFailures(records)).toEqual(['agent-composer-1024: the page viewport was 1280x800, not 1024x768'])
   })
 })
 
@@ -669,30 +749,39 @@ describe('capture-agent-chat: agent-glass observations', () => {
   })
 })
 
-describe('capture-agent-chat: agent-role-picker observations', () => {
-  const picker = (cards) => validateObservations('agent-role-picker', ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards } }))
+describe('capture-agent-chat: agent-role-picker observations at 1024 and 1440 px', () => {
+  const picker = (cards, state = 'agent-role-picker-1440') => validateObservations(state, ready(state, { ...STANDALONE, ...picked(cards) }))
 
   it('passes two glass cards, Magos checked, each with its own labelled art of 96 px or more and nothing clipped', () => {
     expect(picker(ROLE_CARDS)).toEqual([])
+    expect(picker(ROLE_CARDS, 'agent-role-picker-1024')).toEqual([])
     expect(picker(ROLE_CARDS.map((card) => ({ ...card, artWidth: 96, artHeight: 96 })))).toEqual([])
   })
 
   it('fails a wrong check order, missing or shared or small art, a solid card and clipped text', () => {
     const [magos, lex] = ROLE_CARDS
     expect(picker([{ ...magos, checked: false }, { ...lex, checked: true }])).toEqual([
-      'agent-role-picker: expected the radios are Magos (checked) then Lexmechanic; got [["Magos",false],["Lexmechanic",true]]'
+      'agent-role-picker-1440: expected the radios are Magos (checked) then Lexmechanic; got [["Magos",false],["Lexmechanic",true]]'
     ])
     expect(picker([magos, { ...lex, art: magos.art }])).toHaveLength(1)
     expect(picker([magos, { ...lex, art: null }])).toHaveLength(1)
     expect(picker([magos, { ...lex, artWidth: 80 }])).toHaveLength(1)
-    expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker: expected both cards are frosted glass'])
-    expect(picker([magos, { ...lex, clipped: true }])).toEqual(['agent-role-picker: expected no card clips its text or leaves the window'])
-    expect(validateObservations('agent-role-picker', ready('agent-role-picker', STANDALONE))).toHaveLength(4)
+    expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker-1440: expected both cards are frosted glass'])
+    expect(picker([magos, { ...lex, clipped: true }], 'agent-role-picker-1024'))
+      .toEqual(['agent-role-picker-1024: expected no card clips its text or leaves the window'])
+    expect(validateObservations('agent-role-picker-1440', ready('agent-role-picker-1440', STANDALONE))).toHaveLength(5)
+  })
+
+  it('reads the role card names and fails missing or reordered ones', () => {
+    const record = (roleNames) => ready('agent-role-picker-1024', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, roleNames })
+    expect(validateObservations('agent-role-picker-1024', record(ROLE_NAMES))).toEqual([])
+    expect(validateObservations('agent-role-picker-1024', record([...ROLE_NAMES].reverse())))
+      .toEqual(['agent-role-picker-1024: expected the role names read Magos then Lexmechanic; got ["Lexmechanic","Magos"]'])
   })
 })
 
 describe('capture-agent-chat: epic Agent tab pickers', () => {
-  const epicPicker = (state, cards) => validateObservations(state, ready(state, { railWidth: null, railRightOfStage: null, rolePicker: { cards } }))
+  const epicPicker = (state, cards) => validateObservations(state, ready(state, { railWidth: null, railRightOfStage: null, ...picked(cards) }))
 
   it('passes the empty Agent tab’s enabled cards and the active run’s disabled Magos', () => {
     expect(epicPicker('epic-agent-picker', ROLE_CARDS)).toEqual([])
@@ -705,7 +794,7 @@ describe('capture-agent-chat: epic Agent tab pickers', () => {
         + 'got [["Magos",false,"A run is active; its Magos is in the list"],["Lexmechanic",true,null]]'
     ])
     expect(epicPicker('agent-empty', ROLE_CARDS)).toHaveLength(1)
-    expect(epicPicker('epic-agent-picker', [])).toHaveLength(4)
+    expect(epicPicker('epic-agent-picker', [])).toHaveLength(5)
     expect(epicPicker('epic-agent-picker', [ROLE_CARDS[0], { ...ROLE_CARDS[1], clipped: true }]))
       .toEqual(['epic-agent-picker: expected no card clips its text or leaves the window'])
   })
@@ -713,7 +802,7 @@ describe('capture-agent-chat: epic Agent tab pickers', () => {
 
 describe('capture-agent-chat: new-chat-picker observations', () => {
   const dialog = (patch) => validateObservations('new-chat-picker',
-    ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT, ...patch }))
+    ready('new-chat-picker', { ...STANDALONE, ...picked(ROLE_CARDS), newChat: NEW_CHAT, ...patch }))
 
   it('passes the New chat dialog with both role cards above the prompt', () => {
     expect(dialog({})).toEqual([])
@@ -733,7 +822,8 @@ describe('capture-agent-chat: new-chat-picker observations', () => {
 })
 
 describe('capture-agent-chat: question-multi observations', () => {
-  const question = (patch) => validateObservations('question-multi', ready('question-multi', { questionCard: { ...QUESTION, ...patch } }))
+  const question = (patch, checkedCount = 2) => validateObservations('question-multi',
+    ready('question-multi', { questionCard: { ...QUESTION, ...patch }, checkedCount }))
 
   it('passes Question 1 of 2 with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
     expect(question({})).toEqual([])
@@ -744,7 +834,12 @@ describe('capture-agent-chat: question-multi observations', () => {
     expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
     expect(question({ count: '1 selected' })).toHaveLength(1)
     expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
-    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(3)
+    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(4)
+  })
+
+  it('reads the checked count and fails any other', () => {
+    expect(question({}, 1)).toEqual(['question-multi: expected two options checked; got 1'])
+    expect(question({}, null)).toEqual(['question-multi: expected two options checked; got null'])
   })
 })
 
@@ -792,19 +887,30 @@ describe('capture-agent-chat: delivery observations', () => {
 
 describe('capture-agent-chat: capture validator', () => {
   const page = { ...DEFAULT_VIEWPORT }
+  const shot = (patch) => ({ ready: true, empty: false, bytes: MIN_PNG_BYTES, colors: MIN_COLORS, viewport: page, ...patch })
   it('fails an empty image and a PNG under 10 KB', () => {
-    expect(validateCapture('graph', { ready: true, empty: true, bytes: 0, viewport: page })).toEqual(['graph: capturePage() returned an empty image'])
-    expect(validateCapture('graph', { ready: true, empty: false, bytes: MIN_PNG_BYTES - 1, viewport: page }))
+    expect(validateCapture('graph', shot({ empty: true, bytes: 0, colors: 0 }))).toEqual(['graph: capturePage() returned an empty image'])
+    expect(validateCapture('graph', shot({ bytes: MIN_PNG_BYTES - 1 })))
       .toEqual([`graph: the PNG is ${MIN_PNG_BYTES - 1} bytes, under ${MIN_PNG_BYTES}`])
-    expect(validateCapture('graph', { ready: true, empty: false, bytes: MIN_PNG_BYTES, viewport: page })).toEqual([])
+    expect(validateCapture('graph', shot({}))).toEqual([])
+  })
+
+  it('fails a blank capture: fewer than 16 distinct colours, or none reported', () => {
+    expect(validateCapture('agent-transcript', shot({ colors: 1 })))
+      .toEqual([`agent-transcript: the capture is blank (1 distinct colours, under ${MIN_COLORS})`])
+    expect(validateCapture('agent-transcript', shot({ colors: undefined })))
+      .toEqual([`agent-transcript: the capture is blank (undefined distinct colours, under ${MIN_COLORS})`])
+    const records = passing()
+    records['image-result'] = { ...records['image-result'], colors: 2 }
+    expect(runFailures(records)).toEqual([`image-result: the capture is blank (2 distinct colours, under ${MIN_COLORS})`])
   })
 
   it('fails a page whose viewport is not the requested size', () => {
     const small = { width: 1024, height: 768 }
-    expect(validateCapture('graph', { ready: true, empty: false, bytes: MIN_PNG_BYTES, viewport: small }, small)).toEqual([])
-    expect(validateCapture('graph', { ready: true, empty: false, bytes: MIN_PNG_BYTES, viewport: page }, small))
+    expect(validateCapture('graph', shot({ viewport: small }), small)).toEqual([])
+    expect(validateCapture('graph', shot({}), small))
       .toEqual(['graph: the page viewport was 1280x800, not 1024x768'])
-    expect(validateCapture('graph', { ready: true, empty: false, bytes: MIN_PNG_BYTES }))
+    expect(validateCapture('graph', shot({ viewport: undefined })))
       .toEqual(['graph: the page viewport was undefinedxundefined, not 1280x800'])
   })
 })
