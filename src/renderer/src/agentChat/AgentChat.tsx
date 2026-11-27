@@ -87,7 +87,7 @@ const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
-  epic, skitarii = false
+  epic, skitarii
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
@@ -125,7 +125,7 @@ function ChatView({
           <TodoCard chatId={chatId} state={state} />
           <Composer chatId={chatId} folderKey={folderKey} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state}
             command={command} images={images} send={send} stop={stop}
-            model={skitarii ? <ModelPicker model={state.model ?? null} thinking={state.thinking ?? null} busy={busy} load={models} choose={setModel} /> : null} />
+            model={skitarii ? <ModelPicker state={state} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
           <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />

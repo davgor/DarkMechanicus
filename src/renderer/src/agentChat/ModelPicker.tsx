@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import type { AgentChatModelChoice } from '../../../shared/agents/agentChat'
 import { thinkingLevelSchema, type ThinkingLevel } from '../../../shared/agents/chat'
 import { featuredModels, providerLabel, type ChatModelOption } from '../../../shared/agents/models'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { Icon } from '../components/Icon'
+import type { AgentChatState } from './agentChatModel'
 import './modelPicker.css'
 
 /** Each effort as the chip and the Effort control name it; short enough for five segments side by side. */
@@ -13,12 +14,8 @@ const EFFORT_LABELS: Readonly<Record<ThinkingLevel, string>> = {
 const BUSY_HINT = 'Applies to next response'
 
 interface ModelPickerProps {
-  /** The chat's model (`provider/id`) as its snapshot reports it; null when none is known yet. */
-  model: string | null
-  /** The chat's thinking level as its snapshot reports it. */
-  thinking: ThinkingLevel | null
-  /** The agent is working: a switch applies from its next model request. */
-  busy: boolean
+  /** The chat's model (`provider/id`) and thinking level as its snapshot reports them, and whether it is busy. */
+  state: Pick<AgentChatState, 'model' | 'thinking' | 'status'>
   /** Reads the chat's model catalog (`agentChat:models`). */
   load(): Promise<CommandResult<ChatModelOption[]>>
   /** Switches the chat's model and effort (`agentChat:setModel`) once. */
@@ -26,11 +23,15 @@ interface ModelPickerProps {
 }
 
 type Catalog = { status: 'loading' } | { status: 'ready'; options: ChatModelOption[] } | { status: 'failed'; message: string }
+type Choice = { option: ChatModelOption; effort: ThinkingLevel | null }
+type Apply = (option: ChatModelOption, effort: ThinkingLevel | null) => void
+type Group = { provider: string; label: string; models: ChatModelOption[] }
 
 const isLevel = (value: string): value is ThinkingLevel => thinkingLevelSchema.safeParse(value).success
 /** The efforts a model takes that a switch can name. */
 const effortsOf = (option: ChatModelOption): ThinkingLevel[] => option.efforts.filter(isLevel)
 const keyOf = (option: ChatModelOption): string => `${option.provider}/${option.id}`
+const messageOf = (cause: unknown, fallback: string): string => cause instanceof Error ? cause.message : fallback
 
 /** The model's name under its provider's heading: `Claude Opus 5.5` reads `Opus 5.5`; other names stay whole. */
 function shortName(option: ChatModelOption): string {
@@ -44,11 +45,19 @@ function contextLabel(tokens: number | null): string | null {
   return tokens >= 1_000_000 ? `${Number((tokens / 1_000_000).toFixed(1))}M` : `${Math.round(tokens / 1_000)}K`
 }
 
-/** The effort a newly chosen model starts on: the chat's current one when it takes it, else Medium, else its lowest. */
+/** The effort a model starts on in the menu: the chat's current one when it takes it, else Medium, else its lowest. */
 function startingEffort(option: ChatModelOption, thinking: ThinkingLevel | null): ThinkingLevel | null {
   const efforts = effortsOf(option)
   if (thinking !== null && efforts.includes(thinking)) return thinking
   return efforts.includes('medium') ? 'medium' : efforts[0] ?? null
+}
+
+/** What the chip reads: the switch in flight, else the chat's model by its catalog name (its id before the catalog arrives). */
+function chipText(current: ChatModelOption | null, model: string | null, thinking: ThinkingLevel | null, pending: Choice | null): string {
+  const known = current === null ? null : shortName(current)
+  const name = pending === null ? known ?? model?.slice(model.indexOf('/') + 1) ?? 'Model' : shortName(pending.option)
+  const effort = pending === null ? thinking : pending.effort
+  return effort === null ? name : `${name} · ${EFFORT_LABELS[effort]}`
 }
 
 /** The chat's catalog, read once per chat and again on `retry` after a failure. */
@@ -63,7 +72,7 @@ function useCatalog(load: ModelPickerProps['load']): { catalog: Catalog; retry()
         if (sequence === request.current) setCatalog(result.ok ? { status: 'ready', options: result.data } : { status: 'failed', message: result.error.message })
       },
       (cause: unknown) => {
-        if (sequence === request.current) setCatalog({ status: 'failed', message: cause instanceof Error ? cause.message : 'The models could not be read.' })
+        if (sequence === request.current) setCatalog({ status: 'failed', message: messageOf(cause, 'The models could not be read.') })
       }
     )
   }, [load])
@@ -74,53 +83,18 @@ function useCatalog(load: ModelPickerProps['load']): { catalog: Catalog; retry()
   return { catalog, retry: read }
 }
 
-/** Consecutive models of one provider under its label, in the order given. */
-function byProvider(options: readonly ChatModelOption[]): { provider: string; label: string; models: ChatModelOption[] }[] {
-  const groups: { provider: string; label: string; models: ChatModelOption[] }[] = []
-  for (const option of options) {
-    const group = groups.at(-1)
-    if (group?.provider === option.provider) group.models.push(option)
-    else groups.push({ provider: option.provider, label: providerLabel(option.provider), models: [option] })
-  }
-  return groups
-}
-
 /**
- * A Skitarii chat's model chip, just left of Send: `Opus 5.5 · High`. It opens an upward menu of the latest model of
- * each line by provider, a More models expander with every other model, and an Effort control for the chosen model.
- * Choosing a model and effort switches the chat once; the chip spins while it runs and reverts with an inline error
- * when it fails. While the agent works, the switch applies to its next response, and the chip says it is queued.
+ * One switch at a time: the choice in flight, the last failure, and whether a switch made while the agent worked still
+ * waits for its next response (cleared once the turn ends).
  */
-export function ModelPicker({ model, thinking, busy, load, choose }: ModelPickerProps): JSX.Element {
-  const { catalog, retry } = useCatalog(load)
-  const options = catalog.status === 'ready' ? catalog.options : null
-  const current = options?.find((option) => keyOf(option) === model) ?? null
-  const [open, setOpen] = useState(false)
-  const [pending, setPending] = useState<{ option: ChatModelOption; effort: ThinkingLevel | null } | null>(null)
+function useModelSwitch(choose: ModelPickerProps['choose'], busy: boolean) {
+  const [pending, setPending] = useState<Choice | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [queued, setQueued] = useState(false)
-  const chip = useRef<HTMLButtonElement>(null)
-  const anchor = useRef<HTMLDivElement>(null)
-  const menuId = useId()
   useEffect(() => {
     if (!busy) setQueued(false)
   }, [busy])
-
-  const close = useCallback((focusChip: boolean) => {
-    setOpen(false)
-    if (focusChip) chip.current?.focus()
-  }, [])
-  useEffect(() => {
-    if (!open) return undefined
-    const onPress = (event: MouseEvent): void => {
-      if (!(event.target instanceof Node && anchor.current?.contains(event.target))) close(false)
-    }
-    document.addEventListener('mousedown', onPress)
-    return () => document.removeEventListener('mousedown', onPress)
-  }, [open, close])
-
   async function apply(option: ChatModelOption, effort: ThinkingLevel | null): Promise<void> {
-    close(true)
     if (pending !== null) return
     setError(null)
     setPending({ option, effort })
@@ -129,44 +103,97 @@ export function ModelPicker({ model, thinking, busy, load, choose }: ModelPicker
       if (!result.ok) setError(result.error.message)
       else if (busy) setQueued(true)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The model could not be switched.')
+      setError(messageOf(cause, 'The model could not be switched.'))
     } finally {
       setPending(null)
     }
   }
+  return { pending, error, queued, apply }
+}
 
-  const name = current !== null ? shortName(current) : model === null ? 'Model' : model.slice(model.indexOf('/') + 1)
-  const [shown, effort] = pending === null ? [name, thinking] : [shortName(pending.option), pending.effort]
-  const label = effort === null ? shown : `${shown} · ${EFFORT_LABELS[effort]}`
+/** Closes the menu on a press outside the picker while it is open. */
+function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, close: (focusChip: boolean) => void): void {
+  useEffect(() => {
+    if (!open) return undefined
+    const onPress = (event: MouseEvent): void => {
+      if (!(event.target instanceof Node && anchor.current?.contains(event.target))) close(false)
+    }
+    document.addEventListener('mousedown', onPress)
+    return () => document.removeEventListener('mousedown', onPress)
+  }, [open, anchor, close])
+}
+
+/**
+ * A Skitarii chat's model chip, just left of Send: `Opus 5.5 · High`. It opens an upward menu of the latest model of
+ * each line by provider, a More models expander with every other model, and an Effort control for the chosen model.
+ * Choosing a model and effort switches the chat once; the chip spins while it runs and reverts with an inline error
+ * when it fails. While the agent works, the switch applies to its next response, and the chip says it is queued.
+ */
+export function ModelPicker({ state, load, choose }: ModelPickerProps): JSX.Element {
+  const busy = state.status === 'busy'
+  const thinking = state.thinking ?? null
+  const { catalog, retry } = useCatalog(load)
+  const current = catalog.status === 'ready' ? catalog.options.find((option) => keyOf(option) === state.model) ?? null : null
+  const [open, setOpen] = useState(false)
+  const chip = useRef<HTMLButtonElement>(null)
+  const anchor = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+  const close = useCallback((focusChip: boolean) => {
+    setOpen(false)
+    if (focusChip) chip.current?.focus()
+  }, [])
+  useDismiss(open, anchor, close)
+  const change = useModelSwitch(choose, busy)
+  function toggle(): void {
+    if (open) return close(false)
+    setOpen(true)
+    if (catalog.status === 'failed') retry()
+  }
   return (
     <div className="model-picker" ref={anchor}>
-      {error !== null && <span className="model-picker-error" role="alert">{error}</span>}
-      <button ref={chip} type="button" className="model-picker-chip" aria-haspopup="menu" aria-expanded={open}
-        aria-controls={open ? menuId : undefined} aria-busy={pending !== null} aria-label={`Model: ${label}${queued ? ', queued' : ''}`}
-        title={busy ? BUSY_HINT : 'Model and effort'}
-        onClick={() => {
-          if (open) return close(false)
-          setOpen(true)
-          if (catalog.status === 'failed') retry()
-        }}
-        onKeyDown={(event) => {
-          if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !open) {
-            event.preventDefault()
-            setOpen(true)
-          } else if (event.key === 'Escape' && open) {
-            event.preventDefault()
-            event.stopPropagation()
-            close(true)
-          }
-        }}>
-        {pending !== null && <span className="model-picker-spinner" aria-hidden="true" />}
-        <span className="model-picker-label">{label}</span>
-        {queued && <span className="model-picker-queued">queued</span>}
-        <Icon name="chevron-down" size={12} />
-      </button>
-      {open && <ModelMenu id={menuId} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={queued}
-        retry={retry} apply={(option, effort) => { void apply(option, effort) }} close={close} />}
+      {change.error !== null && <span className="model-picker-error" role="alert">{change.error}</span>}
+      <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, state.model ?? null, thinking, change.pending)}
+        spinning={change.pending !== null} queued={change.queued} busy={busy} toggle={toggle} close={close} />
+      {open && <ModelMenu id={menuId} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={change.queued}
+        retry={retry} close={close} apply={(option, effort) => {
+          close(true)
+          void change.apply(option, effort)
+        }} />}
     </div>
+  )
+}
+
+function ModelChip({ chipRef, open, menuId, label, spinning, queued, busy, toggle, close }: {
+  chipRef: RefObject<HTMLButtonElement>
+  open: boolean
+  menuId: string
+  label: string
+  spinning: boolean
+  queued: boolean
+  busy: boolean
+  toggle(): void
+  close(focusChip: boolean): void
+}): JSX.Element {
+  // Enter and Space open it as the native button they press; the arrows open it too, and Escape closes it in place.
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>): void {
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !open) {
+      event.preventDefault()
+      toggle()
+    } else if (event.key === 'Escape' && open) {
+      event.preventDefault()
+      event.stopPropagation()
+      close(true)
+    }
+  }
+  return (
+    <button ref={chipRef} type="button" className="model-picker-chip" aria-haspopup="menu" aria-expanded={open}
+      aria-controls={open ? menuId : undefined} aria-busy={spinning} aria-label={`Model: ${label}${queued ? ', queued' : ''}`}
+      title={busy ? BUSY_HINT : 'Model and effort'} onClick={toggle} onKeyDown={onKeyDown}>
+      {spinning && <span className="model-picker-spinner" aria-hidden="true" />}
+      <span className="model-picker-label">{label}</span>
+      {queued && <span className="model-picker-queued">queued</span>}
+      <Icon name="chevron-down" size={12} />
+    </button>
   )
 }
 
@@ -178,133 +205,177 @@ interface MenuProps {
   busy: boolean
   queued: boolean
   retry(): void
-  apply(option: ChatModelOption, effort: ThinkingLevel | null): void
+  apply: Apply
   close(focusChip: boolean): void
 }
 
-type FocusRequest = 'model' | 'effort' | 'first' | null
+type FocusTarget = 'model' | 'effort' | 'first'
+const FOCUS_SELECTORS: Readonly<Record<FocusTarget, string>> = {
+  model: '[data-model][aria-checked="true"]', effort: '[data-effort][aria-checked="true"]', first: '[data-model]'
+}
+
+/**
+ * Focuses the menu's checked model when it opens and the target of each later request once it has rendered; a request
+ * waits until its element exists, so a catalog that arrives after the menu opened still gets focus.
+ */
+function useMenuFocus(menu: RefObject<HTMLElement>): (target: FocusTarget) => void {
+  const request = useRef<FocusTarget | null>('model')
+  useLayoutEffect(() => {
+    const root = menu.current
+    if (request.current === null || root === null) return
+    const target = root.querySelector<HTMLElement>(FOCUS_SELECTORS[request.current]) ?? root.querySelector<HTMLElement>('[data-menu-item]')
+    if (target === null) return
+    target.focus()
+    request.current = null
+  })
+  return useCallback((target: FocusTarget) => { request.current = target }, [])
+}
+
+/** Where each navigation key moves focus among `count` items from `at` (-1 when none has focus). */
+const NAVIGATION: Readonly<Record<string, (at: number, count: number) => number>> = {
+  ArrowDown: (at, count) => (at + 1) % count,
+  ArrowUp: (at, count) => (at <= 0 ? count - 1 : at - 1),
+  Home: () => 0,
+  End: (_at, count) => count - 1
+}
+
+/** The filter after a key: one more printable character, one fewer on Backspace; null for any other key. */
+function typed(event: KeyboardEvent, query: string): string | null {
+  if (event.key === 'Backspace') return query === '' ? null : query.slice(0, -1)
+  const printable = event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey
+  return printable ? query + event.key : null
+}
+
+/** The featured models (`featuredModels`) and the More groups whose names hold the filter, each grouped by provider. */
+function visibleModels({ featured, more }: { featured: ChatModelOption[]; more: Group[] }, query: string): { featured: Group[]; more: Group[] } {
+  const needle = query.toLowerCase()
+  const matches = (option: ChatModelOption): boolean => option.name.toLowerCase().includes(needle)
+  const groups: Group[] = []
+  for (const option of featured.filter(matches)) {
+    const group = groups.at(-1)
+    if (group?.provider === option.provider) group.models.push(option)
+    else groups.push({ provider: option.provider, label: providerLabel(option.provider), models: [option] })
+  }
+  return { featured: groups, more: more.map((group) => ({ ...group, models: group.models.filter(matches) })).filter((group) => group.models.length > 0) }
+}
 
 /** The open menu: models by provider, More models, Effort; arrows move, typing filters by name, Escape closes. */
 function ModelMenu({ id, catalog, current, thinking, busy, queued, retry, apply, close }: MenuProps): JSX.Element {
-  const options = useMemo(() => catalog.status === 'ready' ? catalog.options : [], [catalog])
-  const groups = useMemo(() => featuredModels(options), [options])
-  const [draft, setDraft] = useState<ChatModelOption | null>(current)
+  const groups = useMemo(() => featuredModels(catalog.status === 'ready' ? catalog.options : []), [catalog])
+  const [draft, setDraft] = useState(current)
   const [query, setQuery] = useState('')
   const [moreOpen, setMoreOpen] = useState(() => current !== null && !groups.featured.includes(current))
   const menu = useRef<HTMLDivElement>(null)
-  // The element to focus once the menu has rendered it: kept until it exists, so a catalog that arrives later still gets it.
-  const focusRequest = useRef<FocusRequest>('model')
-  useLayoutEffect(() => {
-    const request = focusRequest.current
-    const root = menu.current
-    if (request === null || root === null) return
-    const selector = request === 'effort' ? '[data-effort][aria-checked="true"]' : request === 'model' ? '[data-model][aria-checked="true"]' : '[data-model]'
-    const target = root.querySelector<HTMLElement>(selector) ?? root.querySelector<HTMLElement>('[data-menu-item]')
-    if (target !== null) {
-      target.focus()
-      focusRequest.current = null
-    }
-  })
-
-  const needle = query.toLowerCase()
-  const matches = (option: ChatModelOption): boolean => option.name.toLowerCase().includes(needle)
-  const featured = byProvider(groups.featured.filter(matches))
-  const more = groups.more.map((group) => ({ ...group, models: group.models.filter(matches) })).filter((group) => group.models.length > 0)
+  const focus = useMenuFocus(menu)
+  const shown = visibleModels(groups, query)
   const showMore = moreOpen || query !== ''
-  const efforts = draft === null ? [] : effortsOf(draft)
-  const effort = draft === null ? null : startingEffort(draft, thinking)
-
   function pick(option: ChatModelOption): void {
     if (effortsOf(option).length === 0) return apply(option, null)
     setDraft(option)
-    focusRequest.current = 'effort'
-  }
-  function pickEffort(level: ThinkingLevel): void {
-    if (draft === null) return
-    if (draft === current && level === thinking) return close(true)
-    apply(draft, level)
+    focus('effort')
   }
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[data-menu-item]') ?? [])]
-    const at = items.indexOf(document.activeElement as HTMLElement)
-    const move = (index: number): void => {
-      event.preventDefault()
-      items.at(index % items.length)?.focus()
-    }
+    const navigate = NAVIGATION[event.key]
+    const filter = typed(event, query)
     if (event.key === 'Escape') {
-      event.preventDefault()
       event.stopPropagation()
       close(true)
-    } else if (event.key === 'ArrowDown') move(at + 1)
-    else if (event.key === 'ArrowUp') move(at <= 0 ? items.length - 1 : at - 1)
-    else if (event.key === 'Home') move(0)
-    else if (event.key === 'End') move(items.length - 1)
-    else if (event.key === 'Tab') close(false)
-    else if (event.key === 'Backspace' && query !== '') {
-      event.preventDefault()
-      setQuery(query.slice(0, -1))
-      focusRequest.current = 'first'
-    } else if (event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault()
-      setQuery(query + event.key)
-      focusRequest.current = 'first'
-    }
+    } else if (event.key === 'Tab') return close(false)
+    else if (navigate !== undefined) {
+      const items = [...(menu.current?.querySelectorAll<HTMLElement>('[data-menu-item]') ?? [])]
+      items[navigate(items.indexOf(document.activeElement as HTMLElement), items.length)]?.focus()
+    } else if (filter !== null) {
+      setQuery(filter)
+      focus('first')
+    } else return
+    event.preventDefault()
   }
-
-  const item = (option: ChatModelOption): JSX.Element => {
-    const context = contextLabel(option.contextWindow)
-    const checked = draft !== null && keyOf(draft) === keyOf(option)
-    return (
-      <button key={keyOf(option)} type="button" role="menuitemradio" aria-checked={checked} className="model-picker-item" data-menu-item data-model
-        tabIndex={-1} onClick={() => pick(option)}>
-        <span className="model-picker-check" aria-hidden="true">{checked && <Icon name="check" size={14} strokeWidth={2} />}</span>
-        <span className="model-picker-name">{shortName(option)}</span>
-        {context !== null && <span className="model-picker-context"><span className="sr-only">, context </span>{context}</span>}
-        {option.images && <span className="model-picker-images" title="Reads images"><Icon name="image" size={14} /><span className="sr-only">, reads images</span></span>}
-      </button>
-    )
-  }
-  const group = ({ provider, label, models }: { provider: string; label: string; models: ChatModelOption[] }, prefix: string): JSX.Element => (
-    <div key={`${prefix}${provider}`} role="group" aria-label={prefix === '' ? label : `More ${label}`} className="model-picker-group">
-      <div className="model-picker-heading" aria-hidden="true">{label}</div>
-      {models.map(item)}
-    </div>
-  )
-
+  const checked = draft === null ? null : keyOf(draft)
   return (
     <div id={id} ref={menu} className="model-picker-menu glass-strong" role="menu" aria-label="Model and effort" onKeyDown={onKeyDown}>
-      {busy && <p className="model-picker-hint">{queued ? `Queued · ${BUSY_HINT.toLowerCase()}` : BUSY_HINT}</p>}
-      {query !== '' && <p className="model-picker-hint" aria-live="polite">Filter: {query}</p>}
+      <MenuStatus catalog={catalog} busy={busy} queued={queued} query={query} empty={shown.featured.length + shown.more.length === 0} retry={retry} />
       <div className="model-picker-list">
-        {catalog.status === 'loading' && <p className="model-picker-hint">Loading models…</p>}
-        {catalog.status === 'failed' && <div className="model-picker-hint">
-          <span role="alert">{catalog.message}</span>{' '}
-          <button type="button" role="menuitem" className="model-picker-retry" data-menu-item tabIndex={-1} onClick={retry}>Retry</button>
-        </div>}
-        {catalog.status === 'ready' && featured.length === 0 && more.length === 0
-          && <p className="model-picker-hint">{query === '' ? 'No models are available.' : `No model matches “${query}”.`}</p>}
-        {featured.map((entry) => group(entry, ''))}
+        {shown.featured.map((group) => <ModelGroup key={group.provider} group={group} name={group.label} checked={checked} pick={pick} />)}
         {query === '' && groups.more.length > 0 && (
           <button type="button" role="menuitem" className="model-picker-more" aria-expanded={showMore} data-menu-item tabIndex={-1}
             onClick={() => setMoreOpen(!moreOpen)}>
             <Icon name={showMore ? 'chevron-down' : 'chevron-right'} size={12} />More models
           </button>
         )}
-        {showMore && more.map((entry) => group(entry, 'more:'))}
+        {showMore && shown.more.map((group) => <ModelGroup key={`more:${group.provider}`} group={group} name={`More ${group.label}`} checked={checked} pick={pick} />)}
       </div>
-      {draft !== null && efforts.length > 0 && (
-        <div className="model-picker-effort" role="group" aria-label="Effort">
-          <span className="model-picker-effort-label" aria-hidden="true">
-            {draft === current ? 'Effort' : `Effort for ${shortName(draft)}: choose one to switch`}
-          </span>
-          <div className="model-picker-segments">
-            {efforts.map((level) => (
-              <button key={level} type="button" role="menuitemradio" aria-checked={level === effort} className="model-picker-segment"
-                data-menu-item data-effort tabIndex={-1} onClick={() => pickEffort(level)}>{EFFORT_LABELS[level]}</button>
-            ))}
-          </div>
-        </div>
-      )}
+      {draft !== null && <EffortControl draft={draft} current={current} thinking={thinking} apply={apply} close={close} />}
+    </div>
+  )
+}
+
+/** The menu's notes: the busy hint, the filter, and the catalog while it loads, fails or holds nothing to show. */
+function MenuStatus({ catalog, busy, queued, query, empty, retry }: {
+  catalog: Catalog; busy: boolean; queued: boolean; query: string; empty: boolean; retry(): void
+}): JSX.Element {
+  return (
+    <>
+      {busy && <p className="model-picker-hint">{queued ? `Queued · ${BUSY_HINT.toLowerCase()}` : BUSY_HINT}</p>}
+      {query !== '' && <p className="model-picker-hint" aria-live="polite">Filter: {query}</p>}
+      {catalog.status === 'loading' && <p className="model-picker-hint">Loading models…</p>}
+      {catalog.status === 'failed' && <div className="model-picker-hint">
+        <span role="alert">{catalog.message}</span>{' '}
+        <button type="button" role="menuitem" className="model-picker-retry" data-menu-item tabIndex={-1} onClick={retry}>Retry</button>
+      </div>}
+      {catalog.status === 'ready' && empty
+        && <p className="model-picker-hint">{query === '' ? 'No models are available.' : `No model matches “${query}”.`}</p>}
+    </>
+  )
+}
+
+/** One provider's models under its heading; each shows its name, context window and whether it reads images. */
+function ModelGroup({ group, name, checked, pick }: {
+  group: Group; name: string; checked: string | null; pick(option: ChatModelOption): void
+}): JSX.Element {
+  return (
+    <div role="group" aria-label={name} className="model-picker-group">
+      <div className="model-picker-heading" aria-hidden="true">{group.label}</div>
+      {group.models.map((option) => {
+        const context = contextLabel(option.contextWindow)
+        const isChecked = checked === keyOf(option)
+        return (
+          <button key={keyOf(option)} type="button" role="menuitemradio" aria-checked={isChecked} className="model-picker-item"
+            data-menu-item data-model tabIndex={-1} onClick={() => pick(option)}>
+            <span className="model-picker-check" aria-hidden="true">{isChecked && <Icon name="check" size={14} strokeWidth={2} />}</span>
+            <span className="model-picker-name">{shortName(option)}</span>
+            {context !== null && <span className="model-picker-context"><span className="sr-only">, context </span>{context}</span>}
+            {option.images && <span className="model-picker-images" title="Reads images">
+              <Icon name="image" size={14} /><span className="sr-only">, reads images</span>
+            </span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The chosen model's efforts as a segmented control. Choosing one switches to the chosen model at that effort, once;
+ * the chat's own model and effort only close the menu.
+ */
+function EffortControl({ draft, current, thinking, apply, close }: {
+  draft: ChatModelOption; current: ChatModelOption | null; thinking: ThinkingLevel | null; apply: Apply; close(focusChip: boolean): void
+}): JSX.Element | null {
+  const efforts = effortsOf(draft)
+  const selected = startingEffort(draft, thinking)
+  if (efforts.length === 0) return null
+  return (
+    <div className="model-picker-effort" role="group" aria-label="Effort">
+      <span className="model-picker-effort-label" aria-hidden="true">
+        {draft === current ? 'Effort' : `Effort for ${shortName(draft)}: choose one to switch`}
+      </span>
+      <div className="model-picker-segments">
+        {efforts.map((level) => (
+          <button key={level} type="button" role="menuitemradio" aria-checked={level === selected} className="model-picker-segment"
+            data-menu-item data-effort tabIndex={-1}
+            onClick={() => (draft === current && level === thinking ? close(true) : apply(draft, level))}>{EFFORT_LABELS[level]}</button>
+        ))}
+      </div>
     </div>
   )
 }
