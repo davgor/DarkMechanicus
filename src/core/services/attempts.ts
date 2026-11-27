@@ -37,7 +37,7 @@ import type {
 } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from '../claimTokenMask'
-import { addSeconds } from '../clock'
+import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -584,6 +584,24 @@ export function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
     token,
     'The claim lease expired; the orchestrator must reconcile this attempt.'
   )
+}
+
+/**
+ * The attempt a claim token (`<attemptId>.<secret>`) is the live, latest claim of, or null. A read only: it never settles
+ * leases or writes; a lease already overdue counts as expired here without being recorded so.
+ */
+export function claimedAttemptOf(ctx: Ctx, token: string): { attemptId: string; runId: string; ticketId: string } | null {
+  const separator = token.indexOf('.')
+  if (separator <= 0) return null
+  const row = ctx.db.get<AttemptRow>('SELECT * FROM attempts WHERE id = ?', token.slice(0, separator))
+  if (row === undefined) return null
+  if (row.lease_expires_at !== null && isBefore(row.lease_expires_at, ctx.clock.nowIso())) return null
+  try {
+    verifyClaim(ctx, row, token)
+  } catch {
+    return null
+  }
+  return { attemptId: row.id, runId: row.run_id, ticketId: row.ticket_id }
 }
 
 /**

@@ -11,6 +11,7 @@ import { useBoundThread } from '../agents/useBoundThread'
 import { streamEntries, useThreadStream, type StreamEntry, type ThreadStream } from '../agents/useThreadStream'
 import { useRunTimeline } from '../app/useActivityTimeline'
 import { Icon } from '../components/Icon'
+import { isEpicChat, isGuiChat } from './orchestration'
 import { streamMeta, feedRows, orchestratorLabel, type FeedRow } from './orchestratorFeedView'
 import { useReducedMotion } from './useReducedMotion'
 import type { WorkspaceHandle } from './useWorkspace'
@@ -95,8 +96,14 @@ interface FeedProps {
   failed: boolean
   rows: FeedRow[]
   onOpenTicket(ticketId: string): void
-  /** Opens the chat that orchestrates the run. */
+  /** Shows a chat the epic lists (the one orchestrating the run, or a GUI chat bound to it) in the epic's Agent tab. */
   onOpenChat(chatId: string): void
+  /** Opens a chat outside the epic, as the shell does: a terminal chat bound by grant, or a chat the epic does not list. */
+  onOpenTerminal(chatId: string): void
+  /** The chat runs in the GUI: its grant-bound link reads Open chat. */
+  isGui(chatId: string): boolean
+  /** The epic's Agent tab lists the chat, so its links can land there. */
+  inEpic(chatId: string): boolean
   /** Ticket ids the shown plan holds; entries about others show their key without a link. */
   linkable: ReadonlySet<string>
   onClose(): void
@@ -175,10 +182,36 @@ function FeedLog({ thread, ...props }: FeedProps & { thread: BoundThread | null 
 }
 
 /**
+ * The drawer's links: Open chat for a chat orchestrating the run (an old chat's item-based binding); for the chat bound
+ * by grant, Open terminal, or Open chat when it runs in the GUI (once, when it is the same chat). A chat the epic lists
+ * opens in its Agent tab, a GUI one when bound by grant; every other chat is opened by the shell.
+ */
+function DrawerLinks({ thread, terminal, ...props }: Pick<FeedProps, 'onOpenChat' | 'onOpenTerminal' | 'isGui' | 'inEpic'> & {
+  thread: BoundThread | null
+  terminal: string | null
+}): JSX.Element {
+  const gui = terminal !== null && props.isGui(terminal)
+  const open = (chatId: string, lands: boolean): void => (lands ? props.onOpenChat(chatId) : props.onOpenTerminal(chatId))
+  return (
+    <>
+      {thread === null ? null : (
+        <button type="button" className="ew-link of-open" onClick={() => open(thread.chatId, props.inEpic(thread.chatId))}>
+          Open chat
+        </button>
+      )}
+      {terminal === null || (gui && terminal === thread?.chatId) ? null : (
+        <button type="button" className="ew-link of-open" onClick={() => open(terminal, gui && props.inEpic(terminal))}>
+          {gui ? 'Open chat' : 'Open terminal'}
+        </button>
+      )}
+    </>
+  )
+}
+
+/**
  * The live run feed: a non-modal drawer under the run bar. Escape or Close puts it away. A run that a chat
- * orchestrates (an old chat's item-based binding) also shows that chat's main thread, with a link to the chat; the
- * chat is followed only while the drawer is open. A run started from a chat's terminal gets an Open terminal link
- * to that chat, found by grant.
+ * orchestrates (an old chat's item-based binding) also shows that chat's main thread; the chat is followed only while
+ * the drawer is open.
  */
 function Drawer(props: FeedProps): JSX.Element {
   const panel = useRef<HTMLElement>(null)
@@ -200,16 +233,7 @@ function Drawer(props: FeedProps): JSX.Element {
           <span className="ew-dot" aria-hidden="true" />
           {live ? 'Live' : 'Run ended'}
         </span>
-        {thread === null ? null : (
-          <button type="button" className="ew-link of-open" onClick={() => props.onOpenChat(thread.chatId)}>
-            Open chat
-          </button>
-        )}
-        {terminal === null ? null : (
-          <button type="button" className="ew-link of-open" onClick={() => props.onOpenChat(terminal)}>
-            Open terminal
-          </button>
-        )}
+        <DrawerLinks thread={thread} terminal={terminal} onOpenChat={props.onOpenChat} onOpenTerminal={props.onOpenTerminal} isGui={props.isGui} inEpic={props.inEpic} />
         <button type="button" className="ew-icon-btn of-close" aria-label="Close feed" onClick={props.onClose}>
           ×
         </button>
@@ -249,7 +273,13 @@ function ActiveEntry({ ws, run }: { ws: WorkspaceHandle; run: RunView }): JSX.El
             setOpen(false)
             ws.dispatch({ type: 'select_ticket', ticketId })
           }}
-          onOpenChat={ws.orchestration.onOpenChat}
+          onOpenChat={(chatId) => {
+            setOpen(false)
+            ws.dispatch({ type: 'open_agent', chatId })
+          }}
+          onOpenTerminal={ws.orchestration.onOpenChat}
+          isGui={(chatId) => isGuiChat(ws.orchestration.chats, chatId)}
+          inEpic={(chatId) => isEpicChat(ws.orchestration.chats, ws.data.run, ws.epicId, chatId)}
           onClose={close}
         />
       ) : null}

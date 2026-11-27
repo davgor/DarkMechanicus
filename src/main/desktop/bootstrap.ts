@@ -20,12 +20,14 @@ import {
   dialog,
   MessageChannelMain,
   net,
+  Notification,
   powerSaveBlocker,
   protocol,
   safeStorage,
   shell,
   type IpcMain,
-  type OpenDialogOptions
+  type OpenDialogOptions,
+  type WebContents
 } from 'electron'
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
@@ -41,12 +43,13 @@ import { createActivityBindings, type ActivityBindings } from '../agents/activit
 import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
 import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
+import type { PlannerAgents } from '../agents/plannerStart'
 import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
 import { createAgentContextDelivery, resumeContextChat, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
 import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
 import type { ConversationReads } from '../agents/conversationTarget'
 import { createAgentMailDesktop, type AgentMailDesktop, type AgentMailDesktopDeps } from '../agents/agentMailDesktop'
-import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
+import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc, sendToWindows } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
 import { forgeReachFolders } from './forgeContext'
@@ -78,7 +81,13 @@ import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
 import { removeOmpFolder } from '../terminals/ompSession'
 import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
-import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
+import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
+import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
+import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
+import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
+import { restartMarkerHook, resumeAfterRestart } from '../agentChat/restartResume'
+import { setBeforeInstall } from '../autoUpdate'
+import { createWorktreeRoots } from '../magos/worktreeRoots'
 import { getAgentAuthStatus } from './agentAuth'
 import {
   createAgentInstaller,
@@ -95,6 +104,7 @@ import {
 import { agentDialogOptions, probeAgent, type AgentProbeDeps } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 import { openAppDatabase } from './appDatabase'
+import { createAppSettings, type AppSettings } from './appSettings'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
@@ -136,6 +146,9 @@ import { startForge } from './forgeService'
 import { discoverGithubForgeSetup } from './forgeSetupGithub'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 import { openUtilityWorkspace } from './utilityWorkspace'
+import { createSettingsHandlers, registerSettingsIpc } from './settingsIpc'
+import { createNotifier, type NotificationEvent } from '../notify/notifier'
+import { createNotifyHandlers, registerNotifyIpc } from '../notify/notifyIpc'
 import type { ProjectWorkspace } from './workspaceClient'
 
 /** How often each open desktop session is marked alive. */
@@ -245,6 +258,23 @@ function confirmCustomAgent(confirmation: CustomAgentConfirmation): Promise<bool
   return shown.then(customAgentApproved)
 }
 
+/** The only place a loosening change to the notification and approval settings is approved: a native message box. */
+function confirmNotificationSettings(summary: string): Promise<boolean> {
+  const options = {
+    type: 'warning' as const,
+    title: 'Loosen approval settings?',
+    message: 'Allow this change to the Notifications & approvals settings?',
+    detail: summary,
+    buttons: ['Cancel', 'Allow change'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  }
+  const parent = BrowserWindow.getFocusedWindow()
+  const shown = parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
+  return shown.then(({ response }) => response === 1)
+}
+
 function createCustom(agents: AgentRegistry): CustomAgents {
   return createCustomAgents({
     agents,
@@ -332,13 +362,15 @@ function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: 
 
 /** The agent chats: their records, and the terminals (one PTY per chat) over the same store and one set of grants. */
 interface ChatProcesses {
-  /** The chat records, with deleting a chat also killing its terminal. */
+  /** The chat records, with deleting a chat also stopping its GUI process and killing its terminal. */
   chats: ChatRecords
-  /** What the quit is held for: every chat terminal and every sign-in terminal. */
+  /** What the quit is held for: every chat terminal, every GUI chat process and every sign-in terminal. */
   quit: DesktopBridge['chats']
   /** The chat store, and the terminals, for the `terminals:*` channel. */
   store: ChatStore
   terminals: TerminalSessions
+  /** The one GUI session manager, for the `agentChat:*` channels. */
+  agentChats: AgentChatSessions
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
   /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
@@ -367,6 +399,8 @@ interface TerminalDeps {
   beforeContextPaste: NonNullable<TerminalSessionsDeps['beforeContextPaste']>
   assertRecoveryLaunch: NonNullable<TerminalSessionsDeps['assertRecoveryLaunch']>
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
+  /** Refuses a terminal start while the GUI owns the chat (`wireAgentChats`). */
+  agentChatLive: NonNullable<TerminalSessionsDeps['agentChatLive']>
 }
 
 /** The chat terminals and the sign-in terminals, over one PTY host loaded at the first start (an app where it cannot run still opens). */
@@ -389,6 +423,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     beforeContextPaste: deps.beforeContextPaste,
     assertRecoveryLaunch: deps.assertRecoveryLaunch,
     assertForgeSetupLaunch: deps.assertForgeSetupLaunch,
+    agentChatLive: deps.agentChatLive,
     userData: app.getPath('userData'),
     ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
@@ -419,6 +454,10 @@ interface ChatProcessOptions {
   agents: Pick<AgentRegistry, 'get'>
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
+  /** The main store's Notifications & approvals settings, read by the Magos arbiter at each prompt. */
+  settings: Pick<AppSettings, 'notifications'>
+  /** The OS notifier's `notify`: escalated prompts, questions and stalled Magos chats raise a notification. */
+  notify: (event: NotificationEvent) => void
   sourceCheckouts: SourceCheckouts
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
 }
@@ -427,15 +466,16 @@ interface ChatQuitOptions {
   yoloRuntime: ReturnType<typeof createYoloDesktopRuntime>
   ready: Promise<void>
   pipe(): ControlPipe | null
-  terminals: ChatProcesses['terminals']
+  /** The chat terminals and GUI chat processes together (`wireAgentChats`). */
+  owners: Pick<ChatProcesses['quit'], 'busy' | 'dispose'>
   logins: ChatProcesses['logins']
 }
-function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQuitOptions): ChatProcesses['quit'] {
+function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuitOptions): ChatProcesses['quit'] {
   return {
-    busy: () => terminals.busy() || logins.busy(),
+    busy: () => owners.busy() || logins.busy(),
     dispose: async () => {
       await Promise.all([
-        grants.dispose(), yoloRuntime.dispose(), terminals.dispose(), logins.dispose(),
+        grants.dispose(), yoloRuntime.dispose(), owners.dispose(), logins.dispose(),
         ready.catch(() => {}).then(() => pipe()?.close())
       ])
     }
@@ -468,7 +508,7 @@ function listenControlPipe(grants: ChatGrants, dispatch: NamingDispatcher, liste
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, sanctums, agents, workspaces, activity, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, sanctums, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -494,11 +534,11 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
   const forgeResolverFolders = (root: string): string[] => folders.list().flatMap(folder => folder.forgeParent === root && folder.available && folder.initialized ? [folder.path] : [])
   let recovery: DesktopToolingRecovery
-  const { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createContextTerminals(store, {
+  const { owners, terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createChatOwners(store, {
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
     folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat), assertForgeSetupLaunch
-  }, push)
+  }, push, { claims: guiClaims(folders, workspaces), arbiter: arbiterWiring(folders, workspaces, activity, settings), attention: chatAttention(store, notify) })
   recovery = createDesktopToolingRecovery({
     userData: app.getPath('userData'), version: () => app.getVersion(),
     source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
@@ -508,21 +548,127 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
   })
   let cults: NamingDispatcher | null = null
   namingReady = listenControlPipe(grants, pipeDispatcher(createNamingDispatcher({ store, push }), () => recovery, () => cults), pipe => { namingPipe = pipe })
-  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
-  const chats = endingTerminals(records, terminals)
+  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins })
+  const chats = endingAgentChats(records, terminals, owners.agentChats)
   let cultWake: CultWake | null = null
   const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery,
     cultWake: { offer: async (folder, chat, messages) => { await cultWake?.offer(folder, chat, messages) } } })
-  return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
+  return { chats, quit, store, terminals, agentChats: owners.agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat,
     setCultDispatcher: dispatch => { cults = dispatch }, setCultWake: wake => { cultWake = wake },
     suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+}
+
+/** What owns a chat's live process (`wireAgentChats`): the terminals with their context delivery, and the GUI manager. */
+interface ChatOwners extends ContextTerminals {
+  owners: AgentChatWiring<TerminalSessions>
+}
+
+/** The terminals first, with a lazy GUI liveness check, then the one GUI session manager over their ownership. */
+function createChatOwners(
+  store: ChatStore, options: Omit<TerminalDeps, 'beforeContextPaste' | 'agentChatLive'>, push: ReturnType<typeof createChatPush>,
+  gui: { claims: GuiClaimDeps; arbiter: ArbiterWiring; attention: AgentChatAttention }
+): ChatOwners {
+  let context: ContextTerminals | undefined
+  const owners = wireAgentChats({
+    terminalsFactory: agentChatLive => {
+      context = createContextTerminals(store, { ...options, agentChatLive }, push)
+      return context.terminals
+    },
+    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, gui.claims),
+    push,
+    arbiter: gui.arbiter,
+    attention: gui.attention
+  })
+  if (context === undefined) throw new Error('The chat terminals were not created.')
+  return { ...context, owners }
+}
+
+/** Attention events of the Magos gate and the GUI chats go to the OS notifier, named after the stored chat. */
+function chatAttention(store: ChatStore, notify: (event: NotificationEvent) => void): AgentChatAttention {
+  return { notify, chat: ref => store.getChat(ref), onError: error => logger.error('Attention notification failed:', error) }
+}
+
+/**
+ * The OS notifier over Electron's `Notification`, the app windows and main's notification settings, and the guarded
+ * `notifications:raise` channel the renderer reports run events on.
+ */
+function startNotifications(
+  ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve'>, pool: Pick<WorkspacePool, 'get'>, settings: Pick<AppSettings, 'notifications'>
+): ReturnType<typeof createNotifier> {
+  const notifier = createNotifier({
+    Notification, windows: () => BrowserWindow.getAllWindows(), settings: () => settings.notifications(), push: sendToWindows,
+    logger, now: () => Date.now()
+  })
+  registerNotifyIpc(ipc, createNotifyHandlers({
+    registry, workspaces: pool, notify: event => notifier.notify(event),
+    onUnexpectedError: (error) => {
+      logger.error('Notification request failed:', error)
+    }
+  }))
+  return notifier
+}
+
+/** How GUI chats verify a worker's claim token; the bindings and ticket-key lookup come with the Magos wiring. */
+type GuiClaimDeps = Pick<AgentChatSessionsDeps, 'verifyAttemptClaim'>
+
+/** The one GUI session manager over the same store, grants and agents as the terminals, and the terminals' ownership. */
+function createGuiChats(
+  store: ChatStore,
+  deps: Pick<TerminalDeps, 'grants' | 'folders' | 'reachFolders' | 'agents'>,
+  owned: AgentChatOwnerDeps,
+  claims: GuiClaimDeps
+): AgentChatSessions {
+  const awake = createKeepAwake(powerSaveBlocker)
+  return createAgentChatSessions({
+    ...deps.grants,
+    ...owned,
+    ...claims,
+    store,
+    agentFor: (id) => deps.agents.get(id),
+    folders: deps.folders,
+    reachFolders: deps.reachFolders,
+    checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
+    cliFor: cliConfigFor,
+    keepAwake: () => awake.hold(),
+    userData: app.getPath('userData'),
+    ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
+    platform: process.platform,
+    env: process.env,
+    push: createAgentChatPush(() => BrowserWindow.getAllWindows())
+  })
+}
+
+/**
+ * Serves `agentChat:*` over the one GUI session manager. Only an explicit `agentChat:setSurface` from the app window
+ * may stop a live terminal, after the native confirmation modal to that window; no other path passes one.
+ */
+function startAgentChats(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve'>, sessions: AgentChatSessions): void {
+  const confirmTerminalStop = nativeTerminalStopConfirmation<WebContents, BrowserWindow>({
+    windowFor: (sender) => {
+      const window = BrowserWindow.fromWebContents(sender)
+      return window === null || window.isDestroyed() ? null : window
+    },
+    showMessageBox: (window, options) => dialog.showMessageBox(window, options)
+  })
+  const handlers = createAgentChatHandlers({
+    registry, sessions, confirmTerminalStop,
+    onUnexpectedError: (error) => {
+      logger.error('Agent chat request failed:', error)
+    }
+  })
+  registerAgentChatIpc(ipc, handlers, event => event.sender)
+}
+
+/** The chat terminals and sign-in terminals with the context delivery that serves board messages through them. */
+interface ContextTerminals extends Pick<ChatProcesses, 'terminals' | 'logins' | 'deliveries' | 'contextDelivery' | 'resumeChat'> {
+  boardTransport: BoardContextTransport
 }
 
 /** The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. */
 function createContextTerminals(
   store: ChatStore, options: Omit<Parameters<typeof createTerminalProcesses>[1], 'beforeContextPaste'>,
   push: ReturnType<typeof createChatPush>
-) {
+): ContextTerminals {
   const userData = app.getPath('userData')
   const deliveries = createConversationDeliveries({
     userData, onChanged: (folder, chatId) => push({ type: 'chats_changed', folder, chatId })
@@ -599,6 +745,36 @@ function openDesktopPool(): WorkspacePool {
   })
 }
 
+/** GUI chats bind their threads to attempts whose claim token the folder's own project verifies, read-only. */
+function guiClaims(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>): GuiClaimDeps {
+  return {
+    // The token stays in main and the project's utility process; it is never logged.
+    verifyAttemptClaim: (folder, token) => desktopWorkspace(folders, workspaces, folder).call('claimedAttempt', token)
+  }
+}
+
+/**
+ * The Magos arbiter over the main settings and each tracked folder's own desktop workspace: verified thread bindings in
+ * `activity`, the folder's registered worktrees as allowed roots, and fresh working folders under
+ * `<userData>/agents/arbiter`. Its attention events go to the OS notifier through `wireAgentChats`.
+ */
+function arbiterWiring(
+  folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>, activity: ActivityBindings,
+  settings: Pick<AppSettings, 'notifications'>
+): ArbiterWiring {
+  const worktrees = createWorktreeRoots()
+  return {
+    settings: () => settings.notifications(),
+    arbiterReads: folder => desktopWorkspace(folders, workspaces, folder),
+    bindings: activity,
+    allowedRoots: folder => worktrees.rootsOf(folder),
+    platform: process.platform,
+    env: process.env,
+    arbiterRoot: join(app.getPath('userData'), 'agents', 'arbiter'),
+    log: logger
+  }
+}
+
 /** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */
 function grantReads(workspaces: Pick<WorkspacePool, 'get' | 'background'>): GrantBindingReads {
   return {
@@ -627,10 +803,12 @@ function conversationReads(workspaces: Pick<WorkspacePool, 'get' | 'background'>
 /** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
-  agents: Pick<AgentRegistry, 'get'>
+  agents: Pick<AgentRegistry, 'get' | 'list'>
   chats: ChatRecords
   store: ChatStore
   terminals: TerminalSessions
+  /** The one GUI session manager `createChatProcesses` wired; never a second one. */
+  agentChats: AgentChatSessions
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
   mail: AgentMailDesktop
@@ -640,15 +818,27 @@ interface ChatServices {
   resumeChat: (chat: ChatRecord) => Promise<string | null>
 }
 
+/** The connected agents with their sign-in state, for Start planner; a custom CLI has no sign-in check, so pickChatAgent treats it as not signed in. */
+function plannerAgents(agents: Pick<AgentRegistry, 'list'>): PlannerAgents {
+  return {
+    list: () => agents.list(),
+    checkAuth: async (agent) => agent.kind === 'custom'
+      ? { state: 'unchecked', reason: 'A custom CLI has no sign-in check.' }
+      : getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps())
+  }
+}
+
 /** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, chats, store, terminals, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
+  const { folders, agents, chats, store, terminals, agentChats, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
   const reads = conversationReads(workspaces)
   const handlers = createChatHandlers({
     registry: folders,
     agents,
     chats,
     terminals,
+    agentChats,
+    plannerAgents: plannerAgents(agents),
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
@@ -1085,6 +1275,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   const { registry, pool, github, skills } = options
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
+    onManifestRetry: code => logger.info(`Forge World manifest rename refused (${code}); trying again.`),
     onFoldersChanged: () => {
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('forge:foldersChanged')
     },
@@ -1179,6 +1370,30 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
   })
 }
 
+/**
+ * Restart resume: Restart now lists each live run's Magos chat in `userData/agents/restart-resume.json`, beside the
+ * chat store; this start consumes the marker and, after an update, resumes each one that still qualifies on its session.
+ */
+function startRestartResume({ registry, pool, store, terminals, agentChats }: {
+  registry: Pick<FolderRegistry, 'resolve' | 'list'>; pool: Pick<WorkspacePool, 'get' | 'background'>
+  store: ChatStore; terminals: Pick<TerminalSessions, 'isLive'>; agentChats: AgentChatSessions
+}): void {
+  const file = join(app.getPath('userData'), 'agents', 'restart-resume.json')
+  setBeforeInstall(restartMarkerHook({
+    file, version: () => app.getVersion(), now: () => new Date(), folders: () => registry.list().map(folder => folder.path), store,
+    live: ref => agentChats.isLive(ref) || terminals.isLive(ref), log: logger
+  }))
+  const runs = chatRunCommands(registry, pool)
+  void resumeAfterRestart({
+    file, version: app.getVersion(), now: Date.now(), trackedFolder: folder => registry.resolve(folder), store,
+    runActive: async (folder, runId) => {
+      const run = await runs.getRun(folder, runId)
+      return run !== null && isActiveRunState(run.state)
+    },
+    sessions: agentChats, log: logger
+  })
+}
+
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
@@ -1193,9 +1408,11 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
+  const settings = createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })
+  const notifier = startNotifications(ipc, registry, pool, settings)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail, setCultDispatcher, setCultWake } = createChatProcesses({
-    folders: gates, sanctums, agents, workspaces: pool, activity, sourceCheckouts,
+  const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail, setCultDispatcher, setCultWake } = createChatProcesses({
+    folders: gates, sanctums, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)
@@ -1209,15 +1426,23 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
   const handlers = bridgeHandlers({ registry: gates, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
+  registerSettingsIpc(ipc, createSettingsHandlers({
+    settings,
+    onUnexpectedError: (error) => {
+      logger.error('Settings request failed:', error)
+    }
+  }))
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
-  startChats(ipc, { folders: gates, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
+  startChats(ipc, { folders: gates, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
+  startAgentChats(ipc, registry, agentChats)
+  startRestartResume({ registry, pool, store, terminals, agentChats })
   const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants, setCultDispatcher, setCultWake } })
-  const stores = async (): Promise<void> => { await approvals.dispose(); await forge.stop(); await close() }
+  const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

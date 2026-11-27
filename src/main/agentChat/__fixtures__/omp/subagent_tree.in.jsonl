@@ -1,0 +1,3 @@
+{"type":"prompt","id":"req_T1_prompt","message":"Spawn two workers"}
+{"type":"get_subagent_messages","id":"req_T1_tail_agent_T1_1","subagentId":"agent_T1_1","fromByte":0}
+{"type":"get_subagent_messages","id":"req_T1_tail_agent_T1_2","subagentId":"agent_T1_2","fromByte":0}

@@ -77,8 +77,27 @@ export function isAutoUpdateEnabled(): boolean {
   return app.isPackaged && process.env['DISABLE_AUTO_UPDATE'] !== '1'
 }
 
+let beforeInstall: (() => void) | undefined
+
+/**
+ * Registers what runs synchronously when Restart now installs an update, before the app quits. A plain quit, which
+ * installs a downloaded update through `autoInstallOnAppQuit`, never runs it.
+ */
+export function setBeforeInstall(hook: () => void): void {
+  beforeInstall = hook
+}
+
+function runBeforeInstall(): void {
+  try {
+    beforeInstall?.()
+  } catch (error) {
+    logger.error('The before-install hook failed; installing anyway:', error)
+  }
+}
+
 export function quitAndInstallUpdate(): void {
   if (!isMac()) {
+    runBeforeInstall()
     autoUpdater.quitAndInstall(true, true)
     return
   }
@@ -96,6 +115,7 @@ export function quitAndInstallUpdate(): void {
     throw new Error(`Cannot replace ${targetApp}: its folder is not writable by this user`)
   }
   macInstallStarted = true
+  runBeforeInstall()
   try {
     startInstallHelper(stagedMacUpdate, targetApp, process.pid)
   } catch (error: unknown) {

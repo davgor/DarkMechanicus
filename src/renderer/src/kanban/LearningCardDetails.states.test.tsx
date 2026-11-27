@@ -49,7 +49,8 @@ function host(): OrchestrationHost {
     onChatsChanged: () => Promise.resolve(),
     onAddAgent: () => undefined,
     onAgentStatus: () => undefined,
-    onOpenChat: () => undefined
+    onOpenChat: () => undefined,
+    onOpenSourceFile: () => undefined
   }
 }
 

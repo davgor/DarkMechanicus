@@ -1,0 +1,43 @@
+.at-tree { min-width: 0; color: var(--ink); font-size: 12px; }
+.at-header { margin: 0 0 8px; color: var(--muted); }
+.at-root, .at-group { list-style: none; margin: 0; padding: 0; }
+.at-group { margin-left: 9px; padding-left: 8px; border-left: 1px solid var(--line-soft); }
+.at-root [role="treeitem"] { outline: none; }
+.at-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 3px; border-radius: 4px; cursor: pointer; min-width: 0; }
+.at-root [aria-selected="true"] > .at-row { background: var(--panel-3); }
+.at-root [role="treeitem"]:focus-visible > .at-row { outline: 1px solid var(--accent); outline-offset: -1px; }
+.at-row:hover { background: var(--panel-2); }
+.at-chevron { display: inline-flex; align-items: center; justify-content: center; border: 0; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.at-chevron, .at-chevron-space { width: 14px; height: 16px; flex-shrink: 0; }
+.at-chevron[aria-expanded="true"] svg { transform: rotate(90deg); }
+.at-name { overflow-wrap: anywhere; font-weight: 600; }
+.at-chip { padding: 0 3px; border: 1px solid var(--line-soft); border-radius: 3px; color: var(--muted); }
+.at-unverified { text-decoration: underline dotted; color: var(--muted); }
+.at-dot, .at-needs { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.at-dot[data-hue="0"] { background: var(--term-red); }
+.at-dot[data-hue="1"] { background: var(--term-green); }
+.at-dot[data-hue="2"] { background: var(--term-yellow); }
+.at-dot[data-hue="3"] { background: var(--term-blue); }
+.at-dot[data-hue="4"] { background: var(--term-magenta); }
+.at-dot[data-hue="5"] { background: var(--term-cyan); }
+.at-dot[data-hue="6"] { background: var(--term-bright-blue); }
+.at-dot[data-hue="7"] { background: var(--term-bright-magenta); }
+.at-needs { background: var(--attention); }
+/* Scoped under the tree so a host's generic button reset (the rail's `.rr button`) never clears the amber fill. */
+.at-root button.at-needs, .at-root button.at-needs:hover { width: 8px; height: 8px; border: 0; padding: 0; background: var(--attention); cursor: pointer; }
+.at-root button.at-needs:hover, .at-root button.at-needs:focus-visible { outline: 2px solid var(--attention); outline-offset: 1px; }
+.at-deciding { color: var(--muted); }
+.at-status[data-status="running"] { color: var(--st-running); }
+.at-status[data-status="needs_you"] { color: var(--attention); }
+.at-status[data-status="done"] { color: var(--st-accepted); }
+.at-status[data-status="failed"] { color: var(--st-failed); }
+.at-status[data-status="idle"], .at-elapsed, .at-count { color: var(--muted); }
+.at-todos { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.at-tool { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.at-secondary { flex-basis: 100%; min-width: 0; padding-left: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .at-status[data-status="running"] { animation: at-pulse 1.8s ease-in-out infinite; }
+}
+@keyframes at-pulse {
+  50% { opacity: 0.4; }
+}

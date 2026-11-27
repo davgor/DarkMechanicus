@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
@@ -29,6 +29,8 @@ const desktop = vi.hoisted(() => ({
   keepAwake: vi.fn<() => number>(() => { throw new Error('Unexpected terminal start') }),
   send: vi.fn(),
   closedWindowSend: vi.fn(),
+  version: '1.0.0-test',
+  setBeforeInstall: vi.fn<(hook: () => void) => void>(),
   packaged: vi.fn(() => false),
   encryption: vi.fn(() => false)
 }))
@@ -37,7 +39,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: (kind: 'home' | 'userData') => desktop[kind],
     getAppPath: () => desktop.appPath,
-    getVersion: () => '1.0.0-test',
+    getVersion: () => desktop.version,
     get isPackaged() { return desktop.packaged() }
   },
   BrowserWindow: {
@@ -50,6 +52,8 @@ vi.mock('electron', () => ({
   clipboard: { writeText: desktop.writeClipboard },
   dialog: { showOpenDialog: desktop.showOpenDialog, showMessageBox: desktop.showMessageBox },
   net: { fetch: () => { throw new Error('Unexpected network operation') } },
+  // The bridge creates the OS notifier; these tests raise no notification, so the class is never constructed.
+  Notification: class { static isSupported(): boolean { return false } },
   powerSaveBlocker: { start: desktop.keepAwake, stop: () => undefined },
   protocol: { handle: desktop.registerProtocol },
   safeStorage: {
@@ -61,7 +65,8 @@ vi.mock('electron', () => ({
   utilityProcess: { fork: desktop.fork }
 }))
 
-vi.mock('../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../autoUpdate', () => ({ setBeforeInstall: desktop.setBeforeInstall }))
 vi.mock('../terminals/ptyHost', () => ({ createNodePtyHost: desktop.startPty }))
 
 class InProcessUtility extends EventEmitter {
@@ -101,12 +106,13 @@ function bridgeHome(home?: string): string {
   return scratch.path
 }
 
-async function bridgeFixture(home?: string) {
+async function bridgeFixture(options: { home?: string; version?: string; seed?: (userData: string) => void } = {}) {
   vi.resetModules()
-  const root = bridgeHome(home)
+  const root = bridgeHome(options.home)
   const userData = join(root, 'user-data')
   const appPath = join(root, 'app')
-  Object.assign(desktop, { home: root, userData, appPath })
+  options.seed?.(userData)
+  Object.assign(desktop, { home: root, userData, appPath, version: options.version ?? '1.0.0-test' })
   vi.stubEnv('DARKMECHANICUS_HOME', join(root, 'state'))
   const { serveWorkspaceOwner } = await import('./workspaceOwnerRuntime')
   const owners: InProcessUtility[] = []
@@ -367,6 +373,27 @@ it('dispatches the configured member host ahead of the world default from the bo
   }
 })
 
+it('registers the Restart now hook, which writes the marker beside the chat store', async () => {
+  await bridgeFixture({ version: '0.83.0' })
+  const file = join(desktop.userData, 'agents', 'restart-resume.json')
+  expect(existsSync(file)).toBe(false)
+  const hook = desktop.setBeforeInstall.mock.calls.at(-1)?.[0]
+  hook?.()
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ fromVersion: '0.83.0', writtenAt: expect.any(String), chats: [] })
+})
+
+it('a start after an update consumes the marker and skips a chat of an untracked folder without throwing', async () => {
+  await bridgeFixture({ version: '0.84.0', seed: userData => {
+    mkdirSync(join(userData, 'agents'))
+    writeFileSync(join(userData, 'agents', 'restart-resume.json'), JSON.stringify({
+      fromVersion: '0.83.0', writtenAt: new Date().toISOString(), chats: [{ folder: join(userData, 'gone'), chatId: 'magos-1' }]
+    }))
+  } })
+  expect(existsSync(join(desktop.userData, 'agents', 'restart-resume.json'))).toBe(false)
+  const { logger } = await import('../logger')
+  await vi.waitFor(() => expect(vi.mocked(logger.warn)).toHaveBeenCalledWith('Restart resume skipped chat magos-1: its folder is no longer tracked.'))
+})
+
 it('recovers learning approvals at startup only in set-up folders, opening no owner for an uninitialized one', async () => {
   const first = await bridgeFixture()
   const project = await track(first, 'approvals')
@@ -374,7 +401,7 @@ it('recovers learning approvals at startup only in set-up folders, opening no ow
   const lazy = await track(first, 'lazy')
   await first.finish()
 
-  const restarted = await bridgeFixture(first.root)
+  const restarted = await bridgeFixture({ home: first.root })
   await vi.waitFor(() => expect(restarted.owners.flatMap(postedNames)).toContain('pendingLearningApprovals'))
   expect(restarted.owners).toHaveLength(1)
   // Like every owner it opens without reconciling and runs its open-time reconcile once on the sync lane; the only

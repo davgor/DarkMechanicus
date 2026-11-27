@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { CUSTOM_AGENT, eventually, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, gate, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
 
@@ -85,7 +85,153 @@ describe('terminal sessions: one PTY per chat', () => {
   })
 })
 
+describe('terminal sessions: surface ownership', () => {
+  it('refuses GUI-owned starts and attaches before authentication, persistence or spawning', async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ agentChatLive: () => true }) })
+    const chat = rig.newChat()
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy_elsewhere' })
+    await expect(rig.sessions.attach(chat, undefined, { newSession: true })).rejects.toMatchObject({ code: 'busy_elsewhere' })
+    expect(rig.steps).toEqual([])
+    expect(rig.host.spawns).toEqual([])
+    expect(rig.store.getChat(chat)).toEqual(chat)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+  })
+
+  it('reserves ownership during authentication, offers no owner to stop, and releases it after cancellation', async () => {
+    const auth = rig.holdAuth(), chat = rig.newChat()
+    expect(await rig.sessions.attach(chat)).toEqual({ state: 'checking' })
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    expect(rig.sessions.owner(chat)).toBeNull()
+    await expect(rig.sessions.stop(chat, 'unconfirmed')).rejects.toMatchObject({ code: 'busy' })
+    await rig.sessions.endAgent(chat.agent)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    auth.open({ state: 'signed_in', reason: 'Fixture auth.' })
+    expect(rig.host.spawns).toHaveLength(0)
+  })
+
+  it('refuses an approval for an exited or replaced owner without touching the current one', async () => {
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    const approved = rig.sessions.owner(chat)!
+    first.pty.exit()
+    await settle()
+    await expect(rig.sessions.stop(chat, approved)).rejects.toMatchObject({ code: 'busy' })
+    const second = await startTerminal(rig, chat), current = rig.sessions.owner(chat)
+    expect(current).not.toBeNull()
+    expect(current).not.toBe(approved)
+    await expect(rig.sessions.stop(chat, approved)).rejects.toMatchObject({ code: 'busy' })
+    expect(rig.sessions.owner(chat)).toBe(current)
+    expect(rig.killed.map(tree => tree.pid)).not.toContain(second.pid)
+    expect(rig.revoked).not.toContain('gr_2')
+    rig.sessions.write(chat.id, 'still live')
+    expect(second.pty.written).toContain('still live')
+  })
+})
+
+describe('terminal sessions: confirmed surface handoff', () => {
+  it('freezes the named owner and retains ownership until close, tree cleanup and revocation settle', async () => {
+    rig.cleanup()
+    const kill = gate<boolean>(), revoke = gate<void>()
+    rig = terminalRig({ deps: () => ({ killTree: tree => { tree.kill(); return kill.promise },
+      revokeChatGrant: () => revoke.promise }) })
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
+    const sessionId = rig.store.getChat(chat)!.sessionId
+    let stopped = false
+    const stopping = rig.sessions.stop(chat, rig.sessions.owner(chat)!).then(() => { stopped = true })
+    expect([rig.sessions.owner(chat), pty.kills]).toEqual([null, 1])
+    rig.sessions.write(chat.id, 'late input')
+    expect(pty.written).not.toContain('late input')
+    pty.exit()
+    await settle()
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy' })
+    await expect(rig.sessions.attach(chat)).rejects.toMatchObject({ code: 'busy' })
+    expect([rig.sessions.isLive(chat), stopped]).toEqual([true, false])
+    kill.open(true)
+    await settle()
+    expect([rig.sessions.isLive(chat), stopped]).toEqual([true, false])
+    revoke.open()
+    await stopping
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    expect(rig.host.spawns).toHaveLength(1)
+    expect(rig.store.getChat(chat)!.sessionId).toBe(sessionId)
+  })
+})
+
+describe('terminal sessions: failed surface handoff', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`keeps a confirmed handoff fenced when ${failure} cleanup fails`, async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => failure === 'kill'
+      ? { killTree: async tree => { tree.kill(); return false } }
+      : { revokeChatGrant: async () => { throw new Error('revocation failed') } } })
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
+    const stopping = rig.sessions.stop(chat, rig.sessions.owner(chat)!)
+    pty.exit()
+    await expect(stopping).rejects.toThrow(failure === 'kill' ? 'process tree did not stop' : 'revocation failed')
+    expect([rig.sessions.isLive(chat), rig.sessions.owner(chat)]).toEqual([true, null])
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy' })
+    expect(rig.host.spawns).toHaveLength(1)
+  })
+})
+
+/** A rig whose tree kill or grant revocation fails `times` times, then succeeds; every attempt is a step. */
+function flakyCleanupRig(failure: 'kill' | 'revoke', times: number): TerminalRig {
+  let left = times
+  return terminalRig({ deps: base => failure === 'kill'
+    ? { killTree: async tree => { base.steps.push('kill'); tree.kill(); return left-- <= 0 } }
+    : { revokeChatGrant: async grantId => {
+      base.steps.push(`revoke:${grantId}`)
+      if (left-- > 0) throw new Error('revocation failed')
+    } } })
+}
+
+describe('terminal sessions: handoff cleanup retry', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a failed ${failure} of a confirmed handoff on the next stop and then releases ownership`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 1)
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat), generation = rig.sessions.owner(chat)!
+    const first = rig.sessions.stop(chat, generation)
+    pty.exit()
+    await expect(first).rejects.toThrow(failure === 'kill' ? 'process tree did not stop' : 'revocation failed')
+    expect([rig.sessions.isLive(chat), rig.host.spawns.length, rig.errors.length]).toEqual([true, 1, 1])
+    await rig.sessions.stop(chat, generation)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    expect(rig.steps.filter(step => step === (failure === 'kill' ? 'kill' : 'revoke:gr_1'))).toHaveLength(2)
+    expect([rig.host.spawns.length, rig.errors.length]).toEqual([1, 1])
+  })
+})
+
+describe('terminal sessions: exit cleanup retry', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a failed ${failure} after an ordinary exit on the next start before spawning`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 1)
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    first.pty.exit()
+    await eventually(() => rig.errors.length === 1, 'the cleanup to fail')
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    await rig.sessions.start(chat, { kickoff: 'Carry on' })
+    const retried = failure === 'kill' ? ['revoke:gr_1', 'kill', 'kill'] : ['revoke:gr_1', 'revoke:gr_1']
+    expect(rig.steps).toEqual(['grant:gr_1', 'spawn', ...retried, 'grant:gr_2', 'spawn'])
+    rig.host.last().exit()
+    await eventually(() => !rig.sessions.isLive(chat), 'the chat to be released')
+    expect(rig.errors).toHaveLength(1)
+  })
+
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a twice-failed ${failure} on a later exit and releases the chat`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 2)
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    first.pty.exit()
+    await eventually(() => rig.errors.length === 1, 'the cleanup to fail')
+    await rig.sessions.start(chat, { kickoff: 'Carry on' })
+    expect([rig.errors.length, rig.sessions.isLive(chat)]).toEqual([2, true])
+    rig.host.last().exit()
+    await eventually(() => !rig.sessions.isLive(chat), 'the later exit to retry and release both owners')
+    expect(rig.errors).toHaveLength(2)
+  })
+})
+
 describe('terminal sessions: what may start', () => {
+
   it('starts nothing for a signed-out built-in, and says so to the attach that is waiting', async () => {
     rig.auth.status = { state: 'signed_out', reason: 'Claude Code is not signed in.' }
     const chat = rig.newChat()

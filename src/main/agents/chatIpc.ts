@@ -14,6 +14,7 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:create', (_event, request: unknown) => handlers.create(request))
   ipcMain.handle('chats:startOrchestrator', (_event, request: unknown) => handlers.startOrchestrator(request))
   ipcMain.handle('chats:startTransferChat', (_event, request: unknown) => handlers.startTransferChat(request))
+  ipcMain.handle('chats:startPlanner', (_event, request: unknown) => handlers.startPlanner(request))
   ipcMain.handle('chats:startKanbanCard', (_event, request: unknown) => handlers.startKanbanCard(request))
   ipcMain.handle('chats:kickBackKanbanCard', (_event, request: unknown) => handlers.kickBackKanbanCard(request))
   ipcMain.handle('chats:sendConversationMessage', (_event, request: unknown) => handlers.sendConversationMessage(request))
@@ -41,7 +42,7 @@ export interface ChatWindow {
   webContents: { isDestroyed(): boolean; send(channel: string, ...args: unknown[]): void }
 }
 
-function sendToWindows(windows: readonly ChatWindow[], channel: string, event: unknown): void {
+export function sendToWindows(windows: readonly ChatWindow[], channel: string, event: unknown): void {
   for (const window of windows) {
     if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send(channel, event)

@@ -61,6 +61,7 @@ interface ShellDeps {
     reload(): Promise<void>
   }
   select(selection: Selection): void
+  setFolderTab(folderPath: string, tab: 'source'): void
   /** Sets the request the screen opened next should take (a link from a chat), or forgets it (null). */
   land(landing: Landing | null): void
   reveal(path: string, bucket: WorkStatus | null): void
@@ -100,14 +101,22 @@ export interface ShellActions {
    * have opens the chat as it is.
    */
   openThread(path: string, chatId: string, threadId: string): void
+  /** Opens the folder's Source control Changes list at a Git-reported file. */
+  openSourceFile(folderPath: string, absolutePath: string): void
   /** Opens an epic's workspace on its Scorecard (a Metrics dashboard row). */
   openEpicScorecard(path: string, epicId: string): void
+  /** Opens an epic's workspace on its Agent tab with the chat that holds the card selected (a clicked notification). */
+  openEpicAgent(path: string, epicId: string, chatId: string): void
+  /** Opens an epic's workspace on its checkpoint panel (a clicked notification). */
+  openEpicCheckpoint(path: string, epicId: string): void
   /** Opens a ticket in its epic's workspace on its Scorecard tab (a Metrics dashboard gap). */
   openTicketScorecard(path: string, link: TicketScorecardLink): void
-  /** The screen opened by a link (`openTicket`, `openThread`, `openEpicScorecard`, `openTicketScorecard`) took its request: forget it. */
+  /** The screen opened by a link took its request: forget it. */
   landed(): void
   /** Opens the add-agent pane in place of the folder or epic view. */
   openAddAgent(): void
+  /** Opens the app Settings screen in place of the folder or epic view. */
+  openSettings(): void
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
   changed(path: string): void
@@ -153,7 +162,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectLearnings' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectLearnings' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -206,13 +215,25 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.land(null)
       deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'agent', agent } })
     },
+    openSettings: () => {
+      deps.land(null)
+      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'settings' } })
+    },
     changed: (path) => deps.refresh(path)
   }
 }
 
+type LinkActions = 'openTicket' | 'openThread' | 'openSourceFile' | 'openEpicScorecard' | 'openEpicAgent' | 'openEpicCheckpoint' | 'openTicketScorecard' | 'landed'
+
 /** Links from one screen to another: the screen is opened, then asked for what the link points at. */
-function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'openEpicScorecard' | 'openTicketScorecard' | 'landed'> {
+function linkActions(deps: ShellDeps): Pick<ShellActions, LinkActions> {
   return {
+    openSourceFile: (folderPath, absolutePath) => {
+      deps.setFolderTab(folderPath, 'source')
+      deps.select({ folderPath, epicId: null })
+      deps.reveal(folderPath, null)
+      deps.land({ kind: 'sourceFile', folderPath, absolutePath })
+    },
     openTicket: (path, link) => {
       showEpic(deps, path, link.epicId)
       deps.land({ kind: 'ticket', ...link })
@@ -224,6 +245,14 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
     openEpicScorecard: (path, epicId) => {
       showEpic(deps, path, epicId)
       deps.land({ kind: 'epicScorecard', epicId })
+    },
+    openEpicAgent: (path, epicId, chatId) => {
+      showEpic(deps, path, epicId)
+      deps.land({ kind: 'epicAgent', epicId, chatId })
+    },
+    openEpicCheckpoint: (path, epicId) => {
+      showEpic(deps, path, epicId)
+      deps.land({ kind: 'epicCheckpoint', epicId })
     },
     openTicketScorecard: (path, link) => {
       showEpic(deps, path, link.epicId)

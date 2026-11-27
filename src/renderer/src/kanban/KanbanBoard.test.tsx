@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { folderView, localNoonIso } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { OrchestrationHost } from '../epic/orchestration'
+import { fakeOrchestration } from '../epic/__mocks__/fakeOrchestration'
 import type { UpdateKanbanCardInput } from '../../../shared/domain/api'
 import { FakeBoard, cardSummary, cardView, doneCard } from './__mocks__/fixtures'
 import { KanbanBoard } from './KanbanBoard'
@@ -14,15 +14,7 @@ afterEach(cleanup)
 
 const folder = folderView({ path: '/a', name: 'alpha' })
 /** No agents and no chats: these tests are about the lanes, not Play. */
-const idleHost: OrchestrationHost = {
-  agents: [],
-  statuses: {},
-  chats: [],
-  onChatsChanged: () => Promise.resolve(),
-  onAddAgent: () => undefined,
-  onAgentStatus: () => undefined,
-  onOpenChat: () => undefined
-}
+const idleHost = fakeOrchestration()
 
 let dm: FakeDm
 let board: FakeBoard

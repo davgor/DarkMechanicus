@@ -7,9 +7,14 @@ import type { IconName } from './Icon'
 afterEach(cleanup)
 
 const NAMES: IconName[] = [
+  'list-checks',
+  'circle',
+  'circle-dashed',
+  'pause',
   'chevron-down',
   'chevron-right',
   'folder',
+  'agent',
   'plus',
   'warning',
   'plug',

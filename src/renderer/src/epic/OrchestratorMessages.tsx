@@ -1,11 +1,15 @@
 import { usePersistentState } from '../app/usePersistentState'
 import { ConversationPanel } from '../conversation/ConversationPanel'
+import { isEpicChat } from './orchestration'
 import type { WorkspaceHandle } from './useWorkspace'
 
 const OPEN_STORAGE_KEY = 'dm.orchestratorMessages.open'
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean'
 
-/** Epic-level conversation with the orchestrator, kept available beneath the workspace stage. */
+/**
+ * Epic-level conversation with the orchestrator, kept available beneath the workspace stage. Open chat shows the
+ * receiving chat in the Agent tab when the epic lists it; any other folder chat is opened by the shell.
+ */
 export function OrchestratorMessages({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const [open, setOpen] = usePersistentState(OPEN_STORAGE_KEY, false, isBoolean)
   return (
@@ -20,7 +24,8 @@ export function OrchestratorMessages({ ws }: { ws: WorkspaceHandle }): JSX.Eleme
         reloadKey={ws.state.loadedAt}
         canSend={ws.data.epic.status !== 'completed'}
         folderKey={ws.folder.attachmentKey}
-        onOpenChat={ws.orchestration.onOpenChat}
+        onOpenChat={(chatId) =>
+          isEpicChat(ws.orchestration.chats, ws.data.run, ws.epicId, chatId) ? ws.dispatch({ type: 'open_agent', chatId }) : ws.orchestration.onOpenChat(chatId)}
       />
     </section>
   )

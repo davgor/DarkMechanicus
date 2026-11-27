@@ -58,6 +58,8 @@ export default defineConfig(({ command }) => {
     },
     preload: {
       build: {
+        // Sandboxed preloads cannot require npm packages; inline the event validator's runtime.
+        externalizeDeps: { exclude: ['zod'] },
         outDir: 'out/preload',
         rollupOptions: {
           input: 'src/preload/index.ts'

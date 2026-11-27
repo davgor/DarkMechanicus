@@ -1,0 +1,11 @@
+{"type":"response","command":"prompt","id":"req_T1_prompt","success":true}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"tool_execution_start","toolCallId":"call_T1_chunk","toolName":"read","args":{"path":"a.txt"}}
+{"type":"rpc_chunk","chunkId":"chunk_T1_cli","index":0,"count":2,"byteLength":165,"data":"eyJ0eXBlIjoidG9vbF9leGVjdXRpb25fZW5kIiwidG9vbENhbGxJZCI6ImNhbGxfVDFfY2h1bmsiLCJ0b29sTmFtZSI6InJlYWQiLCJyZXN1bHQ="}
+{"type":"rpc_chunk","chunkId":"chunk_T1_cli","index":1,"count":2,"byteLength":165,"data":"Ijp7ImNvbnRlbnQiOlt7InR5cGUiOiJ0ZXh0IiwidGV4dCI6ImFscGhhXG5iZXRhIn1dLCJkZXRhaWxzIjp7fX0sImlzRXJyb3IiOmZhbHNlfQ=="}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"alpha\nbeta"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"alpha\nbeta"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"},"toolResults":[]}
+{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"alpha\nbeta"}],"api":"fixture-api","provider":"fixture","model":"fixture-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop"}]}
+{"type":"prompt_result","id":"req_T1_prompt","agentInvoked":true,"status":"completed"}

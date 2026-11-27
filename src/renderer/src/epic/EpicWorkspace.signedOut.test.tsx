@@ -36,17 +36,22 @@ function hostWith(status: AgentAuthStatus | undefined, chats = [orchestrator]): 
 const runBar = async (): Promise<ReturnType<typeof within>> => within(await screen.findByLabelText('Run'))
 const resume = (bar: ReturnType<typeof within>): HTMLButtonElement => bar.getByRole('button', { name: 'Resume run' }) as HTMLButtonElement
 
-describe('Run bar: paused because the orchestrator’s agent signed out', () => {
-  it('reads Paused: <Agent> signed out and links to the orchestrator chat', async () => {
+describe('Run bar: the signed-out orchestrator’s chat link', () => {
+  it('reads Paused: <Agent> signed out and shows the orchestrator chat in the Agent tab, staying in the epic', async () => {
     const host = hostWith(SIGNED_OUT)
     renderWorkspace(pausedForSignIn(), { orchestration: host })
     const bar = await runBar()
     expect(bar.getByText('Paused: Claude Code signed out')).toBeTruthy()
     expect(bar.queryByText(/Orchestrated by/)).toBeNull()
     fireEvent.click(bar.getByRole('button', { name: 'Orchestrator · Planning vertical slice' }))
-    expect(host.openedChats).toEqual(['chat_9'])
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('true')
+    const tree = within(screen.getByRole('complementary', { name: 'Epic agents' }))
+    expect((await tree.findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
+    expect(host.openedChats).toEqual([])
   })
+})
 
+describe('Run bar: paused because the orchestrator’s agent signed out', () => {
   it('keeps Resume off while the agent is signed out, and says why', async () => {
     renderWorkspace(pausedForSignIn(), { orchestration: hostWith(SIGNED_OUT) })
     const bar = await runBar()

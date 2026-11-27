@@ -11,6 +11,7 @@ import type { StartOrchestratorResult, StartTransferChatResult } from '../../../
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import type { RunView } from '../../../shared/domain/views'
 import type { AgentStatuses } from '../agents/useAgents'
+import { epicChats } from './epicAgentsView'
 
 /** The agent and model that will orchestrate a run; a null model is the agent's default. */
 export interface StartRunChoice {
@@ -52,9 +53,24 @@ export interface OrchestrationHost {
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   /** Opens a chat; with a thread (a `thread` item's id) the chat opens with that thread expanded and scrolled into view. */
   onOpenChat(chatId: string, threadId?: string): void
+  /** Opens this folder's Source control at a Git-reported file. */
+  onOpenSourceFile(absolutePath: string): void
 }
 
 /** The chat Dark Mechanicus started to orchestrate the run, if there is one. */
 export function orchestratingChat(chats: readonly ChatRecord[], run: RunView): ChatRecord | null {
   return chats.find((chat) => chat.runId === run.id) ?? null
+}
+
+/** The folder's chat `chatId` runs in the GUI, so its link reads Open chat; false for a terminal or unknown chat. */
+export function isGuiChat(chats: readonly ChatRecord[], chatId: string): boolean {
+  return chats.some((chat) => chat.id === chatId && chat.surface === 'gui')
+}
+
+/**
+ * The Agent tab lists chat `chatId` among the epic's chats, so an Open chat link can land there; any other folder chat
+ * (one found by grant or by a board conversation that is not bound to the epic) is opened by the shell instead.
+ */
+export function isEpicChat(chats: readonly ChatRecord[], run: RunView | null, epicId: string, chatId: string): boolean {
+  return epicChats(chats, run, epicId).some((chat) => chat.id === chatId)
 }

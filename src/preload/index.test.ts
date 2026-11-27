@@ -6,6 +6,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { IpcMain } from 'electron'
 import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/chatApi'
+import { AGENT_CHAT_CHANNELS, type AgentChatApi } from '../shared/agents/agentChat'
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
@@ -21,6 +22,10 @@ import { registerCrossRepoCorrectionIpc, type CrossRepoCorrectionHandlers } from
 import type { DesktopHandlers } from '../main/desktop/handlers'
 import type { KnowledgeHandlers } from '../main/desktop/knowledgeHandlers'
 import { registerSourceCheckoutIpc, type SourceCheckoutHandlers } from '../main/desktop/sourceCheckoutIpc'
+import { registerSettingsIpc, type SettingsHandlers } from '../main/desktop/settingsIpc'
+import { registerNotifyIpc, type NotifyHandlers } from '../main/notify/notifyIpc'
+import { DEFAULT_NOTIFICATION_SETTINGS } from '../shared/desktop/notificationSettings'
+import { NOTIFICATION_CHANNELS, type NotificationsApi } from '../shared/desktop/notifications'
 import { type LearningApprovalHandlers, registerLearningApprovalIpc } from '../main/desktop/learningApprovalIpc'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
@@ -128,6 +133,8 @@ beforeAll(async () => {
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
   registerYoloIpc(recorder(true), recordingHandlers<YoloHandlers>())
   registerSourceCheckoutIpc(recorder(true), recordingHandlers<SourceCheckoutHandlers>())
+  registerSettingsIpc(recorder(true), recordingHandlers<SettingsHandlers>())
+  registerNotifyIpc(recorder(true), recordingHandlers<NotifyHandlers>())
   registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerLearningApprovalIpc(recorder(true), recordingHandlers<LearningApprovalHandlers>())
@@ -154,6 +161,13 @@ describe('preload bridge', () => {
       bridge.calls.length = 0
       handled.length = 0
       const args = Array.from({ length: method.length }, (_, i) => `${path}#${i}`)
+      // DM-770 adds the contract before the agent-chat main handlers land.
+      if (path.startsWith('dm.agentChat.')) {
+        const channel = AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>]
+        await expect(method(...args)).rejects.toThrow(`Unregistered channel ${channel}`)
+        expect(bridge.calls, path).toEqual([[channel, ...args]])
+        continue
+      }
       const result = await method(...args)
       expect(bridge.calls, path).toHaveLength(1)
       const [channel, ...sent] = bridge.calls[0] as [string, ...unknown[]]
@@ -180,6 +194,19 @@ describe('preload bridge', () => {
     expect(bridge.calls).toEqual([['chats:sendConversationMessage', send], ['chats:conversationState', state]])
   })
 
+  it('exposes Start planner through its guarded chat channel, forwarding only the request', async () => {
+    const dm = bridge.exposed.get('dm') as { chats: Record<string, Listener> }
+    const request = { folder: '/repo', epicId: 'ep_1' }
+
+    bridge.calls.length = 0
+    await dm.chats.startPlanner(request)
+
+    expect(bridge.calls).toEqual([['chats:startPlanner', request]])
+    expect(registered.has('chats:startPlanner')).toBe(true)
+  })
+})
+
+describe('preload bridge forge', () => {
   it('sends a Forge convert without options as exactly the world and the source', async () => {
     const dm = bridge.exposed.get('dm') as { forge: Record<string, Listener> }
 
@@ -191,16 +218,34 @@ describe('preload bridge', () => {
   })
 })
 
+describe('preload bridge settings', () => {
+  it('exposes the notification settings through exactly their two settings channels', async () => {
+    const dm = bridge.exposed.get('dm') as { settings: Record<string, Listener> }
+    const next = { ...DEFAULT_NOTIFICATION_SETTINGS, sound: false }
+
+    expect(Object.keys(dm.settings).sort()).toEqual(['getNotifications', 'setNotifications'])
+    bridge.calls.length = 0
+    handled.length = 0
+    await expect(dm.settings.getNotifications()).resolves.toBe('result:getNotifications')
+    await expect(dm.settings.setNotifications(next)).resolves.toBe('result:setNotifications')
+
+    expect(bridge.calls).toEqual([['settings:getNotifications'], ['settings:setNotifications', next]])
+    expect(handled).toEqual([{ method: 'getNotifications', args: [] }, { method: 'setNotifications', args: [next] }])
+  })
+})
+
 describe('preload bridge subscriptions', () => {
   it('subscribes each on* method to its push channel and unsubscribes the same handler', () => {
     const expected: Record<string, string> = {
       'autoUpdate.onEvent': AUTO_UPDATE_EVENT_CHANNEL,
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
       'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
+      'dm.agentChat.onEvent': AGENT_CHAT_CHANNELS.event,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
       'dm.onFoldersChanged': 'forge:foldersChanged',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
-      'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL
+      'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL,
+      'dm.notifications.onNavigate': NOTIFICATION_CHANNELS.navigate
     }
     const methods = [...bridge.exposed].flatMap(([key, api]) => methodsOf(api, key))
     const subscriptions = methods.filter(([path]) => isSubscription(path))
@@ -210,12 +255,81 @@ describe('preload bridge subscriptions', () => {
       const unsubscribe = subscribe((...args: unknown[]) => received.push(args)) as () => void
       const listeners = bridge.listeners.get(expected[path])
       expect(listeners?.size, path).toBe(1)
-      for (const listener of listeners ?? []) listener(fakeEvent, { payload: path })
+      const payload = path === 'dm.agentChat.onEvent' ? { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' }
+        : path === 'dm.notifications.onNavigate' ? { kind: 'epic', folder: '/repo', epicId: 'ep_01j0000000000000000000000e' }
+          : { payload: path }
+      for (const listener of listeners ?? []) listener(fakeEvent, payload)
       // Folder changes invalidate the registry without forwarding any payload.
-      const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [{ payload: path }]
+      const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [payload]
       expect(received, path).toEqual([expectedArgs])
       unsubscribe()
       expect(listeners?.size, path).toBe(0)
     }
+  })
+
+  it('drops invalid GUI pushes, including malformed to-do lists, and forwards valid events', () => {
+    const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
+    const received: unknown[] = []
+    const unsubscribe = dm.agentChat.onEvent(event => received.push(event))
+    const listeners = bridge.listeners.get(AGENT_CHAT_CHANNELS.event)
+    const valid = { type: 'todos', folder: null, chatId: 'chat_1', threadId: null, phases: [] }
+    const invalid = [
+      null, { type: 'unknown' }, { ...valid, extra: true },
+      { ...valid, phases: Array(21).fill({ name: 'phase', tasks: [] }) },
+      { ...valid, phases: [{ name: 'phase', tasks: [{ id: null, content: 'Task', status: 'unknown' }] }] }
+    ]
+    for (const event of [...invalid, valid]) for (const listener of listeners ?? []) listener(fakeEvent, event)
+    expect(received).toEqual([valid])
+    unsubscribe()
+    expect(listeners?.size).toBe(0)
+  })
+})
+
+describe('preload bridge agent chat attention', () => {
+  it('maps agentChat.attention, appended last, to agentChat:attention with only its request and forwards attention pushes', async () => {
+    const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
+    expect(Object.keys(dm.agentChat).at(-1)).toBe('attention')
+    bridge.calls.length = 0
+    await expect(dm.agentChat.attention({ folder: '/repo' })).rejects.toThrow(`Unregistered channel ${AGENT_CHAT_CHANNELS.attention}`)
+    expect(bridge.calls).toEqual([['agentChat:attention', { folder: '/repo' }]])
+    const received: unknown[] = []
+    const unsubscribe = dm.agentChat.onEvent(event => received.push(event))
+    const item = { chatId: 'chat_1', promptId: 'p1', kind: 'approval', threadId: null, callsign: null, arbitration: 'deciding', title: 'Bash', shown: true }
+    const valid = { type: 'attention', folder: '/repo', chatId: 'chat_1', items: [item] }
+    for (const event of [{ ...valid, items: [{ ...item, tool: { name: 'Bash', input: { command: 'secret' } } }] }, valid]) {
+      for (const listener of bridge.listeners.get(AGENT_CHAT_CHANNELS.event) ?? []) listener(fakeEvent, event)
+    }
+    expect(received).toEqual([valid])
+    unsubscribe()
+  })
+})
+
+describe('preload bridge notifications', () => {
+  it('appends notifications last, raising on notifications:raise with only its request', async () => {
+    const dm = bridge.exposed.get('dm') as unknown as { notifications: NotificationsApi } & Record<string, unknown>
+    expect(Object.keys(dm).at(-1)).toBe('notifications')
+    expect(Object.keys(dm.notifications)).toEqual(['raise', 'onNavigate'])
+    const request = { folder: '/repo', kind: 'checkpoint_ready', epicId: 'ep_01j0000000000000000000000e', runId: 'rn_01j0000000000000000000000r' } as const
+    bridge.calls.length = 0
+    handled.length = 0
+    await expect(dm.notifications.raise(request)).resolves.toBe('result:raise')
+    expect(bridge.calls).toEqual([['notifications:raise', request]])
+    expect(handled).toEqual([{ method: 'raise', args: [request] }])
+  })
+
+  it('drops an invalid navigate push and forwards a valid target', () => {
+    const dm = bridge.exposed.get('dm') as unknown as { notifications: NotificationsApi }
+    const received: unknown[] = []
+    const unsubscribe = dm.notifications.onNavigate(target => received.push(target))
+    const listeners = bridge.listeners.get(NOTIFICATION_CHANNELS.navigate)
+    const valid = { kind: 'chat', folder: '/repo', chatId: 'chat_1', threadId: 'thread:1', promptId: 'p1' }
+    const invalid = [
+      null, 'chat_1', { kind: 'unknown' }, { ...valid, extra: true }, { ...valid, chatId: '../chat' },
+      { kind: 'checkpoint', folder: '/repo', epicId: 'ep_1' }, { kind: 'epic', folder: '', epicId: 'ep_01j0000000000000000000000e' }
+    ]
+    for (const target of [...invalid, valid]) for (const listener of listeners ?? []) listener(fakeEvent, target)
+    expect(received).toEqual([valid])
+    unsubscribe()
+    expect(listeners?.size).toBe(0)
   })
 })

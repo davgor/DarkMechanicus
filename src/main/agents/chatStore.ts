@@ -2,8 +2,7 @@
  * App-wide store of agent chats (`userData/agents/chats`), one directory per folder:
  *
  *   <root>/<folder key>/index.jsonl     one line per chat-record change; the last line per id wins
- *   <root>/<folder key>/<chat id>.jsonl one `ChatItem` per line: the transcript a chat stored before
- *                                       chats became terminals; read-only, nothing writes it any more
+ *   <root>/<folder key>/<chat id>.jsonl one `ChatItem` per line; first-written order, last line per id wins
  *
  * The folder key is a hash of the folder's canonical real path (the same canonical form the folder
  * registry uses), so every spelling of a folder finds the same chats, and untracking a folder never
@@ -17,6 +16,7 @@
  * `<root>/projectless/`, laid out the same way; no folder key can name it (keys are hex digests).
  *
  * A record is masked for claim tokens before it is written.
+ * Appended transcript items are masked for both claim and grant tokens before they are written.
  */
 import { forgeProjectFor } from '../desktop/forgeManifest'
 import { createHash, randomUUID } from 'node:crypto'
@@ -27,6 +27,7 @@ import { DomainError } from '../../core/errors'
 import { chatItemSchema, chatRecordSchema, type ChatItem, type ChatRecord } from '../../shared/agents/chat'
 import { canonicalPath } from '../desktop/folderRegistry'
 import { maskClaimTokensDeep } from './claimTokenMask'
+import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 
 /** The filesystem surface the store uses; tests inject fakes through it. */
 export interface ChatStoreFs {
@@ -44,12 +45,12 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -73,6 +74,8 @@ export interface ChatStore {
   recordEndpoint(ref: ChatRef, endpointId: string): ChatRecord
   /** The chat and its transcript; null for an unknown chat. */
   readTranscript(ref: ChatRef): ChatTranscript | null
+  /** Appends masked transcript items; throws `not_found` for an unknown chat. */
+  appendItems(ref: ChatRef, items: ChatItem[]): void
   /** Removes the chat, its transcript and every stored version of its record; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): void
 }
@@ -223,8 +226,10 @@ function chatTarget(input: NewChat) {
   return { targetRepository: project ? new URL(project.repository).pathname.slice(1, -4) : input.folder.split(/[\\/]/).filter(Boolean).at(-1) }
 }
 
-function dedicatedChatPurpose(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'cultRunId' | 'cultRole'>> {
+function chatMetadata(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'epicId' | 'surface' | 'cultRunId' | 'cultRole'>> {
   return {
+    ...(input.epicId === undefined ? {} : { epicId: input.epicId }),
+    ...(input.surface === undefined ? {} : { surface: input.surface }),
     ...(input.repairIncidentId === undefined ? {} : { repairIncidentId: input.repairIncidentId }),
     ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup }),
     ...(input.cultRunId === undefined ? {} : { cultRunId: input.cultRunId, ...(input.cultRole === undefined ? {} : { cultRole: input.cultRole }) })
@@ -252,7 +257,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     ...(input.runId === undefined ? {} : { runId: input.runId }),
     ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId }),
     ...(input.cardId === undefined ? {} : { cardId: input.cardId }),
-    ...dedicatedChatPurpose(input),
+    ...chatMetadata(input),
     ...(input.conversation === undefined ? {} : { conversation: input.conversation })
   })
 }
@@ -264,6 +269,7 @@ export function byRecency(a: ChatRecord, b: ChatRecord): number {
 
 function updateChat(context: StoreContext, ref: ChatRef, patch: ChatPatch): ChatRecord {
   const { location, chat } = requireChat(context, ref)
+  if (chat.epicId !== undefined && patch.epicId !== undefined && patch.epicId !== chat.epicId) return chat
   const changes = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
   return saveRecord(context, location, { ...chat, ...changes, updatedAt: context.now() })
 }
@@ -292,6 +298,14 @@ function readTranscript(context: StoreContext, ref: ChatRef): ChatTranscript | n
     return null
   }
   return { chat, ...readItems(context.fs, join(location.dir, `${chat.id}.jsonl`)) }
+}
+
+function appendItems(context: StoreContext, ref: ChatRef, items: ChatItem[]): void {
+  const { location, chat } = requireChat(context, ref)
+  const path = join(location.dir, `${chat.id}.jsonl`)
+  for (const item of items) {
+    appendLine(context, path, maskAgentChatSecretsDeep(item))
+  }
 }
 
 /** The index text without any line of chat `id`; every line ends in a newline, so a cut-off tail cannot swallow the next append. */
@@ -340,6 +354,7 @@ export function createChatStore(options: {
       return saveRecord(context, location, { ...chat, endpointId })
     },
     readTranscript: (ref) => readTranscript(context, ref),
+    appendItems: (ref, items) => appendItems(context, ref, items),
     deleteChat: (ref) => {
       deleteChat(context, ref)
     }

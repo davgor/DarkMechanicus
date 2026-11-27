@@ -77,19 +77,24 @@ describe('the live feed of a run orchestrated in a terminal chat', () => {
     expect(chats.callsOf('read')).toEqual([])
   })
 
-  it('still shows an old chat’s binding beside it', async () => {
+  it('still shows an old chat’s binding beside it: Open terminal navigates, Open chat lands in the Agent tab', async () => {
     const main: BoundThread = { folder: FOLDER, chatId: 'chat_old', threadId: null, role: 'orchestrator' }
+    const old = chatRecord({ id: 'chat_old', folder: FOLDER, role: 'orchestrator', epicId: 'ep_1' })
+    host = fakeOrchestration({ chats: [old] })
     chats.terminals.runs.rn_2 = 'chat_t'
     const served = backend()
-    chats.chats.push(chatRecord({ id: 'chat_old', folder: FOLDER, role: 'orchestrator' }))
+    chats.chats.push(old)
     chats.transcripts.chat_old = []
     chats.bound.runs.rn_2 = [main]
     const feed = await openFeed(served)
 
-    fireEvent.click(within(feed).getByRole('button', { name: 'Open chat' }))
     fireEvent.click(within(feed).getByRole('button', { name: 'Open terminal' }))
+    expect(host.openedChats).toEqual(['chat_t'])
+    fireEvent.click(within(feed).getByRole('button', { name: 'Open chat' }))
 
-    expect(host.openedChats).toEqual(['chat_old', 'chat_t'])
+    expect(host.openedChats).toEqual(['chat_t'])
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('region', { name: 'Orchestrator feed' })).toBe(null)
   })
 
   it('shows no Open terminal link for a run no chat started, and asks nothing until the feed is opened', async () => {
@@ -104,5 +109,39 @@ describe('the live feed of a run orchestrated in a terminal chat', () => {
     await settle()
 
     expect(within(feed).queryByRole('button', { name: 'Open terminal' })).toBe(null)
+  })
+})
+
+describe('the live feed of a run whose chat bound by grant runs in the GUI', () => {
+  it('labels a GUI chat bound by grant Open chat and shows it in the Agent tab with its node selected', async () => {
+    const gui = chatRecord({ id: 'chat_g', folder: FOLDER, role: 'orchestrator', runId: 'rn_2', epicId: 'ep_1', surface: 'gui', title: 'Orchestrator · GUI' })
+    host = fakeOrchestration({ chats: [gui] })
+    chats.terminals.runs.rn_2 = 'chat_g'
+    const served = backend()
+    chats.chats = [gui]
+    const feed = await openFeed(served)
+
+    expect(within(feed).queryByRole('button', { name: 'Open terminal' })).toBe(null)
+    fireEvent.click(within(feed).getByRole('button', { name: 'Open chat' }))
+
+    expect(host.openedChats).toEqual([])
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('true')
+    const tree = within(screen.getByRole('complementary', { name: 'Epic agents' }))
+    expect((await tree.findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('keeps navigating for a GUI folder chat bound by grant that the epic does not list, reading Open chat', async () => {
+    const elsewhere = chatRecord({ id: 'chat_f', folder: FOLDER, role: 'orchestrator', surface: 'gui', title: 'Folder chat' })
+    host = fakeOrchestration({ chats: [elsewhere] })
+    chats.terminals.runs.rn_2 = 'chat_f'
+    const served = backend()
+    chats.chats = [elsewhere]
+    const feed = await openFeed(served)
+
+    fireEvent.click(within(feed).getByRole('button', { name: 'Open chat' }))
+
+    expect(host.openedChats).toEqual(['chat_f'])
+    expect(screen.getByRole('button', { name: 'Agent' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Agent chat' })).toBe(null)
   })
 })

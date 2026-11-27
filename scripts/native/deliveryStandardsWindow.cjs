@@ -3,6 +3,9 @@ const { writeFileSync } = require('node:fs')
 const { join } = require('node:path')
 const { app } = require('electron')
 
+// Keep adjacent row measurements and captures independent of fractional host display scaling.
+app.commandLine.appendSwitch('force-device-scale-factor', '1')
+
 const [root, output, repo] = process.argv.slice(2)
 app.setAppPath(repo)
 app.setPath('userData', join(root, 'desktop'))

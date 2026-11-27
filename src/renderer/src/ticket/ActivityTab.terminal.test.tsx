@@ -12,7 +12,7 @@ import { chatRecord } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import { attempt } from '../epic/__mocks__/fixtures'
-import { ActivityTab } from './ActivityTab'
+import { ActivityTab, type AgentTabLink } from './ActivityTab'
 
 let dm: FakeDm
 let scheduler: ManualScheduler
@@ -44,7 +44,7 @@ function page(entries: ActivityEntry[], cursor: number): AttemptTimelineView {
   }
 }
 
-function renderTab(): void {
+function renderTab(agentTab?: AgentTabLink): void {
   render(
     <ActivityTab
       folderPath={FOLDER}
@@ -52,9 +52,18 @@ function renderTab(): void {
       attemptId={ATTEMPT}
       onChoose={() => undefined}
       onOpenChat={(chatId, threadId) => opened.push([chatId, threadId])}
+      agentTab={agentTab}
       scheduler={scheduler}
     />
   )
+}
+
+/**
+ * An epic's Agent tab where `gui` lists the chats running in the GUI and `epic` the chats the epic lists (by default the
+ * GUI ones); `landed` records each chat (and thread) it was asked to show.
+ */
+function agentTabOf(gui: string[], landed: [string, string | null][], epic: string[] = gui): AgentTabLink {
+  return { isGui: (chatId) => gui.includes(chatId), inEpic: (chatId) => epic.includes(chatId), open: (chatId, threadId) => landed.push([chatId, threadId]) }
 }
 
 beforeEach(() => {
@@ -129,5 +138,77 @@ describe('Activity tab links beside each other, and none', () => {
 
     expect(screen.queryByRole('button', { name: 'Open terminal' })).toBe(null)
     expect(screen.queryByRole('alert')).toBe(null)
+  })
+})
+
+describe('Activity tab of an attempt bound to a GUI chat, inside an epic', () => {
+  it('labels the grant-bound link Open chat and lands it in the Agent tab, never navigating', async () => {
+    const landed: [string, string | null][] = []
+    dm.chats.terminals.attempts[ATTEMPT] = 'chat_t'
+    dm.handlers.getAttemptTimeline = () => page([claim()], 1)
+    renderTab(agentTabOf(['chat_t'], landed))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open chat' }))
+
+    expect(landed).toEqual([['chat_t', null]])
+    expect(opened).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Open terminal' })).toBe(null)
+  })
+
+  it('lands a GUI chat’s worker thread in the Agent tab with that thread', async () => {
+    const landed: [string, string | null][] = []
+    const worker: BoundThread = { folder: FOLDER, chatId: 'chat_gui', threadId: 'th_1', role: 'worker' }
+    dm.chats.chats.push(chatRecord({ id: 'chat_gui', folder: FOLDER, role: 'orchestrator', surface: 'gui' }))
+    dm.chats.transcripts.chat_gui = []
+    dm.chats.bound.attempts[ATTEMPT] = [worker]
+    dm.handlers.getAttemptTimeline = () => page([claim()], 1)
+    renderTab(agentTabOf(['chat_gui'], landed))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open chat' }))
+
+    expect(landed).toEqual([['chat_gui', 'th_1']])
+    expect(opened).toEqual([])
+  })
+
+  it('keeps Open terminal, navigating, for a terminal chat inside an epic', async () => {
+    const landed: [string, string | null][] = []
+    dm.chats.terminals.attempts[ATTEMPT] = 'chat_t'
+    dm.handlers.getAttemptTimeline = () => page([claim()], 1)
+    renderTab(agentTabOf([], landed))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminal' }))
+
+    expect(opened).toEqual([['chat_t', undefined]])
+    expect(landed).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
+  })
+})
+
+describe('Activity tab of an attempt bound to a GUI folder chat the epic does not list', () => {
+  it('reads Open chat for the chat bound by grant and opens it outside the epic', async () => {
+    const landed: [string, string | null][] = []
+    dm.chats.terminals.attempts[ATTEMPT] = 'chat_t'
+    dm.handlers.getAttemptTimeline = () => page([claim()], 1)
+    renderTab(agentTabOf(['chat_t'], landed, []))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open chat' }))
+
+    expect(opened).toEqual([['chat_t', undefined]])
+    expect(landed).toEqual([])
+  })
+
+  it('opens a worker thread of such a chat outside the epic, with its thread', async () => {
+    const landed: [string, string | null][] = []
+    const worker: BoundThread = { folder: FOLDER, chatId: 'chat_gui', threadId: 'th_1', role: 'worker' }
+    dm.chats.chats.push(chatRecord({ id: 'chat_gui', folder: FOLDER, role: 'orchestrator', surface: 'gui' }))
+    dm.chats.transcripts.chat_gui = []
+    dm.chats.bound.attempts[ATTEMPT] = [worker]
+    dm.handlers.getAttemptTimeline = () => page([claim()], 1)
+    renderTab(agentTabOf(['chat_gui'], landed, []))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open chat' }))
+
+    expect(opened).toEqual([['chat_gui', 'th_1']])
+    expect(landed).toEqual([])
   })
 })

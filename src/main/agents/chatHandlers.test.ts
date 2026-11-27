@@ -5,10 +5,12 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
 import type { CommentView, EpicDetailView, RunView, TicketDetailView } from '../../shared/domain/views'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
-import type { AgentId, CommandResult } from '../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView, CommandResult } from '../../shared/desktop/api'
 import { transferKickoff } from '../../mcp/transferKickoff'
 import { AT, builtInAgent, connectedAgents, REPO } from './__mocks__/chatFixtures'
+import { recordingAgentChats, type RecordingAgentChats } from './__mocks__/agentChatDoubles'
 import { createChatHandlers, type ChatHandlers, type ConversationWorkspace } from './chatHandlers'
+import type { PlannerAgents } from './plannerStart'
 import type { ConversationDeliveries, ConversationDelivery } from './conversationDeliveries'
 import type { ChatRecords } from './chatRecords'
 import type { OrchestratorRuns } from './orchestratorStart'
@@ -97,6 +99,12 @@ function recordingCards(calls: string[] = []): KanbanCards {
   }
 }
 
+
+/** Claude connected and signed in, unless `signedIn` says otherwise; records each agent whose sign-in was checked. */
+function plannerAgents(signedIn = true, checked: string[] = []): PlannerAgents {
+  const status: AgentAuthStatus = signedIn ? { state: 'signed_in', reason: 'Signed in.' } : { state: 'signed_out', reason: 'Signed out.' }
+  return { list: () => [builtInAgent('claude')], checkAuth: async (agent: AgentView) => (checked.push(agent.id), status) }
+}
 /**
  * Handlers over `chats` and `runs`; `push`, `terminals`, `transfers` and `kanban` when a test needs to see them
  * (terminals that answer running, a queued transfer and a card that plays and kicks back otherwise).
@@ -109,14 +117,18 @@ function handlersOver(
     push,
     terminals = recordingTerminals(),
     transfers = recordingTransfers(),
-    kanban = recordingCards()
-  }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads; kanban?: KanbanCards } = {}
+    kanban = recordingCards(),
+    agentChats = recordingAgentChats(),
+    planners = plannerAgents()
+  }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads; kanban?: KanbanCards; agentChats?: RecordingAgentChats; planners?: PlannerAgents } = {}
 ): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null), list: () => [] },
     agents: AGENTS,
     chats,
     terminals,
+    agentChats,
+    plannerAgents: planners,
     runs,
     transfers,
     kanban,
@@ -142,7 +154,7 @@ describe('chat handlers: forwarding', () => {
     expect(calls).toEqual([
       ['listChats', REPO],
       ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator' }],
-      ['readChat', CANONICAL],
+      ['readChat', CANONICAL, { live: false }],
       ['renameChat', CANONICAL, 'Fix the build'],
       ['deleteChat', CANONICAL]
     ])
@@ -247,7 +259,7 @@ describe('chat handlers: start an orchestrator', () => {
     expect(queue).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `queueRun ${REPO} ${EPIC_ID}`])
     expect(calls[0]).toEqual([
       'createChat',
-      { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Orchestrator · Agent chats', runId: 'rn_2' }
+      { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Orchestrator · Agent chats', runId: 'rn_2', epicId: EPIC_ID }
     ])
     expect(calls[1]?.slice(0, 2)).toEqual(['start', CHAT])
     expect(calls[1]?.[2]).toEqual({ kickoff: expect.stringContaining(EPIC_ID) })
@@ -340,7 +352,7 @@ describe('chat handlers: start a transfer chat', () => {
     expect(result).toEqual({ ok: true, data: { chat: CHAT, problem: null } })
     expect(reads).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `getTransfer ${REPO} ${EPIC_ID}`])
     expect(calls).toEqual([
-      ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID }],
+      ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID, epicId: EPIC_ID }],
       ['start', CHAT, { kickoff: transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }) }]
     ])
   })
@@ -439,6 +451,8 @@ function handlersWithBound(asked: unknown[][]): ChatHandlers {
     agents: AGENTS,
     chats: recordingChats().chats,
     terminals: recordingTerminals(),
+    agentChats: recordingAgentChats(),
+    plannerAgents: plannerAgents(),
     runs: recordingRuns(),
     transfers: recordingTransfers(),
     kanban: recordingCards(),
@@ -499,6 +513,8 @@ describe('chat handlers: bound threads', () => {
       agents: AGENTS,
       chats: recordingChats().chats,
       terminals: recordingTerminals(),
+      agentChats: recordingAgentChats(),
+      plannerAgents: plannerAgents(),
       runs: recordingRuns(),
       transfers: recordingTransfers(),
       kanban: recordingCards(),
@@ -796,6 +812,10 @@ interface ConversationHarnessOptions {
   cardMessages?: KanbanMessageView[]
   contextInserted?: boolean
   resumeProblem?: string | null
+  /** The GUI session manager the handlers get; a recording one that answers idle otherwise. */
+  agentChats?: RecordingAgentChats
+  /** The surface the harness stores new chats on, as the records would for a GUI-capable agent; none otherwise. */
+  createSurface?: 'gui' | 'terminal'
 }
 
 function conversationWorkspace(
@@ -841,10 +861,30 @@ function conversationWorkspace(
   }
 }
 
+/** The record the harness stores for request number `created`, on `surface` when one is given. */
+function conversationRecord(request: Parameters<ChatRecords['createChat']>[0], created: number, surface: ChatRecord['surface']): ChatRecord {
+  return {
+    id: `chat_conversation_${created}`,
+    folder: request.folder,
+    agent: request.agent,
+    model: request.model ?? null,
+    role: request.role,
+    allowSave: request.allowSave ?? true,
+    title: request.title ?? 'New chat',
+    createdAt: `2026-01-01T00:00:1${created}.000Z`,
+    updatedAt: `2026-01-01T00:00:1${created}.000Z`,
+    sessionId: null,
+    ...(request.conversation === undefined ? {} : { conversation: request.conversation }),
+    ...(request.epicId === undefined ? {} : { epicId: request.epicId }),
+    ...(surface === undefined ? {} : { surface }),
+    ...(request.firstPrompt === undefined ? {} : { firstPrompt: request.firstPrompt, firstPromptDelivery: 'pending' })
+  }
+}
+
 function conversationChats(
   calls: unknown[][],
   initial: readonly ChatRecord[],
-  options: Pick<ConversationHarnessOptions, 'createError' | 'deleteError' | 'disappearAfterFirstList'>
+  options: Pick<ConversationHarnessOptions, 'createError' | 'deleteError' | 'disappearAfterFirstList' | 'createSurface'>
 ): { chats: ChatRecords; records(): ChatRecord[] } {
   let records = [...initial], created = 0, lists = 0
   return {
@@ -857,20 +897,7 @@ function conversationChats(
       createChat: (request) => {
         if (options.createError !== undefined) throw options.createError
         created += 1
-        const chat: ChatRecord = {
-          id: `chat_conversation_${created}`,
-          folder: request.folder,
-          agent: request.agent,
-          model: request.model ?? null,
-          role: request.role,
-          allowSave: request.allowSave ?? true,
-          title: request.title ?? 'New chat',
-          createdAt: `2026-01-01T00:00:1${created}.000Z`,
-          updatedAt: `2026-01-01T00:00:1${created}.000Z`,
-          sessionId: null,
-          ...(request.conversation === undefined ? {} : { conversation: request.conversation }),
-          ...(request.firstPrompt === undefined ? {} : { firstPrompt: request.firstPrompt, firstPromptDelivery: 'pending' })
-        }
+        const chat = conversationRecord(request, created, options.createSurface)
         calls.push(['createChat', request])
         records.push(chat)
         return chat
@@ -925,11 +952,14 @@ function conversationHarness(options: ConversationHarnessOptions = {}) {
   const deliveries = new Map<string, ConversationDelivery>()
   const errors: unknown[] = []
   const terminals = conversationTerminals(calls, options)
+  const agentChats = options.agentChats ?? recordingAgentChats()
   const handlers = createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null), list: () => [] },
     agents: { get: (id) => id === 'omp' ? builtInAgent('omp') : AGENTS.get(id) },
     chats: chatState.chats,
     terminals,
+    agentChats,
+    plannerAgents: plannerAgents(),
     runs: recordingRuns(),
     transfers: recordingTransfers(),
     kanban: recordingCards(),
@@ -961,7 +991,7 @@ function conversationHarness(options: ConversationHarnessOptions = {}) {
     },
     onUnexpectedError: (error) => errors.push(error)
   })
-  return { handlers, calls, comments, deliveries, errors, records: chatState.records }
+  return { handlers, calls, comments, deliveries, errors, records: chatState.records, agentChats }
 }
 
 describe('chat handlers: board conversations', () => {
@@ -1484,5 +1514,146 @@ describe('chat handlers: durable board context transport', () => {
     expect(subject.calls.find((call) => call[0] === 'queueBoard')?.[2]).toMatchObject({ text: expect.stringContaining('New conversation body.') })
     expect(subject.calls.filter((call) => call[0] === 'start' || call[0] === 'paste')).toEqual([])
     expect(subject.calls.filter((call) => call[0] === 'resume')).toHaveLength(1)
+  })
+})
+
+describe('chat handlers: GUI chats take board messages as user turns', () => {
+  it('sends a board message to a GUI chat as a user turn, not a paste, and records it in the delivery ledger', async () => {
+    const chat = { ...CHAT, id: 'chat_gui', surface: 'gui' as const, conversation: { epicId: EPIC_ID } }
+    const subject = conversationHarness({ chats: [chat] })
+
+    const result = await subject.handlers.sendConversationMessage({ folder: REPO, target: { epicId: EPIC_ID }, body: 'Ship it on Friday?' })
+
+    expect(result).toEqual({ ok: true, data: { messageId: COMMENT_ID, chatId: chat.id, state: 'delivered', problem: null } })
+    expect(subject.agentChats.calls).toEqual([['send', chat, { text: expect.stringContaining('[Board message from the person] on') }]])
+    expect(subject.agentChats.calls[0]).toEqual(['send', chat, { text: expect.stringContaining('Ship it on Friday?') }])
+    expect(subject.calls.filter((call) => call[0] === 'paste' || call[0] === 'queueBoard' || call[0] === 'resume')).toEqual([])
+    expect(subject.deliveries.get(COMMENT_ID)).toMatchObject({ messageId: COMMENT_ID, folder: REPO, chatId: chat.id, state: 'delivered', problem: null, source: 'board', at: AT })
+  })
+
+  it('records a failed GUI turn with its reason', async () => {
+    const chat = { ...CHAT, id: 'chat_gui', surface: 'gui' as const, conversation: { epicId: EPIC_ID } }
+    const agentChats = recordingAgentChats()
+    agentChats.send = async () => { throw new DomainError('busy_elsewhere', 'The chat is running in a terminal.') }
+    const subject = conversationHarness({ chats: [chat], agentChats })
+
+    const result = await subject.handlers.sendConversationMessage({ folder: REPO, target: { epicId: EPIC_ID }, body: 'Still there?' })
+
+    expect(result).toMatchObject({ ok: true, data: { chatId: chat.id, state: 'failed', problem: 'The chat is running in a terminal.' } })
+    expect(subject.deliveries.get(COMMENT_ID)).toMatchObject({ chatId: chat.id, state: 'failed', problem: 'The chat is running in a terminal.' })
+    expect(subject.errors).toEqual([])
+  })
+
+  it('starts a fresh GUI conversation chat with the board kickoff as its first turn, not a paste, and records it', async () => {
+    const subject = conversationHarness({ createSurface: 'gui' })
+
+    const result = await subject.handlers.sendConversationMessage({ folder: REPO, target: { epicId: EPIC_ID }, body: 'Fresh GUI question' })
+
+    const [chat] = subject.records()
+    expect(result).toEqual({ ok: true, data: { messageId: COMMENT_ID, chatId: chat?.id, state: 'delivered', problem: null } })
+    expect(chat).toMatchObject({ surface: 'gui', conversation: { epicId: EPIC_ID }, epicId: EPIC_ID })
+    expect(subject.calls.find((call) => call[0] === 'createChat')?.[1]).toMatchObject({ conversation: { epicId: EPIC_ID }, epicId: EPIC_ID })
+    expect(subject.agentChats.calls).toEqual([['start', chat, { firstMessage: expect.stringContaining('Fresh GUI question') }]])
+    expect(subject.calls.filter((call) => call[0] === 'paste' || call[0] === 'queueBoard' || call[0] === 'start')).toEqual([])
+    expect(subject.deliveries.get(COMMENT_ID)).toMatchObject({ chatId: chat?.id, state: 'delivered', source: 'board' })
+  })
+
+  it('opens a fresh card conversation chat bound to its card only, with no epicId', async () => {
+    const subject = conversationHarness({ createSurface: 'gui' })
+
+    const result = await subject.handlers.sendConversationMessage({ folder: REPO, target: { cardId: CARD_ID }, body: 'Card question' })
+
+    expect(result).toMatchObject({ ok: true, data: { state: 'delivered' } })
+    const request = subject.calls.find((call) => call[0] === 'createChat')?.[1]
+    expect(request).toMatchObject({ conversation: { cardId: CARD_ID } })
+    expect(request).not.toHaveProperty('epicId')
+  })
+})
+
+describe('chat handlers: reading a chat', () => {
+  it('reads a chat live while its GUI process runs, so running calls and pending requests are kept', async () => {
+    const { chats, calls } = recordingChats()
+    const agentChats = recordingAgentChats()
+    agentChats.live.add('chat_1')
+
+    expect(await handlersOver(chats, [], recordingRuns(), { agentChats }).read(REF)).toEqual({ ok: true, data: { chat: CHAT, items: [] } })
+    expect(calls).toEqual([['readChat', CANONICAL, { live: true }]])
+  })
+})
+
+describe('chat handlers: start planner', () => {
+  it('creates a planner chat bound to the epic with Allow save, with the agent pickChatAgent picks, started on its surface', async () => {
+    const { chats, calls } = recordingChats()
+    const runCalls: string[] = []
+    const pushed: ChatPushEvent[] = []
+    const agentChats = recordingAgentChats()
+    const terminalCalls: unknown[][] = []
+    chats.createChat = (request) => (calls.push(['createChat', request]), { ...CHAT, ...request, id: 'chat_planner', surface: 'gui' } as ChatRecord)
+    const handlers = handlersOver(chats, [], recordingRuns(runCalls), { agentChats, terminals: recordingTerminals(terminalCalls), push: (event) => pushed.push(event) })
+
+    const result = await handlers.startPlanner({ folder: SPELLING, epicId: EPIC_ID })
+
+    expect(result).toMatchObject({ ok: true, data: { chat: { id: 'chat_planner', role: 'planner', epicId: EPIC_ID, allowSave: true }, problem: null } })
+    expect(runCalls).toEqual([`getEpic ${REPO} ${EPIC_ID}`])
+    expect(calls).toEqual([['createChat', { folder: REPO, agent: 'claude', role: 'planner', model: null, allowSave: true, title: 'Planner · Agent chats', epicId: EPIC_ID }]])
+    const [method, , options] = agentChats.calls[0] as [string, ChatRecord, { firstMessage: string }]
+    expect(method).toBe('start')
+    expect(options.firstMessage).toContain(`Epic: Agent chats (${EPIC_ID})`)
+    expect(options.firstMessage).toContain('darkmechanicus-planner')
+    expect(terminalCalls).toEqual([])
+    expect(pushed).toEqual([{ type: 'chats_changed', folder: REPO, chatId: 'chat_planner' }])
+  })
+})
+
+describe('chat handlers: start planner refusals', () => {
+  it('refuses an unknown epic, creating nothing', async () => {
+    const { chats, calls } = recordingChats()
+    const agentChats = recordingAgentChats()
+    const runs: OrchestratorRuns = { ...recordingRuns(), getEpic: () => Promise.reject(new DomainError('not_found', `Epic ${EPIC_ID} was not found.`)) }
+
+    const result = await handlersOver(chats, [], runs, { agentChats }).startPlanner({ folder: REPO, epicId: EPIC_ID })
+
+    expect(result).toEqual({ ok: false, error: { code: 'not_found', message: `Epic ${EPIC_ID} was not found.` } })
+    expect([calls, agentChats.calls]).toEqual([[], []])
+  })
+
+  it('refuses with no_agent when nobody is signed in, creating nothing', async () => {
+    const { chats, calls } = recordingChats()
+    const agentChats = recordingAgentChats()
+    const checked: string[] = []
+
+    const result = await handlersOver(chats, [], recordingRuns(), { agentChats, planners: plannerAgents(false, checked) }).startPlanner({ folder: REPO, epicId: EPIC_ID })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'no_agent' } })
+    expect(checked).toEqual(['claude'])
+    expect([calls, agentChats.calls]).toEqual([[], []])
+  })
+
+  it('refuses an untracked folder and malformed requests before reading anything', async () => {
+    const { chats, calls } = recordingChats()
+    const runCalls: string[] = []
+    const handlers = handlersOver(chats, [], recordingRuns(runCalls))
+
+    const results = [
+      await handlers.startPlanner({ folder: join(REPO, '..', 'elsewhere'), epicId: EPIC_ID }),
+      await handlers.startPlanner({ folder: REPO, epicId: 'rn_01m418epbg8qkqa2e2krvdkqk5' }),
+      await handlers.startPlanner({ folder: REPO, epicId: EPIC_ID, agent: 'claude' }),
+      await handlers.startPlanner({ folder: REPO, epicId: EPIC_ID, role: 'orchestrator' }),
+      await handlers.startPlanner(undefined)
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', 'invalid_input', 'invalid_input', 'invalid_input', 'invalid_input'])
+    expect([calls, runCalls]).toEqual([[], []])
+  })
+
+  it('removes the chat again and says why when its agent does not start', async () => {
+    const { chats, calls } = recordingChats()
+    const agentChats = recordingAgentChats('signed_out')
+    chats.createChat = (request) => (calls.push(['createChat', request]), { ...CHAT, ...request, id: 'chat_planner', surface: 'gui' } as ChatRecord)
+
+    const result = await handlersOver(chats, [], recordingRuns(), { agentChats }).startPlanner({ folder: REPO, epicId: EPIC_ID })
+
+    expect(result).toMatchObject({ ok: true, data: { chat: null, problem: expect.stringContaining('signed out') } })
+    expect(calls.map((call) => call[0])).toEqual(['createChat', 'deleteChat'])
   })
 })

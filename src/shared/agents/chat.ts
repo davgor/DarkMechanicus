@@ -19,6 +19,7 @@
  */
 import { z } from 'zod'
 import { agentIdSchema } from '../desktop/agentKinds'
+import { callsignSchema } from './callsign'
 
 /** Dark Mechanicus roles a chat can run as: the four roles the app's MCP server serves. */
 export const CHAT_ROLES = ['planner', 'orchestrator', 'worker', 'reviewer'] as const
@@ -68,6 +69,10 @@ export const chatRecordSchema = z.object({
   sessionId: z.string().min(1).nullable(),
   /** The run this chat orchestrates, when Dark Mechanicus started it for one; absent for every other chat and for chats stored before runs were recorded. */
   runId: z.string().min(1).optional(),
+  /** Main-owned epic binding, set once; legacy chats have no explicit binding. */
+  epicId: z.string().optional(),
+  /** Absent on legacy terminal chats. */
+  surface: z.enum(['gui', 'terminal']).optional(),
   /** The epic this chat moves to Linear, when Dark Mechanicus started it as a transfer chat; absent for every other chat and for chats stored before transfers. */
   targetRepository: z.string().optional(),
   forgeResolver: z.string().optional(),
@@ -186,6 +191,7 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
   z.object({
     ...itemBase,
     kind: z.literal('approval_request'),
+    callsign: callsignSchema.optional(),
     requestId: z.string().min(1),
     category: z.enum(APPROVAL_CATEGORIES),
     tool: z.string().min(1),
@@ -205,6 +211,8 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     kind: z.literal('approval_decision'),
     requestId: z.string().min(1),
     decision: z.enum(APPROVAL_OUTCOMES),
+    decidedBy: z.enum(['person', 'magos']).optional(),
+    reason: z.string().max(500).optional(),
     /** True when an earlier Allow for this chat answered it without asking. */
     automatic: z.boolean().optional()
   }),
@@ -240,8 +248,9 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
   z.object({
     ...itemBase,
     kind: z.literal('thread'),
-    /** The item (a tool call) that spawned the thread. */
-    parentItemId: z.string().min(1),
+    callsign: callsignSchema.optional(),
+    /** The spawning tool call, or null when the protocol does not identify it. */
+    parentItemId: z.string().min(1).nullable(),
     /** What the subagent was asked to do, in a few words. */
     label: z.string().min(1),
     state: z.enum(THREAD_STATES)

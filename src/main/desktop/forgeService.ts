@@ -45,6 +45,8 @@ interface Services {
   provisioning?: Pick<Parameters<typeof createForgeProvisioningWork>[0], 'publisher' | 'discover'> & { journal: string }
   onImported?(member: string, agent?: string): Promise<void>
   setup?: Omit<ForgeSetupOnboardingOptions, 'resolveMember' | 'discover' | 'resolveCheckout' | 'mutate' | 'sync'>
+  /** Told the code of each busy manifest rename that is asked again; this module stays free of the Electron logger. */
+  onManifestRetry?(code: string): void
 }
 interface MemberIdentity { key: string; identity: string }
 interface MemberPreparation { key: string | undefined; promise: Promise<void> }
@@ -128,7 +130,7 @@ class ForgeService {
     const pending = this.checking.get(root)
     if (pending) return pending
     const key = this.rootKey(root)
-    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked })).then(checkout => {
+    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked, onManifestRetry: this.deps.onManifestRetry })).then(checkout => {
       if (key !== undefined && this.rootKey(root) === key) {
         this.validated.set(root, key)
         this.notifyMembers(root)
@@ -421,7 +423,7 @@ class ForgeService {
     if (!existsSync(member)) mkdirSync(member)
     else throw new Error('The project folder already exists in this Forge World.')
     await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
-    updateForge(root, w => w.projects.push({ folder, repository: url }))
+    updateForge(root, w => w.projects.push({ folder, repository: url }), this.deps.onManifestRetry)
     return member
   }
   async convert(root: string, source: string, force = false) {
@@ -521,7 +523,7 @@ class ForgeService {
       if (realpathSync.native(move.member) !== move.member || dirname(move.member) !== move.root) throw new Error('The reserved export folder moved; the source was kept.')
       rmSync(move.member, { recursive: true })
     }
-    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) })
+    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) }, this.deps.onManifestRetry)
   }
 
   async retireForcedSource({ source, member }: ForgeMove) {
@@ -582,7 +584,8 @@ class ForgeService {
       ...adapter, home, registry, pool, session, pickDirectory, git: this.git,
       withWorld: (root, change) => this.withProvisioningWorld(root, change),
       synchronize: (root, current) => this.sync(root, true, false, current),
-      onProject: (member, agent) => this.imported(member, agent)
+      onProject: (member, agent) => this.imported(member, agent),
+      onManifestRetry: this.deps.onManifestRetry
     }))
     this.provisioning = provisioning
     ipc.handle('forgeSetup:provision', (_event, request, operationId) => provisioning.provision(request, operationId))
@@ -668,7 +671,7 @@ class ForgeService {
       if (picked) await this.convert(root, this.deps.registry.track(picked).folder.path)
     })
     ipc.handle('forge:add', (_e, folder, repository, name) => this.add(this.rootOf(folder), repository, name))
-    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }); this.next.set(root, Date.now() + minutes * 60_000) })
+    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onManifestRetry); this.next.set(root, Date.now() + minutes * 60_000) })
     ipc.handle('forge:sync', (_e, folder) => this.sync(this.rootOf(folder)))
     ipc.handle('forge:memberStatus', (_e, folder, member: unknown) => this.memberStatus(folder, member))
     ipc.handle('forge:status', (_e, folder) => { const root = this.rootOf(folder); return { last: this.last.get(root) ?? null, error: this.errors.get(root) ?? null } })
@@ -871,7 +874,7 @@ class ForgeService {
       beforeVerify?.()
       await original.call('verifyForge', member, false)
     }
-    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }))
+    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }), this.deps.onManifestRetry)
   }
   private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
     const detection = this.setup === undefined ? undefined : await this.deps.provisioning?.discover(repository)
@@ -914,7 +917,7 @@ class ForgeService {
     mkdirSync(dirname(archive), { recursive: true })
     if (existsSync(join(member, '.darkmechanicus'))) renameSync(join(member, '.darkmechanicus'), archive)
     if (existsSync(member) && readdirSync(member).length === 0) rmdirSync(member)
-    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) })
+    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) }, this.deps.onManifestRetry)
   }
 }
 

@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import type { AgentModels } from '../../../shared/agents/models'
+import { pickChatAgent } from '../../../shared/agents/pickChatAgent'
 import { AGENT_DEFINITIONS, AGENT_KINDS } from '../../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
@@ -17,14 +18,13 @@ export function chattableAgents(agents: readonly AgentView[], statuses: Statuses
 }
 
 /**
- * The agent New chat opens: the folder's default while it is connected (signed out too: its terminal says
- * so), else OMP when it can chat, else the first agent that can chat, else the first connected one; null when
- * none is connected.
+ * Keep an explicit connected folder default. Otherwise prefer the signed-in GUI agent,
+ * retaining the existing sign-in path when no agent is ready.
  */
 export function newChatAgent(defaultId: AgentId | null, agents: readonly AgentView[], statuses: Statuses): AgentId | null {
   if (defaultId !== null && agents.some((agent) => agent.id === defaultId)) return defaultId
   const chattable = chattableAgents(agents, statuses)
-  return (chattable.find((agent) => agent.id === 'omp') ?? chattable[0] ?? agents[0])?.id ?? null
+  return pickChatAgent(agents, statuses)?.agentId ?? chattable[0]?.id ?? agents[0]?.id ?? null
 }
 
 interface AgentChoiceProps {

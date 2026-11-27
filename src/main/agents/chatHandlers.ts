@@ -26,6 +26,7 @@ import type {
   SendConversationResult,
   StartKanbanCardResult,
   StartOrchestratorResult,
+  StartPlannerResult,
   StartTransferChatResult
 } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
@@ -47,6 +48,9 @@ import { byRecency, type ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
+import { startPlannerChat, type PlannerAgents } from './plannerStart'
+import { startChatOnSurface } from './chatSurfaceStart'
+import type { AgentChatSessions } from '../agentChat/agentChatSessions'
 import type { TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
@@ -106,6 +110,7 @@ const startKanbanCardSchema = z.strictObject({
 const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
 const epicIdSchema = stableId.regex(/^ep_/)
+const startPlannerSchema = z.strictObject({ folder: folderSchema, epicId: epicIdSchema })
 const ticketIdSchema = stableId.regex(/^tk_/)
 const conversationTargetSchema = z.union([
   z.strictObject({ epicId: epicIdSchema, ticketId: ticketIdSchema.optional() }),
@@ -151,6 +156,10 @@ interface ChatHandlerDeps {
   chats: ChatRecords
   /** The chat terminals: Start run and Play start their chat's terminal before they answer; Kick back pastes into the card's. */
   terminals: Pick<TerminalSessions, 'start' | 'paste'>
+  /** The one GUI session manager (`wireAgentChats`): GUI chats start and take board messages here, and live reads ask it. */
+  agentChats: Pick<AgentChatSessions, 'start' | 'send' | 'isLive'>
+  /** The connected agents with their sign-in state, which Start planner picks its agent from. */
+  plannerAgents: PlannerAgents
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
   /** The desktop's transfer reads, for starting a transfer chat and for its prompt. */
@@ -177,6 +186,7 @@ export interface ChatHandlers {
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
   startTransferChat(request: unknown): Promise<CommandResult<StartTransferChatResult>>
+  startPlanner(request: unknown): Promise<CommandResult<StartPlannerResult>>
   startKanbanCard(request: unknown): Promise<CommandResult<StartKanbanCardResult>>
   kickBackKanbanCard(request: unknown): Promise<CommandResult<KickBackKanbanCardResult>>
   sendConversationMessage(request: unknown): Promise<CommandResult<SendConversationResult>>
@@ -249,8 +259,8 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
-  const { runs, chats, terminals, onUnexpectedError } = deps
-  const started = await startOrchestratorRun({ runs, chats, terminals, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const { runs, chats, terminals, agentChats, onUnexpectedError } = deps
+  const started = await startOrchestratorRun({ runs, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }
@@ -262,8 +272,23 @@ async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<Sta
   const request = parseInput(startTransferSchema, input, 'transfer chat request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
-  const { transfers, chats, terminals, onUnexpectedError } = deps
-  const started = await startTransferChat({ transfers, chats, terminals, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const { transfers, chats, terminals, agentChats, onUnexpectedError } = deps
+  const started = await startTransferChat({ transfers, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  if (started.chat !== null) {
+    chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
+  }
+  return started
+}
+
+/** Validates the request and the folder before the epic is read; see `startPlannerChat` for what happens after. */
+async function startPlanner(deps: ChatHandlerDeps, input: unknown): Promise<StartPlannerResult> {
+  const request = parseInput(startPlannerSchema, input, 'planner request')
+  const folder = chatFolder(deps, request.folder)
+  const { chats, terminals, agentChats, onUnexpectedError } = deps
+  const started = await startPlannerChat(
+    { epics: deps.runs, agents: deps.plannerAgents, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) },
+    { epicId: request.epicId, folder }
+  )
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }
@@ -275,8 +300,8 @@ async function startCard(deps: ChatHandlerDeps, input: unknown): Promise<StartKa
   const request = parseInput(startKanbanCardSchema, input, 'Kanban card request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
-  const { kanban, chats, terminals, onUnexpectedError } = deps
-  const started = await startKanbanCard({ cards: kanban, chats, terminals, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const { kanban, chats, terminals, agentChats, onUnexpectedError } = deps
+  const started = await startKanbanCard({ cards: kanban, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }
@@ -286,8 +311,8 @@ async function startCard(deps: ChatHandlerDeps, input: unknown): Promise<StartKa
 /** Validates the request and the folder before the card is kicked back; see `kickBackKanbanCard` for what happens after. */
 function kickBackCard(deps: ChatHandlerDeps, input: unknown): Promise<KickBackKanbanCardResult> {
   const request = parseInput(kickBackKanbanCardSchema, input, 'Kanban kick-back request')
-  const { kanban, chats, terminals, onUnexpectedError } = deps
-  return kickBackKanbanCard({ cards: kanban, chats, terminals, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder: chatFolder(deps, request.folder) })
+  const { kanban, chats, terminals, agentChats, onUnexpectedError } = deps
+  return kickBackKanbanCard({ cards: kanban, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder: chatFolder(deps, request.folder) })
 }
 
 /** A transfer request, validated, with the canonical path of its tracked folder. */
@@ -485,6 +510,17 @@ function resumeForBoard(deps: ChatHandlerDeps, chat: ChatRecord): Promise<string
   return deps.conversation.resume?.(chat) ?? Promise.resolve('Automatic resume is unavailable; the person message remains pending.')
 }
 
+/** A board message to a GUI chat is the person's user turn in that chat (starting it if it is stopped), never a paste. */
+async function sendGuiTurn(deps: ChatHandlerDeps, chat: ChatRecord, text: string): Promise<ConversationDelivery> {
+  try {
+    await deps.agentChats.send(chat, { text })
+    return { chatId: chat.id, state: 'delivered', problem: null }
+  } catch (error) {
+    reportUnexpected(deps, error)
+    return { chatId: chat.id, state: 'failed', problem: errorMessage(error) }
+  }
+}
+
 async function pasteConversationMessage(
   deps: ChatHandlerDeps,
   input: {
@@ -503,6 +539,7 @@ async function pasteConversationMessage(
     input.target.ticketId !== undefined &&
     (input.resolved.via === 'attempt' || input.resolved.via === 'run')
   const message = { id: input.prompt.messageId, text: boardMessage({ ...input.prompt, relay }) }
+  if (chat.surface === 'gui') return sendGuiTurn(deps, chat, message.text)
   return scheduleBoardContext(deps, chat, message, () => deps.agents.get(chat.agent)?.kind === 'omp'
     ? resumeForBoard(deps, chat)
     : terminalFailure(deps, () => deps.terminals.paste(chat, boardContextText(message), message.id)))
@@ -533,11 +570,18 @@ async function openConversationChat(
       model: null,
       allowSave: true,
       title: prompt.title,
-      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId }
+      // An epic conversation is bound to its epic; a card conversation names its card only.
+      ...(isCardTarget(request.target)
+        ? { conversation: { cardId: request.target.cardId } }
+        : { conversation: { epicId: request.target.epicId }, epicId: request.target.epicId })
     })
   } catch (error) {
     reportUnexpected(deps, error)
     return { chatId: null, state: 'failed', problem: `The conversation chat could not be created: ${errorMessage(error)}` }
+  }
+  if (chat.surface === 'gui') {
+    const failure = await startChatOnSurface({ ...deps, ...(deps.onUnexpectedError === undefined ? {} : { onError: deps.onUnexpectedError }) }, chat, message.text)
+    return failure === null ? { chatId: chat.id, state: 'delivered', problem: null } : { chatId: chat.id, state: 'failed', problem: failure }
   }
   return scheduleBoardContext(deps, chat, message, () => agent.kind === 'omp'
     ? resumeForBoard(deps, chat)
@@ -642,6 +686,7 @@ export function createChatHandlers(options: ChatHandlerOptions): ChatHandlers {
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
+    startPlanner: (input) => answer(deps, () => startPlanner(deps, input)),
     startKanbanCard: (input) => answer(deps, () => startCard(deps, input)),
     kickBackKanbanCard: (input) => answer(deps, () => kickBackCard(deps, input)),
     sendConversationMessage: (input) => answer(deps, () => sendConversationMessage(deps, input)),
@@ -656,7 +701,12 @@ export function createChatHandlers(options: ChatHandlerOptions): ChatHandlers {
         const { folder, epicId } = transferRequest(deps, input)
         return transferPrompt(deps.transfers, folder, epicId)
       }),
-    read: (input) => answer(deps, () => chats.readChat(chatRequest(deps, refSchema, input).ref)),
+    read: (input) =>
+      answer(deps, () => {
+        const { ref } = chatRequest(deps, refSchema, input)
+        // A live GUI process still owns its pending requests and running calls: the read must not settle them.
+        return chats.readChat(ref, { live: deps.agentChats.isLive(ref) })
+      }),
     // The request and the folder are validated even when the app wired no lookup.
     boundThreads: (input) =>
       answer(deps, () => {

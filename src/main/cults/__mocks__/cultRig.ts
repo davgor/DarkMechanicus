@@ -87,7 +87,7 @@ function grantsOver(gates: CultHarness['gates'], pool: TestWorkspacePool): ChatG
 
 function handlersOver(gates: CultHarness['gates'], records: ChatRecords): ChatHandlers {
   const unused = {} as never
-  return createChatHandlers({ registry: gates, agents: { get: () => builtInAgent('omp') }, chats: records, terminals: unused, runs: unused, transfers: unused, kanban: unused })
+  return createChatHandlers({ registry: gates, agents: { get: () => builtInAgent('omp') }, chats: records, terminals: unused, agentChats: unused, plannerAgents: unused, runs: unused, transfers: unused, kanban: unused })
 }
 
 /** Makes every PTY the rig spawns exit once killed. */

@@ -14,6 +14,7 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import type { KanbanPacket } from '../../shared/domain/kanban'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
 import { builtInAgent, connectedAgents } from '../agents/__mocks__/chatFixtures'
+import { onTerminalSurface, recordingAgentChats, type RecordingAgentChats } from '../agents/__mocks__/agentChatDoubles'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from '../agents/claimTokenMask'
 import { kanbanGuidance, kanbanKickoff } from '../agents/kanbanKickoff'
@@ -50,8 +51,11 @@ afterEach(() => {
   terminals.cleanup()
 })
 
-/** The real Kanban core over one test database, and the chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them. */
-function rig(): Rig {
+/**
+ * The real Kanban core over one test database, and the chat records over the terminals' store, with deleting a chat
+ * ending its terminal first, as main wires them. New chats are terminal chats unless `gui` keeps the surface the agent gets.
+ */
+function rig(gui = false): Rig {
   const desktop = createTestCtx({ role: 'desktop', checkout: { branch: 'feature/cards', commit: null } })
   const calls: string[] = []
   const records = createChatRecords({ store: terminals.store, agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('autonomous'), CUSTOM_AGENT]) })
@@ -60,11 +64,12 @@ function rig(): Rig {
     kickBack: async (_folder, input) => (calls.push(`kickBack ${input.cardId}`), coreKickBack(desktop, input)),
     branch: async () => desktop.checkout().branch
   }
-  return { desktop, records: endingTerminals(records, terminals.sessions), cards, calls, errors: [] }
+  const ending = endingTerminals(records, terminals.sessions)
+  return { desktop, records: gui ? ending : onTerminalSurface(ending, terminals.store), cards, calls, errors: [] }
 }
 
-function deps(state: Rig, records: ChatRecords = state.records): Parameters<typeof startKanbanCard>[0] {
-  return { cards: state.cards, chats: records, terminals: terminals.sessions, onError: (error) => state.errors.push(error) }
+function deps(state: Rig, records: ChatRecords = state.records, agentChats: RecordingAgentChats = recordingAgentChats()): Parameters<typeof startKanbanCard>[0] {
+  return { cards: state.cards, chats: records, terminals: terminals.sessions, agentChats, onError: (error) => state.errors.push(error) }
 }
 
 function newCard(state: Rig, title = TITLE): { id: string; key: string } {
@@ -105,6 +110,65 @@ async function drawSettled(pty: FakePty, data = 'ready'): Promise<void> {
 function kickBackMessage(key: string, cardId: string, comment: string): string {
   return `${key} was kicked back by a person: ${comment}. Claim it again with claim_kanban_card (cardId ${cardId}) and address the comment.`
 }
+
+describe('a Kanban card chat on the GUI surface', () => {
+  it('plays the card and starts its GUI chat through the agent-chat sessions with the kickoff as its first message', async () => {
+    const state = rig(true), agentChats = recordingAgentChats()
+    const card = newCard(state)
+
+    const result = await startKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, agent: 'claude' })
+
+    expect(result.problem).toBeNull()
+    expect(result.chat).toMatchObject({ role: 'orchestrator', cardId: card.id, surface: 'gui' })
+    expect(result.chat).not.toHaveProperty('epicId')
+    expect(agentChats.calls).toEqual([['start', result.chat, { firstMessage: kanbanKickoff({ cardId: card.id, key: card.key, title: TITLE, branch: 'feature/cards' }) }]])
+    expect(terminals.host.spawns).toEqual([])
+  })
+
+  it('gives a kick-back to the GUI card chat as a user turn, never a terminal paste', async () => {
+    const state = rig(true), agentChats = recordingAgentChats()
+    const card = newCard(state)
+    const started = await startKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, agent: 'claude' })
+    submit(state, card.id)
+
+    const result = await kickBackKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, comment: 'Still flaky.' })
+
+    expect(result).toMatchObject({ chatId: started.chat?.id, problem: null, card: { lane: 'in_progress' } })
+    expect(agentChats.calls.slice(1)).toEqual([['send', expect.objectContaining({ id: started.chat?.id }), { text: kickBackMessage(card.key, card.id, 'Still flaky') }]])
+    expect(terminals.host.spawns).toEqual([])
+  })
+
+  it('reports a GUI kick-back that could not be sent, keeping the card back In progress', async () => {
+    const state = rig(true), agentChats = recordingAgentChats()
+    agentChats.send = async () => { throw new Error('The agent is not running.') }
+    const card = newCard(state)
+    await startKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, agent: 'claude' })
+    submit(state, card.id)
+
+    const result = await kickBackKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, comment: 'Still flaky.' })
+
+    expect(result.problem).toContain('could not reach its chat: The agent is not running')
+    expect(result.card).toMatchObject({ lane: 'in_progress' })
+    expect(terminals.host.spawns).toEqual([])
+  })
+
+  it('still pastes a kick-back into a terminal card chat and sends nothing to the GUI', async () => {
+    const state = rig(), agentChats = recordingAgentChats()
+    const card = newCard(state)
+    const started = await startKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, agent: 'claude' })
+    const pty = terminals.host.last()
+    await drawSettled(pty)
+    submit(state, card.id)
+
+    const result = await kickBackKanbanCard(deps(state, state.records, agentChats), { folder: terminals.repo, cardId: card.id, comment: 'Still flaky.' })
+    terminals.clock.advance(SECOND)
+
+    expect(result).toMatchObject({ chatId: started.chat?.id, problem: null })
+    expect(started.chat).toMatchObject({ surface: 'terminal' })
+    expect(pty.written.join('')).toContain('Still flaky. Claim it again with claim_kanban_card')
+    expect(agentChats.calls).toEqual([])
+  })
+})
 
 describe('play a Kanban card', () => {
   it('marks the play, then creates an orchestrator chat that records the card and gives Claude Code the kickoff as its positional prompt', async () => {

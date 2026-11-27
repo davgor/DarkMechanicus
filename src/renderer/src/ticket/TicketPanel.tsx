@@ -9,7 +9,7 @@ import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { ReviewInput } from '../epic/workspaceActions'
 import type { EvidenceOpener } from '../scorecard/ScorecardParts'
-import { ActivityTab } from './ActivityTab'
+import { ActivityTab, type AgentTabLink } from './ActivityTab'
 import { AttemptList } from './AttemptList'
 import { AutoRetries, AutoRetryCount } from './AutoRetries'
 import { ConversationPanel } from '../conversation/ConversationPanel'
@@ -46,6 +46,8 @@ export interface TicketPanelProps {
   onReview(input: ReviewInput): Promise<string | null>
   /** Opens a chat; with a thread the chat opens with that thread expanded. The Activity tab links to the chat an attempt runs in. */
   onOpenChat(chatId: string, threadId?: string): void
+  /** Inside an epic, a GUI chat an attempt is bound to by grant opens in the Agent tab. */
+  agentTab?: AgentTabLink
 }
 
 type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'conversation' | 'history' | 'scorecard'
@@ -236,6 +238,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
           attemptId={focus.attemptId}
           onChoose={(attemptId) => props.onFocus({ attemptId })}
           onOpenChat={panel.onOpenChat}
+          agentTab={panel.agentTab}
           scheduler={panel.scheduler}
         />
       )

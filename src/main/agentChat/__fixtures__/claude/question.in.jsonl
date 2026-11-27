@@ -1,0 +1,2 @@
+{"type":"user","session_id":"session_T1","uuid":"uuid_T1_45","parent_tool_use_id":null,"message":{"role":"user","content":"Ask which database"}}
+{"type":"control_response","response":{"subtype":"success","request_id":"req_T1_question","response":{"behavior":"allow","updatedInput":{"questions":[{"question":"Which database?","header":"Database","options":[{"label":"SQLite","description":"Local database"},{"label":"Postgres","description":"Server database"}],"multiSelect":false}],"answers":{"Which database?":"SQLite"}}}}}
