@@ -1,7 +1,9 @@
 /** Pure view model for the epic header: breadcrumb, revision badge, and plan actions. */
-import { WORK_STATUS_LABELS } from '../../../shared/domain/status'
+import { isActiveRunState, WORK_STATUS_LABELS } from '../../../shared/domain/status'
+import type { TransferView } from '../../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../../shared/domain/views'
 import { runLabel } from './runBarView'
+import { isOpenTransfer } from './transferView'
 
 export const SAVE_UNAVAILABLE_MESSAGE = 'Save is unavailable while the Linear transfer is open. Cancel the transfer to save.'
 
@@ -67,6 +69,24 @@ function draftActions(input: HeaderInput): HeaderActions {
   }
 }
 
+/** The loaded run and transfer as the locks they put on runs: an active run, an open Linear transfer. */
+export function runLocks(data: { run: RunView | null; transfer: TransferView | null }): Pick<HeaderInput, 'hasActiveRun' | 'hasOpenTransfer'> {
+  return { hasActiveRun: data.run !== null && isActiveRunState(data.run.state), hasOpenTransfer: isOpenTransfer(data.transfer?.status ?? null) }
+}
+
+/** Why Start run is withheld from a saved plan. */
+export type StartRunBlocker = 'no_plan' | 'active_run' | 'open_transfer'
+
+/**
+ * Why a run cannot start from the saved plan, in the order the person can resolve them: no saved plan, an active run,
+ * an open Linear transfer; null when Start run is offered.
+ */
+export function startRunBlocker(input: Pick<HeaderInput, 'epic' | 'hasActiveRun' | 'hasOpenTransfer'>): StartRunBlocker | null {
+  if (input.epic.currentRevisionId === null) return 'no_plan'
+  if (input.hasActiveRun) return 'active_run'
+  return input.hasOpenTransfer ? 'open_transfer' : null
+}
+
 function actionsFor(input: HeaderInput): HeaderActions {
   const epic = input.epic
   if (epic.status === 'completed') {
@@ -79,7 +99,7 @@ function actionsFor(input: HeaderInput): HeaderActions {
   return {
     ...NO_ACTIONS,
     editDraft: epic.hasDraft ? 'view' : 'edit',
-    startRun: saved && !input.hasActiveRun && !input.hasOpenTransfer,
+    startRun: startRunBlocker(input) === null,
     // The same refusals queueTransfer makes: a saved plan, no active run, no open transfer, no unsaved draft changes.
     transfer: saved && !input.hasActiveRun && !input.hasOpenTransfer && !epic.draftChanged
   }

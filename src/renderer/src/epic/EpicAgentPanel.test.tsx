@@ -9,7 +9,7 @@ import { FakeChats } from '../__mocks__/fakeChats'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { fakeOrchestration } from './__mocks__/fakeOrchestration'
-import { epicDetail, folder, runView } from './__mocks__/fixtures'
+import { epicDetail, folder, runView, transferView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { AgentPickerDialog } from './AgentPickerDialog'
 import { relayMessage } from './epicAgentsView'
@@ -290,20 +290,22 @@ describe('EpicAgentPanel: starting the Magos on an empty epic', () => {
 
   it.each([
     ['no saved plan', noRunBackend({ epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), saved: null }), 'Save the plan first'],
-    ['an active run', backendWith(), 'A run is active; its Magos is in the list']
-  ])('disables Magos with its reason with %s, and choosing it opens nothing', async (_, backend, reason) => {
+    ['an active run', backendWith(), 'A run is active; its Magos is in the list'],
+    ['an open Linear transfer', noRunBackend({ transfer: transferView('in_progress') }), 'A Linear transfer is open']
+  ])('disables Magos with its reason with %s, as the header withholds Start run, and choosing it opens nothing', async (_, backend, reason) => {
     openAgent(backend, [])
     const stage = await agentStage()
     const magos = roleCard(stage, 'Magos')
     expect(within(magos).getByText(reason)).toBeTruthy()
     expect(within(stage).getByRole('radio', { name: 'Magos' }).getAttribute('aria-disabled')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Start run' })).toBe(null)
     fireEvent.click(magos)
     expect(screen.queryByRole('dialog', { name: 'Start run' })).toBe(null)
     expect((backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
   })
 })
 
-function pickerWorkspace(data: Pick<WorkspaceData, 'epic' | 'run'>, backend: FakeBackend): {
+function pickerWorkspace(input: Pick<WorkspaceData, 'epic' | 'run'> & Partial<Pick<WorkspaceData, 'transfer'>>, backend: FakeBackend): {
   ws: WorkspaceHandle
   opened: { count: number }
   dispatched: unknown[]
@@ -312,7 +314,7 @@ function pickerWorkspace(data: Pick<WorkspaceData, 'epic' | 'run'>, backend: Fak
   const opened = { count: 0 }
   const dispatched: unknown[] = []
   const ws = {
-    data, folder: folder(), epicId: 'ep_1', orchestration: fakeOrchestration(),
+    data: { transfer: null, ...input }, folder: folder(), epicId: 'ep_1', orchestration: fakeOrchestration(),
     dispatch: (action: unknown) => dispatched.push(action),
     openStartRun: () => { opened.count += 1 }
   } as unknown as WorkspaceHandle
@@ -331,10 +333,13 @@ describe('AgentPickerDialog', () => {
     expect(closed.count).toBe(1)
   })
 
-  it('disables Magos until the plan is saved', () => {
-    const { ws } = pickerWorkspace({ epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), run: null }, noRunBackend())
+  it.each([
+    ['until the plan is saved', { epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), run: null }, 'Save the plan first'],
+    ['while a Linear transfer is open', { epic: epicDetail(), run: null, transfer: transferView('queued') }, 'A Linear transfer is open']
+  ])('disables Magos %s', (_, data, reason) => {
+    const { ws } = pickerWorkspace(data, noRunBackend())
     render(<AgentPickerDialog ws={ws} onClose={() => undefined} />)
-    expect(within(roleCard(screen.getByRole('dialog'), 'Magos')).getByText('Save the plan first')).toBeTruthy()
+    expect(within(roleCard(screen.getByRole('dialog'), 'Magos')).getByText(reason)).toBeTruthy()
   })
 
   it('opens Start run for Magos and closes; never starts an orchestrator itself', () => {

@@ -4,18 +4,24 @@
  */
 import './epicAgentPanel.css'
 import { useState } from 'react'
-import { isActiveRunState } from '../../../shared/domain/status'
 import { AgentRolePicker } from '../agentRoles/AgentRolePicker'
 import type { AgentRole } from '../agentRoles/agentRoles'
 import { errorMessage } from '../api/dm'
 import { Dialog } from '../components/Dialog'
+import { runLocks, startRunBlocker, type StartRunBlocker } from './headerView'
 import type { WorkspaceHandle } from './useWorkspace'
 
-/** Why the Magos cannot start now, read from the workspace's own plan and run; none when it can. */
+/** The Magos card's reason for each way the header's Start run is withheld. */
+const MAGOS_BLOCKED: Record<StartRunBlocker, string> = {
+  no_plan: 'Save the plan first',
+  active_run: 'A run is active; its Magos is in the list',
+  open_transfer: 'A Linear transfer is open'
+}
+
+/** Why the Magos cannot start now: exactly when the header withholds Start run. None when it can. */
 function disabledRoles(ws: WorkspaceHandle): Partial<Record<AgentRole, string>> {
-  if (ws.data.epic.currentRevisionId === null) return { orchestrator: 'Save the plan first' }
-  const run = ws.data.run
-  return run !== null && isActiveRunState(run.state) ? { orchestrator: 'A run is active; its Magos is in the list' } : {}
+  const blocker = startRunBlocker({ epic: ws.data.epic, ...runLocks(ws.data) })
+  return blocker === null ? {} : { orchestrator: MAGOS_BLOCKED[blocker] }
 }
 
 /**
