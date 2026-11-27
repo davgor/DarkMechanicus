@@ -89,6 +89,7 @@ import type { ChatRecord, ChatRole, DarkMechanicusCli } from '../../shared/agent
 import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, type RunState } from '../../shared/domain/status'
 import type { GrantChat, IssuedChatCli } from '../agents/chatGrants'
+import { mailboxChat } from '../agents/chatMailboxOperations'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
 import { forgeReachFolders } from '../desktop/forgeContext'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
@@ -1135,7 +1136,7 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
       void revokeGrant(manager, grantId)
     }
   }
-  const identity = { id: chat.id, agent: chat.agent, title: chat.title, kind: agent.kind }
+  const identity = { ...mailboxChat(chat), kind: agent.kind }
   // A project-less chat with no folder to reach starts with no grant: its instructions say so. It has no mailbox.
   const issuing: Promise<IssuedGrants> =
     context.reach === undefined

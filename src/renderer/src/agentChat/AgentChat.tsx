@@ -7,6 +7,7 @@ import type { Scheduler } from '../app/scheduler'
 import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
+import { ChatComposer } from './ChatComposer'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
@@ -20,6 +21,10 @@ interface Props {
   folder: string | null
   chatId: string
   agentLabel: string
+  /** The composer's agent chip: the label with its role or CLI, such as `Magos · Skitarii`; the label alone by default. */
+  agentChip?: string
+  /** The composer's context chip: the epic or folder the chat works in; none by default. */
+  context?: string | null
   api?: AgentChatApi
   scheduler?: Scheduler
   /** `toggle` offers an Agents rail listing this chat's subagents; the epic panel keeps the default `none`. */
@@ -70,7 +75,9 @@ function useChatCommand(): ChatCommand {
 
 const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
-function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed }: Props): JSX.Element {
+function ChatView({
+  folder, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed
+}: Props): JSX.Element {
   const { state, send, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
   const command = useChatCommand()
   const agents = useChatRail(chatId)
@@ -101,14 +108,35 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', c
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
           <TodoCard chatId={chatId} state={state} />
-          <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
-            queued={state.queued} command={command} send={send} stop={stop} />
+          <Composer chatId={chatId} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state} command={command}
+            send={send} stop={stop} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
           <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
         </div>}
       </div>
     </section>
+  )
+}
+
+/** The chat's shared composer: Message the agent while the transcript is empty, Reply to it once there is one. */
+function Composer({ chatId, agentLabel, agentChip, context, state, command, send, stop }: {
+  chatId: string
+  agentLabel: string
+  agentChip: string | undefined
+  context: string | null | undefined
+  state: ChatState
+  command: ChatCommand
+  send(text: string): Promise<CommandResult<null>>
+  stop(): void
+}): JSX.Element {
+  const busy = state.status === 'busy'
+  const empty = state.items.length === 0 && state.streaming.size === 0
+  return (
+    <ChatComposer id={`agent-message-${chatId}`} label={`Message ${agentLabel}`}
+      placeholder={empty ? `Message ${agentLabel}…` : `Reply to ${agentLabel}…`} agent={agentChip ?? agentLabel} context={context ?? null}
+      queued={state.queued} maxLength={20_000} disabled={!(state.status === 'idle' || busy)} acting={command.acting} busy={busy}
+      error={command.error} send={(text) => command.run(() => send(text))} stop={stop} />
   )
 }
 
@@ -165,42 +193,3 @@ function Messages({ state, folder, agentLabel }: { state: ChatState; folder: str
   )
 }
 
-interface ComposerProps {
-  chatId: string
-  agentLabel: string
-  ready: boolean
-  busy: boolean
-  queued: number
-  command: ChatCommand
-  send: (text: string) => Promise<CommandResult<null>>
-  stop: () => void
-}
-
-function Composer({ chatId, agentLabel, ready, busy, queued, command, send, stop }: ComposerProps): JSX.Element {
-  const [text, setText] = useState('')
-  async function submit(): Promise<void> {
-    if (!ready || !text.trim() || text.length > 20_000) return
-    const sent = text
-    if (await command.run(() => send(sent))) setText((current) => current === sent ? '' : current)
-  }
-  return (
-    <form className="agent-chat-composer glass" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-      {command.error && <p className="agent-chat-command-error" role="alert">{command.error}</p>}
-      <label className="agent-chat-label" htmlFor={`agent-message-${chatId}`}>Message {agentLabel}</label>
-      <textarea className="input" id={`agent-message-${chatId}`} value={text} maxLength={20_000} rows={3} disabled={!ready}
-        placeholder="Send a message…" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault()
-            void submit()
-          }
-        }} />
-      <div className="agent-chat-actions">
-        <span className="agent-chat-hint">Enter to send · Shift+Enter for a new line</span>
-        {queued > 0 && <span className="chat-chip" aria-label="Queued messages">{queued} queued</span>}
-        {busy
-          ? <button className="btn" type="button" disabled={command.acting} onClick={stop}>Stop</button>
-          : <button className="btn btn-primary" type="submit" disabled={!ready || !text.trim() || command.acting}>Send</button>}
-      </div>
-    </form>
-  )
-}

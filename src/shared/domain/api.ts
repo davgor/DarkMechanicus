@@ -56,6 +56,7 @@ import type {
   AgentMailWindow,
   AgentMessageAcceptanceView,
   AgentPeersPage,
+  ListAgentPeersInput,
   ReadAgentInboxInput,
   SendAgentMessageInput
 } from './agentMail'
@@ -928,7 +929,7 @@ export interface CommandApi {
   /** This session's own mailbox. */
   getAgentIdentity(input?: Record<string, never>): Promise<AgentIdentityView>
   /** Other open mailboxes of this project, a page of at most 50 at a time. */
-  listAgentPeers(input: { afterId?: string; limit?: number }): Promise<AgentPeersPage>
+  listAgentPeers(input: ListAgentPeersInput): Promise<AgentPeersPage>
   /** Durably accepts a direct message or reply into the recipient's mailbox; retries replay by clientMessageId. */
   sendAgentMessage(input: SendAgentMessageInput): Promise<AgentMessageAcceptanceView>
   /** One ascending page of the caller's inbox with bodies. Reading never acknowledges. */

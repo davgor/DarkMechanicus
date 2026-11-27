@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-role-picker',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 29 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 450_000
+/** A declared bound: 30 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 465_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -72,8 +72,8 @@ const BASE_FIELDS = [
   'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-/** States outside the epic workspace: the standalone chat, the settings form and the role picker. */
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications', 'agent-role-picker'])
+/** States outside the epic workspace: the standalone chats, the settings form and the role picker. */
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'settings-notifications', 'agent-role-picker'])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
 const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
@@ -94,6 +94,12 @@ const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) &
   && alphaOf(surface?.background) <= 0.72
 /** The agent-role-picker state's cards as the page measured them; empty when it reported none. */
 const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
+/** The agent-composer state's composers, or none. */
+const composersOf = (o) => Array.isArray(o.composers) ? o.composers : []
+/** Which of Send and Stop a composer shows: `send`, `stop`, `both` or `none`. */
+const composerButtons = (card) => card?.send && card?.stop ? 'both' : card?.send ? 'send' : card?.stop ? 'stop' : 'none'
+const round = (button) => button?.radius === '50%' && near(button.width, 32) && near(button.height, 32)
+const square = (button) => button?.radius === '8px' && near(button.width, 32) && near(button.height, 32)
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -213,6 +219,23 @@ const STATE_CHECKS = {
   'agent-needs-you': [
     ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
     ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+  ],
+  'agent-composer': [
+    ['two composers: the idle one with Send and no Stop, the busy one with Stop and no Send',
+      (o) => Array.isArray(o.composers) && o.composers.length === 2 && composerButtons(o.composers[0]) === 'send'
+        && composerButtons(o.composers[1]) === 'stop',
+      (o) => JSON.stringify(o.composers?.map(composerButtons))],
+    ['each composer is a frosted glass card rounded 16 px or more, at most 760 px wide',
+      (o) => composersOf(o).every((card) => frosted(card) && parseFloat(card.radius) >= 16 && card.width <= 760),
+      (o) => JSON.stringify(composersOf(o).map(({ radius, background, backdropFilter, width }) => ({ radius, background, backdropFilter, width })))],
+    ['a round 32 px Send and a square 32 px Stop', (o) => round(composersOf(o)[0]?.send) && square(composersOf(o)[1]?.stop),
+      (o) => JSON.stringify([composersOf(o)[0]?.send, composersOf(o)[1]?.stop])],
+    ['both composers chip the agent, the context and 2 queued', (o) => composersOf(o).length === 2 && composersOf(o).every((card) =>
+      JSON.stringify(card.chips) === JSON.stringify(['Magos · Skitarii', 'dark-mechanicus', '2 queued'])),
+      (o) => JSON.stringify(composersOf(o).map((card) => card.chips))],
+    ['the idle draft grew to two lines and the empty busy composer holds one', (o) => composersOf(o)[0]?.lines === 2
+      && composersOf(o)[1]?.lines === 1, (o) => JSON.stringify(composersOf(o).map((card) => card.lines))],
+    ['both placeholders reply to the Magos', (o) => composersOf(o).every((card) => card.placeholder === 'Reply to Magos…')]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')

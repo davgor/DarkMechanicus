@@ -365,7 +365,7 @@ describe('terminal sessions: mailboxes', () => {
     await exitAndSettle(second.pty)
     await startTerminal(rig, chat, undefined, { newSession: true })
 
-    const identity = { id: chat.id, agent: 'omp', kind: 'omp' }
+    const identity = { id: chat.id, agent: 'omp', role: chat.role, kind: 'omp' }
     expect(rig.grantChats).toEqual([{ ...identity, title: 'Fix the build' }, { ...identity, title: 'Renamed' }, { ...identity, title: 'Renamed' }])
     expect(rig.host.endpointStoredAtSpawn).toEqual([`me_${chat.id}`, `me_${chat.id}`, `me_${chat.id}`])
     expect(stored(chat)).toMatchObject({ endpointId: `me_${chat.id}`, grantIds: ['gr_1', 'gr_2', 'gr_3'] })

@@ -34,9 +34,25 @@ async function mount(name: keyof typeof agentChatScenarios = 'empty') {
 it('renders the empty scenario with a text-only bounded composer', async () => {
   await mount()
   expect(screen.getByText('Send a message to Magos to begin.')).toBeTruthy()
-  expect(screen.getByRole('textbox').getAttribute('maxlength')).toBe('20000')
+  const input = screen.getByRole('textbox', { name: 'Message Magos' })
+  expect(input.getAttribute('maxlength')).toBe('20000')
+  expect(input.getAttribute('placeholder')).toBe('Message Magos…')
   expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
   expect(document.querySelector('input[type="file"]')).toBe(null)
+  expect(screen.queryByText('Enter to send · Shift+Enter for a new line', { selector: ':not(.sr-only)' })).toBe(null)
+  expect(screen.getByLabelText('Agent: Magos').textContent).toBe('Magos')
+  expect(screen.queryByLabelText(/^Context:/)).toBe(null)
+})
+
+it('mounts the shared composer with the agent and context chips it is given and a reply placeholder once there is a transcript', async () => {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: agentChatScenarios.streaming.snapshot }
+  render(<AgentChat {...ref} agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus" api={api} scheduler={new ManualScheduler()} />)
+  await settle()
+  expect(document.querySelector('form.chat-composer.glass')).not.toBe(null)
+  expect(screen.getByRole('textbox', { name: 'Message Magos' }).getAttribute('placeholder')).toBe('Reply to Magos…')
+  expect(screen.getByLabelText('Agent: Magos · Skitarii').textContent).toBe('Magos · Skitarii')
+  expect(screen.getByLabelText('Context: dark-mechanicus').textContent).toBe('dark-mechanicus')
 })
 
 it('renders user/assistant roles, live Markdown, thinking and exactly one committed reply', async () => {
@@ -133,6 +149,8 @@ it('does not duplicate in-flight sends or discard text typed while sending', asy
 
 it('Stop and Escape interrupt only while busy; Enter still queues a message', async () => {
   const { api, emit } = await mount('streaming')
+  expect(screen.queryByRole('button', { name: 'Send' })).toBe(null)
+  expect(screen.getByLabelText('Queued messages').textContent).toBe('2 queued')
   fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
   await settle()
   fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })

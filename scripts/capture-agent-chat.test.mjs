@@ -50,6 +50,19 @@ const ROLE_CARDS = [
   { ...ROLE_CARD, name: 'Lexmechanic', checked: false, art: 'Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm' }
 ]
 const STANDALONE = { viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null }
+/** The agent-composer state's idle and busy composers, as Chromium reports the shipped styles. */
+const COMPOSER = {
+  radius: '18px', background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)', width: 480,
+  placeholder: 'Reply to Magos…', chips: ['Magos · Skitarii', 'dark-mechanicus', '2 queued'], send: null, stop: null
+}
+const COMPOSERS = [
+  { ...COMPOSER, lines: 2, send: { radius: '50%', width: 32, height: 32 } },
+  { ...COMPOSER, lines: 1, stop: { radius: '8px', width: 32, height: 32 } }
+]
+/** An agent-composer record: a standalone chat page, so no epic header, View group or rail. */
+const composerRecord = (composers) => ready('agent-composer', {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, composers
+})
 
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
@@ -81,10 +94,29 @@ function passingRailStates() {
   }
 }
 
+/** Passing records for the standalone chat pages: the chat's own Agents rail and the shared composers. */
+function passingChatStates() {
+  return {
+    'chat-rail': ready('chat-rail', {
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)]
+    }),
+    'chat-rail-collapsed': ready('chat-rail-collapsed', {
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
+      agentsPressed: 'false'
+    }),
+    'chat-rail-legacy': ready('chat-rail-legacy', {
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
+      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
+    }),
+    'agent-composer': composerRecord(COMPOSERS)
+  }
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
     ...passingRailStates(),
+    ...passingChatStates(),
     ...passingDeliveryStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
@@ -98,13 +130,6 @@ function passing() {
     'agent-worker': ready('agent-worker', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
     'agent-legacy-thread': ready('agent-legacy-thread', {
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
-    }),
-    'chat-rail': ready('chat-rail', {
-      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)]
-    }),
-    'chat-rail-collapsed': ready('chat-rail-collapsed', {
-      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
-      agentsPressed: 'false'
     }),
     'agent-todos': ready('agent-todos', {
       todosHeader: 'To-dos 3/7', todoRows: 7, todoListScrolls: true, activeRowVisible: true, activityLine: 'Working 0s · Bash'
@@ -121,10 +146,6 @@ function passing() {
     'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '3 needs you · 4 working', badgedRows: 3 }),
     'agent-planners': ready('agent-planners', {
       treeRows: [row('Magos'), ...Array.from({ length: 9 }, (_, index) => row(index === 0 ? 'Lexmechanic' : `Lexmechanic-${index + 1}`, index === 1))]
-    }),
-    'chat-rail-legacy': ready('chat-rail-legacy', {
-      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
-      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
     'settings-notifications': ready('settings-notifications', {
       ...STANDALONE, settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
@@ -164,22 +185,48 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 29 states once each, in capture order', () => {
+  it('lists the 30 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-role-picker', 'settings-notifications', 'delivery-editor', 'delivery-pending',
-      'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'settings-notifications',
+      'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(29)
+    expect(new Set(STATES).size).toBe(30)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 450 s overall bound: 29 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 465 s overall bound: 30 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(450_000)
+    expect(OVERALL_LIMIT_MS).toBe(465_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: agent-composer', () => {
+  const composer = (patch) => composerRecord(COMPOSERS.map((card, index) => ({ ...card, ...patch(index) })))
+
+  it('passes the idle and busy glass composers', () => {
+    expect(validateObservations('agent-composer', composer(() => ({})))).toEqual([])
+  })
+
+  it('fails a busy composer that still shows Send, a square Send and a round Stop', () => {
+    expect(validateObservations('agent-composer', composer((index) => index === 1 ? { send: COMPOSERS[0].send } : {})))
+      .toEqual(['agent-composer: expected two composers: the idle one with Send and no Stop, the busy one with Stop and no Send; got ["send","both"]'])
+    expect(validateObservations('agent-composer', composer((index) => index === 0
+      ? { send: { ...COMPOSERS[0].send, radius: '8px' } }
+      : { stop: { ...COMPOSERS[1].stop, radius: '50%' } })))
+      .toEqual([expect.stringMatching(/^agent-composer: expected a round 32 px Send and a square 32 px Stop; got /)])
+  })
+
+  it('fails a card rounded under 16 px, a missing queue chip and a draft that did not grow', () => {
+    expect(validateObservations('agent-composer', composer(() => ({ radius: '8px' }))))
+      .toEqual([expect.stringMatching(/^agent-composer: expected each composer is a frosted glass card rounded 16 px or more/)])
+    expect(validateObservations('agent-composer', composer(() => ({ chips: ['Magos · Skitarii', 'dark-mechanicus'] }))))
+      .toEqual([expect.stringMatching(/^agent-composer: expected both composers chip the agent, the context and 2 queued/)])
+    expect(validateObservations('agent-composer', composer(() => ({ lines: 1 }))))
+      .toEqual(['agent-composer: expected the idle draft grew to two lines and the empty busy composer holds one; got [1,1]'])
   })
 })
 

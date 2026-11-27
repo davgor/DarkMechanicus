@@ -1,0 +1,135 @@
+/*
+ * The GUI chats' composer: a rounded glass card centred in the reading column, its controls in a row inside it. The
+ * glass utility owns the surface and edge; the card only rounds it further.
+ */
+.chat-composer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  max-width: 760px;
+  margin: 12px auto 16px;
+  padding: 12px 12px 10px 16px;
+}
+
+.chat-composer.glass {
+  border-radius: 18px;
+}
+
+.chat-composer.glass:focus-within {
+  border-color: var(--ring);
+}
+
+.chat-composer-error {
+  margin: 0;
+  color: var(--st-failed);
+}
+
+.chat-composer-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: hidden;
+}
+
+.chat-composer-input::placeholder {
+  color: var(--muted);
+}
+
+.chat-composer-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.chat-composer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-composer-chip {
+  max-width: 240px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-composer-spacer {
+  flex: 1;
+}
+
+.chat-composer-send,
+.chat-composer-stop {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--primary);
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-ink);
+  cursor: pointer;
+}
+
+.chat-composer-send:hover:not(:disabled),
+.chat-composer-stop:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.chat-composer-send:disabled,
+.chat-composer-stop:disabled {
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.chat-composer-send:focus-visible,
+.chat-composer-stop:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Stop is the square button: it stays a square however the round Send is styled. */
+.chat-composer-stop {
+  border-color: var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.chat-composer-stop-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+@media (max-width: 600px) {
+  .chat-composer {
+    width: calc(100% - 16px);
+    margin: 8px auto;
+  }
+}
