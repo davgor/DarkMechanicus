@@ -4,18 +4,23 @@
  * answers. A start that fails leaves no chat and the run queued, with the reason. On the terminal session manager's
  * fakes (fake PTY host, fake clock), with the real chat records over the same store.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
+import { ompHostCatalog } from '../../core/hostCatalogs/omp'
+import { hostCatalog } from '../../core/schemas'
 import type { ChatRecord } from '../../shared/agents/chat'
-import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import { chatModelOptions, type ChatModelOption } from '../../shared/agents/models'
+import type { EpicDetailView, HostCatalog, RunView } from '../../shared/domain/views'
 import { builtInAgent, connectedAgents } from './__mocks__/chatFixtures'
 import { onTerminalSurface, recordingAgentChats, type RecordingAgentChats } from './__mocks__/agentChatDoubles'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from './claimTokenMask'
 import { orchestratorGuidance, orchestratorKickoff } from './orchestratorKickoff'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
+import { createWorkerCatalog, workerCatalogLine } from './workerCatalog'
 import { settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { endingTerminals } from '../terminals/terminalSessions'
 
@@ -129,6 +134,72 @@ describe('Start run with an agent on the GUI surface', () => {
     expect(result.problem).toContain('signed out')
     expect(chats()).toEqual([])
     expect(terminals.host.spawns).toEqual([])
+  })
+})
+
+const OMP_HOST = JSON.parse(readFileSync(new URL('../agentChat/__fixtures__/omp/models.json', import.meta.url), 'utf8')) as unknown
+const WITH_OMP = connectedAgents([builtInAgent('claude'), builtInAgent('omp')])
+
+/** Start run's deps for a GUI Magos, with the real worker catalog writing under `userData` and OMP's catalog listed by `catalogModels`. */
+function magosRig(userData: string, catalogModels: () => Promise<ChatModelOption[]> = async () => chatModelOptions(OMP_HOST)) {
+  const records = endingTerminals(createChatRecords({ store: terminals.store, agentFor: WITH_OMP }), terminals.sessions)
+  const listed: string[] = []
+  const workerCatalog = createWorkerCatalog({ userData, agentFor: WITH_OMP, models: { catalogModels: (agent) => (listed.push(agent), catalogModels()) } })
+  const errors: unknown[] = []
+  const runs: OrchestratorRuns = { getEpic: async () => EPIC, queueRun: async () => RUN }
+  return { listed, errors, deps: { runs, chats: records, terminals: terminals.sessions, agentChats, workerCatalog, onError: (error: unknown) => errors.push(error) } }
+}
+
+function firstMessage(): string {
+  return (agentChats.calls[0] as [string, ChatRecord, { firstMessage: string }])[2].firstMessage
+}
+
+describe('Start run with a Skitarii (OMP) Magos', () => {
+  let userData: string
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'worker-catalog-'))
+  })
+  afterEach(() => {
+    rmSync(userData, { recursive: true, force: true })
+  })
+
+  it("writes the register_host input to the chat's private folder and names it in one fixed kickoff line", async () => {
+    const { deps, listed } = magosRig(userData)
+
+    const result = await startOrchestratorRun(deps, request('omp', 'anthropic/claude-opus-4-8'))
+
+    expect(result.problem).toBeNull()
+    const file = join(userData, 'agents', 'omp', (result.chat as ChatRecord).id, 'host-catalog.json')
+    const kickoff = orchestratorKickoff({ epicId: 'ep_1', epicTitle: 'Agent chats', branch: 'epic/agent-chats', repositoryBranches: undefined, runId: 'rn_2' })
+    expect(firstMessage()).toBe(`${kickoff}\n\n${workerCatalogLine(file)}`)
+    expect(workerCatalogLine(file)).toBe(`Worker models: this app wrote this host's register_host input to ${JSON.stringify(file)}. Register it with register_host as written, with canSelectWorkerModel true, before start_run; then start each worker with your task tool's model set to the claimed modelId and the claimed effort as its thinking level (get_context topic host-catalog).`)
+    expect(listed).toEqual(['omp'])
+    // The file is the register_host input as it is: the latest of each line plus the model the Magos runs on.
+    const written = JSON.parse(readFileSync(file, 'utf8')) as unknown
+    expect(hostCatalog.parse(written)).toEqual(written)
+    expect(written).toEqual(ompHostCatalog(chatModelOptions(OMP_HOST), 'anthropic/claude-opus-4-8'))
+    expect((written as HostCatalog).models.map((model) => model.id)).toContain('anthropic/claude-opus-4-8')
+  })
+
+  it('adds no line and writes no file for a Magos of another agent', async () => {
+    const { deps, listed } = magosRig(userData)
+
+    await startOrchestratorRun(deps, request('claude', null))
+
+    expect(firstMessage()).not.toContain('Worker models:')
+    expect(listed).toEqual([])
+    expect(existsSync(join(userData, 'agents'))).toBe(false)
+  })
+
+  it('still starts the Magos, without the line, when OMP cannot list its catalog', async () => {
+    const failure = new Error('spawn failed')
+    const { deps, errors } = magosRig(userData, async () => { throw failure })
+
+    const result = await startOrchestratorRun(deps, request('omp', null))
+
+    expect(result.problem).toBeNull()
+    expect(firstMessage()).not.toContain('Worker models:')
+    expect(errors).toEqual([failure])
   })
 })
 

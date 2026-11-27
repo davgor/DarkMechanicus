@@ -612,10 +612,18 @@ Tradeoffs found, for any later change:
 - **Session approvals widen what runs unasked.** In `always-ask` and `always-ask-cached`, answering "Approve bash for this session" (or write) lets every later call of that tool run unasked, inside the folder or out, until the chat ends. Critical patterns and restricted folders still ask.
 - **The person controls this today.** Setting `tools.approvalMode` in their OMP config applies to every Skitarii chat, and the app passes nothing that would override it. A built-in OMP agent has no per-agent arguments (`writeBuiltInAgent` stores `[]`, and `ompLaunch` ignores `agent.args`), so there is no per-chat override.
 
+## 12. Worker models for a Skitarii Magos (DM-1057)
+
+Recorded on 2026-11-27 on the Windows host with **omp 18.20.2** (`C:\Users\davgo\AppData\Local\omp\omp.exe`), signed in to `anthropic` and `openai-codex`.
+
+- **Signed-in `omp models --json`:** exit 0, `{"models":[...]}` with 29 models. Each has `provider`, `kind`, `id`, `selector` (`provider/id`), `name`, `contextWindow`, `maxTokens`, `reasoning`, `thinking` (a plain list such as `["low","medium","high","xhigh","max"]`), `input` (`text`, `image`), `cost` (`input`, `output`, `cacheRead`, `cacheWrite` in US dollars per million tokens; some add `longContext`) and `pricingStatus`. No `identity`. The redacted fixture `src/main/agentChat/__fixtures__/omp/models.json` carries each model's `cost.input` and `cost.output` from this output.
+- **The task tool's per-subagent model:** each `tasks[]` item takes `model`, one exact `provider/model-id[:level]` selector. It is gated by the setting `task.perCallModel` (`off`, `eval`, `on`; **default `off`**). With the default, the call is refused with `Per-call model is disabled for task calls (task.perCallModel: off). Omit model to use the agent's configured model.` With a `--config` overlay holding `task:` / `perCallModel: "on"`, the same call (`"model": "anthropic/claude-haiku-5-5:low"`) spawned the subagent. Project settings can turn it off but not on, and `task.perCallModel` only accepts models the configuration already routes to (`task.perCallModelAllow` can narrow them further).
+- **Decision:** the per-chat overlay (`ompSession.ts`, `OMP_MAGOS_OVERLAY`) sets `task.perCallModel: "on"` only for a chat whose recorded role is `orchestrator`; planner, worker and reviewer chats keep OMP's default. Start run writes the Magos's `register_host` input to `host-catalog.json` in its chat folder and names it in the kickoff (`src/main/agents/workerCatalog.ts`); the Magos passes the claimed effort as the selector's `:level`.
+
 ## Open items for the next tickets
 
 - A hands-on key test (Shift+Enter, paste, resize) and an animated-frame (DEC 2026) check in the app pane; item 9 covered idle frames only.
-- Signed-in output of `omp models --json` (`omp usage --json` is recorded in section 5), and a real resume after a model turn (the session had no turn, only a draft).
+- A real resume after a model turn (the session had no turn, only a draft). Signed-in `omp models --json` is recorded in section 12.
 - Whether xterm.js 6 answers DECRQM 2026 and OSC 11 (so frames are synchronized and the theme slot is right), and whether it can show Kitty graphics.
 - AGENTS.md / CLAUDE.md pickup was read from docs only.
 - Working-indicator text and spinner frames were read from source only.

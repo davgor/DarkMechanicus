@@ -76,6 +76,10 @@ export interface ChatModelOption {
   /** The model reads images. */
   images: boolean
   contextWindow: number | null
+  /** OMP marks the model as a reasoning (thinking) model. */
+  reasoning: boolean
+  /** US dollars per million input tokens (`cost.input`); null when the catalog does not price it. */
+  inputCost: number | null
 }
 
 /** The models of one provider, under its display label. */
@@ -171,6 +175,12 @@ function effortsOf(thinking: unknown): string[] {
   return Array.isArray(efforts) ? efforts.filter((effort): effort is string => typeof effort === 'string' && EFFORT.test(effort)).slice(0, MAX_EFFORTS) : []
 }
 
+/** `cost.input`, in US dollars per million input tokens; null when the entry is unpriced or the price is not a number. */
+function inputCostOf(cost: unknown): number | null {
+  const input = object(cost).input
+  return typeof input === 'number' && Number.isFinite(input) && input >= 0 ? input : null
+}
+
 /**
  * One catalog entry as a `ChatModelOption`, or null for an entry whose provider or id, alone or as `provider/id`, may
  * not go on a command line (`isSafeModelId`; never trimmed or cut to fit). Only `identity` is session-only, and the
@@ -192,7 +202,9 @@ export function chatModelOption(value: unknown): ChatModelOption | null {
     ...lineAndRevision(name, object(raw.identity)),
     efforts: effortsOf(raw.thinking),
     images: Array.isArray(raw.input) && raw.input.includes('image'),
-    contextWindow: Number.isSafeInteger(contextWindow) && (contextWindow as number) > 0 ? (contextWindow as number) : null
+    contextWindow: Number.isSafeInteger(contextWindow) && (contextWindow as number) > 0 ? (contextWindow as number) : null,
+    reasoning: raw.reasoning === true,
+    inputCost: inputCostOf(raw.cost)
   }
 }
 
