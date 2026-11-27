@@ -394,6 +394,36 @@ function readBranchCommit(fs: FsAdapter, root: string, runSync: RunGitSync, name
   return SHA_PATTERN.test(resolved) ? resolved : null
 }
 
+/** Read-only questions about commits and the history between them, asked through the git CLI. */
+function commitQueries(
+  run: RunGit,
+  output: (args: string[]) => Promise<string | null>
+): Pick<GitAdapter, 'isAncestor' | 'commitParents' | 'mergeBase' | 'changedPaths'> {
+  return {
+    isAncestor: async (ancestor, descendant) => {
+      const result = await run(['merge-base', '--is-ancestor', safeArg(ancestor), safeArg(descendant)])
+      // Exit status 1 is a clean "no"; any other failure means git could not look the commits up.
+      return result.code === 0 ? true : result.code === 1 ? false : null
+    },
+    commitParents: async (ref) => {
+      // `--verify` accepts exactly one revision, so a range or a name that expands to several is refused.
+      const resolved = (await output(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`]))?.trim() ?? ''
+      const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
+      return text === null ? null : parseCommitLine(text)
+    },
+    mergeBase: async (a, b) => {
+      // Exit status 1 means the commits share no history; anything else that is not one commit id is a failure too.
+      const base = (await output(['merge-base', safeArg(a), safeArg(b)]))?.trim() ?? ''
+      return SHA_PATTERN.test(base) ? base : null
+    },
+    changedPaths: async (from, to) => {
+      // `-z` prints each path verbatim, NUL-terminated: no quoting of spaces or non-ASCII names.
+      const text = await output(['diff', '--name-only', '--no-renames', '-z', safeArg(from), safeArg(to), '--'])
+      return text === null ? null : text.split('\0').filter((path) => path !== '')
+    }
+  }
+}
+
 /**
  * Git access for one repository root. `head()` reads `.git` files directly (worktrees included);
  * the other methods run the git CLI and degrade to null/empty results when git is unavailable.
@@ -424,27 +454,7 @@ export function createGitAdapter(
     listFiles: async (ref, pathspec) =>
       lines((await output(['ls-tree', '-r', '--name-only', safeArg(ref), '--', safeArg(pathspec)])) ?? ''),
     showFile: async (ref, path) => output(['show', `${safeArg(ref)}:./${safeArg(path)}`]),
-    isAncestor: async (ancestor, descendant) => {
-      const result = await run(['merge-base', '--is-ancestor', safeArg(ancestor), safeArg(descendant)])
-      // Exit status 1 is a clean "no"; any other failure means git could not look the commits up.
-      return result.code === 0 ? true : result.code === 1 ? false : null
-    },
-    commitParents: async (ref) => {
-      // `--verify` accepts exactly one revision, so a range or a name that expands to several is refused.
-      const resolved = (await output(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`]))?.trim() ?? ''
-      const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
-      return text === null ? null : parseCommitLine(text)
-    },
-    mergeBase: async (a, b) => {
-      // Exit status 1 means the commits share no history; anything else that is not one commit id is a failure too.
-      const base = (await output(['merge-base', safeArg(a), safeArg(b)]))?.trim() ?? ''
-      return SHA_PATTERN.test(base) ? base : null
-    },
-    changedPaths: async (from, to) => {
-      // `-z` prints each path verbatim, NUL-terminated: no quoting of spaces or non-ASCII names.
-      const text = await output(['diff', '--name-only', '--no-renames', '-z', safeArg(from), safeArg(to), '--'])
-      return text === null ? null : text.split('\0').filter((path) => path !== '')
-    },
+    ...commitQueries(run, output),
     ...recordPathQueries(root, fs, runSync),
     branchCommit: (name) => readBranchCommit(fs, root, runSync, name)
   }
