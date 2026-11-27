@@ -87,13 +87,22 @@ describe('landing on an agent at 1024 px', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Agent' }))
     expect(within(rail()).getByRole('button', { name: 'Expand Epic agents' })).toBeTruthy()
   })
+})
 
+describe('landing on an agent from a notification at 1024 px', () => {
   it('expands the rail with the agent a notification landed on selected and visible', async () => {
     land(backend(), { kind: 'epicAgent', epicId: 'ep_1', chatId: worker.id })
     const row = await within(await screen.findByRole('complementary', { name: 'Epic agents' })).findByRole('treeitem', { name: 'Acolyte:DM-2' })
     expect(row.getAttribute('aria-selected')).toBe('true')
     expect(within(rail()).getByRole('button', { name: 'Collapse Epic agents' })).toBeTruthy()
+    // The rail persists its state in a passive effect, which React may still have queued on its scheduler when the
+    // expanded row is found. Unmounting commits synchronously, and React flushes every pending passive effect before
+    // it commits, so the stored state is final only then; a fresh visit to the Agent tab shows what was remembered.
+    cleanup()
     expect(window.localStorage.getItem(`dm.epicRail.v1:${FOLDER}\nep_1`)).toContain('"collapsed":false')
+    land(backend(), null)
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent' }))
+    expect(within(rail()).getByRole('button', { name: 'Collapse Epic agents' })).toBeTruthy()
   })
 
   it('takes the reveal once: collapsing the rail afterwards stands', async () => {
@@ -105,7 +114,9 @@ describe('landing on an agent at 1024 px', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
     expect(within(rail()).getByRole('button', { name: 'Expand Epic agents' })).toBeTruthy()
   })
+})
 
+describe('landing on an agent from the Activity tab or the tree at 1024 px', () => {
   it('from the Activity tab: closes the ticket panel and shows the finished worker inside its opened Finished group', async () => {
     const fake = backend()
     const chats = new FakeChats()
