@@ -28,6 +28,8 @@ const ICON_PATHS = {
   kanban: 'M2.5 3h3v10h-3zM6.5 3h3v6h-3zM10.5 3h3v8h-3z',
   hourglass: 'M4 2h8M4 14h8M5 2v2.5L8 8l-3 3.5V14M11 2v2.5L8 8l3 3.5V14',
   lock: 'M4 7.5h8v6H4zM5.5 7.5v-2a2.5 2.5 0 0 1 5 0v2',
+  /** A framed picture: a model that reads images. */
+  image: 'M2.5 3.5h11v9h-11zM2.5 10.5l3-3 3 3 2-2 3 3M10.5 6.5h.01',
   /** A bar chart: the Metrics dashboard. */
   chart: 'M2.5 13.5h11M4.5 11V8.5M8 11V4M11.5 11V6.5',
   /** A gear (eight closed teeth round a hub, not loose rays that read as a sun): the app Settings screen. */

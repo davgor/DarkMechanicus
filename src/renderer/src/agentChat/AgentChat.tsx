@@ -9,6 +9,7 @@ import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { ChatComposer } from './ChatComposer'
+import { ModelPicker } from './ModelPicker'
 import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
 import { ChatEvidenceProvider, useChatEvidence, type ChatEpic, type ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
@@ -42,6 +43,8 @@ interface Props {
   onRevealed?(): void
   /** The epic the chat works in, whose images it may attach as evidence; none outside an epic. */
   epic?: ChatEpic
+  /** A Skitarii (OMP) chat: the composer offers its model and effort chip. Claude and every other chat has none. */
+  skitarii?: boolean
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -84,9 +87,9 @@ const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
-  epic
+  epic, skitarii = false
 }: Props): JSX.Element {
-  const { state, send, stageImage, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
+  const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
   const images = useChatImages(stageImage)
   const evidence = useChatEvidence({ folder, chatId, api, items: state.items, epic })
@@ -121,7 +124,8 @@ function ChatView({
           <PendingPromptCard prompt={state.pending} answer={answer} />
           <TodoCard chatId={chatId} state={state} />
           <Composer chatId={chatId} folderKey={folderKey} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state}
-            command={command} images={images} send={send} stop={stop} />
+            command={command} images={images} send={send} stop={stop}
+            model={skitarii ? <ModelPicker model={state.model ?? null} thinking={state.thinking ?? null} busy={busy} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
           <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
@@ -135,7 +139,7 @@ function ChatView({
  * The chat's shared composer: Message the agent while the transcript is empty, Reply to it once there is one. Staged
  * images go with the text by id and leave the composer only once the send was taken.
  */
-function Composer({ chatId, folderKey, agentLabel, agentChip, context, state, command, images, send, stop }: {
+function Composer({ chatId, folderKey, agentLabel, agentChip, context, state, command, images, send, stop, model }: {
   chatId: string
   folderKey: string | null
   agentLabel: string
@@ -146,6 +150,8 @@ function Composer({ chatId, folderKey, agentLabel, agentChip, context, state, co
   images: ChatImages
   send(message: { text: string; imageIds: readonly string[] }): Promise<CommandResult<null>>
   stop(): void
+  /** The model chip, just left of Send; none for a chat that cannot switch models. */
+  model: JSX.Element | null
 }): JSX.Element {
   const busy = state.status === 'busy'
   const disabled = !(state.status === 'idle' || busy)
@@ -160,7 +166,7 @@ function Composer({ chatId, folderKey, agentLabel, agentChip, context, state, co
     <ChatComposer id={`agent-message-${chatId}`} label={`Message ${agentLabel}`}
       placeholder={empty ? `Message ${agentLabel}…` : `Reply to ${agentLabel}…`} agent={agentChip ?? agentLabel} context={context ?? null}
       queued={state.queued} maxLength={20_000} disabled={disabled} acting={command.acting} busy={busy}
-      error={command.error} send={sendWithImages} stop={stop}
+      error={command.error} send={sendWithImages} stop={stop} trailing={model}
       leading={<ChatImageAttachButton pickerProps={images.pickerProps} disabled={disabled} />}
       attachments={{
         chips: <ChatImageChips folderKey={folderKey} chatId={chatId} images={images.images} staging={images.staging} error={images.error}

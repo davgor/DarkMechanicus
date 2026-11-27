@@ -1,0 +1,239 @@
+/*
+ * A Skitarii chat's model chip in the composer row, just left of Send, and the menu it opens upward over the
+ * transcript: models by provider, a More models expander and an Effort segmented control. The glass utility owns the
+ * menu's surface and edge.
+ */
+.model-picker {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.model-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.model-picker-chip:hover,
+.model-picker-chip[aria-expanded="true"] {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.model-picker-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.model-picker-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-queued {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.model-picker-spinner {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: model-picker-spin 1s linear infinite;
+}
+
+@keyframes model-picker-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-picker-spinner { animation: none; }
+}
+
+.model-picker-error {
+  max-width: 260px;
+  color: var(--st-failed);
+  font-size: 12px;
+}
+
+.model-picker-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 600px);
+  padding: 6px;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.model-picker-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.model-picker-heading {
+  padding: 8px 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.model-picker-item,
+.model-picker-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-more {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.model-picker-item:hover,
+.model-picker-item:focus-visible,
+.model-picker-more:hover,
+.model-picker-more:focus-visible {
+  background: var(--panel-2);
+  color: var(--ink);
+  outline: none;
+}
+
+.model-picker-check {
+  display: inline-flex;
+  flex: 0 0 14px;
+  color: var(--primary);
+}
+
+.model-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-context {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.model-picker-images {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.model-picker-hint {
+  margin: 4px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.model-picker-retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.model-picker-effort {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px 4px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.model-picker-effort-label {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.model-picker-segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.model-picker-segment {
+  flex: 1;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.model-picker-segment:hover {
+  color: var(--ink);
+}
+
+.model-picker-segment[aria-checked="true"] {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.model-picker-segment:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
