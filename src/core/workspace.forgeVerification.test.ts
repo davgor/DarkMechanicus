@@ -6,6 +6,8 @@ import { baselineDeliveryPolicy } from '../shared/domain/standardsPrompts'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
 import { issued } from '../test/execution'
 import { copyGitRepo, createGitRepo } from '../test/gitRepo'
+import { scratchDir } from '../test/gitScratch'
+import { useTemplate } from '../test/gitTemplate'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { bindForge } from './repo/forgeBinding'
 import { FORGE_CONFIG } from './repo/forgeReference'
@@ -24,9 +26,16 @@ let h: Harness
 beforeEach(() => { h = createHarness() })
 afterEach(() => h.cleanup())
 
-async function forgeFixture() {
-  const code = createGitRepo({ root: join(h.root, 'code') })
-  const world = createGitRepo({ root: join(h.root, 'world') })
+/**
+ * The code and ticket-world repositories with their history, built once for the file: each test copies them into its
+ * harness instead of starting the twenty-odd git processes that build them (each costs a few hundred milliseconds on a
+ * loaded Windows runner). Both name their origin by URL, never by path, so a plain copy is a working repository.
+ */
+const template = useTemplate((templateCleanups) => {
+  const scratch = scratchDir('dm-forge-verification-')
+  templateCleanups.push(scratch.cleanup)
+  const code = createGitRepo({ root: join(scratch.path, 'code') })
+  const world = createGitRepo({ root: join(scratch.path, 'world') })
   code.git('remote', 'add', 'origin', CODE_ORIGIN)
   world.git('remote', 'add', 'origin', WORLD_ORIGIN)
   const codeBase = code.commit('Independent code base')
@@ -35,6 +44,14 @@ async function forgeFixture() {
   const workerCommit = code.commit('Worker delivery')
   const integrated = code.commit('Review and integration')
   code.switchTo('main')
+  return { code, world, codeBase, workerCommit, integrated, worldCommit }
+})
+
+async function forgeFixture() {
+  const built = template()
+  const code = copyGitRepo(built.code, { root: join(h.root, 'code') })
+  const world = copyGitRepo(built.world, { root: join(h.root, 'world') })
+  const { codeBase, workerCommit, integrated, worldCommit } = built
 
   const member = join(world.root, REFERENCE.projectFolder)
   const manifest = join(world.root, 'forge-world.json')
