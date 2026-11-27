@@ -702,7 +702,7 @@ function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes,
 function openDesktopPool(): WorkspacePool {
   const home = darkMechanicusHome()
   return createWorkspacePool({
-    open: generation => openUtilityWorkspace(generation, home, app.getVersion()),
+    open: generation => openUtilityWorkspace(generation, home, app.getVersion(), app.isPackaged),
     canonical: path => boundForgeRoot(nodeFs, home, realpathSync.native(path)),
     authority: currentForgeTransfer,
     onError: (path, error) => logger.error('Workspace error for ' + path, error),

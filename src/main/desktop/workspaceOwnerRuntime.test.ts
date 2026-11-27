@@ -12,6 +12,7 @@ import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } fro
 import { inThreadLane, type SyncLane } from './syncLane'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
+import { readInstalledApp } from '../../core/installedApp'
 
 const harness = new Set<ReturnType<typeof createHarness>>()
 const closers = new Set<() => Promise<unknown>>()
@@ -28,11 +29,11 @@ function fixture() {
   return h
 }
 
-function owner(home: string, generation = 1, lane?: SyncLane) {
+function owner(home: string, generation = 1, lane?: SyncLane, packaged = false) {
   const parent = new EventEmitter()
   const child = new EventEmitter()
   const observed: WorkspaceResponse[] = []
-  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', ownerPid: process.pid, ...(lane ? { lane } : {}) }, {
+  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', packaged, ownerPid: process.pid, ...(lane ? { lane } : {}) }, {
     on(_event, listener) { child.on('message', listener); return this as Electron.ParentPort },
     postMessage(response: WorkspaceResponse) {
       observed.push(response)
@@ -106,6 +107,27 @@ it('lazily initializes the requested project and refuses a different path or inj
   expect(worker.observed.every(response => response.generation === 4)).toBe(true)
 })
 
+it('serves as the desktop with its packaged state and records its own observation of the installed build', async () => {
+  const h = fixture()
+  const worker = owner(h.homeDir, 1, undefined, true)
+  // A folder initialized through the owner is observed right after the command, not only at the next open.
+  await expect(worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Observed' } })).resolves.toMatchObject({ ok: true })
+  const capabilities = await worker.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined })
+  expect(capabilities).toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop', version: '1.0.0-test', packaged: true } } } })
+  const ctx = h.open('desktop').ctx()
+  expect(readInstalledApp(ctx)).toEqual({ version: '1.0.0-test', packaged: true, machineId: ctx.machineId, observedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) })
+  expect(readInstalledApp({ db: ctx.db, machineId: 'another-machine' })).toBeNull()
+})
+
+it('records an unpackaged desktop as unpackaged when it opens an initialized project', async () => {
+  const h = fixture()
+  await h.open('desktop').initializeRepository({ name: 'Dev build' })
+  const worker = owner(h.homeDir, 1, undefined, false)
+  await expect(worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })).resolves.toMatchObject({ ok: true })
+  const ctx = h.open('desktop').ctx()
+  expect(readInstalledApp(ctx)).toMatchObject({ version: '1.0.0-test', packaged: false, machineId: ctx.machineId })
+})
+
 it('answers a heartbeat on an uninitialized folder without reconciling, and refuses a sync once closed', async () => {
   const h = fixture()
   const held = heldLane()
@@ -155,7 +177,7 @@ it('validates the live reservation on the receiving end before admitting a migra
       },
       postMessage: resolve
     }
-    serveWorkspaceOwner({ generation: 7, home: h.homeDir, ownerPid: process.pid, version: '1.0.0-test' }, replyPort)
+    serveWorkspaceOwner({ generation: 7, home: h.homeDir, ownerPid: process.pid, version: '1.0.0-test', packaged: false }, replyPort)
   })
   await expect(reply).resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The Forge conversion reservation ended.' } })
 })

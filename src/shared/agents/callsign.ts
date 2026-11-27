@@ -80,20 +80,46 @@ export function resolveCallsign({
   }
 }
 
-/** Ordinals come from existing records, never from a model's Servitor-N label. */
-export function nextServitorOrdinal(existing: Callsign[]): number {
-  let highest = 0
-  for (const callsign of existing) {
-    if (callsign.role === 'Servitor' && callsign.ordinal !== null) {
-      highest = Math.max(highest, callsign.ordinal)
+/** A thread's stamp when it names a subagent; `null` for a thread stored before callsigns or forged with a root role. */
+export function subagentCallsign(callsign: Callsign | undefined): Callsign | null {
+  return callsign === undefined || callsign.role === 'Magos' || callsign.role === 'Lexmechanic' ? null : callsign
+}
+
+/**
+ * Every Servitor ordinal one chat's threads hold, from the records only, never from a model's Servitor-N label. A
+ * stamped Servitor keeps its own; each unstamped (legacy) thread, in item order, takes the lowest ordinal nothing
+ * else holds. Main and the renderer share this, so a legacy thread keeps one name from its first render to the stamp
+ * main gives it later, and new stamps (always above every held ordinal) never renumber it.
+ */
+export function servitorOrdinals(threads: readonly { id: string; callsign?: Callsign }[]): Map<string, number> {
+  const ordinals = new Map<string, number>()
+  const held = new Set<number>()
+  for (const { id, callsign } of threads) {
+    if (callsign?.role === 'Servitor' && callsign.ordinal !== null) {
+      ordinals.set(id, callsign.ordinal)
+      held.add(callsign.ordinal)
     }
   }
+  let next = 1
+  for (const { id, callsign } of threads) {
+    if (subagentCallsign(callsign) !== null) continue
+    while (held.has(next)) next++
+    ordinals.set(id, next)
+    held.add(next)
+  }
+  return ordinals
+}
+
+/** The ordinal the next new Servitor gets: above every one held, legacy threads' included. */
+export function nextServitorOrdinal(ordinals: ReadonlyMap<string, number>): number {
+  let highest = 0
+  for (const ordinal of ordinals.values()) highest = Math.max(highest, ordinal)
   return highest + 1
 }
 
-/** Labels are display-only; main resolves identity and verification separately. */
+/** Labels are display-only; main resolves identity and verification separately. A numbered root shows its ordinal. */
 export function formatCallsign(c: Callsign): string {
-  if (c.role === 'Magos' || c.role === 'Lexmechanic') return c.role
+  if (c.role === 'Magos' || c.role === 'Lexmechanic') return c.ordinal === null ? c.role : `${c.role}-${c.ordinal}`
   if (c.ticketKey !== null) return `${c.role}:${c.ticketKey}`
   if (c.role === 'Servitor' && c.ordinal !== null) return `Servitor-${c.ordinal}`
   return c.role

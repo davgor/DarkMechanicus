@@ -7,6 +7,7 @@ import { resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { assertContained } from '../../core/repo/paths'
 import { resolveStorageMode } from '../../core/repo/storageMode'
+import { recordInstalledApp } from '../../core/installedApp'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import { inThreadLane, type SyncLane } from './syncLane'
 import { exclusiveWork, type OwnerResult, type SyncValue, type WorkspaceRequest, type WorkspaceResponse } from './workspaceClient'
@@ -73,6 +74,8 @@ interface WorkerOptions {
   generation: number
   home: string
   version: string
+  /** Electron's `app.isPackaged` in the desktop that started this utility. */
+  packaged: boolean
   ownerPid: number
   /** The sync lane. The utility entry passes its worker thread; an in-process host reconciles on a second connection of its own thread. */
   lane?: SyncLane
@@ -158,16 +161,18 @@ class WorkspaceOwner {
   }
 
   private open(path: string): Workspace {
-    const { home, version } = this.options
+    const { home, version, packaged } = this.options
+    const fresh = this.workspace === undefined
     // The owner never reconciles on its own connection: its open-time and heartbeat reconciles run on the lane.
     this.workspace ??= openWorkspace({
       repoRoot: path, role: 'desktop', label: 'Desktop', transport: 'desktop', pid: process.pid,
-      autoReconcile: false, deferOpenReconcile: true, homeDir: home, serverInfo: { name: 'darkmechanicus-desktop', version }
+      autoReconcile: false, deferOpenReconcile: true, homeDir: home, serverInfo: { name: 'darkmechanicus-desktop', version, packaged }
     })
     if (this.workspace.repoRoot !== path) {
       this.closeWorkspace()
       throw new DomainError('conflict', 'The Forge binding changed while opening the project.', { bindingChanged: true })
     }
+    if (fresh) this.observeInstalledApp(this.workspace)
     this.path = path
     this.binding = identity(path, home, this.reads)
     return this.workspace
@@ -187,12 +192,20 @@ class WorkspaceOwner {
     }
     const workspace = this.workspace ?? this.open(path)
     const value = await runWorkspaceOperation(workspace, work, home)
+    // A project initialized or moved by this owner gets the observation its open could not make.
+    if (storageCommand(work)) this.observeInstalledApp(workspace)
     const after = identity(path, home, this.reads)
     if (this.binding !== after && !storageCommand(work)) {
       throw new DomainError('conflict', 'The project storage changed while this operation ran. Refresh to confirm its result.', { bindingChanged: true, completion: 'stale' })
     }
     this.binding = after
     return { value, binding: after }
+  }
+
+  /** The desktop's own observation of the installed build, which no agent session can write (`installedApp.ts`). */
+  private observeInstalledApp(workspace: Workspace): void {
+    const { version, packaged } = this.options
+    if (workspace.isInitialized()) recordInstalledApp(workspace.ctx(), { version, packaged })
   }
 
   private assertBinding(path: string, actual: string, expected: string | undefined): void {

@@ -61,6 +61,9 @@ const RUN = runView()
 const ORCHESTRATOR = chatRecord({
   id: 'chat_orch', folder: FOLDER.path, role: 'orchestrator', runId: RUN.id, epicId: 'ep_1', surface: 'gui', title: 'Orchestrator · Plan'
 })
+const PLANNER = chatRecord({
+  id: 'chat_plan', folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+})
 const scenarios = agentChatScenarios
 const conversation = scenarios.streaming.snapshot.items
 const AT = conversation[0].at
@@ -248,6 +251,17 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('[aria-label="Acolyte:DM-2 thread"]') && $('.agent-chat-hint'), 'the worker thread with its relay note')
     }
   },
+  'agent-legacy-thread': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, scenarios.legacy.snapshot),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => treeItem('Servitor-2') && treeItem('Servitor-3'), 'the legacy parent and its nested legacy helper in the tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Servitor-2 thread"] [aria-label="Thread: Servitor-3"]'),
+        'the nested legacy helper named Servitor-3 in its parent’s thread view')
+    }
+  },
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),
@@ -351,17 +365,44 @@ const agentStates: Record<string, StateDef> = {
   },
   'agent-needs-you': {
     mount: 'epic',
+    // The planner chat is not watched (no transcript, so no subagent rows): its subagent's prompt badges its own row.
+    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing.
     seed: (context) => {
       snapshot(context, treeSnapshot())
+      context.chats.push(PLANNER)
       context.backend.agentChat.attentionResult = {
-        ok: true, data: [attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?')]
+        ok: true, data: [
+          attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?'),
+          { ...attention('th-plan-look', 'off', 'Read the plan?'), chatId: PLANNER.id, callsign: null },
+          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false }
+        ]
       }
     },
     reach: async () => {
       await openAgentTab()
       await until(() => buttonNamed('Servitor-1 needs you'), 'the worker’s needs-you dot')
+      await until(() => buttonNamed('Lexmechanic needs you'), 'the unwatched planner’s needs-you dot')
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
+    }
+  },
+  // Ten GUI chats: the run's Magos and nine planners, each named apart, with the second planner selected.
+  'agent-planners': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, { ...scenarios.empty.snapshot, items: conversation })
+      for (let index = 1; index <= 9; index++) {
+        context.chats.push(chatRecord({
+          id: `chat_plan_${index}`, folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',
+          createdAt: `2026-02-0${index}T10:00:00.000Z`
+        }))
+      }
+    },
+    reach: async () => {
+      await openAgentTab()
+      await selectNode('Lexmechanic-2')
+      await until(() => treeItem('Lexmechanic-2')?.getAttribute('aria-selected') === 'true' && treeItem('Lexmechanic-9'), 'the selected Lexmechanic-2')
+      await chatLoaded()
     }
   }
 }
@@ -401,6 +442,16 @@ const STATES: Record<string, StateDef> = {
       await clickWhenPresent(() => buttonNamed('Collapse Chat agents'), 'Collapse Chat agents')
       await until(() => $('aside[aria-label="Chat agents"]') === null && $('.agent-chat-agents')?.getAttribute('aria-pressed') === 'false',
         'the rail closed by its chevron and the Agents toggle released')
+    }
+  },
+  'chat-rail-legacy': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.legacy.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await until(() => treeItem('Servitor-1') && treeItem('Servitor-2'), 'both Servitors in the agent tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Thread: Servitor-2"]') && $('[aria-label="Thread: Servitor-1"]'), 'both Servitor thread blocks in the transcript')
     }
   },
   'settings-notifications': {

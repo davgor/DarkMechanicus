@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import {
   callsignSchema, cleanLabel, formatCallsign, nextServitorOrdinal,
+  servitorOrdinals,
   parseCallsignLabel, resolveCallsign, rootCallsignOf, type Callsign
 } from './callsign'
 import type { ChatRole } from './chat'
@@ -130,10 +131,32 @@ it.each([
 
 it('allocates the next ordinal from Servitor records, not keyed agents or array order', () => {
   const c: Callsign = { role: 'Servitor', ticketKey: null, ordinal: null, purpose: null, ticketVerified: false }
-  expect(nextServitorOrdinal([])).toBe(1)
-  expect(nextServitorOrdinal([c, { ...c, role: 'Magos', ordinal: 99 }])).toBe(1)
-  expect(nextServitorOrdinal([
-    { ...c, ordinal: 9 }, { ...c, ordinal: 2 }, { ...c, role: 'Acolyte', ticketKey: 'DM-810', ordinal: 100 }
-  ])).toBe(10)
+  const acolyte: Callsign = { ...c, role: 'Acolyte', ticketKey: 'DM-810', ordinal: 100 }
+  expect(nextServitorOrdinal(servitorOrdinals([]))).toBe(1)
+  expect(nextServitorOrdinal(servitorOrdinals([{ id: 'a', callsign: c }]))).toBe(1)
+  expect(nextServitorOrdinal(servitorOrdinals([
+    { id: 'a', callsign: { ...c, ordinal: 9 } }, { id: 'b', callsign: { ...c, ordinal: 2 } }, { id: 'c', callsign: acolyte }
+  ]))).toBe(10)
+})
+
+it('gives legacy and root-forged threads the lowest ordinals no stamped Servitor holds, in item order', () => {
+  const servitor = (ordinal: number): Callsign => ({ role: 'Servitor', ticketKey: null, ordinal, purpose: null, ticketVerified: false })
+  const magos: Callsign = { ...servitor(1), role: 'Magos', ordinal: 99 }
+  const ordinals = servitorOrdinals([
+    { id: 'legacy-1' }, { id: 'stamped-1', callsign: servitor(1) }, { id: 'forged', callsign: magos },
+    { id: 'stamped-3', callsign: servitor(3) }, { id: 'legacy-2' }
+  ])
+  expect(Object.fromEntries(ordinals)).toEqual({ 'stamped-1': 1, 'stamped-3': 3, 'legacy-1': 2, forged: 4, 'legacy-2': 5 })
+  expect(new Set(ordinals.values()).size).toBe(ordinals.size)
+  expect(nextServitorOrdinal(ordinals)).toBe(6)
+})
+
+it('keeps a legacy thread\'s ordinal when main stamps a new Servitor after it', () => {
+  const servitor = (ordinal: number): Callsign => ({ role: 'Servitor', ticketKey: null, ordinal, purpose: null, ticketVerified: false })
+  const before = servitorOrdinals([{ id: 'legacy' }, { id: 'stamped', callsign: servitor(1) }])
+  const after = servitorOrdinals([{ id: 'legacy' }, { id: 'stamped', callsign: servitor(1) }, { id: 'new', callsign: servitor(nextServitorOrdinal(before)) }])
+  expect(before.get('legacy')).toBe(2)
+  expect(after.get('legacy')).toBe(2)
+  expect(after.get('new')).toBe(3)
 })
 

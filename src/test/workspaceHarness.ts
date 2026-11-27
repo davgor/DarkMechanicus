@@ -28,6 +28,8 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     isAncestor: async () => null,
     isAncestorSync: () => null,
     commitParents: async () => null,
+    mergeBase: async () => null,
+    changedPaths: async () => null,
     diffPaths: () => ({ ok: false, reason: 'git_failed' }),
     statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null

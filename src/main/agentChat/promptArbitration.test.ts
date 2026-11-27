@@ -20,6 +20,8 @@ import { createPromptArbitration } from './promptArbitration'
 const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
 
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
+/** One byte over the longest name Linux and Windows accept: Linux refuses it (ENAMETOOLONG), Windows reports it absent. */
+const LONG_WORD = 'a'.repeat(256)
 const CONTEXT_UNAVAILABLE = 'The Magos could not read the ticket or the Standards for this request; decide this yourself.'
 let root: string, folder: string, outside: string
 beforeEach(() => {
@@ -128,6 +130,7 @@ describe('escalating exclusions (fix 7 mapping, requirement b)', () => {
     ['question', () => question('q1')],
     ['always_ask', () => approval('p1', { command: 'npm test' }, 'Bash')],
     ['outside_folder', () => approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })],
+    ['path_too_long', () => approval('p1', { command: `echo ${LONG_WORD}` })],
     ['no_tool_input', () => approval('p1', null)],
     ['control_file', () => approval('p1', { file_path: join(folder, '.claude', 'settings.json'), content: '{}' }, 'Write')],
     ['never_arbitrate', () => approval('p1'), () => registerNeverArbitrate(() => true)]
@@ -149,8 +152,8 @@ describe('escalating exclusions (fix 7 mapping, requirement b)', () => {
 })
 
 // Size and clipping fixtures use short words. The path scan reads each word as a relative path, and a word over 255
-// bytes is a name Linux refuses (ENAMETOOLONG) and Windows reports absent (ENOENT): Linux reads it, fail-closed, as
-// outside the folder, an exclusion that is decided before size or the clip flag (see the precedence case below).
+// bytes is a name too long to check on every platform: an exclusion decided before size or the clip flag (see the
+// precedence cases below).
 describe('oversized and clipped tool input (fix 17, requirement a)', () => {
   it('a 4,001-character Bash command escalates as too large with zero spawns', async () => {
     const h = harness(), r = h.registry(chatOf())
@@ -190,6 +193,29 @@ describe('oversized and clipped tool input (fix 17, requirement a)', () => {
     await settle()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
     expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+})
+
+describe('words over 255 bytes (DM-1008)', () => {
+  it('an exclusion outranks the clip flag: a clipped input with a word over 255 bytes escalates as a path too long', async () => {
+    const h = harness(), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `echo ${LONG_WORD}` })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('path_too_long') })
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+
+  it('a real outside path outranks a word over 255 bytes, clipped or not', async () => {
+    const h = harness(), r = h.registry(chatOf(), new Set(['p1']))
+    const command = `echo ${LONG_WORD} && type "${join(outside, 'secret.txt')}"`
+    r.prompts.update([approval('p1', { command })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    r.prompts.answer('p1', () => [approval('p2', { command })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
     expect(h.runner.start).not.toHaveBeenCalled()
   })
 })
@@ -370,6 +396,16 @@ describe('worktree roots and the clip flag (DM-1011)', () => {
     r.prompts.update([approval('p1', { command: `type ${join(worktree, 'notes.txt').replaceAll('\\', '/')}` })])
     await settle()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: TOO_LARGE })
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+
+  it('a clipped input inside a worktree with a word over 255 bytes escalates as a path too long', async () => {
+    const worktree = join(plainRoot(), 'wt')
+    mkdirSync(worktree)
+    const h = harness({ allowedRoots: async () => [worktree] }), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `type ${join(worktree, 'notes.txt').replaceAll('\\', '/')} ${LONG_WORD}` })])
+    await vi.waitFor(() => expect(r.prompts.snapshot()?.arbitration.state).toBe('escalated'))
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('path_too_long') })
     expect(h.runner.start).not.toHaveBeenCalled()
   })
 })

@@ -19,16 +19,17 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
-  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-  'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
+  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
+  'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
+  'agent-planners', 'chat-rail-legacy',
   'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 21 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 360_000
+/** A declared bound: 24 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 375_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -69,7 +70,7 @@ const BASE_FIELDS = [
   'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'settings-notifications'])
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications'])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 const PLAN_STATES = new Set(['graph', 'header-long'])
 const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
@@ -117,6 +118,11 @@ const STATE_CHECKS = {
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
+  'agent-legacy-thread': [
+    ['the legacy parent Servitor-2 is selected beside its nested Servitor-3 and the stamped Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-3') && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
+  ],
   'agent-tree': [
     ['railWidth is 280±1', (o) => near(o.railWidth, 280)],
     ['the Finished 1 group is collapsed by default', (o) => o.finishedExpandedAtStart === false],
@@ -142,6 +148,12 @@ const STATE_CHECKS = {
     ['no Chat agents rail', (o) => o.railWidth === null],
     ['the Agents toggle reads collapsed', (o) => o.agentsPressed === 'false']
   ],
+  'chat-rail-legacy': [
+    ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
+    ['the legacy and stamped helpers are Servitor-2 (selected) and Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
+  ],
   'agent-todos': [
     ['a To-dos header', (o) => matches(o.todosHeader, /To-dos/)],
     ['task rows', (o) => o.todoRows > 5],
@@ -165,8 +177,13 @@ const STATE_CHECKS = {
         && matches(o.approvalRecord, /The Magos decided: \S/)]
   ],
   'agent-needs-you': [
-    ['the header reads 2 needs you', (o) => matches(o.needsYouHeader, /^2 needs you/)],
-    ['two badged rows', (o) => o.badgedRows === 2]
+    ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
+    ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+  ],
+  'agent-planners': [
+    ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
+      && rowNamed(o, 'Lexmechanic') && rowNamed(o, 'Lexmechanic-2')?.selected === true && rowNamed(o, 'Lexmechanic-9')
+      && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'settings-notifications': [['the controls have accessible names', (o) => Array.isArray(o.settingsControls)
     && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]]

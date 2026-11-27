@@ -39,6 +39,7 @@ import {
   profileName,
   READBACK_LIMITS,
   sprintDef,
+  sprintDelivery,
   sprintInput,
   sprintReportInput,
   stableId,
@@ -470,6 +471,37 @@ describe('sprintInput', () => {
   })
 })
 
+describe('sprintInput delivery', () => {
+  const delivery = { target: 'main', release: true, verifyInstalled: true }
+
+  it.each([
+    ['a full delivery', delivery],
+    ['a release without installed verification', { target: 'main', release: true, verifyInstalled: false }],
+    ['a branch-only delivery', { target: 'release/1.x', release: false, verifyInstalled: false }],
+    ['null, which clears it', null]
+  ])('accepts %s', (_label, value) => {
+    expect(accepts(sprintInput, { goal: 'g', delivery: value })).toBe(true)
+    expect(accepts(sprintInput.partial(), { delivery: value })).toBe(true)
+  })
+
+  it.each([
+    ['an unknown key', { ...delivery, by: 'me' }],
+    ['an invalid branch', { ...delivery, target: 'a..b' }],
+    ['a missing target', { release: true, verifyInstalled: false }],
+    ['a non-boolean release', { ...delivery, release: 'yes' }]
+  ])('rejects %s', (_label, value) => {
+    expect(accepts(sprintInput, { goal: 'g', delivery: value })).toBe(false)
+    expect(accepts(sprintInput.partial(), { delivery: value })).toBe(false)
+  })
+
+  it('rejects verifyInstalled without release with its own message', () => {
+    const result = sprintInput.safeParse({ goal: 'g', delivery: { target: 'main', release: false, verifyInstalled: true } })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual(['verifyInstalled needs release'])
+    expect(sprintDelivery.safeParse({ target: 'main', release: false, verifyInstalled: true }).success).toBe(false)
+  })
+})
+
 describe('policiesPatch', () => {
   it.each([
     ['an empty patch', {}],
@@ -568,6 +600,16 @@ describe('sprintDef', () => {
       Reflect.deleteProperty(partial, field)
       expect(accepts(sprintDef, partial)).toBe(false)
     }
+  })
+
+  it('parses a sprint without delivery with no key added, and one with a delivery unchanged', () => {
+    const parsed = sprintDef.parse(makeSprint(1, [1, 2]))
+    expect(Object.keys(parsed)).toEqual(Object.keys(makeSprint(1, [1, 2])))
+    expect('delivery' in parsed).toBe(false)
+    const delivered = { ...makeSprint(1, [1]), delivery: { target: 'main', release: true, verifyInstalled: true } }
+    expect(sprintDef.parse(delivered)).toEqual(delivered)
+    expect(accepts(sprintDef, { ...delivered, delivery: null })).toBe(false)
+    expect(accepts(sprintDef, { ...delivered, delivery: { target: 'main', release: false, verifyInstalled: true } })).toBe(false)
   })
 })
 

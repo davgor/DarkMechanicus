@@ -14,8 +14,8 @@ interface ThreadBlockProps {
 
 /**
  * The work of a subagent, as a block under the tool call that spawned it: its name and state (an hourglass
- * while it ran), and, once opened, its own items. The name is the callsign main stamped on the thread; only a
- * thread stored before callsigns existed falls back to its own label.
+ * while it ran), and, once opened, its own items. The name is the callsign on the thread (main's stamp, or the
+ * Servitor `transcriptTree` names a legacy thread by); only a lost thread with no stamped request keeps its label.
  */
 export const ThreadBlock = memo(function ThreadBlock({ node, renderRow }: ThreadBlockProps): JSX.Element {
   const { item } = node
