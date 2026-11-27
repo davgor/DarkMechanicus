@@ -60,7 +60,8 @@ it('renders a running tool, updates it in place and opens the subagent thread', 
   expect(screen.getAllByRole('listitem', { name: 'Tool call: Read' })).toHaveLength(1)
   fireEvent.click(within(tool).getByRole('button'))
   expect(tool.textContent).toContain('Read 120 lines')
-  const thread = screen.getByRole('listitem', { name: 'Thread: Acolyte:DM-785 Inspect composer' })
+  // The scenario's thread was stored before callsigns: the transcript names it the Servitor the agent tree shows.
+  const thread = screen.getByRole('listitem', { name: 'Thread: Servitor-1' })
   fireEvent.click(within(thread).getByRole('button'))
   expect(within(thread).getByText('Composer keyboard behavior inspected.')).toBeTruthy()
 })
