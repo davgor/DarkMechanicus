@@ -9,8 +9,12 @@
  *   Sign-in for agent work happens in the agent tab itself, under Take control.
  * - No protocol handler is ever registered on these sessions, so the app's `dm-attachment:` and `dm-chat-image:`
  *   schemes (registered on the default session only) are unreachable from a page (docs/reports/agent-browser.md item 5).
- * - Every permission is denied, downloads are cancelled, HTTP auth and client certificates are refused, popups are
- *   denied and every navigation goes through the origin policy.
+ * - Every permission is denied, downloads are cancelled, HTTP auth, client certificates and device choosers (HID,
+ *   serial, USB, Bluetooth) are refused, popups are denied and every navigation goes through the origin policy.
+ * - WebRTC may not send UDP outside a proxy, since ICE and STUN traffic bypasses `webRequest` and could otherwise reach
+ *   loopback and LAN hosts.
+ * - Known compatibility trade-off: the origin policy refuses `about:srcdoc`, so `srcdoc` iframes are denied by
+ *   `will-frame-navigate`. That stays fail closed.
  * - Requests are checked by literal host (`decideSubresource`), by every address a host name resolves to, and by the
  *   address the response actually came from (`details.ip`), so a DNS name or a rebinding cannot reach a refused host.
  */
@@ -92,6 +96,12 @@ interface HardenableSession {
   setPermissionCheckHandler(handler: () => boolean): void
   setDevicePermissionHandler(handler: () => boolean): void
   on(event: 'will-download', listener: (event: PreventableEvent, item: DownloadItemLike) => void): unknown
+  on(event: 'select-hid-device', listener: (event: PreventableEvent, details: unknown, callback: () => void) => void): unknown
+  on(event: 'select-usb-device', listener: (event: PreventableEvent, details: unknown, callback: () => void) => void): unknown
+  on(
+    event: 'select-serial-port',
+    listener: (event: PreventableEvent, ports: unknown, webContents: unknown, callback: (portId: string) => void) => void
+  ): unknown
   protocol: { isProtocolHandled(scheme: string): boolean }
   webRequest: {
     onBeforeRequest(listener: (details: RequestDetails, callback: (response: { cancel?: boolean }) => void) => void): void
@@ -170,10 +180,11 @@ async function resolvesReachable(details: RequestDetails, deps: SessionDeps): Pr
 }
 
 /**
- * Locks a browser partition down: denies every permission request and check (devices included), cancels every
- * download (logging `browser download cancelled <origin>` once per item), cancels requests the origin policy refuses
- * by literal host or by resolved address, and cancels a response whose connected address is refused (DNS rebinding).
- * Throws when an app scheme is handled on the session: these sessions must never get a protocol handler.
+ * Locks a browser partition down: denies every permission request and check (devices included), refuses every HID,
+ * USB and serial device chooser, cancels every download (logging `browser download cancelled <origin>` once per
+ * item), cancels requests the origin policy refuses by literal host or by resolved address, and cancels a response
+ * whose connected address is refused (DNS rebinding). Throws when an app scheme is handled on the session: these
+ * sessions must never get a protocol handler.
  */
 export function hardenBrowserSession(session: HardenableSession, deps: SessionDeps): void {
   const handled = APP_SCHEMES.filter((scheme) => session.protocol.isProtocolHandled(scheme))
@@ -181,6 +192,19 @@ export function hardenBrowserSession(session: HardenableSession, deps: SessionDe
   session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
   session.setPermissionCheckHandler(() => false)
   session.setDevicePermissionHandler(() => false)
+  // Answering with no device (an empty port id for serial) cancels the chooser; the page gets NotFoundError.
+  session.on('select-hid-device', (event, _details, callback) => {
+    event.preventDefault()
+    callback()
+  })
+  session.on('select-usb-device', (event, _details, callback) => {
+    event.preventDefault()
+    callback()
+  })
+  session.on('select-serial-port', (event, _ports, _webContents, callback) => {
+    event.preventDefault()
+    callback('')
+  })
   session.on('will-download', (event, item) => {
     event.preventDefault()
     item.cancel()
@@ -225,6 +249,11 @@ interface HardenableContents {
     event: 'select-client-certificate',
     listener: (event: PreventableEvent, url: string, certificates: unknown, callback: (...none: never[]) => void) => void
   ): unknown
+  on(
+    event: 'select-bluetooth-device',
+    listener: (event: PreventableEvent, devices: unknown, callback: (deviceId: string) => void) => void
+  ): unknown
+  setWebRTCIPHandlingPolicy(policy: 'disable_non_proxied_udp'): void
   closeDevTools(): void
 }
 
@@ -242,9 +271,11 @@ interface ContentsDeps {
 /**
  * Locks a browser tab's page down: popups are denied and reported, every navigation, redirect and frame navigation is
  * decided by the origin policy (`allow` proceeds, `ask` prevents and asks the person, `deny` prevents), DevTools are
- * closed as soon as they open, and HTTP auth and client-certificate requests are refused.
+ * closed as soon as they open, HTTP auth, client-certificate and Bluetooth chooser requests are refused, and WebRTC
+ * sends no UDP outside a proxy.
  */
 export function hardenBrowserContents(contents: HardenableContents, deps: ContentsDeps): void {
+  contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
   contents.setWindowOpenHandler(({ url }) => {
     deps.onPopupBlocked(url)
     return { action: 'deny' }
@@ -269,5 +300,9 @@ export function hardenBrowserContents(contents: HardenableContents, deps: Conten
   contents.on('select-client-certificate', (event, _url, _certificates, callback) => {
     event.preventDefault()
     callback()
+  })
+  contents.on('select-bluetooth-device', (event, _devices, callback) => {
+    event.preventDefault()
+    callback('')
   })
 }

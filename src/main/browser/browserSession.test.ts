@@ -150,6 +150,22 @@ describe('hardenBrowserSession permissions and downloads', () => {
   })
 })
 
+describe('hardenBrowserSession device choosers', () => {
+  it.each([
+    ['select-hid-device', [{ deviceList: [{ deviceId: 'hid-1' }] }], []],
+    ['select-usb-device', [{ deviceList: [{ deviceId: 'usb-1' }] }], []],
+    ['select-serial-port', [[{ portId: 'COM3' }], {}], ['']]
+  ])('answers %s with no device', (event, args, answer) => {
+    const fake = hardened()
+    const preventDefault = vi.fn()
+    const callback = vi.fn()
+    ;(fake.listeners.get(event) as (...a: unknown[]) => void)({ preventDefault }, ...args, callback)
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith(...answer)
+  })
+})
+
 describe('hardenBrowserSession app schemes', () => {
   it('never registers a protocol handler, and app-scheme requests are cancelled', async () => {
     const fake = hardened()
@@ -313,6 +329,7 @@ function hardenedContents(sites: AllowedSites = { always: [], once: new Set() },
   const contents = {
     setWindowOpenHandler: (handler: typeof windowOpen) => void (windowOpen = handler),
     on: (event: string, listener: Listener) => listeners.set(event, listener),
+    setWebRTCIPHandlingPolicy: vi.fn(),
     closeDevTools: vi.fn()
   }
   const onAsk = vi.fn<(origin: string, url: string) => void>()
@@ -402,6 +419,29 @@ describe('hardenBrowserContents redirects, DevTools and credentials', () => {
     ;(tab.listeners.get(event) as (...a: unknown[]) => void)({ preventDefault }, ...args, callback)
     expect(preventDefault).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith()
+  })
+})
+
+describe('hardenBrowserContents WebRTC, Bluetooth and srcdoc', () => {
+  it('keeps WebRTC from sending UDP outside a proxy', () => {
+    const tab = hardenedContents()
+    expect(tab.contents.setWebRTCIPHandlingPolicy.mock.calls).toEqual([['disable_non_proxied_udp']])
+  })
+
+  it('answers the Bluetooth chooser with no device', () => {
+    const tab = hardenedContents()
+    const preventDefault = vi.fn()
+    const callback = vi.fn()
+    const listener = tab.listeners.get('select-bluetooth-device') as (...a: unknown[]) => void
+    listener({ preventDefault }, [{ deviceId: 'bt-1', deviceName: 'Keyboard' }], callback)
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(callback.mock.calls).toEqual([['']])
+  })
+
+  it('denies a srcdoc iframe without asking (fail-closed trade-off)', () => {
+    const tab = hardenedContents({ always: ['https://example.com'], once: new Set() })
+    expect(tab.navigate('will-frame-navigate', 'about:srcdoc').preventDefault).toHaveBeenCalledOnce()
+    expect(tab.onAsk).not.toHaveBeenCalled()
   })
 })
 
