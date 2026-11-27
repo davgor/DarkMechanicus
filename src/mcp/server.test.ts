@@ -217,9 +217,11 @@ const CULT_MEMBER_ONLY: CommandName[] = [
   'cultCreateWorkerType',
   'cultDismissAcolyte',
   'cultListAcolytes',
+  'cultListWorkerTypes',
   'cultOrderAll',
   'cultPetition',
   'cultRecordSynthesis',
+  'cultRetireWorkerType',
   'cultStatus',
   'cultSummonAcolyte'
 ]
