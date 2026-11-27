@@ -75,6 +75,8 @@ export async function grantFolderAccess(deps: UpgradeDeps, run: CultRunView, mag
   const entry: LedgerGrant = { runId: run.id, chatId: magos.chatId, kind: 'folder_access', folder, grantId, tokenFile: target!.tokenFile }
   await deps.ledger.addGrant(entry)
   if (!deps.terminals.attachGrant(magos.chatId, grantId)) {
+    // Never attached, so no terminal stop revokes it: revoked here, or it would stay usable until it expires.
+    await deps.grants.revokeChatGrant(grantId)
     await revokeUpgrade(deps, entry)
     fail('invalid_state', `${magos.displayName} is no longer running.`)
   }

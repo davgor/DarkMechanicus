@@ -175,6 +175,17 @@ describe('a busy rename onto the status file', () => {
     await writer.write('working')
     expect([io.writeFile.mock.calls.length, io.rename.mock.calls.length]).toEqual([3, 2])
   })
+})
+
+describe('a refused rename onto the status file', () => {
+  it('gives up at once on a refusal that is not an error with a code, and writes again on the next event', async () => {
+    const io = { writeFile: vi.fn(async () => {}), rename: vi.fn().mockRejectedValueOnce('refused').mockResolvedValue(undefined), pause: vi.fn(async () => {}) }
+    const writer = cultStatusWriter(env(), io)!
+    await writer.write('working')
+    expect([io.rename.mock.calls.length, io.pause.mock.calls.length]).toEqual([1, 0])
+    await writer.write('working')
+    expect([io.writeFile.mock.calls.length, io.rename.mock.calls.length]).toEqual([2, 2])
+  })
 
   it('replaces the status file while main holds it open to read it', async () => {
     writeFileSync(statusPath(), JSON.stringify({ state: 'idle' }))

@@ -491,3 +491,38 @@ it('lets a bound worker receive a repair notice with its grant but refuses repai
     .toMatchObject({ ok: false, error: { code: 'unauthorized' } })
   expect(dispatched).toHaveBeenCalledOnce()
 })
+
+describe('reply bounds per operation', () => {
+  const acolyte = (n: number) => ({
+    name: `${'a'.repeat(76)}${String(n).padStart(4, '0')}`, model: 'm'.repeat(200), tier: 't'.repeat(20), state: 'active',
+    workerType: 'w'.repeat(80), slotId: 's'.repeat(80), reported: false
+  })
+  const slot = (n: number) => ({ slotId: `${'s'.repeat(76)}${String(n).padStart(4, '0')}`, workerType: 'w'.repeat(40), required: true, holder: 'h'.repeat(80), reported: false })
+  const list = { op: 'cult_list_acolytes', args: {} } as const
+
+  it('passes a cult reply above the naming bound but within the cult bound, and refuses one above the cult bound', async () => {
+    const within = { acolytes: Array.from({ length: 20 }, (_, n) => acolyte(n)), slots: [], missingSlots: [] }
+    expect(Buffer.byteLength(JSON.stringify(within))).toBeGreaterThan(NAMING_CONTROL.responseBytes)
+    const server = await endpoint(() => within)
+    expect(await raw(server.address, [wire(list)]).reply).toMatchObject({ ok: true, data: { acolytes: within.acolytes } })
+    const over = { acolytes: Array.from({ length: 48 }, (_, n) => acolyte(n)), slots: Array.from({ length: 24 }, (_, n) => slot(n)), missingSlots: [] }
+    expect(Buffer.byteLength(JSON.stringify(over))).toBeGreaterThan(NAMING_CONTROL.cultResponseBytes)
+    const large = await endpoint(() => over)
+    expect(await raw(large.address, [wire(list)]).reply).toMatchObject({ ok: false, error: { code: 'response_too_large' } })
+  })
+})
+
+it('refuses a recovery read from a binding that carries no recovery authority, before dispatching it', async () => {
+  const dispatched = vi.fn(() => ({ messages: [] }))
+  const server = await createControlPipe({
+    authorize: (token) => {
+      const { assertRecovery: _dropped, ...naming } = grants.authorizeNaming(token)
+      return naming
+    },
+    dispatch: dispatched
+  })
+  servers.push(server)
+  const read = { op: 'recovery_context', args: { chatId: 'chat-one', generation: 'pty-one' } } as const
+  expect(await raw(server.address, [wire(read)]).reply).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+  expect(dispatched).not.toHaveBeenCalled()
+})

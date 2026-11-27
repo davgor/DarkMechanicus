@@ -160,6 +160,16 @@ describe('cult wake: outside a running run the human credit is still needed', ()
     await settle()
     expect(f.wake.cultWakeAllowed(run.workDir, magosEndpoint, acolyteEndpoint)).toBe(false)
   })
+
+  it('refuses a chat waking itself and arms nothing for a recipient without a mailbox', async () => {
+    const { run, magos, acolyte } = await startRun()
+    expect(f.wake.cultWakeAllowed(run.workDir, endpointOf(run, acolyte), endpointOf(run, acolyte))).toBe(false)
+    await f.wake.offer(run.workDir, { id: acolyte.chatId }, [{ id: 'mm_n', from: { endpointId: endpointOf(run, magos) } }])
+    expect(wakeFile(acolyte)).toBeNull()
+    // The message was not spent: once the recipient's endpoint is known, the same message still arms.
+    await f.wake.offer(run.workDir, chatOf(run, acolyte), [{ id: 'mm_n', from: { endpointId: endpointOf(run, magos) } }])
+    expect(wakeFile(acolyte)).toMatchObject({ wake: 1 })
+  })
 })
 
 describe('cult wake: closing the run disarms', () => {
@@ -181,5 +191,28 @@ describe('cult wake: closing the run disarms', () => {
     const gate = gateOf(acolyte)
     await f.wake.dispose()
     expect(await gate.take()).toBe(false)
+  })
+
+  it('removes the wake file instead of arming when the recipient has no running launch, past a failed write', async () => {
+    const { run, magos, acolyte } = await startRun()
+    await f.wake.offer(run.workDir, chatOf(run, acolyte), [{ id: 'mm_r', from: { endpointId: endpointOf(run, magos) } }])
+    expect(wakeFile(acolyte)).toMatchObject({ wake: 1 })
+    // A second wake service (no onError given): its first write fails, then it sees no running launch for any chat.
+    let lookups = 0
+    const epochOf = (): string | null => {
+      lookups += 1
+      if (lookups === 1) throw new Error('launch table unavailable')
+      return null
+    }
+    const idle = createCultWake({ userData: f.h.rig.userData, supervisor: f.supervisor, chats: f.h.rig.store, epochOf })
+    try {
+      await idle.offer(run.workDir, chatOf(run, acolyte), [{ id: 'mm_s', from: { endpointId: endpointOf(run, magos) } }])
+      expect(wakeFile(acolyte)).toMatchObject({ wake: 1 })
+      await idle.offer(run.workDir, chatOf(run, acolyte), [{ id: 'mm_t', from: { endpointId: endpointOf(run, magos) } }])
+      expect(wakeFile(acolyte)).toBeNull()
+      expect(lookups).toBe(2)
+    } finally {
+      await idle.dispose()
+    }
   })
 })

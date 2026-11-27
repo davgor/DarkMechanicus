@@ -200,13 +200,14 @@ export function retireWorkerType(ctx: StoreContext, runId: string, typeId: strin
     const retirer = requireMember(ctx.db, runId, retirement.byChatId)
     const type = runWorkerTypes(ctx.db, runId).find((candidate) => candidate.id === typeId)
     if (type === undefined) fail('worker_type_unknown', `The run has no worker type ${typeId}.`)
+    // An aggregate without GROUP BY always yields exactly one row.
     const assigned = ctx.db.get<{ n: number }>(
       'SELECT COUNT(*) AS n FROM cult_members WHERE run_id = ? AND run_worker_type_id = ?',
       runId,
       typeId
-    )
+    )!
     const at = ctx.now()
-    const result = retireRunWorkerType(type, assigned?.n ?? 0, at)
+    const result = retireRunWorkerType(type, assigned.n, at)
     if (!result.ok) fail(result.code, result.error)
     ctx.db.run(
       "UPDATE cult_run_worker_types SET state = 'retired', retired_at = ?, updated_at = ? WHERE run_id = ? AND type_id = ?",
@@ -271,8 +272,9 @@ export function submitReport(ctx: StoreContext, runId: string, input: Specialist
       report.targetRevision,
       ctx.now()
     )
-    const row = ctx.db.get<ReportRow>('SELECT * FROM cult_specialist_reports WHERE id = ?', inserted.lastInsertRowid)
-    return toReportView(row ?? fail('internal', 'The report vanished after insert.'))
+    // The row was inserted above in this same transaction.
+    const row = ctx.db.get<ReportRow>('SELECT * FROM cult_specialist_reports WHERE id = ?', inserted.lastInsertRowid)!
+    return toReportView(row)
   })
 }
 
@@ -296,15 +298,15 @@ export function slotCoverage(ctx: StoreContext, runId: string): SlotCoverage[] {
         'SELECT COUNT(*) AS n, MAX(submitted_at) AS last FROM cult_specialist_reports WHERE run_id = ? AND slot_id = ?',
         runId,
         slot.id
-      )
+      )!
       return {
         slotId: slot.id,
         workerType: slot.workerType,
         label: slot.label,
         required: slot.required,
         liveMemberChatIds: holders.map((holder) => holder.chat_id),
-        reportCount: reports?.n ?? 0,
-        lastReportAt: reports?.last ?? null
+        reportCount: reports.n,
+        lastReportAt: reports.last
       }
     })
   }, 'read')

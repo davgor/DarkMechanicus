@@ -169,3 +169,12 @@ describe('cult rules: the Shrine (DM-632)', () => {
     expect(acolyteRules(context(), { name: 'Acolyte Brass', workerType: null })).toContain(line)
   })
 })
+
+describe('cult rules: a Plan Forge without a bound target', () => {
+  it('gives the Magos the roster and completion rules with no target line', () => {
+    const rules = magosRules({ ...planForge(), target: null })
+    expect(rules).not.toContain('Target epic:')
+    expect(rules).toContain('Summon exactly one acolyte per mandatory type')
+    expect(rules).toContain('petition for allow_save before Save')
+  })
+})

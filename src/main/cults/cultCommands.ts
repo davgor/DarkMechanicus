@@ -157,10 +157,10 @@ async function dismiss(deps: CultCommandDeps, { run }: Caller, args: { name: str
   return { dismissed: dismissed.displayName }
 }
 
-/** Live acolytes first, then those that left, most recent first. */
+/** Live acolytes first, then those that left, most recent first (a member that left always has `leftAt`: `cult_members` CHECK). */
 function listed(members: readonly CultMemberView[]): CultMemberView[] {
   const acolytes = members.filter((member) => member.role === 'acolyte')
-  const left = acolytes.filter((member) => !isLive(member)).sort((a, b) => (b.leftAt ?? '').localeCompare(a.leftAt ?? ''))
+  const left = acolytes.filter((member) => !isLive(member)).sort((a, b) => b.leftAt!.localeCompare(a.leftAt!))
   return [...acolytes.filter(isLive), ...left].slice(0, MAX_LISTED_ACOLYTES)
 }
 
