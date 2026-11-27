@@ -22,7 +22,8 @@ const BASE = {
   planGraph: false, planList: false, scorecard: false, agentChatRegion: true, railWidth: 280, railRightOfStage: true,
   treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
-  needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, errors: []
+  needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, sprintDeliveryRegion: false,
+  deliveryLine: null, deliveryApproval: null, previousDelivery: false, firstFailedCheck: null, errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -31,6 +32,23 @@ const ready = (state, patch = {}) => ({
 /** The shipped agent-tree rows in document order, with the Finished group expanded by the state's click. */
 const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servitor-1', 2], ['Finished 1', 2], ['Acolyte:DM-1', 3]]
   .map(([name, level]) => row(name, false, level))
+const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
+const HELD = 'Sprint 1 delivery to main: the latest check failed'
+const PLAN = { agentChatRegion: false, railWidth: null, railRightOfStage: null }
+
+/** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
+function passingDeliveryStates() {
+  return {
+    'delivery-editor': ready('delivery-editor', {
+      ...PLAN, planGraph: true, ticketPanel: true, sprintDeliveryRegion: true, deliveryLine: 'Sprint 1 delivery to main: waiting for the Magos to record it'
+    }),
+    'delivery-pending': ready('delivery-pending', { ...PLAN, planGraph: true, deliveryLine: HELD, firstFailedCheck: STALE_INSTALL }),
+    'delivery-checkpoint': ready('delivery-checkpoint', {
+      ...PLAN, deliveryLine: HELD, previousDelivery: true, firstFailedCheck: STALE_INSTALL,
+      deliveryApproval: 'After approval, Sprint 3 claims wait for recorded delivery verification or a person-owned waiver. Under current Sprint standards …'
+    })
+  }
+}
 
 /** Passing records for the rail states: the tree, the collapsed rail, and the landings that expand it on their own. */
 function passingRailStates() {
@@ -48,6 +66,7 @@ function passingRailStates() {
 function passing() {
   return {
     ...passingRailStates(),
+    ...passingDeliveryStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -126,21 +145,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 24 states once each, in capture order', () => {
+  it('lists the 27 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'settings-notifications'
+      'agent-planners', 'chat-rail-legacy', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(24)
+    expect(new Set(STATES).size).toBe(27)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 375 s overall bound that covers all 24', () => {
+  it('declares 15 s per state within a 420 s overall bound: 27 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(375_000)
-    expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
+    expect(OVERALL_LIMIT_MS).toBe(420_000)
+    expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
 
@@ -282,6 +301,48 @@ describe('capture-agent-chat: per-state observations', () => {
     const settings = passing()['settings-notifications']
     expect(validateObservations('settings-notifications', { ...settings, observations: { ...settings.observations, settingsControls: ['Save', ''] } }))
       .toEqual(['settings-notifications: expected the controls have accessible names'])
+  })
+})
+
+describe('capture-agent-chat: delivery observations', () => {
+  const records = passingDeliveryStates()
+  const without = (state, patch) => validateObservations(state, { ...records[state], observations: { ...records[state].observations, ...patch } })
+
+  it('passes the delivery states and requires their observation fields', () => {
+    for (const state of ['delivery-editor', 'delivery-pending', 'delivery-checkpoint']) expect(validateObservations(state, records[state])).toEqual([])
+    for (const field of ['sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck']) {
+      const record = passingDeliveryStates()['delivery-checkpoint']
+      delete record.observations[field]
+      expect(validateObservations('delivery-checkpoint', record)).toEqual([`delivery-checkpoint: missing observation ${field}`])
+    }
+  })
+
+  it('fails delivery-editor without the Sprint delivery region', () => {
+    expect(without('delivery-editor', { sprintDeliveryRegion: false }))
+      .toEqual(['delivery-editor: expected the acceptance node editor shows the Sprint delivery region'])
+  })
+
+  it('fails delivery-pending without the held line or with another first failed check', () => {
+    expect(without('delivery-pending', { deliveryLine: null })).toEqual([
+      `delivery-pending: expected the run bar reads ${HELD}; got null`
+    ])
+    expect(without('delivery-pending', { firstFailedCheck: 'Release contains it: missing' })).toEqual([
+      `delivery-pending: expected the first failed check reads ${STALE_INSTALL}; got "Release contains it: missing"`
+    ])
+  })
+
+  it('fails delivery-checkpoint without the approval note or the Previous sprint delivery region', () => {
+    expect(without('delivery-checkpoint', { deliveryApproval: null }))
+      .toEqual(['delivery-checkpoint: expected the gate’s Delivery on approval note holds Sprint 3'])
+    expect(without('delivery-checkpoint', { previousDelivery: false, firstFailedCheck: null })).toEqual([
+      'delivery-checkpoint: expected the Previous sprint delivery region',
+      `delivery-checkpoint: expected the first failed check reads ${STALE_INSTALL}; got null`
+    ])
+  })
+
+  it('holds the delivery states to the epic header and keeps them off the Agent tab checks', () => {
+    expect(without('delivery-pending', { viewButtons: ['Graph'] }))
+      .toEqual(['delivery-pending: expected the View buttons are Agent, Graph, List, Scorecard in order'])
   })
 })
 

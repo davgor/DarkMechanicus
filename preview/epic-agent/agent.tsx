@@ -21,7 +21,7 @@ import { ToastProvider } from '../../src/renderer/src/app/toasts'
 import { ClockContext, type Clock } from '../../src/renderer/src/epic/clock'
 import { EpicWorkspace } from '../../src/renderer/src/epic/EpicWorkspace'
 import { ViewMemoryContext, createViewMemory } from '../../src/renderer/src/epic/viewMemory'
-import { FakeBackend, scenario } from '../../src/renderer/src/epic/__mocks__/fakeBackend'
+import { FakeBackend, deliveryScenario, scenario } from '../../src/renderer/src/epic/__mocks__/fakeBackend'
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
 import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
@@ -400,6 +400,39 @@ async function reachGraph(): Promise<void> {
   await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph')
 }
 
+/** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
+const deliveryStates: Record<string, StateDef> = {
+  'delivery-editor': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('draft')) },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('View draft'), 'View draft')
+      await clickWhenPresent(() => [...document.querySelectorAll<HTMLElement>('[aria-label="Plan graph"] .pg-card')]
+        .find((card) => text($('.pg-card-title', card)) === 'Sprint 1 acceptance') ?? null, 'the Sprint 1 acceptance node in the draft graph')
+      const section = await until(() => $('[aria-label="Edit ticket DM-199"] section[aria-label="Sprint delivery"]'), 'the acceptance node’s Sprint delivery section')
+      section.scrollIntoView({ block: 'center' })
+    }
+  },
+  'delivery-pending': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('run')) },
+    reach: async () => {
+      await reachGraph()
+      await until(() => $('[aria-label="Run"] [role="group"][aria-label="Sprint delivery"] li.is-failed'), 'the run bar’s Sprint delivery line')
+    }
+  },
+  'delivery-checkpoint': {
+    mount: 'epic',
+    seed: (context) => { context.backend = new FakeBackend(deliveryScenario('checkpoint')) },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('Sprint report', $('[aria-label="Run"]') ?? document), 'the run bar’s Sprint report button')
+      await until(() => $('[aria-label="Delivery on approval"]'), 'the checkpoint gate’s Delivery on approval note')
+      const previous = await until(() => $('section[aria-label="Previous sprint delivery"]:has(li.is-failed)'), 'the report’s Previous sprint delivery checks')
+      previous.scrollIntoView({ block: 'nearest' })
+    }
+  }
+}
+
 const STATES: Record<string, StateDef> = {
   graph: { mount: 'epic', reach: reachGraph },
   'header-long': {
@@ -446,7 +479,8 @@ const STATES: Record<string, StateDef> = {
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
-  }
+  },
+  ...deliveryStates
 }
 
 // ---------------------------------------------------------------------------------------------- observations
@@ -498,6 +532,24 @@ function headerObservations(): Record<string, unknown> | null {
   }
 }
 
+/**
+ * The delivery regions: the acceptance node's Sprint delivery section, the run bar's Sprint delivery line, the
+ * checkpoint's Delivery on approval note and Previous sprint delivery section, and the first failed check as
+ * "name: detail" (from the previous-sprint section when shown, else from the run bar's line).
+ */
+function deliveryObservations(): Record<string, unknown> {
+  const line = $('[aria-label="Run"] [role="group"][aria-label="Sprint delivery"]')
+  const previous = $('section[aria-label="Previous sprint delivery"]')
+  const failed = (previous ?? line)?.querySelector('li.is-failed') ?? null
+  return {
+    sprintDeliveryRegion: $('[aria-label^="Edit ticket"] section[aria-label="Sprint delivery"]') !== null,
+    deliveryLine: text(line?.querySelector(':scope > span') ?? null),
+    deliveryApproval: text($('[aria-label="Delivery on approval"]')),
+    previousDelivery: previous !== null,
+    firstFailedCheck: failed === null ? null : `${text(failed.children[1] ?? null)}: ${text(failed.children[2] ?? null)}`
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -528,6 +580,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     ticketPanel: $('.tp') !== null,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
+    ...deliveryObservations(),
     errors: [...window.__errors]
   }
 }

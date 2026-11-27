@@ -58,11 +58,14 @@ import { idleTerminals } from '../../__mocks__/idleTerminals'
 import type { Runner } from '../runner'
 import {
   checkpointView,
+  deliveryBundle,
+  deliveryCheck,
   draftPlan,
   epicDetail,
   event,
   iso,
   projectView,
+  reportView,
   runView,
   savedPlan,
   summaries,
@@ -115,6 +118,38 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     transfer: transferView(),
     ...patch
   }
+}
+
+/** Sprint 1's latest delivery check: on main and released, but the installed app is older than the release. */
+const STALE_INSTALL = deliveryCheck(1, [
+  { name: 'On target branch', status: 'passed', detail: 'abc1234 is on main' },
+  { name: 'Release contains it', status: 'passed', detail: 'v0.50.0 contains abc1234' },
+  { name: 'Installed app version', status: 'failed', detail: '0.49.0 is older than 0.50.0' }
+])
+
+/**
+ * Seeds over a plan whose Sprint 1 declares delivery to main with a release and an installed-version check:
+ * `draft` opens a draft of that plan; `run` is in Sprint 2 with Sprint 1's failed delivery check holding its claims;
+ * `checkpoint` waits at Sprint 2's checkpoint, Sprint 2 delivering too, with that check as the previous delivery
+ * (its report carries no changes or checks, so one 1280×800 screen shows the gate's note beside that section).
+ */
+export function deliveryScenario(stage: 'draft' | 'run' | 'checkpoint'): Scenario {
+  if (stage === 'draft') {
+    return scenario({
+      epic: epicDetail({ hasDraft: true }),
+      saved: savedPlan({ bundle: deliveryBundle() }),
+      draft: draftPlan({ bundle: deliveryBundle(), changes: [] })
+    })
+  }
+  if (stage === 'run') {
+    return scenario({ saved: savedPlan({ bundle: deliveryBundle() }), run: runView({ deliveries: [STALE_INSTALL] }) })
+  }
+  const report = reportView()
+  return scenario({
+    saved: savedPlan({ bundle: deliveryBundle([1, 2]) }),
+    run: runView({ state: 'awaiting_checkpoint', deliveries: [STALE_INSTALL] }),
+    checkpoint: checkpointView({ report: { ...report, report: { ...report.report, changes: { files: [], commits: [] }, checks: [] } } })
+  })
 }
 
 export class FakeBackend implements DmApi {
