@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ChatItem } from '../../shared/agents/chat'
+import { thinkingLevelSchema, type ChatItem } from '../../shared/agents/chat'
 import type { OmpCommand, OmpEvent, OmpState } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { ompTodoPhases } from './todoLists'
@@ -239,6 +239,10 @@ export class OmpReducer {
   stateResponse(data: ObjectValue): void {
     this.state.sessionId = maskAgentChatSecretsDeep(string(data.sessionId)) || null
     this.state.sessionFile = maskAgentChatSecretsDeep(string(data.sessionFile)) || null
+    const model = object(data.model), provider = string(model.provider), id = string(model.id)
+    this.state.model = provider && id ? maskAgentChatSecretsDeep(`${provider}/${id}`) : null
+    const thinking = thinkingLevelSchema.safeParse(data.thinkingLevel)
+    this.state.thinking = thinking.success ? thinking.data : null
     if (data.todoPhases !== undefined) this.todos(data.todoPhases, null)
   }
   tail(data: ObjectValue, threadId: string): void {
@@ -250,7 +254,7 @@ export class OmpReducer {
     const id = string(frame.id)
     const command = this.state.commands.get(id)
     this.state.commands.delete(id)
-    if (command?.type === 'get_available_models') { this.commandResult(id, command.type, frame); return }
+    if (command?.awaited) { this.commandResult(id, command.type, frame); return }
     if (frame.success === false) { this.commandError(frame, command?.type); return }
     if (frame.success !== true) { this.state.skipped++; return }
     if (!command || frame.command !== command.type) return
@@ -261,9 +265,13 @@ export class OmpReducer {
     if (command.type === 'get_state') this.stateResponse(data)
     if (command.type === 'get_subagent_messages' && command.threadId) this.tail(data, command.threadId)
   }
-  /** Main's own request: its reply (or failure) goes only to the caller awaiting it, never into the transcript. */
+  /**
+   * Main's own request: its reply (or failure) goes only to the caller awaiting it, never into the transcript. A
+   * `get_state` reply also updates the session's model, thinking level and session ids as the start's does.
+   */
   commandResult(id: string, type: string, frame: ObjectValue): void {
     const ok = frame.success === true && frame.command === type
+    if (ok && type === 'get_state') this.stateResponse(object(frame.data))
     this.internalEvents.push({ type: 'command_result', id, ok, data: ok ? frame.data : undefined })
   }
   commandError(frame: ObjectValue, type?: string): void {
@@ -321,7 +329,9 @@ export class OmpReducer {
       case 'send': return this.send(command)
       case 'interrupt': return { type: 'abort', id: command.id }
       case 'get_subagent_messages': return { type: command.type, id: command.id, subagentId: command.subagentId, fromByte: command.fromByte }
-      case 'get_available_models': return { type: command.type, id: command.id }
+      case 'get_available_models': case 'get_state': return { type: command.type, id: command.id }
+      case 'set_model': return { type: command.type, id: command.id, provider: command.provider, modelId: command.modelId }
+      case 'set_thinking_level': return { type: command.type, id: command.id, level: command.level }
       case 'answer': return this.answer(command)
     }
   }
