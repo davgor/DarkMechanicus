@@ -1,4 +1,5 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
@@ -9,6 +10,7 @@ import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { ChatComposer } from './ChatComposer'
 import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
+import type { ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
@@ -90,6 +92,7 @@ function ChatView({
   const { reveal, show } = useThreadReveal(state, revealThreadId, onRevealed)
   const railId = useId()
   const busy = state.status === 'busy'
+  const imageSrc = useCallback<ChatImageSrc>((ref) => chatImageUrl(folderKey, chatId, ref.id), [folderKey, chatId])
   function stop(): void {
     if (busy) void command.run(interrupt)
   }
@@ -108,7 +111,7 @@ function ChatView({
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
           <RevealThreadContext.Provider value={reveal}>
-            <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} />
+            <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
           </RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
@@ -185,8 +188,8 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   )
 }
 
-function Messages({ state, transcript, folder, agentLabel }: {
-  state: ChatState; transcript: readonly TranscriptLine[]; folder: string | null; agentLabel: string
+function Messages({ state, transcript, folder, agentLabel, imageSrc }: {
+  state: ChatState; transcript: readonly TranscriptLine[]; folder: string | null; agentLabel: string; imageSrc: ChatImageSrc
 }): JSX.Element {
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -210,7 +213,7 @@ function Messages({ state, transcript, folder, agentLabel }: {
     }}>
       <div ref={content}>
         {state.items.length === 0 && transcript.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} />
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>
