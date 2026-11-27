@@ -2,7 +2,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
-import type { FollowUpProposal, SprintReportView } from '../../../shared/domain/views'
+import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { CheckResult, DeliveryCheckView, FollowUpProposal, SprintReportView } from '../../../shared/domain/views'
 import { NOW, bundle, checkpointView, condition, execution, incrementView, reportView, runView, SCORES } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { CheckpointScreen, type CheckpointScreenProps } from './CheckpointScreen'
@@ -318,5 +319,47 @@ describe('checkpoint gate', () => {
     const approve = screen.getByRole('button', { name: 'Approve & complete epic' }) as HTMLButtonElement
     expect(approve.disabled).toBe(true)
     expect((screen.getByRole('checkbox') as HTMLInputElement).disabled).toBe(true)
+  })
+})
+
+describe('checkpoint delivery', () => {
+  const MAIN = { target: 'main', release: true, verifyInstalled: true }
+  const delivering = (ordinal: number): PlanBundle =>
+    bundle({ sprints: bundle().sprints.map((item) => (item.ordinal === ordinal ? { ...item, delivery: MAIN } : item)) })
+  const record = (number: number, kind: 'check' | 'waiver', checks: CheckResult[], reason: string | null): DeliveryCheckView => ({
+    id: `dc_${number}`, runId: 'rn_2', sprintId: 'sp_1', number, kind, commit: null, releaseTag: null, releaseVersion: null, installedVersion: null,
+    checks, reasons: [], reason, passed: kind === 'waiver', recordedBy: null, createdAt: new Date(NOW).toISOString()
+  })
+
+  it('explains the post-approval hold only when the sprint under review declares delivery', () => {
+    renderScreen({ bundle: delivering(2) })
+    const note = within(screen.getByLabelText('Checkpoint gate')).getByLabelText('Delivery on approval')
+    expect(note.textContent).toMatch(/^After approval, Sprint 3 claims wait for recorded delivery verification or a person-owned waiver\. /)
+    expect(note.textContent).toContain('the protected PR and rollout are already complete before this checkpoint')
+    cleanup()
+    renderScreen({ bundle: delivering(1) })
+    expect(screen.queryByLabelText('Delivery on approval')).toBeNull()
+  })
+
+  it("lists the previous sprint's delivery checks and its waiver in the report", () => {
+    const run = runView({
+      state: 'awaiting_checkpoint',
+      deliveries: [
+        record(1, 'check', [{ name: 'on target', status: 'passed', detail: 'abc1234 on main' }, { name: 'installed', status: 'failed', detail: '1.1.0 < 1.2.0' }], null),
+        record(2, 'waiver', [], 'Shipped by hand')
+      ]
+    })
+    renderScreen({ run, bundle: delivering(1) })
+    const section = within(screen.getByLabelText('Sprint report')).getByLabelText('Previous sprint delivery')
+    expect(within(section).getByText('Waived by the person: Shipped by hand')).toBeTruthy()
+    expect(within(within(section).getByLabelText('Delivery checks')).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '✓on targetabc1234 on main',
+      '✗installed1.1.0 < 1.2.0'
+    ])
+  })
+
+  it('shows no previous-delivery section without a recorded check or waiver', () => {
+    renderScreen({ bundle: delivering(1) })
+    expect(screen.queryByLabelText('Previous sprint delivery')).toBeNull()
   })
 })

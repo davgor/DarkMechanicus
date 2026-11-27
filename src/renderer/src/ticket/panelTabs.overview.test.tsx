@@ -70,3 +70,38 @@ describe('OverviewTab ticket materials', () => {
     expect(screen.queryByRole('region', { name: 'Expected artifacts' })).toBeNull()
   })
 })
+
+describe('OverviewTab delivery of an acceptance node', () => {
+  const DELIVERY = { target: 'main', release: true, verifyInstalled: true }
+
+  function renderNode(kind: 'acceptance' | undefined, delivery: typeof DELIVERY | undefined): void {
+    const plan = bundle()
+    const sprints = plan.sprints.map((sprint) => (sprint.ordinal === 2 && delivery !== undefined ? { ...sprint, delivery } : sprint))
+    const detail = ticketDetail({ ticket: ticket('DM-202', 'Sprint 2 acceptance', { kind }) })
+    render(
+      <OverviewTab
+        detail={detail}
+        bundle={{ ...plan, sprints }}
+        runner={new FakeBackend(scenario()).runner}
+        folderKey={FOLDER_KEY}
+        onSelect={() => undefined}
+      />
+    )
+  }
+
+  it('shows the declared delivery on the acceptance node of a delivering sprint', () => {
+    renderNode('acceptance', DELIVERY)
+    const section = screen.getByRole('region', { name: 'Delivery' })
+    expect(within(section).getByText('Delivery verification: after the checkpoint → main · release · verify installed')).toBeTruthy()
+  })
+
+  it('shows no delivery on an acceptance node of a sprint that declares none', () => {
+    renderNode('acceptance', undefined)
+    expect(screen.queryByRole('region', { name: 'Delivery' })).toBeNull()
+  })
+
+  it('shows no delivery on a regular ticket of a delivering sprint', () => {
+    renderNode(undefined, DELIVERY)
+    expect(screen.queryByRole('region', { name: 'Delivery' })).toBeNull()
+  })
+})
