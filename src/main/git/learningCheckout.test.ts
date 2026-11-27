@@ -1,11 +1,13 @@
 /** DM-952: the clean-checkout preflight of apply and recovery, and its one owned untracked record, on real repositories. */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplyLearningIntegrationRequest, CleanCheckoutRequirement, LearningIntegrationPlan } from '../../shared/git/learningIntegration'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { isolateGitConfig } from '../../test/gitRemotes'
 import { put } from '../../test/gitScratch'
+import { useTemplate } from '../../test/gitTemplate'
 import { applyLearningIntegration, recoverLearningIntegration } from './learningApply'
 import { mintOwnedRecordAllowance } from './learningCheckout'
 import { createLearningIntegrationLocks, LearningIntegrationError, type LearningIntegrationDeps } from './learningIntegration'
@@ -36,24 +38,61 @@ interface Fixture {
   source: string
 }
 
+/** The guardrail trees the tests prepare on top of `base`: the default one, and each one a refusal or sibling test names. */
+const GUARDRAILS: ReadonlyArray<Record<string, string>> = [
+  { 'GUARDRAILS.md': 'never guess\n' },
+  ...[RECORD, '.darkmechanicus/learnings', '.darkmechanicus'].map((path) => ({ [path]: 'theirs\n' })),
+  ...['.DarkMechanicus/learnings', '.darkmechanicus/LEARNINGS/Integrations', '.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON'].map((path) => ({ [path]: 'theirs\n' })),
+  { '.darkmechanicus/learnings/integrations/li_02other.json': '{}\n', '.darkmechanicus/project.json': '{}\n' }
+]
+
+/** One fast-import commit of `files` on top of `base`, marked `:<index + 1>` under a ref outside refs/heads. */
+function guardrailCommit(index: number, base: string, files: Record<string, string>): string {
+  const message = 'guardrails\n'
+  return [
+    `commit refs/fixtures/guardrails-${index}\nmark :${index + 1}\ncommitter Test <test@example.com> 1700000000 +0000\n`,
+    `data ${Buffer.byteLength(message)}\n${message}from ${base}\n`,
+    ...Object.entries(files).map(([path, content]) => `M 100644 inline ${path}\ndata ${Buffer.byteLength(content)}\n${content}\n`)
+  ].join('')
+}
+
 /**
- * A clean checkout with `sprint` checked out at `base`, a guardrail branch adding `guardrails` on top of it (so apply
- * fast-forwards), and the untracked operation record the repo-mode flush would have written.
+ * Built once for the file: `main` and `sprint` at `base`, `sprint` checked out, and every guardrail commit written by one
+ * `git fast-import`. Each git process costs tens of milliseconds to start (a few hundred on a loaded Windows runner), and
+ * building this per case started about 16 of them, so each test copies it instead and starts none.
  */
-function fixture(guardrails: Record<string, string> = { 'GUARDRAILS.md': 'never guess\n' }): Fixture {
+const template = useTemplate((templateCleanups) => {
   const repo = createGitRepo()
-  cleanups.push(repo.cleanup)
+  templateCleanups.push(repo.cleanup)
   put(repo.root, 'shared.txt', 'one\n')
   repo.git('add', '--', 'shared.txt')
   repo.git('commit', '-q', '-m', 'base')
   const base = repo.rev('HEAD')
-  repo.branch('learnings/DM-1/root')
-  for (const [file, content] of Object.entries(guardrails)) put(repo.root, file, content)
-  repo.git('add', '--', ...Object.keys(guardrails))
-  repo.git('commit', '-q', '-m', 'guardrails')
-  const source = repo.rev('HEAD')
-  repo.git('branch', 'sprint', base)
-  repo.switchTo('sprint')
+  repo.branch('sprint')
+  const marks = join(repo.root, '.git', 'dm-guardrail-marks')
+  execFileSync('git', ['-C', repo.root, 'fast-import', '--quiet', `--export-marks=${marks}`], {
+    input: GUARDRAILS.map((files, index) => guardrailCommit(index, base, files)).join(''),
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+  const commits = new Map(readFileSync(marks, 'utf8').trim().split('\n').map((line) => line.split(' ') as [string, string]))
+  return { repo, base, sources: GUARDRAILS.map((_, index) => commits.get(`:${index + 1}`) ?? '') }
+})
+
+/**
+ * A clean checkout with `sprint` checked out at `base`, a guardrail branch adding `guardrails` on top of it (so apply
+ * fast-forwards), and the untracked operation record the repo-mode flush would have written: a copy of the template
+ * with `learnings/DM-1/root` pointed at the guardrail commit.
+ */
+function fixture(guardrails: Record<string, string> = GUARDRAILS[0]!): Fixture {
+  const index = GUARDRAILS.findIndex((files) => JSON.stringify(files) === JSON.stringify(guardrails))
+  if (index < 0) throw new Error('Add this guardrail tree to GUARDRAILS.')
+  const { repo: built, base, sources } = template()
+  const repo = copyGitRepo(built)
+  cleanups.push(repo.cleanup)
+  const source = sources[index]!
+  const branch = join(repo.root, '.git', 'refs', 'heads', 'learnings', 'DM-1', 'root')
+  mkdirSync(dirname(branch), { recursive: true })
+  writeFileSync(branch, source + '\n')
   put(repo.root, RECORD, RECORD_TEXT)
   return { repo, base, source }
 }
@@ -106,22 +145,19 @@ describe('clean checkout with the owned operation record', () => {
     expect(JSON.stringify(saved.plan)).not.toContain('li_01record')
   })
 
-  it('refuses every other untracked, staged or modified path, and a strict requirement refuses the record too', async () => {
-    const cases: Array<[string, (f: Fixture) => void, CleanCheckoutRequirement | null]> = [
-      ['untracked', (f) => put(f.repo.root, 'notes.txt', 'mine\n'), null],
-      ['untracked beside the record', (f) => put(f.repo.root, '.darkmechanicus/learnings/integrations/li_02other.json', '{}\n'), null],
-      ['staged', (f) => (put(f.repo.root, 'staged.txt', 'staged\n'), f.repo.git('add', '--', 'staged.txt')), null],
-      ['modified', (f) => put(f.repo.root, 'shared.txt', 'theirs\n'), null],
-      ['strict', () => undefined, { record: null }]
-    ]
-    for (const [name, make, strict] of cases) {
-      const f = fixture()
-      make(f)
-      const before = untouched(f)
-      const error = await refusal(applyLearningIntegration(deps(), request(f, strict ?? allowed(f))))
-      expect([name, error.code]).toEqual([name, 'dirty_worktree'])
-      expect(untouched(f)).toBe(before)
-    }
+  it.each<[string, (f: Fixture) => void, CleanCheckoutRequirement | null]>([
+    ['untracked', (f) => put(f.repo.root, 'notes.txt', 'mine\n'), null],
+    ['untracked beside the record', (f) => put(f.repo.root, '.darkmechanicus/learnings/integrations/li_02other.json', '{}\n'), null],
+    ['staged', (f) => (put(f.repo.root, 'staged.txt', 'staged\n'), f.repo.git('add', '--', 'staged.txt')), null],
+    ['modified', (f) => put(f.repo.root, 'shared.txt', 'theirs\n'), null],
+    ['strict', () => undefined, { record: null }]
+  ])('refuses every other untracked, staged or modified path, and a strict requirement refuses the record too: %s', async (name, make, strict) => {
+    const f = fixture()
+    make(f)
+    const before = untouched(f)
+    const error = await refusal(applyLearningIntegration(deps(), request(f, strict ?? allowed(f))))
+    expect([name, error.code]).toEqual([name, 'dirty_worktree'])
+    expect(untouched(f)).toBe(before)
   })
 
   it('refuses a tracked or staged record: only the untracked record is the allowed case', async () => {
@@ -140,31 +176,26 @@ describe('clean checkout with the owned operation record', () => {
 })
 
 describe('prepared trees that would own the record', () => {
-  it('refuses a prepared tree holding the record path or a file at one of its folders, changing nothing', async () => {
-    for (const path of [RECORD, '.darkmechanicus/learnings', '.darkmechanicus']) {
-      const f = fixture({ [path === '.darkmechanicus' ? '.darkmechanicus' : path]: 'theirs\n' })
-      const before = untouched(f)
-      const error = await refusal(applyLearningIntegration(deps(), request(f, allowed(f))))
-      expect([path, error.code]).toEqual([path, 'unsafe_path'])
-      expect(error.message).toContain(`has ${path}, which would own or replace the current operation record ${RECORD}`)
-      expect(untouched(f)).toBe(before)
-    }
+  it.each([RECORD, '.darkmechanicus/learnings', '.darkmechanicus'])('refuses a prepared tree holding the record path or a file at one of its folders, changing nothing: %s', async (path) => {
+    const f = fixture({ [path]: 'theirs\n' })
+    const before = untouched(f)
+    const error = await refusal(applyLearningIntegration(deps(), request(f, allowed(f))))
+    expect([path, error.code]).toEqual([path, 'unsafe_path'])
+    expect(error.message).toContain(`has ${path}, which would own or replace the current operation record ${RECORD}`)
+    expect(untouched(f)).toBe(before)
   })
 
-  it('on Windows refuses case aliases of the reserved folder, a descendant folder and the record itself', async () => {
-    const aliases: Array<[string, string]> = [
-      ['.DarkMechanicus/learnings', '.DarkMechanicus/learnings'],
-      ['.darkmechanicus/LEARNINGS/Integrations', '.darkmechanicus/LEARNINGS/Integrations'],
-      ['.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON', '.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON']
-    ]
-    for (const [path, owner] of aliases) {
-      const f = fixture({ [path]: 'theirs\n' })
-      const before = untouched(f)
-      const error = await refusal(applyLearningIntegration(deps('win32'), request(f, allowed(f))))
-      expect([path, error.code]).toEqual([path, 'unsafe_path'])
-      expect(error.message).toContain(`has ${owner}, which would own`)
-      expect(untouched(f)).toBe(before)
-    }
+  it.each([
+    ['.DarkMechanicus/learnings', '.DarkMechanicus/learnings'],
+    ['.darkmechanicus/LEARNINGS/Integrations', '.darkmechanicus/LEARNINGS/Integrations'],
+    ['.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON', '.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON']
+  ])('on Windows refuses case aliases of the reserved folder, a descendant folder and the record itself: %s', async (path, owner) => {
+    const f = fixture({ [path]: 'theirs\n' })
+    const before = untouched(f)
+    const error = await refusal(applyLearningIntegration(deps('win32'), request(f, allowed(f))))
+    expect([path, error.code]).toEqual([path, 'unsafe_path'])
+    expect(error.message).toContain(`has ${owner}, which would own`)
+    expect(untouched(f)).toBe(before)
   })
 
   it('keeps the record when the prepared tree only adds siblings in its folders', async () => {
