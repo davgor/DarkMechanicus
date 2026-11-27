@@ -5,6 +5,11 @@
  * watch on that one file bumps the revision each time it changes, told as a run change (`cults:event`); the watch stops
  * when the file is published over, when the run ends, and on dispose. The content is served only by `shrineProtocol.ts`,
  * which checks the file again on every read.
+ *
+ * A watch event is a hint, never the truth: `fs.watch` gives no signal that it is live (on macOS FSEvents starts its
+ * stream asynchronously) and may drop or coalesce events under load. So the file's stat is reconciled against the last
+ * told one right after the watch starts (an edit made while it was starting) and every `SHRINE_RECONCILE_MS` after
+ * (an edit whose event never came). Checks run one at a time per watch, so an event and a reconcile never bump twice.
  */
 import { constants, watch as watchFs } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
@@ -18,6 +23,8 @@ import { type SupervisorClock, systemClock } from './runTimer'
 
 /** How long the file must be quiet before a change bumps the revision: an editor's save is several writes. */
 const DEBOUNCE_MS = 300
+/** How often the published file's stat is reconciled, for a change whose watch event never came. */
+export const SHRINE_RECONCILE_MS = 2_000
 
 interface ResolvedShrine {
   /** The file's real path: no symlink left in it. */
@@ -101,10 +108,13 @@ export interface CultShrines {
 /** One run's watch on its published file. */
 interface Watch {
   path: string
-  /** The file as last told: modified time, size and inode; a change event that leaves it alike tells nothing. */
+  /** The file as last told: modified time, size and inode; a check that finds it alike tells nothing. */
   signature: string | null
   watcher: { close(): void }
   cancelDebounce: () => void
+  cancelReconcile: () => void
+  /** The watch's checks, one at a time, so an event and a reconcile never tell the same change twice. */
+  queue: Promise<void>
 }
 
 interface State {
@@ -127,10 +137,11 @@ function stop(s: State, runId: string): void {
   if (current === undefined) return
   s.watches.delete(runId)
   current.cancelDebounce()
+  current.cancelReconcile()
   current.watcher.close()
 }
 
-/** The file went quiet: a real change of the file bumps the revision and is told as a run change. */
+/** A real change of the file since it was last told bumps the revision and is told as a run change. */
 async function settleChange(s: State, runId: string, entry: Watch): Promise<void> {
   const signature = await signatureOf(entry.path)
   if (s.watches.get(runId) !== entry || signature === entry.signature) return
@@ -138,19 +149,34 @@ async function settleChange(s: State, runId: string, entry: Watch): Promise<void
   if (s.deps.cults.bumpShrine(runId, entry.path) !== null) s.deps.supervisor.changed(runId)
 }
 
+/** Queues one check of the file behind the watch's earlier ones. */
+function check(s: State, runId: string, entry: Watch): void {
+  const next = entry.queue.then(() => settleChange(s, runId, entry)).catch(s.onError)
+  entry.queue = next
+  s.checks.add(next)
+  void next.finally(() => s.checks.delete(next))
+}
+
+/** At once (an edit made while the watch was starting), then every `SHRINE_RECONCILE_MS` (an event that never came). */
+function reconcile(s: State, runId: string, entry: Watch, delay: number): void {
+  entry.cancelReconcile = s.clock.after(() => {
+    if (s.watches.get(runId) !== entry) return
+    check(s, runId, entry)
+    reconcile(s, runId, entry, SHRINE_RECONCILE_MS)
+  }, delay)
+}
+
 function startWatch(s: State, runId: string, path: string, signature: string | null): void {
   stop(s, runId)
   const name = basename(path)
-  const entry: Watch = { path, signature, watcher: { close: () => {} }, cancelDebounce: () => {} }
+  const entry: Watch = { path, signature, watcher: { close: () => {} }, cancelDebounce: () => {}, cancelReconcile: () => {}, queue: Promise.resolve() }
   entry.watcher = s.watch(dirname(path), (filename) => {
     if (filename !== null && filename !== name) return
     entry.cancelDebounce()
-    entry.cancelDebounce = s.clock.after(() => {
-      const check = settleChange(s, runId, entry).catch(s.onError).finally(() => s.checks.delete(check))
-      s.checks.add(check)
-    }, DEBOUNCE_MS)
+    entry.cancelDebounce = s.clock.after(() => check(s, runId, entry), DEBOUNCE_MS)
   }, s.onError)
   s.watches.set(runId, entry)
+  reconcile(s, runId, entry, 0)
 }
 
 async function publish(s: State, run: CultRunView, member: CultMemberView, path: string) {

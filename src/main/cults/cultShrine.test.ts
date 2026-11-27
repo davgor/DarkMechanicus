@@ -1,9 +1,11 @@
 /**
  * Publishing a run's Shrine (DM-632 c1, c3): every unsafe candidate refused (outside the work dir, `..`, a symlink out
  * of it, another type, over 10 MiB); a publish and each change of the published file bump the revision and are told as a
- * run change; the watch is debounced, scoped to that one file, and stops when the run ends, is published over or the
- * service is disposed. Over the real cult store and real files; the watcher and clock are fakes the test drives, except
- * in the last test, which edits the file under the real `fs.watch`.
+ * run change; the watch is debounced, scoped to that one file, reconciled against the file's stat when it starts and
+ * periodically (so an edit whose event came before the watch was live, or never came, still bumps), and stops when the
+ * run ends, is published over or the service is disposed. Over the real cult store and real files; the clock is a fake
+ * the test drives, and so is the watcher except in the last test, which runs the real `fs.watch` (whose event delivery
+ * the OS does not guarantee, so that test asserts only what the reconcile makes certain).
  */
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,8 +16,8 @@ import { DomainError } from '../../core/errors'
 import type { CultMemberView, CultRunView } from '../../shared/cults/cult'
 import { SHRINE_MAX_BYTES } from '../../shared/cults/shrine'
 import { openAppDatabase } from '../desktop/appDatabase'
-import { eventually, FakeClock } from '../terminals/__mocks__/terminalSessionsRig'
-import { createCultShrines, type CultShrines, readShrine, resolveShrine } from './cultShrine'
+import { FakeClock } from '../terminals/__mocks__/terminalSessionsRig'
+import { createCultShrines, type CultShrines, readShrine, resolveShrine, SHRINE_RECONCILE_MS } from './cultShrine'
 import { createCultStore, type CultStore } from './cultStore'
 import type { CultRunSnapshot } from './cultSupervisor'
 
@@ -107,6 +109,13 @@ function edit(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
+/** Publishes and lets the watch's start reconcile run (nothing changed yet), so later checks are the test's own. */
+async function published(name: string): Promise<void> {
+  await f.shrines.publish(run(), MAGOS, name)
+  f.clock.advance(0)
+  await f.shrines.settled()
+}
+
 describe('publish_shrine refusals (c1)', () => {
   it('refuses a file outside the work dir, by absolute path and by ..', async () => {
     write(join(f.outside, 'secret.png'))
@@ -175,7 +184,8 @@ describe('the published Shrine, live (c3)', () => {
 
   it('bumps the revision once per settled edit of the published file and tells the run changed', async () => {
     const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
-    await f.shrines.publish(run(), MAGOS, 'index.html')
+    await published('index.html')
+    expect(run().shrineRevision).toBe('1')
     const [watcher] = f.watchers
     expect(watcher).toMatchObject({ dir: f.work, closed: false })
 
@@ -191,9 +201,9 @@ describe('the published Shrine, live (c3)', () => {
     expect(f.changed).toEqual([f.run.id])
     expect(f.store.latestShrineEvent(f.run.id)).toMatchObject({ memberName: 'Magos Vettius' })
 
-    // Another file of the folder arms nothing; an event that leaves the file as it was tells nothing.
+    // Another file of the folder arms nothing (only the reconcile is pending); an unchanged file tells nothing.
     watcher!.fire('other.html')
-    expect(f.clock.pending).toBe(0)
+    expect(f.clock.pending).toBe(1)
     watcher!.fire('index.html')
     f.clock.advance(1_000)
     await f.shrines.settled()
@@ -201,6 +211,36 @@ describe('the published Shrine, live (c3)', () => {
     expect(f.changed).toHaveLength(1)
   })
 
+  it('bumps for an edit made before the watch was live: the start reconcile compares the stat publish recorded', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await f.shrines.publish(run(), MAGOS, 'index.html')
+    // The edit lands while the watch is starting; its event never arrives.
+    edit(path, '<h1>edited at once</h1>')
+    f.clock.advance(0)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toEqual([f.run.id])
+  })
+
+  it('bumps for an edit whose watch event never came, at the next reconcile, and tells an evented edit only once', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    edit(path, '<h1>dropped event</h1>')
+    f.clock.advance(SHRINE_RECONCILE_MS - 1)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('1')
+    f.clock.advance(1)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+
+    // The event's debounced check and a reconcile both run after one edit: the second finds it already told.
+    edit(path, '<h1>both paths see this edit</h1>')
+    f.watchers[0]!.fire('index.html')
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('3')
+    expect(f.changed).toHaveLength(2)
+  })
 })
 
 describe('the Shrine watch stops (c3)', () => {
@@ -210,6 +250,8 @@ describe('the Shrine watch stops (c3)', () => {
     await f.shrines.publish(run(), MAGOS, 'a.png')
     await f.shrines.publish(run(), MAGOS, 'b.png')
     expect(f.watchers.map((watcher) => watcher.closed)).toEqual([true, false])
+    // Only the latest watch's start reconcile is still armed.
+    expect(f.clock.pending).toBe(1)
   })
 
   it('stops the watch when the run ends: a later edit changes nothing', async () => {
@@ -223,8 +265,10 @@ describe('the Shrine watch stops (c3)', () => {
     expect(f.watchers[0]!.closed).toBe(true)
     edit(path, '<h1>after the end</h1>')
     f.watchers[0]!.fire('index.html')
-    f.clock.advance(1_000)
+    // No debounce and no reconcile is left armed: nothing will check the file again.
     expect(f.clock.pending).toBe(0)
+    f.clock.advance(SHRINE_RECONCILE_MS * 3)
+    await f.shrines.settled()
     expect(run().shrineRevision).toBe('1')
   })
 
@@ -233,6 +277,7 @@ describe('the Shrine watch stops (c3)', () => {
     await f.shrines.publish(run(), MAGOS, 'a.png')
     f.shrines.dispose()
     expect(f.watchers[0]!.closed).toBe(true)
+    expect(f.clock.pending).toBe(0)
     expect(f.listeners.size).toBe(0)
   })
 })
@@ -257,20 +302,24 @@ describe('reading the recorded Shrine', () => {
 })
 
 describe('the real file watch', () => {
-  it('bumps the revision when the published file is edited on disk, and closes its watcher on dispose', async () => {
-    const work = f.work
-    const store = f.store
+  it('watches the folder with the real fs.watch, bumps for an edit made right after publish, and closes on dispose', async () => {
     const changed: string[] = []
-    const shrines = createCultShrines({ cults: store, supervisor: { on: () => () => {}, changed: (runId) => void changed.push(runId) } })
+    // The real watcher; the clock stays the fake, so the reconcile that makes the bump certain runs when the test says,
+    // whether or not the OS delivers the edit's event (FSEvents may drop one made before its stream is live).
+    const shrines = createCultShrines({ cults: f.store, clock: f.clock, supervisor: { on: () => () => {}, changed: (runId) => void changed.push(runId) } })
     try {
-      const path = write(join(work, 'live.html'), '<p>one</p>')
+      const path = write(join(f.work, 'live.html'), '<p>one</p>')
       await shrines.publish(run(), MAGOS, 'live.html')
+      expect(shrines.watching(f.run.id)).toBe(true)
       edit(path, '<p>two, longer</p>')
-      await eventually(() => run().shrineRevision === '2', 'the real watch to bump the revision')
+      f.clock.advance(0)
+      await shrines.settled()
+      expect(run().shrineRevision).toBe('2')
       expect(changed).toEqual([f.run.id])
     } finally {
       shrines.dispose()
     }
     expect(shrines.watching(f.run.id)).toBe(false)
+    expect(f.clock.pending).toBe(0)
   })
 })

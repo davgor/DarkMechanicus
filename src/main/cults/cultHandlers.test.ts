@@ -41,7 +41,7 @@ interface Fixture {
   stopForwarding: () => void
   /** Whether the supervisor hears member exits: off, a relaunch looks to it like the same member launching again. */
   hearing: { exits: boolean }
-  /** The run Shrines, on the real file watch, as `startCults` wires them. */
+  /** The run Shrines on the real file watch, as `startCults` wires them, with their reconcile on the run's fake clock. */
   shrines: CultShrines
 }
 
@@ -74,7 +74,7 @@ beforeEach(async () => {
   const h = await cultHarness({ now: () => new Date(BASE + clock.now).toISOString(), exitOnKill: true })
   const hearing = { exits: true }
   const supervisor = supervisorOver(h, clock, hearing)
-  const shrines = createCultShrines({ cults: h.cults, supervisor })
+  const shrines = createCultShrines({ cults: h.cults, supervisor, clock: { after: (callback, ms) => clock.after(callback, ms) } })
   const dispatch = announcingDispatcher(createCultDispatcher({
     supervisor, cults: h.cults, council: h.council, shrines, models: async () => MODELS,
     sendOrder: (order) => h.pool.get(order.folder).call('sendCultOrder', order),
@@ -424,7 +424,10 @@ describe('cults IPC: the live Shrine (DM-632)', () => {
     expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, revision: '1', kind: 'html', publishedBy: 'Magos Ferrum' })
 
     writeFileSync(page, '<h1>Gerry, day 2: a new leaf</h1>')
-    await eventually(() => lastSnapshot(run.id)?.shrine?.revision === '2', 'the edit to reach cults:event')
+    // The watch's reconcile runs on the run clock: the edit is told whether or not the OS delivered its event.
+    f.clock.advance(0)
+    await f.shrines.settled()
+    expect(lastSnapshot(run.id)?.shrine?.revision).toBe('2')
     expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, publishedBy: 'Magos Ferrum' })
 
     await command(magos, 'cult_summon_acolyte', { mission: 'Paint Gerry.', name: 'Acolyte Brass' })
