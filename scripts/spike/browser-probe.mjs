@@ -28,7 +28,7 @@ mkdirSync(out, { recursive: true })
 const profile = mkdtempSync(join(tmpdir(), 'dm-browser-probe-profile-'))
 
 const env = { ...process.env }
-for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
+for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
 
 function killTree(child) {
   if (process.platform === 'win32') spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true })

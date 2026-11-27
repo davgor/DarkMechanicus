@@ -38,6 +38,12 @@ const readOperation = z.strictObject({ op: z.literal('browser_read'), args: z.st
 /** Captures only a shown, on-window view; a hidden or off-window view is refused with `view_hidden`. */
 const screenshotOperation = z.strictObject({ op: z.literal('browser_screenshot'), args: z.strictObject({ ...callerLabel, label: plain(80).optional() }) })
 const operations = [statusOperation, navigateOperation, clickOperation, typeOperation, pressOperation, readOperation, screenshotOperation] as const
+/** Each op's arguments: the input schemas of the `browser_*` commands that send them. */
+export const BROWSER_ARGS = {
+  browser_status: statusOperation.shape.args, browser_navigate: navigateOperation.shape.args, browser_click: clickOperation.shape.args,
+  browser_type: typeOperation.shape.args, browser_press: pressOperation.shape.args, browser_read: readOperation.shape.args,
+  browser_screenshot: screenshotOperation.shape.args
+} as const
 export const browserOperationSchema = z.discriminatedUnion('op', [...operations])
 export type BrowserOperation = z.infer<typeof browserOperationSchema>
 
@@ -62,8 +68,15 @@ const browserStatusResultSchema = z.strictObject({
 const browserReadResultSchema = z.strictObject({
   url: z.string().max(2048), title: z.string().max(512), untrusted: z.literal(true), content: z.string().max(48_000), truncated: z.boolean()
 })
-/** Main stores the PNG as a chat image; only its ref (id and measured size) crosses the pipe, never bytes or a path. */
-const browserScreenshotResultSchema = z.strictObject({ image: chatImageRefSchema, url: z.string().max(2048) })
+/** A drive-letter or POSIX absolute path; UNC, relative and device paths are refused. */
+const absolutePath = plain(1024).refine((value) => /^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(value))
+/**
+ * Main stores the PNG as a chat image (`image`, for the transcript) and writes one copy for the calling chat to stage
+ * as evidence: `path`, a 0600 file in a fresh 0700 `dm-browser-shot-*` directory under the system temp folder, which
+ * main sweeps when it is not collected. Never bytes. The CLI checks the path, stages the copy and deletes the
+ * directory; the agent's answer is the attachment, never the path.
+ */
+const browserScreenshotResultSchema = z.strictObject({ image: chatImageRefSchema, url: z.string().max(2048), path: absolutePath })
 /** navigate, click, type and press answer with the tab they left behind. */
 const browserActionResultSchema = z.strictObject({ tab: browserTabSchema })
 
@@ -80,6 +93,10 @@ export const browserReplySchema = z.discriminatedUnion('ok', [
   z.strictObject({ version: z.literal(1), requestId: z.string().max(128), ok: z.literal(false), error: z.strictObject({ code: browserErrorCodeSchema, message: z.string().max(256) }) })
 ])
 export type BrowserReply = z.infer<typeof browserReplySchema>
+export type BrowserArgs<Op extends keyof typeof BROWSER_ARGS> = z.infer<(typeof BROWSER_ARGS)[Op]>
+export type BrowserStatusResult = z.infer<typeof browserStatusResultSchema>
+export type BrowserReadResult = z.infer<typeof browserReadResultSchema>
+export type BrowserActionResult = z.infer<typeof browserActionResultSchema>
 const MESSAGES: Record<BrowserErrorCode, string> = {
   desktop_unavailable: 'The desktop browser transport is unavailable.',
   unauthorized: 'The browser authority is not usable.',

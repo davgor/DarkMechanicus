@@ -71,6 +71,8 @@ interface OpenOptions {
   mailPoll?: boolean
   /** What the session reports about its own build; defaults to an unpackaged test server. */
   serverInfo?: OpenWorkspaceOptions['serverInfo']
+  /** Replaces the browser pipe's client, e.g. with a fake that answers each op. */
+  browserClient?: OpenWorkspaceOptions['browserClient']
 }
 
 interface HarnessEnv {
@@ -136,7 +138,8 @@ export function createHarness(): Harness {
     clock,
     git,
     open(role, options = {}) {
-      const workspace = openWorkspace({ ...openOptions(env, role, options), ...(options.serverInfo && { serverInfo: options.serverInfo }) })
+      const extra = { ...(options.serverInfo && { serverInfo: options.serverInfo }), ...(options.browserClient && { browserClient: options.browserClient }) }
+      const workspace = openWorkspace({ ...openOptions(env, role, options), ...extra })
       workspaces.push(workspace)
       return workspace
     },

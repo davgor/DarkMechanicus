@@ -48,7 +48,7 @@ const env = { ...process.env, DARKMECHANICUS_HOME: P['dm-home'], DISABLE_AUTO_UP
   GIT_AUTHOR_NAME: 'DM820 fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'DM820 fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' }
 for (const name of Object.keys(env)) {
-  if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_SKITARII_CLIENT_DESCRIPTOR|ELECTRON_.*|NODE_OPTIONS|PI_SESSION_FILE|CI|GIT_CONFIG_(?:PARAMETERS|COUNT|KEY_\d+|VALUE_\d+))$/i.test(name)) delete env[name]
+  if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE|DM_SKITARII_CLIENT_DESCRIPTOR|ELECTRON_.*|NODE_OPTIONS|PI_SESSION_FILE|CI|GIT_CONFIG_(?:PARAMETERS|COUNT|KEY_\d+|VALUE_\d+))$/i.test(name)) delete env[name]
 }
 const J = JSON.stringify
 const sha = (text) => createHash('sha256').update(text).digest('hex')

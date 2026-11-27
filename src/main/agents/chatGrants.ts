@@ -125,6 +125,7 @@ class ChatGrantRegistry implements ChatGrants {
   private withGrant(launch: DarkMechanicusCli, token: string): DarkMechanicusCli {
     const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: token }
     delete env['DM_DESKTOP_PIPE']
+    delete env['DM_BROWSER_PIPE']
     const address = this.deps.desktopAddress?.()
     if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
     return { ...launch, env }

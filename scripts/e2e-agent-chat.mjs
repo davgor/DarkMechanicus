@@ -86,7 +86,7 @@ const EPIC_TITLE = 'E2E epic'
 const WINDOW = { width: 1024, height: 768 }
 const WIDE_WINDOW = { width: 1440, height: 900 }
 /** Inherited variables that would redirect the app: `ELECTRON_RUN_AS_NODE=1` alone would start plain Node. */
-const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE)$/i
+const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE)$/i
 /**
  * The protocol (GUI) and TUI invocations, which run until the app stops them. Version, auth and arbiter runs exit by
  * themselves and the app observes that directly; Windows recycles their pids, so they are not checked.

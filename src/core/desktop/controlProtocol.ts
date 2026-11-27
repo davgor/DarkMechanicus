@@ -3,6 +3,10 @@ import {
   NAMING_CONTROL, NamingControlError, namingErrorCodeSchema, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema,
   type NamingErrorCode, type NamingOperation, type NamingReply, type NamingRequest
 } from '../../shared/agents/chatNaming'
+import {
+  BROWSER_CONTROL, BrowserControlError, browserErrorCodeSchema, browserFailure, browserOperationSchema, browserReplySchema, browserRequestSchema,
+  type BrowserErrorCode, type BrowserOperation, type BrowserReply, type BrowserRequest
+} from '../../shared/browser/browserControl'
 
 /** Codes the generic server and client produce themselves; every protocol's error codes include them. */
 export type ControlTransportCode =
@@ -61,4 +65,24 @@ export const NAMING_PROTOCOL: ControlProtocol<NamingOperation, NamingRequest, Na
   error: (code) => new NamingControlError(code),
   errorCodeOf: namingErrorCodeOf,
   requestBytesOf: (op) => op === 'name_chat' ? NAMING_CONTROL.namingRequestBytes : NAMING_CONTROL.requestBytes
+}
+
+function browserErrorCodeOf(error: unknown): BrowserErrorCode {
+  if (error instanceof BrowserControlError) { return error.code }
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    const parsed = browserErrorCodeSchema.safeParse(error.code)
+    if (parsed.success) { return parsed.data }
+  }
+  return 'internal_error'
+}
+
+/** The desktop's second pipe (`DM_BROWSER_PIPE`), behind the `browser_*` commands: its own limits, never naming's. */
+export const BROWSER_PROTOCOL: ControlProtocol<BrowserOperation, BrowserRequest, BrowserReply, BrowserErrorCode> = {
+  limits: BROWSER_CONTROL,
+  requestSchema: browserRequestSchema,
+  operationSchema: browserOperationSchema,
+  replySchema: browserReplySchema,
+  failure: browserFailure,
+  error: (code) => new BrowserControlError(code),
+  errorCodeOf: browserErrorCodeOf
 }

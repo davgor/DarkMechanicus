@@ -356,9 +356,10 @@ describe('capture-agent-chat: arguments and environment', () => {
     expect(() => parseArgs(['--out', 'x', '--skip'])).toThrow(/Unknown argument: --skip/)
   })
 
-  it('drops every ELECTRON_*, NODE_OPTIONS, DM_SESSION_TOKEN and DM_DESKTOP_PIPE and keeps the rest', () => {
+  it('drops every ELECTRON_*, NODE_OPTIONS, DM_SESSION_TOKEN, DM_DESKTOP_PIPE and DM_BROWSER_PIPE and keeps the rest', () => {
     const env = electronEnv({
       ELECTRON_RUN_AS_NODE: '1', electron_enable_logging: '1', NODE_OPTIONS: '--inspect', DM_SESSION_TOKEN: 's', DM_DESKTOP_PIPE: 'p',
+      DM_BROWSER_PIPE: 'b', dm_browser_pipe: 'lower',
       PATH: '/bin', DM_SESSION_TOKEN_EXTRA: 'kept', TEMP: 't'
     })
     expect(env).toEqual({ PATH: '/bin', DM_SESSION_TOKEN_EXTRA: 'kept', TEMP: 't' })
