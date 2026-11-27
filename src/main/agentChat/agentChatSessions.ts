@@ -773,7 +773,7 @@ class SessionManager {
     if (entry.protocol === 'claude') return { ...paths, claudeSettings: await this.step(entry, writeClaudeSettings({
       userData: deps.userData, chatId: chat.id, platform: deps.platform, folder: cwd, cli, home: homedir(), tmp: tmpdir(),
       ...(reach === undefined ? {} : { projectless: true as const }) })) }
-    return { ...paths, omp: { ...await this.step(entry, writeOmpFiles(deps.userData, chat.id, false)), extension: deps.ompExtension } }
+    return { ...paths, omp: { ...await this.step(entry, writeOmpFiles(deps.userData, chat.id, { fresh: false, role: chat.role })), extension: deps.ompExtension } }
   }
   private async issue(entry: Entry, agent: AgentView, cwd: string, reach: ReachTarget[] | undefined) {
     const { chat } = entry, { deps } = this

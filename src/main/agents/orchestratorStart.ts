@@ -16,7 +16,9 @@ import { forgeKickoff } from '../desktop/forgeManifest'
  *
  * A chat is never created before its run exists, and it records that run's id. The orchestrator and worker
  * guidance goes in the chat's instructions (`terminalFiles.ts`, for a chat with a `runId`); the kickoff is only
- * the run lines, and goes with the chat's first start (`terminalSessions.ts`).
+ * the run lines, and goes with the chat's first start (`terminalSessions.ts`). A Skitarii (OMP) Magos's first start
+ * also gets one line naming the worker-model catalog main wrote for it (`workerCatalog.ts`); a catalog OMP cannot
+ * list leaves the line out and the start goes on.
  */
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
@@ -27,6 +29,7 @@ import type { TerminalSessions } from '../terminals/terminalSessions'
 import { startChatOnSurface } from './chatSurfaceStart'
 import type { ChatRecords } from './chatRecords'
 import { orchestratorKickoff, orchestratorTitle } from './orchestratorKickoff'
+import { workerCatalogLine, type WorkerCatalog } from './workerCatalog'
 
 /** The run side of the desktop for one tracked folder: the same commands the Start run button uses. */
 export interface OrchestratorRuns {
@@ -43,6 +46,8 @@ interface OrchestratorStartDeps {
   agentChats: Pick<AgentChatSessions, 'start'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
+  /** Writes a Skitarii Magos's worker-model catalog and answers its path (null for another agent); without it none is written. */
+  workerCatalog?: WorkerCatalog
 }
 
 function reasonOf(error: unknown): string {
@@ -52,6 +57,17 @@ function reasonOf(error: unknown): string {
 function logUnexpected(deps: OrchestratorStartDeps, error: unknown): void {
   if (!(error instanceof DomainError)) {
     deps.onError?.(error)
+  }
+}
+
+/** The catalog line for the chat's kickoff, or nothing when the agent is not OMP or its catalog could not be written. */
+async function catalogLine(deps: OrchestratorStartDeps, chat: ChatRecord): Promise<string> {
+  try {
+    const path = await deps.workerCatalog?.(chat)
+    return path ? `\n\n${workerCatalogLine(path)}` : ''
+  } catch (error) {
+    logUnexpected(deps, error)
+    return ''
   }
 }
 
@@ -104,7 +120,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
     return { run, chat: null, problem: queuedButNoChat(run, 'the orchestrator chat could not be created', error) }
   }
 
-  const failure = await startChatOnSurface(deps, chat, kickoff)
+  const failure = await startChatOnSurface(deps, chat, kickoff + (await catalogLine(deps, chat)))
   if (failure !== null) {
     const removed = await removeChat(deps, chat)
     const problem = queuedButNoChat(run, `${agentName} could not be started`, failure)
