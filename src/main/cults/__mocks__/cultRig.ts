@@ -6,6 +6,7 @@
  */
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { Db } from '../../../core/db/database'
 import { DomainError } from '../../../core/errors'
 import { openWorkspace } from '../../../core/workspace'
 import type { CultInput } from '../../../shared/cults/cult'
@@ -46,9 +47,11 @@ export interface CultHarness {
   launcher: CultLauncher
   handlers: ChatHandlers
   dmHome: string
+  /** The cult store's app database (`app-*` under the scratch folder); the harness closes it before removing the folder. */
+  appDb: Db
 }
 
-export interface CultHarnessOptions {
+interface CultHarnessOptions {
   /** The cult store's clock; the store's own by default. */
   now?: () => string
   /** A killed fake PTY exits, as `killPtyTree` ends a real tree; by default a fake PTY only counts the kill. */
@@ -139,7 +142,8 @@ export async function cultHarness(options: CultHarnessOptions = {}): Promise<Cul
     createChatRecords({ store: rig.store, agentFor: connectedAgents([builtInAgent('omp')]), removeOmpFolder: (id) => removeOmpFolder(rig.userData, id) }),
     rig.sessions
   )
-  const cults = createCultStore({ db: openAppDatabase(mkdtempSync(join(rig.root, 'app-'))), ...(options.now === undefined ? {} : { now: options.now }) })
+  const appDb = openAppDatabase(mkdtempSync(join(rig.root, 'app-')))
+  const cults = createCultStore({ db: appDb, ...(options.now === undefined ? {} : { now: options.now }) })
   const control = createCultControl({ userData: rig.userData, epochOf: (chatId) => rig.sessions.generationOf(chatId) })
   const launcher = createCultLauncher({
     cults, folders: { resolve: (path) => (rig.tracked.has(path) ? path : null) }, sanctums, chats: records, terminals: rig.sessions, control,
@@ -155,15 +159,19 @@ export async function cultHarness(options: CultHarnessOptions = {}): Promise<Cul
     userData: rig.userData,
     dmHome
   })
-  return { rig, pool, cults, sanctums, gates, records, grants, control, launcher, handlers: handlersOver(gates, records), dmHome }
+  return { rig, pool, cults, sanctums, gates, records, grants, control, launcher, handlers: handlersOver(gates, records), dmHome, appDb }
 }
 
-/** Quits the terminals (every fake PTY told to exit), closes the workspaces and removes the scratch folder. */
+/**
+ * Quits the terminals (every fake PTY told to exit), closes the workspaces and the app database, then removes the scratch
+ * folder. Windows cannot delete a database file that is still open, and the removal's retries would outlast the hook.
+ */
 export async function disposeCultHarness(h: CultHarness): Promise<void> {
   const disposing = h.rig.sessions.dispose()
   for (const pty of h.rig.host.spawns) if (!pty.exited) pty.exit({ exitCode: 0, signal: null })
   await disposing
   await h.pool.closeAll()
+  h.appDb.close()
   removeScratch(h.rig.root)
 }
 
