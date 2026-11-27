@@ -60,8 +60,7 @@ function slotWorkerType(ctx: StoreContext, cultId: string, member: MemberDefinit
 function requireActiveWorkerType(ctx: StoreContext, runId: string, typeId: string | null): RunWorkerType | null {
   if (typeId === null) return null
   const type = runWorkerTypes(ctx.db, runId).find((candidate) => candidate.id === typeId)
-  if (type === undefined) fail('invalid_input', `The run has no worker type ${typeId}.`)
-  if (type.retiredAt !== null) fail('invalid_state', `Worker type ${type.displayName} is retired.`)
+  if (type === undefined || type.retiredAt !== null) fail('worker_type_unknown', `The run has no active worker type ${typeId}.`)
   return type
 }
 
@@ -164,7 +163,7 @@ export function createWorkerType(ctx: StoreContext, runId: string, creatorChatId
     if (!isLive(creator.state)) fail('invalid_state', `${creator.display_name} has left the run.`)
     const at = ctx.now()
     const result = createRunWorkerType(input, { existing: runWorkerTypes(ctx.db, runId), creatorMemberId: creatorChatId, now: at })
-    if (!result.ok) fail('invalid_input', result.error)
+    if (!result.ok) fail(result.code, result.error)
     const type = result.type
     ctx.db.run(
       `INSERT INTO cult_run_worker_types (run_id, type_id, display_name, normalized_name, description, mission, rationale,
@@ -188,12 +187,19 @@ export function createWorkerType(ctx: StoreContext, runId: string, creatorChatId
   })
 }
 
+/** Who retires a run worker type, and why; both go into the `worker_type_retired` event. */
+export interface WorkerTypeRetirement {
+  byChatId: string
+  reason: string
+}
+
 /** Retires an optional run worker type no member has ever held, with its `worker_type_retired` event. */
-export function retireWorkerType(ctx: StoreContext, runId: string, typeId: string): RunWorkerType {
+export function retireWorkerType(ctx: StoreContext, runId: string, typeId: string, retirement: WorkerTypeRetirement): RunWorkerType {
   return ctx.db.tx(() => {
     requireActiveRun(ctx.db, runId)
+    const retirer = requireMember(ctx.db, runId, retirement.byChatId)
     const type = runWorkerTypes(ctx.db, runId).find((candidate) => candidate.id === typeId)
-    if (type === undefined) fail('not_found', `The run has no worker type ${typeId}.`)
+    if (type === undefined) fail('worker_type_unknown', `The run has no worker type ${typeId}.`)
     const assigned = ctx.db.get<{ n: number }>(
       'SELECT COUNT(*) AS n FROM cult_members WHERE run_id = ? AND run_worker_type_id = ?',
       runId,
@@ -201,7 +207,7 @@ export function retireWorkerType(ctx: StoreContext, runId: string, typeId: strin
     )
     const at = ctx.now()
     const result = retireRunWorkerType(type, assigned?.n ?? 0, at)
-    if (!result.ok) fail('invalid_state', result.error)
+    if (!result.ok) fail(result.code, result.error)
     ctx.db.run(
       "UPDATE cult_run_worker_types SET state = 'retired', retired_at = ?, updated_at = ? WHERE run_id = ? AND type_id = ?",
       at,
@@ -209,7 +215,8 @@ export function retireWorkerType(ctx: StoreContext, runId: string, typeId: strin
       runId,
       typeId
     )
-    insertEvent(ctx.db, { runId, kind: 'worker_type_retired', memberName: null, summary: `Worker type ${type.displayName} retired.`, at })
+    const summary = `${retirer.display_name} retired worker type ${type.displayName}: ${retirement.reason}`
+    insertEvent(ctx.db, { runId, kind: 'worker_type_retired', memberName: retirer.display_name, summary, at })
     return result.type
   })
 }

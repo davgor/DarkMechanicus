@@ -328,6 +328,7 @@ describe('archetypes, slots and specialist reports', () => {
 })
 
 const TYPE = { displayName: 'Archivist', description: 'Keeps records.', mission: 'Catalogue findings.', rationale: 'Many notes.', requiredForConclusion: false }
+const RETIRE = { byChatId: 'mg', reason: 'No longer needed.' }
 
 describe('run-scoped worker types', () => {
   it('persists types and events, and refuses built-in and duplicate names', () => {
@@ -336,8 +337,8 @@ describe('run-scoped worker types', () => {
     h.store.addMember(run.id, { chatId: 'mg', role: 'magos' })
     const type = h.store.createWorkerType(run.id, 'mg', TYPE)
     expect(type).toMatchObject({ id: 'dyn_1', displayName: 'Archivist', creatorMemberId: 'mg', retiredAt: null })
-    expect(codeOf(() => h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'Security' }))).toBe('invalid_input')
-    expect(codeOf(() => h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'ARCHIVIST' }))).toBe('invalid_input')
+    expect(codeOf(() => h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'Security' }))).toBe('worker_type_name_taken')
+    expect(codeOf(() => h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'ARCHIVIST' }))).toBe('worker_type_name_taken')
     expect(codeOf(() => h.store.createWorkerType(run.id, 'ghost', { ...TYPE, displayName: 'Other' }))).toBe('not_found')
     const member = h.store.addMember(run.id, { chatId: 'ar', role: 'acolyte', runWorkerTypeId: 'dyn_1' })
     expect(member).toMatchObject({ runWorkerTypeId: 'dyn_1', slotId: null, workerType: null })
@@ -352,10 +353,10 @@ describe('run-scoped worker types', () => {
     h.store.createWorkerType(run.id, 'mg', TYPE)
     h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'Gatekeeper', requiredForConclusion: true })
     h.store.addMember(run.id, { chatId: 'ar', role: 'acolyte', runWorkerTypeId: 'dyn_1' })
-    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_2'))).toBe('invalid_state')
+    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_2', RETIRE))).toBe('worker_type_required')
     h.store.updateMember(run.id, 'ar', { state: 'concluded' })
-    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_1'))).toBe('invalid_state')
-    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_9'))).toBe('not_found')
+    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_1', RETIRE))).toBe('worker_type_assigned')
+    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_9', RETIRE))).toBe('worker_type_unknown')
     const both = { chatId: 'b', role: 'acolyte' as const, slotId: 'quality', runWorkerTypeId: 'dyn_2' }
     expect(codeOf(() => h.store.addMember(run.id, both))).toBe('invalid_input')
   })
@@ -366,10 +367,10 @@ describe('run-scoped worker types', () => {
     const run = h.store.startRun(cult.id, { workDir: '/w' })
     h.store.addMember(run.id, { chatId: 'mg', role: 'magos' })
     h.store.createWorkerType(run.id, 'mg', TYPE)
-    const retired = h.store.retireWorkerType(run.id, 'dyn_1')
+    const retired = h.store.retireWorkerType(run.id, 'dyn_1', RETIRE)
     expect(retired.retiredAt).not.toBeNull()
-    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_1'))).toBe('invalid_state')
-    expect(codeOf(() => h.store.addMember(run.id, { chatId: 'x', role: 'acolyte', runWorkerTypeId: 'dyn_1' }))).toBe('invalid_state')
+    expect(codeOf(() => h.store.retireWorkerType(run.id, 'dyn_1', RETIRE))).toBe('invalid_state')
+    expect(codeOf(() => h.store.addMember(run.id, { chatId: 'x', role: 'acolyte', runWorkerTypeId: 'dyn_1' }))).toBe('worker_type_unknown')
     expect(h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'Scribe' }).id).toBe('dyn_2')
     h.store.transitionRun(run.id, { type: 'shutdown', reason: 'completed' })
     h.store.transitionRun(run.id, { type: 'finish' })

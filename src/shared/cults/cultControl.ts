@@ -52,6 +52,8 @@ export const CULT_OPERATION_NAMES = [
   'cult_conclude_run',
   'cult_conclude_service',
   'cult_create_worker_type',
+  'cult_list_worker_types',
+  'cult_retire_worker_type',
   'cult_record_synthesis'
 ] as const
 export type CultOperationName = (typeof CULT_OPERATION_NAMES)[number]
@@ -111,6 +113,12 @@ export const cultCreateWorkerTypeArgsSchema = z.strictObject({
   requiredForConclusion: z.boolean()
 })
 
+export const cultRetireWorkerTypeArgsSchema = z.strictObject({
+  workerTypeId: id.describe('The run worker type (dyn_<n>) to retire.'),
+  reason: line(1000).describe('Why the run no longer needs it.')
+})
+export type CultRetireWorkerTypeArgs = z.infer<typeof cultRetireWorkerTypeArgsSchema>
+
 /** One recommendation of the Plan Forge synthesis: which specialist made it, and the Magos's decision with its reason. */
 const MAX_SYNTHESIS_ITEMS = 96
 const recommendationSchema = z.strictObject({
@@ -140,6 +148,8 @@ export const CULT_OPERATION_SCHEMAS = [
   operation('cult_conclude_run', cultConcludeRunArgsSchema),
   operation('cult_conclude_service', cultConcludeServiceArgsSchema),
   operation('cult_create_worker_type', cultCreateWorkerTypeArgsSchema),
+  operation('cult_list_worker_types', none),
+  operation('cult_retire_worker_type', cultRetireWorkerTypeArgsSchema),
   operation('cult_record_synthesis', cultRecordSynthesisArgsSchema)
 ] as const
 export type CultOperation = z.infer<(typeof CULT_OPERATION_SCHEMAS)[number]>
@@ -153,6 +163,8 @@ export const MAGOS_OPERATIONS: readonly CultOperationName[] = [
   'cult_order_all',
   'cult_conclude_run',
   'cult_create_worker_type',
+  'cult_list_worker_types',
+  'cult_retire_worker_type',
   'cult_record_synthesis'
 ]
 /** The operations only an acolyte may send. */
@@ -255,6 +267,26 @@ export type CultOrderAllResult = z.infer<typeof cultOrderAllResultSchema>
 export const cultConcludeRunResultSchema = z.strictObject({ concluding: z.literal('run') })
 export const cultConcludeServiceResultSchema = z.strictObject({ concluding: z.literal('service'), reportStored: z.boolean() })
 export const cultWorkerTypeResultSchema = z.strictObject({ workerTypeId: z.string().max(80), displayName: name, requiredForConclusion: z.boolean() })
+/** The run's created types, retired ones included, each with the acolytes that ever held it. */
+export const cultWorkerTypesResultSchema = z.strictObject({
+  workerTypes: z
+    .array(
+      z.strictObject({
+        workerTypeId: z.string().max(80),
+        displayName: name,
+        description: z.string().max(DYNAMIC_TYPE_LIMITS.description),
+        mission: z.string().max(DYNAMIC_TYPE_LIMITS.mission),
+        rationale: z.string().max(DYNAMIC_TYPE_LIMITS.rationale),
+        requiredForConclusion: z.boolean(),
+        state: z.enum(['active', 'retired']),
+        holders: z.array(name).max(MAX_LISTED_ACOLYTES)
+      })
+    )
+    .max(MAX_DYNAMIC_WORKER_TYPES),
+  limit: z.number().int()
+})
+export type CultWorkerTypesResult = z.infer<typeof cultWorkerTypesResultSchema>
+export const cultRetireWorkerTypeResultSchema = z.strictObject({ retired: z.string().max(80) })
 export const cultSynthesisResultSchema = z.strictObject({ draftRevision: z.number().int(), accepted: z.number().int(), rejected: z.number().int() })
 
 /** Every cult result, for the pipe's reply schema; each command parses its own. */
@@ -268,6 +300,8 @@ export const CULT_RESULT_SCHEMAS = [
   cultConcludeRunResultSchema,
   cultConcludeServiceResultSchema,
   cultWorkerTypeResultSchema,
+  cultWorkerTypesResultSchema,
+  cultRetireWorkerTypeResultSchema,
   cultSynthesisResultSchema
 ] as const
 
@@ -288,6 +322,11 @@ export const CULT_ERROR_CODES = [
   'target_stale',
   'plan_invalid',
   'synthesis_missing',
+  'worker_type_name_taken',
+  'worker_type_limit',
+  'worker_type_required',
+  'worker_type_assigned',
+  'worker_type_unknown',
   'invalid_state'
 ] as const satisfies readonly DomainErrorCode[]
 type CultErrorCode = (typeof CULT_ERROR_CODES)[number]
@@ -307,6 +346,11 @@ export const CULT_ERROR_MESSAGES: Readonly<Record<CultErrorCode, string>> = {
   target_stale: 'The target plan changed outside this run. Re-read it before concluding.',
   plan_invalid: 'The target draft does not validate. Fix it before concluding.',
   synthesis_missing: 'Record a synthesis (cult_record_synthesis) for your latest edit of the target draft, with a decision on a recommendation of every required type.',
+  worker_type_name_taken: 'A built-in worker type or one already created in this run has that name. Choose another.',
+  worker_type_limit: `The run has created its ${MAX_DYNAMIC_WORKER_TYPES} worker types. Reuse or retire one instead.`,
+  worker_type_required: 'A required worker type cannot be retired.',
+  worker_type_assigned: 'An acolyte has held that worker type: it can no longer be retired.',
+  worker_type_unknown: 'The run has no active worker type with that id. List them with cult_list_worker_types.',
   invalid_state: 'The run is not in a state that allows this.'
 }
 

@@ -1596,7 +1596,9 @@ const CULT_CALLS: [string, Record<string, unknown>][] = [
   ['cult_petition', { kind: 'acolytes', additional: 2, reason: 'More hands.' }],
   ['cult_order_all', { body: 'Report your progress.' }],
   ['cult_conclude_run', { chronicle: 'It was done.' }],
-  ['cult_create_worker_type', { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false }]
+  ['cult_create_worker_type', { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false }],
+  ['cult_list_worker_types', {}],
+  ['cult_retire_worker_type', { workerTypeId: 'dyn_1', reason: 'Unused.' }]
 ]
 
 // --- cult members (DM-629) ------------------------------------------------------------------------------------------

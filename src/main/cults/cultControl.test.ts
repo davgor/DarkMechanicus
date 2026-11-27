@@ -160,6 +160,8 @@ const ARGS: Readonly<Record<string, object>> = {
   cult_conclude_run: { chronicle: 'It is done.' },
   cult_conclude_service: { report: 'It is done.' },
   cult_create_worker_type: { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false },
+  cult_list_worker_types: {},
+  cult_retire_worker_type: { workerTypeId: 'dyn_1', reason: 'Unused.' },
   cult_record_synthesis: { draftRevision: 1, recommendations: [{ workerType: 'security', recommendation: 'Hold.', decision: 'accepted', reason: 'Sound.' }] }
 }
 

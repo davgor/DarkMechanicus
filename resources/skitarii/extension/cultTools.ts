@@ -16,7 +16,7 @@ export type CultRole = 'magos' | 'acolyte'
 
 export const MAGOS_CULT_TOOLS = [
   'cult_status', 'cult_summon_acolyte', 'cult_dismiss_acolyte', 'cult_list_acolytes', 'cult_petition', 'cult_order_all',
-  'cult_conclude_run', 'cult_create_worker_type', 'cult_record_synthesis'
+  'cult_conclude_run', 'cult_create_worker_type', 'cult_list_worker_types', 'cult_retire_worker_type', 'cult_record_synthesis'
 ] as const
 const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service'] as const
 type CultToolName = (typeof MAGOS_CULT_TOOLS)[number] | (typeof ACOLYTE_CULT_TOOLS)[number]
@@ -99,6 +99,12 @@ const SPECS: Record<CultToolName, Spec> = {
     args: { displayName: [text(80), true], description: [text(500), true], mission: [text(4000), true], rationale: [text(1000), true], requiredForConclusion: [bool, true] },
     schema: (t) => ({ displayName: str(t, 'Its name.', 80), description: str(t, 'What it does.', 500), mission: str(t, 'Its first prompt.', 4000),
       rationale: str(t, 'Why the run needs it.', 1000), requiredForConclusion: t.Boolean({ description: 'Whether the run may conclude only once it reported.' }) })
+  },
+  cult_list_worker_types: { description: 'The worker types created for this run, retired ones included, and the acolytes that held each.', approval: 'read', args: {}, schema: () => ({}) },
+  cult_retire_worker_type: {
+    description: 'Retire an optional run worker type no acolyte has held, with a reason. Required types never retire.', approval: 'write',
+    args: { workerTypeId: [text(80), true], reason: [text(1000), true] },
+    schema: (t) => ({ workerTypeId: str(t, 'The run worker type id (dyn_<n>).', 80), reason: str(t, 'Why the run no longer needs it.', 1000) })
   },
   cult_record_synthesis: {
     description: 'Plan Forge: record your synthesis of the specialist reports for your latest edit of the target draft: each recommendation, its worker type, and whether you accepted or rejected it, with a reason. Required before cult_conclude_run.',

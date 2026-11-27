@@ -45,6 +45,8 @@ export const CULT_TOOLS = {
   concludeRun: 'cult_conclude_run',
   concludeService: 'cult_conclude_service',
   createWorkerType: 'cult_create_worker_type',
+  listWorkerTypes: 'cult_list_worker_types',
+  retireWorkerType: 'cult_retire_worker_type',
   recordSynthesis: 'cult_record_synthesis'
 } as const
 
@@ -136,7 +138,9 @@ function workerTypeCreation(): string[] {
     'current roster lacks) and a mission that does not duplicate an existing type. Say whether it is required for',
     'conclusion: a required type must report before the run may conclude and can never be retired; an optional',
     'type may be left without a report and can be retired while no acolyte holds it. A created type adds no',
-    'permissions and no model tier: its acolytes hold worker grants and are summoned on the model you choose.'
+    'permissions and no model tier: its acolytes hold worker grants and are summoned on the model you choose.',
+    `\`${T.listWorkerTypes}\` lists the types this run created and who held each; \`${T.retireWorkerType}\` retires an optional`,
+    'type no acolyte has held, with a reason. A run creates at most 24 types, and they end with the run.'
   ]
 }
 
