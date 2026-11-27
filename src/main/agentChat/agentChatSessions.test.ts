@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
@@ -1079,27 +1079,38 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI untrack and agent removal`, () => {
   it('untracking the folder stops its GUI process, revokes its grant and refuses starts until the untrack is done', async () => {
-    const r = rig(kind), chat = r.newChat(), other = r.newChat(undefined, null)
+    const r = rig(kind), chat = r.newChat(), elsewhere = join(r.root, 'other folder')
+    mkdirSync(elsewhere)
+    const sibling = r.newChat(undefined, elsewhere), other = r.newChat(undefined, null)
     await r.sessions.start(chat)
+    await r.sessions.start(sibling)
     await r.sessions.start(other)
-    const pid = r.children[0].pid!
+    const pid = r.children[0].pid!, siblingPid = r.children[1].pid!
     const seen: unknown[] = []
+    // The rig's folder check runs only on `tick`, which this test never calls: the release alone stops the chat.
     await r.sessions.releaseFolder(r.repo, async () => {
       seen.push(alive(pid), [...r.revoked], r.sessions.isLive(chat))
       await r.sessions.start(chat).then(() => seen.push('started'), (error: Error) => seen.push(error.message))
     })
     expect(seen).toEqual([false, ['grant-1'], false, "The chat's folder is being untracked."])
-    expect(r.children).toHaveLength(2)
-    expect(r.sessions.isLive(other)).toBe(true)
+    expect(r.children).toHaveLength(3)
+    expect([alive(siblingPid), r.sessions.isLive(sibling), r.sessions.isLive(other)]).toEqual([true, true, true])
+    expect(r.revoked).toEqual(['grant-1'])
   })
 
-  it('removing the agent stops the GUI processes of its chats and revokes their grants', async () => {
-    const r = rig(kind), chat = r.newChat()
+  it('removing the agent stops only the GUI processes of its chats and revokes only their grants', async () => {
+    const r = rig(kind), otherAgent = kind === 'claude' ? 'omp' : 'claude'
+    r.deps.agentFor = id => builtInAgent(id as typeof kind, { executablePath: r.executable })
+    const chat = r.newChat()
+    const kept = r.store.createChat({ folder: r.repo, agent: otherAgent, model: null, role: 'worker', allowSave: false, surface: 'gui' })
     await r.sessions.start(chat)
-    const pid = r.children[0].pid!
+    await r.sessions.start(kept)
+    const pid = r.children[0].pid!, keptPid = r.children[1].pid!
     await r.sessions.endAgent(kind)
     expect([alive(pid), r.revoked, r.sessions.isLive(chat)]).toEqual([false, ['grant-1'], false])
+    expect([alive(keptPid), r.sessions.isLive(kept)]).toEqual([true, true])
     await r.sessions.endAgent('codex')
+    expect(r.sessions.isLive(kept)).toBe(true)
   })
 })
 
