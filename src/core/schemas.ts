@@ -279,13 +279,24 @@ export const ticketInput = z.strictObject({
 
 const concurrencyCap = z.number().int().min(1).max(1_000).nullable()
 
+/** A sprint's structured delivery; the refine sits on this object alone so `sprintInput.partial()` still works. */
+export const sprintDelivery = z
+  .strictObject({ target: epicBranchName, release: z.boolean(), verifyInstalled: z.boolean() })
+  .refine((delivery) => delivery.release || !delivery.verifyInstalled, 'verifyInstalled needs release')
+
 export const sprintInput = z.strictObject({
   deploymentVerification: verificationText.optional(),
   goal: shortText,
   entryCriteria: criterionInputs.optional(),
   exitCriteria: criterionInputs.optional(),
   concurrencyCap: concurrencyCap.optional(),
-  checkpoint: z.strictObject({ mode: z.enum(CHECKPOINT_MODES) }).optional()
+  checkpoint: z.strictObject({ mode: z.enum(CHECKPOINT_MODES) }).optional(),
+  delivery: sprintDelivery
+    .nullable()
+    .optional()
+    .describe(
+      "Structured delivery after this sprint's checkpoint approval: target branch (e.g. main), whether a Deploy release must contain it, and whether the installed app must run that release before the next sprint's first claim (verifyInstalled needs release). null clears it."
+    )
 })
 
 export const policiesPatch = z.strictObject({
@@ -360,7 +371,9 @@ export const sprintDef = z.strictObject({
   entryCriteria: z.array(criterion).max(LIMITS.criteria),
   exitCriteria: z.array(criterion).max(LIMITS.criteria),
   concurrencyCap,
-  checkpoint: z.strictObject({ mode: z.enum(CHECKPOINT_MODES) })
+  checkpoint: z.strictObject({ mode: z.enum(CHECKPOINT_MODES) }),
+  // No default, like `budget`: a sprint without a delivery keeps its saved shape and hash.
+  delivery: sprintDelivery.optional()
 })
 
 const edge = z.strictObject({ from: stableId, to: stableId })
