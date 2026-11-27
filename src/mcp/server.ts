@@ -5,6 +5,7 @@ import { promptName, registerPrompts } from './prompts'
 import { SKILLS } from './skills'
 import { registerAgentMailTools } from './tools/agentMail'
 import { registerChatNamingTools } from './tools/chatNaming'
+import { registerBrowserTools } from './tools/browser'
 import { registerToolingRecoveryTools } from './tools/toolingRecovery'
 import { registerAttachmentTools } from './tools/attachments'
 import { registerAuthoringTools } from './tools/authoring'
@@ -67,6 +68,7 @@ export function createMcpServer(
   registerDiscoveryTools(server, api)
   registerKnowledgeTools(server, api)
   registerChatNamingTools(server, api)
+  registerBrowserTools(server, api)
   registerToolingRecoveryTools(server, api)
   registerAuthoringTools(server, api)
   registerBoardTools(server, api)
