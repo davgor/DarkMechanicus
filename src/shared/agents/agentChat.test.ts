@@ -162,7 +162,7 @@ describe('agent chat events and snapshots', () => {
   })
 
   it('fixes channel and protocol/tool names for all consumers', () => {
-    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence'].map(name => [name, `agentChat:${name}`])))
+    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence', 'models'].map(name => [name, `agentChat:${name}`])))
     expect(GUI_PROTOCOL_KINDS).toEqual(['omp', 'claude'])
     expect(TODO_TOOL_NAMES).toEqual(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'])
   })

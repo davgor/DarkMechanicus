@@ -81,6 +81,7 @@ import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
+import { createOmpModels } from '../agentChat/ompModels'
 import { endingAgentChats, nativeTerminalStopConfirmation, releasingChatOwners, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
 import { restartMarkerHook, resumeAfterRestart } from '../agentChat/restartResume'
 import { setBeforeInstall } from '../autoUpdate'
@@ -615,10 +616,16 @@ function createGuiChats(
 }
 
 /**
- * Serves `agentChat:*` over the one GUI session manager. Only an explicit `agentChat:setSurface` from the app window
- * may stop a live terminal, after the native confirmation modal to that window; no other path passes one.
+ * Serves `agentChat:*` over the one GUI session manager, and Skitarii model catalogs (`agentChat:models`) from a live
+ * chat's session or the registered OMP executable. Only an explicit `agentChat:setSurface` from the app window may
+ * stop a live terminal, after the native confirmation modal to that window; no other path passes one.
  */
-function startAgentChats(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve'>, sessions: AgentChatSessions): void {
+function startAgentChats(
+  ipc: Pick<IpcMain, 'handle'>,
+  registry: Pick<FolderRegistry, 'resolve'>,
+  sessions: AgentChatSessions,
+  { agents, store }: { agents: Pick<AgentRegistry, 'get'>; store: Pick<ChatStore, 'getChat'> }
+): void {
   const confirmTerminalStop = nativeTerminalStopConfirmation<WebContents, BrowserWindow>({
     windowFor: (sender) => {
       const window = BrowserWindow.fromWebContents(sender)
@@ -626,8 +633,12 @@ function startAgentChats(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegi
     },
     showMessageBox: (window, options) => dialog.showMessageBox(window, options)
   })
+  const models = createOmpModels({
+    sessions, agentFor: id => agents.get(id), chatAgent: ref => store.getChat(ref)?.agent ?? null,
+    run: runProcess, platform: process.platform, env: process.env
+  })
   const handlers = createAgentChatHandlers({
-    registry, sessions, confirmTerminalStop,
+    registry, sessions, confirmTerminalStop, models,
     onUnexpectedError: (error) => {
       logger.error('Agent chat request failed:', error)
     }
@@ -1369,7 +1380,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  startAgentChats(ipc, registry, agentChats)
+  startAgentChats(ipc, registry, agentChats, { agents, store })
   startRestartResume({ registry, pool, store, terminals, agentChats })
   const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }

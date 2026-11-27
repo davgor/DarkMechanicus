@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { FakeChats } from '../__mocks__/fakeChats'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { checkpointView, draftPlan, epicDetail, runView } from './__mocks__/fixtures'
@@ -220,6 +221,18 @@ describe('epic workspace: Saved view (2)', () => {
     expect(h.changes.count).toBe(1)
     expect((await screen.findByText('QUEUED')).textContent).toBe('QUEUED')
     expect(screen.queryByRole('button', { name: 'Start run' })).toBe(null)
+  })
+
+  it('opens the Start run dialog from the Agent stage’s Magos card (openStartRun) without starting an orchestrator', async () => {
+    const h = renderWorkspace(new FakeBackend(scenario({ run: null, checkpoint: null })))
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent' }))
+    expect(screen.queryByRole('dialog', { name: 'Start run' })).toBe(null)
+    fireEvent.click(screen.getByRole('radio', { name: 'Magos' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Start run' })
+    expect(within(dialog).getByRole('button', { name: 'Run with agent' })).toBeTruthy()
+    expect((h.backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Start run' })).toBe(null)
   })
 })
 

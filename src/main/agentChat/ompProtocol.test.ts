@@ -7,7 +7,7 @@ import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type Omp
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { webpBytes } from '../../test/images'
 import type { ToolResultBlob } from './toolResultImages'
-import type { ThreadClaimEvent } from './translatorEvents'
+import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
 const root = join(import.meta.dirname, '__fixtures__', 'omp')
@@ -19,7 +19,7 @@ function lines(name: string, direction: 'in' | 'out'): string[] {
 function harness(idNamespace = '') {
   let state = createOmpState(idNamespace)
   const events: OmpEvent[] = []
-  const internalEvents: ThreadClaimEvent[] = []
+  const internalEvents: (ThreadClaimEvent | CommandResultEvent)[] = []
   const blobs: ToolResultBlob[] = []
   return {
     get state() { return state },
@@ -621,6 +621,30 @@ it('namespaces synthesized ids and their streams without changing provider tool 
   const toolIds = (events: OmpEvent[]) => events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' ? [event.item.id] : [])
   expect(toolIds(first.events)).toEqual(toolIds(second.events))
   expect(toolIds(first.events)).toContain('call_T1_read')
+})
+
+describe('main-issued get_available_models', () => {
+  it('writes the request and hands its reply only to main, never to the transcript', () => {
+    const h = initialized()
+    expect(h.send({ type: 'get_available_models', id: 'models_1' }).map(line => JSON.parse(line))).toEqual([{ type: 'get_available_models', id: 'models_1' }])
+    const data = { models: [{ provider: 'anthropic', id: 'claude-opus-5-5' }] }
+    expect(h.feed({ id: 'models_1', type: 'response', command: 'get_available_models', success: true, data })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'models_1', ok: true, data }])
+    expect(h.state.commands.has('models_1')).toBe(false)
+  })
+
+  it('reports a refused request to main without an error item', () => {
+    const h = initialized()
+    h.send({ type: 'get_available_models', id: 'models_2' })
+    expect(h.feed({ id: 'models_2', type: 'response', command: 'get_available_models', success: false, error: 'nope' })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'models_2', ok: false, data: undefined }])
+  })
+
+  it('ignores a reply to an id main never asked', () => {
+    const h = initialized()
+    h.feed({ id: 'models_3', type: 'response', command: 'get_available_models', success: true, data: { models: [] } })
+    expect(h.internalEvents).toEqual([])
+  })
 })
 
 const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))

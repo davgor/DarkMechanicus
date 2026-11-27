@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { folderIdentity } from '../app/folderList'
 import { errorMessage } from '../api/dm'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
-import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
 import type { EpicLanding } from '../app/landing'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
@@ -25,7 +24,7 @@ import { DraftBar } from './DraftBar'
 import { EpicScorecard } from './EpicScorecard'
 import { EpicAgentPanel } from './EpicAgentPanel'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
-import { headerView } from './headerView'
+import { headerView, runLocks } from './headerView'
 import { TransferredPanel, TransferStrip } from './LinearTransfer'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
@@ -35,7 +34,6 @@ import { RunBar } from './RunBar'
 import { failureOf } from './runner'
 import { StartRunDialog } from './StartRunDialog'
 import { TransferDialog } from './TransferDialog'
-import { isOpenTransfer } from './transferView'
 import { useLanding } from './useLanding'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
@@ -366,14 +364,7 @@ function TransferHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
 
 function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const draft = ws.state.view === 'draft'
-  const run = ws.data.run
-  const header = headerView({
-    folderName: ws.folder.name,
-    epic: ws.data.epic,
-    view: ws.state.view,
-    hasActiveRun: run !== null && isActiveRunState(run.state),
-    hasOpenTransfer: isOpenTransfer(ws.data.transfer?.status ?? null)
-  })
+  const header = headerView({ folderName: ws.folder.name, epic: ws.data.epic, view: ws.state.view, ...runLocks(ws.data) })
   return (
     <section className="ew" aria-label="Epic workspace">
       <WorkspaceHeader ws={ws} header={header} />
@@ -435,6 +426,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     actions: controller.actions,
     runner: controller.runner,
     reload: controller.reload,
+    openStartRun: () => controller.dispatch({ type: 'start_run_dialog', open: true }),
     now,
     scheduler: props.scheduler ?? browserScheduler,
     folder: props.folder,

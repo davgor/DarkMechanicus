@@ -3,6 +3,8 @@ import { z } from 'zod'
 import type { CommandResult } from '../desktop/api'
 import { CHAT_IMAGE_MAX_BYTES, chatIdSchema, chatImageIdSchema, chatImageRefSchema, chatItemSchema, type ChatImageRef } from './chat'
 import { callsignSchema } from './callsign'
+import { agentIdSchema } from '../desktop/agentKinds'
+import type { ChatModelOption } from './models'
 
 export { CHAT_IMAGE_MAX_BYTES, chatImageIdSchema, chatImageRefSchema }
 
@@ -11,7 +13,8 @@ export const TODO_TOOL_NAMES = ['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskLi
 export const AGENT_CHAT_CHANNELS = {
   start: 'agentChat:start', send: 'agentChat:send', interrupt: 'agentChat:interrupt',
   answer: 'agentChat:answer', setSurface: 'agentChat:setSurface', snapshot: 'agentChat:snapshot', event: 'agentChat:event',
-  attention: 'agentChat:attention', stageImage: 'agentChat:stageImage', attachEvidence: 'agentChat:attachEvidence'
+  attention: 'agentChat:attention', stageImage: 'agentChat:stageImage', attachEvidence: 'agentChat:attachEvidence',
+  models: 'agentChat:models'
 } as const
 
 /** The most images one message may carry. */
@@ -40,6 +43,15 @@ export type AgentChatAnswer = { promptId: string; text?: string } & ({ optionId:
 export const agentChatSetSurfaceSchema = z.strictObject({ ...chatRef, surface: surfaceSchema })
 export const agentChatSnapshotRequestSchema = z.strictObject(chatRef)
 export const agentChatAttentionSchema = z.strictObject({ folder: z.string().nullable() })
+const modelsRefresh = { refresh: z.boolean().optional() }
+/**
+ * A Skitarii chat's model catalog: a chat's (its live session's, else its agent's) or, before a chat starts, an
+ * agent's. `refresh` skips the cached sessionless catalog.
+ */
+export const agentChatModelsSchema = z.union([
+  z.strictObject({ ...chatRef, ...modelsRefresh }),
+  z.strictObject({ folder: z.string().nullable(), agentId: agentIdSchema, ...modelsRefresh })
+])
 /** The one channel image bytes cross: plain base64, validated as `uploadAttachment` validates it; main measures and keeps it. */
 export const agentChatStageImageSchema = z.strictObject({
   ...chatRef,
@@ -121,4 +133,6 @@ export interface AgentChatApi {
   /** Hands main one image's bytes for the chat; main validates them and answers with the ref `send` may name. */
   stageImage(request: z.infer<typeof agentChatStageImageSchema>): Promise<CommandResult<{ image: ChatImageRef }>>
   attachEvidence(request: z.infer<typeof agentChatAttachEvidenceSchema>): Promise<CommandResult<{ commentId: string; attachmentId: string }>>
+  /** The models a Skitarii chat (or, before it starts, agent) can use, normalized; `featuredModels` groups them. */
+  models(request: z.infer<typeof agentChatModelsSchema>): Promise<CommandResult<ChatModelOption[]>>
 }
