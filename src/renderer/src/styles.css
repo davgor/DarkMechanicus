@@ -761,6 +761,16 @@ textarea.input {
   gap: 12px;
 }
 
+/* New chat's role cards: a wider dialog so the facts wrap less, and smaller art, so Start shows without scrolling. */
+.dialog:has(.first-prompt-roles) {
+  width: min(720px, 100%);
+}
+
+.first-prompt-roles .arc-art {
+  width: 112px;
+  height: 112px;
+}
+
 .dialog-path {
   margin: 0;
   font-size: 12.5px;

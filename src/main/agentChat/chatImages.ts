@@ -14,7 +14,7 @@ import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { DomainError } from '../../core/errors'
 import { encodeBase32 } from '../../core/ids'
-import { inspectImageBytes, MAX_IMAGE_BYTES } from '../../core/attachments/intake'
+import { inspectImageBytes, inspectToolImageBytes } from '../../core/attachments/intake'
 import { chatIdSchema, chatImageIdSchema, type ChatImageRef } from '../../shared/agents/chat'
 import { writePrivateFile } from '../terminals/privateFile'
 import { folderStoreId } from './folderStoreId'
@@ -54,8 +54,6 @@ const PROJECTLESS_DIR = 'projectless'
 
 const EXTENSION: Record<ChatImageMime, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
 
-const MAX_IMAGE_SIDE = 8000
-
 function invalid(message: string): never {
   throw new DomainError('invalid_input', message)
 }
@@ -73,40 +71,6 @@ function newImageId(): string {
 
 function asBuffer(bytes: Uint8Array): Buffer {
   return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-}
-
-const VP8_START_CODE = Buffer.from([0x9d, 0x01, 0x2a])
-
-type Size = { width: number; height: number }
-
-/** Width and height by WebP image chunk (lossy `VP8 `, lossless `VP8L`, extended `VP8X`); null for a cut-off header. */
-const WEBP_SIZE = new Map<string, (buffer: Buffer) => Size | null>([
-  ['VP8 ', (buffer) => buffer.length >= 30 && buffer.subarray(23, 26).equals(VP8_START_CODE)
-    ? { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff }
-    : null],
-  ['VP8L', (buffer) => {
-    if (buffer.length < 25 || buffer[20] !== 0x2f) return null
-    const bits = buffer.readUInt32LE(21)
-    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 }
-  }],
-  ['VP8X', (buffer) => buffer.length >= 30 ? { width: buffer.readUIntLE(24, 3) + 1, height: buffer.readUIntLE(27, 3) + 1 } : null]
-])
-
-function webpSize(buffer: Buffer): Size {
-  return WEBP_SIZE.get(buffer.toString('latin1', 12, 16))?.(buffer) ?? invalid('Image is not a valid WebP: no image header with dimensions was found.')
-}
-
-/** What `inspectImageBytes` measures, and WebP (`RIFF` … `WEBP`) under the same size and pixel limits. */
-function inspectToolImage(buffer: Buffer): { mime: ChatImageMime; width: number; height: number } {
-  if (buffer.length < 16 || buffer.toString('latin1', 0, 4) !== 'RIFF' || buffer.toString('latin1', 8, 12) !== 'WEBP') {
-    return inspectImageBytes(buffer)
-  }
-  if (buffer.length > MAX_IMAGE_BYTES) invalid(`Image is too large: ${buffer.length} bytes exceeds the ${MAX_IMAGE_BYTES} byte (10 MiB) limit.`)
-  const { width, height } = webpSize(buffer)
-  if (width < 1 || height < 1 || width > MAX_IMAGE_SIDE || height > MAX_IMAGE_SIDE) {
-    invalid(`Image has a size outside 1 to ${MAX_IMAGE_SIDE} px on a side: ${width}x${height}.`)
-  }
-  return { mime: 'image/webp', width, height }
 }
 
 async function readIfPresent(path: string): Promise<Buffer | null> {
@@ -131,7 +95,7 @@ export function createChatImages(options: {
   }
   return {
     put: async (ref, bytes) => store(ref, asBuffer(bytes), inspectImageBytes(bytes)),
-    putToolImage: async (ref, bytes) => store(ref, asBuffer(bytes), inspectToolImage(asBuffer(bytes))),
+    putToolImage: async (ref, bytes) => store(ref, asBuffer(bytes), inspectToolImageBytes(bytes)),
     read: async (ref, imageId) => {
       if (!chatImageIdSchema.safeParse(imageId).success || !chatIdSchema.safeParse(ref.chatId).success) return null
       const dir = chatDir(options.root, ref, platform)

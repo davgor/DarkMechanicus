@@ -89,14 +89,19 @@ afterEach(cleanup)
     await act(async () => {
       await view.result.current.send('Steer')
       await view.result.current.interrupt()
-      await view.result.current.answer('prompt', 'allow_once')
-      await view.result.current.answer('question', 'other', 'Response')
+      await view.result.current.answer({ promptId: 'prompt', optionId: 'allow_once' })
+      await view.result.current.answer({ promptId: 'question', optionId: 'other', text: 'Response' })
+      await view.result.current.answer({ promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' })
       await view.result.current.start()
       await view.result.current.setSurface('terminal')
     })
     expect(view.api.callsOf('send')).toEqual([[{ ...ref, text: 'Steer' }]])
     expect(view.api.callsOf('interrupt')).toEqual([[ref]])
-    expect(view.api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'prompt', optionId: 'allow_once' }], [{ ...ref, promptId: 'question', optionId: 'other', text: 'Response' }]])
+    expect(view.api.callsOf('answer')).toEqual([
+      [{ ...ref, promptId: 'prompt', optionId: 'allow_once' }],
+      [{ ...ref, promptId: 'question', optionId: 'other', text: 'Response' }],
+      [{ ...ref, promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' }]
+    ])
     expect(view.api.callsOf('start')).toEqual([[ref]])
     expect(view.api.callsOf('setSurface')).toEqual([[{ ...ref, surface: 'terminal' }]])
     expect(view.result.current.state.surface).toBe('terminal')

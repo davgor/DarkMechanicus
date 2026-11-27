@@ -1,4 +1,5 @@
 import { useMemo, type MouseEvent, type ReactNode } from 'react'
+import { CopyButton } from '../agentChat/CopyButton'
 import { parseInline, parseMarkdown, type Block, type Inline, type ListItem } from './parse'
 import './markdown.css'
 
@@ -43,11 +44,7 @@ function BlockView({ block }: { block: Block }): JSX.Element {
     case 'paragraph':
       return <p>{renderInlines(block.children)}</p>
     case 'code':
-      return (
-        <pre className="md-code">
-          <code>{block.text}</code>
-        </pre>
-      )
+      return <CodeBlock code={block.text} />
     case 'list':
       return <ListView ordered={block.ordered} start={block.start} items={block.items} />
     case 'quote':
@@ -55,6 +52,18 @@ function BlockView({ block }: { block: Block }): JSX.Element {
     case 'rule':
       return <hr />
   }
+}
+
+/** A fenced or indented code block, with a Copy in its corner that copies the code alone, never the fences. */
+function CodeBlock({ code }: { code: string }): JSX.Element {
+  return (
+    <div className="md-code-block">
+      <pre className="md-code">
+        <code>{code}</code>
+      </pre>
+      <CopyButton text={code} title="Copy code" className="md-code-copy" />
+    </div>
+  )
 }
 
 function ListView(props: { ordered: boolean; start: number; items: ListItem[] }): JSX.Element {

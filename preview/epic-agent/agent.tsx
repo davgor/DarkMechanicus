@@ -10,6 +10,7 @@ import type { TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
 import { AgentRolePicker } from '../../src/renderer/src/agentRoles/AgentRolePicker'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
+import { FirstPromptDialog } from '../../src/renderer/src/agents/ChatDialogs'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
@@ -29,14 +30,15 @@ import { NotificationSettings } from '../../src/renderer/src/settings/Notificati
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
- * `AgentChat` / `NotificationSettings` / `AgentRolePicker`) over the renderer test fakes, seeded from `agentChatScenario.ts`. `?state=`
+ * `AgentChat` / `NotificationSettings` / `AgentRolePicker` / New chat `FirstPromptDialog`) over the renderer test fakes, seeded from
+ * `agentChatScenario.ts`. `?state=`
  * picks the state; the page reaches it with real DOM clicks after mount, then writes `#observations` (data-ready).
  */
 declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -177,6 +179,27 @@ function namedApproval(): AgentChatSnapshot {
   }
 }
 
+/** The first of two questions in one multi-select ask, docked over the conversation. */
+function multiQuestion(): AgentChatSnapshot {
+  return {
+    ...scenarios.empty.snapshot,
+    items: conversation,
+    status: 'busy',
+    pending: {
+      id: 'question-multi-1', kind: 'question', title: 'Which checks should the worker run before it submits?',
+      detail: 'Choose every check that applies.', threadId: null,
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+      options: [
+        { id: 'option_0', label: 'Lint', description: 'ESLint over the changed files' },
+        { id: 'option_1', label: 'Typecheck', description: 'Both tsconfig projects' },
+        { id: 'option_2', label: 'Unit tests', description: 'Vitest for the touched files' },
+        { id: 'option_3', label: 'Build' },
+        { id: 'text', label: 'Other' }
+      ]
+    }
+  }
+}
+
 function magosDecided(): AgentChatSnapshot {
   return {
     ...scenarios.empty.snapshot,
@@ -191,6 +214,20 @@ function magosDecided(): AgentChatSnapshot {
 function todosSnapshot(): AgentChatSnapshot {
   const bash: ChatItem = { id: 'todo-bash', at: AT, kind: 'tool_call', name: 'Bash', input: { command: 'npm test' }, status: 'running', resultSummary: null }
   return { ...scenarios.todos.snapshot, items: [...conversation, bash] }
+}
+
+/** The agent-transcript state's conversation: the person's question, then a finished reply holding a ts code block. */
+function transcriptSnapshot(): AgentChatSnapshot {
+  const items: ChatItem[] = [
+    { id: 'tr-user', at: AT, kind: 'user_message', text: 'Can you add a retry to the fetch helper and tell me how to test it?' },
+    {
+      id: 'tr-reply', at: AT, kind: 'assistant_text',
+      text: '**Done** — the helper now retries twice before it gives up:\n\n```ts\nexport async function fetchWithRetry(url: string, tries = 3): Promise<Response> {\n'
+        + '  for (let attempt = 1; ; attempt++) {\n    try {\n      return await fetch(url)\n    } catch (error) {\n      if (attempt >= tries) throw error\n'
+        + '    }\n  }\n}\n```\n\nRun `npm test` to check it.'
+    }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 }
 
 const relay = (event: AgentChatEvent): AgentChatEvent => ({ ...event, folder: FOLDER.path, chatId: ORCHESTRATOR.id })
@@ -355,6 +392,19 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
     }
   },
+  'question-multi': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, multiQuestion()),
+    reach: async () => {
+      await openAgentTab()
+      const card = await until(() => $('.agent-prompt-multi'), 'the docked multi-select question')
+      for (const label of ['Lint', 'Unit tests']) {
+        click(await until(() => [...card.querySelectorAll('label.agent-prompt-check')]
+          .find((row) => text(row.querySelector('.agent-prompt-check-label')) === label)?.querySelector('input') ?? null, `the ${label} checkbox`))
+      }
+      await until(() => text($('.agent-prompt-count')) === '2 selected', '2 selected')
+    }
+  },
   'agent-magos-decided': {
     mount: 'epic',
     seed: (context) => snapshot(context, magosDecided()),
@@ -503,6 +553,17 @@ const STATES: Record<string, StateDef> = {
         && buttonNamed('Stop', $('[aria-label="Busy Magos"]')!), 'an enabled Send beside the idle draft and Stop on the busy chat')
     }
   },
+  'agent-transcript': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: transcriptSnapshot() } },
+    reach: async () => {
+      const copy = await until(() => buttonNamed('Copy', $('.chat-msg-user') ?? document.createElement('div')), 'the person’s bubble with its Copy')
+      await until(() => $('.chat-msg-assistant .chat-msg-actions .copy-button') && $('.chat-msg-assistant .md-code-copy'), 'the reply’s action row and code Copy')
+      // Keyboard focus, as Tab would leave it: the bubble's Copy shows without a pointer over it.
+      copy.focus()
+      await until(() => getComputedStyle($('.chat-msg-user > .chat-msg-actions')!).opacity === '1', 'the bubble’s Copy revealed by focus')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -512,6 +573,16 @@ const STATES: Record<string, StateDef> = {
     reach: async () => {
       await until(() => document.querySelectorAll('.arp [role="radio"]').length === 2 && document.querySelectorAll('.arp svg[role="img"]').length === 2,
         'the Magos and Lexmechanic cards with their art')
+    }
+  },
+  'new-chat-picker': {
+    mount: 'newChat',
+    reach: async () => {
+      const field = await until(() => $('[role="dialog"] textarea') as HTMLTextAreaElement | null, 'the New chat dialog’s prompt field')
+      await until(() => document.querySelectorAll('.arp svg[role="img"]').length === 2, 'both role cards with their art')
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(field, 'Plan the sign-in refresh repair')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      await until(() => buttonNamed('Start')?.disabled === false, 'an enabled Start')
     }
   },
   ...deliveryStates
@@ -584,6 +655,23 @@ function deliveryObservations(): Record<string, unknown> {
   }
 }
 
+/** The docked multi-select question: its legend, progress, checked option labels, count and Submit; null without one. */
+function questionObservations(): Record<string, unknown> | null {
+  const form = $('.agent-prompt .agent-prompt-multi')
+  if (form === null) return null
+  const rows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')]
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  return {
+    legend: text(form.querySelector('legend')),
+    progress: text($('.agent-prompt .agent-prompt-progress')),
+    checkboxes: rows.length,
+    checked: rows.filter((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked === true)
+      .map((row) => text(row.querySelector('.agent-prompt-check-label'))),
+    count: text(form.querySelector('.agent-prompt-count')),
+    submitEnabled: submit === null ? null : !submit.matches(':disabled')
+  }
+}
+
 /** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
 function glassObservations(): Record<string, unknown> | null {
   const stage = $('section.eap')
@@ -631,6 +719,21 @@ function rolePickerObservations(): Record<string, unknown> | null {
   return cards.length === 0 ? null : { cards: cards.map(roleCardObservation) }
 }
 
+/**
+ * The New chat dialog: its accessible name, whether the role picker sits wholly above the First prompt field, and
+ * whether the dialog scrolls (which would hide Start below the fold).
+ */
+function newChatObservations(): Record<string, unknown> | null {
+  const dialog = $('[role="dialog"]')
+  const picker = dialog?.querySelector<HTMLElement>('.arp') ?? null
+  const field = dialog?.querySelector('textarea') ?? null
+  if (dialog === null || picker === null || field === null) return null
+  return {
+    title: accessibleName(dialog), pickerAbovePrompt: picker.getBoundingClientRect().bottom <= field.getBoundingClientRect().top,
+    scrolls: dialog.scrollHeight > dialog.clientHeight + 1
+  }
+}
+
 /** Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button. */
 function composerObservations(): Record<string, unknown>[] {
   const shape = (button: HTMLElement | null): Record<string, unknown> | null => {
@@ -653,6 +756,42 @@ function composerObservations(): Record<string, unknown>[] {
       stop: shape(form.querySelector<HTMLElement>('button[aria-label="Stop"]'))
     }
   })
+}
+
+/** The agent-transcript state's layout: the reading column, the person's bubble, the plain reply and the Copy buttons. */
+function transcriptObservations(): Record<string, unknown> | null {
+  const rows = $('.chat-rows')
+  const bubble = $('.chat-msg-user > article')
+  const reply = $('.chat-msg-assistant > article')
+  const block = $('.chat-msg-assistant .md-code-block')
+  if (rows === null || bubble === null || reply === null || block === null) return null
+  const column = rows.getBoundingClientRect()
+  const holder = rows.parentElement!.getBoundingClientRect()
+  const bubbleBox = bubble.getBoundingClientRect()
+  const replyStyle = getComputedStyle(reply)
+  const visible = (button: HTMLElement | null): string | null => {
+    if (button === null) return null
+    let element: HTMLElement | null = button
+    for (; element !== null; element = element.parentElement) if (getComputedStyle(element).opacity === '0') return null
+    return text(button)
+  }
+  const codeCopy = $('.md-code-copy', block)
+  const codeBox = block.getBoundingClientRect()
+  const copyBox = codeCopy?.getBoundingClientRect() ?? null
+  return {
+    columnWidth: column.width,
+    columnOffset: Math.abs((column.left - holder.left) - (holder.right - column.right)),
+    bubble: {
+      radius: getComputedStyle(bubble).borderTopLeftRadius, background: getComputedStyle(bubble).backgroundColor,
+      rightGap: column.right - bubbleBox.right, leftGap: bubbleBox.left - column.left
+    },
+    bubbleCopy: visible($('.chat-msg-user .copy-button')),
+    bubbleCopyFocused: document.activeElement === $('.chat-msg-user .copy-button'),
+    reply: { background: replyStyle.backgroundColor, border: replyStyle.borderTopWidth, width: reply.getBoundingClientRect().width },
+    replyActions: [...document.querySelectorAll<HTMLElement>('.chat-msg-assistant > .chat-msg-actions .copy-button')].map(visible),
+    codeCopy: visible(codeCopy),
+    codeCopyCorner: copyBox === null ? null : { top: copyBox.top - codeBox.top, right: codeBox.right - copyBox.right }
+  }
 }
 
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
@@ -679,15 +818,18 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
+    questionCard: questionObservations(),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),
+    newChat: newChatObservations(),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     ticketPanel: $('.tp') !== null,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     composers: composerObservations(),
+    transcript: transcriptObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
@@ -716,6 +858,9 @@ function seeded(): Seeded {
 function render(mount: Mount, context: Seeded): JSX.Element {
   if (mount === 'roles') {
     return <div className="preview-roles"><AgentRolePicker onChoose={() => undefined} /></div>
+  }
+  if (mount === 'newChat') {
+    return <div className="preview-roles"><FirstPromptDialog roles onSubmit={async () => false} onClose={() => undefined} /></div>
   }
   if (mount === 'settings') {
     window.dm = new FakeDm()
