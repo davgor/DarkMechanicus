@@ -1,6 +1,7 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const startup = vi.hoisted(() => ({
@@ -19,7 +20,9 @@ const startup = vi.hoisted(() => ({
   menus: [] as unknown[],
   switches: [] as [string, string][],
   /** Each app id set, with how many windows existed when it was set. */
-  appIds: [] as Array<{ id: string; windows: number }>
+  appIds: [] as Array<{ id: string; windows: number }>,
+  /** What app.getPath('home') answers. */
+  userHome: ''
 }))
 
 vi.mock('electron', () => ({
@@ -39,6 +42,7 @@ vi.mock('electron', () => ({
     setAppUserModelId: (id: string) => {
       startup.appIds.push({ id, windows: startup.options.length })
     },
+    getPath: (name: string) => (name === 'home' ? startup.userHome : ''),
     getVersion: () => '0.6.0'
   },
   BrowserWindow: class {
@@ -93,7 +97,9 @@ beforeEach(() => {
   startup.menus = []
   startup.switches = []
   startup.appIds = []
+  startup.userHome = resolve('/users/ada')
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
+  vi.stubEnv('DARKMECHANICUS_HOME', '')
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -168,6 +174,16 @@ describe('desktop startup app id', () => {
     await Promise.resolve()
     expect(startup.options).toHaveLength(1)
     expect(startup.appIds).toEqual(process.platform === 'win32' ? [{ id: 'com.davgor.darkmechanicus', windows: 0 }] : [])
+  })
+
+  it('names an isolated DARKMECHANICUS_HOME profile with its own id, from the resolved home path', async () => {
+    vi.stubEnv('DARKMECHANICUS_HOME', 'e2e-profile')
+    await import('./index')
+    startup.ready!()
+    await Promise.resolve()
+    const home = resolve(startup.userHome, 'e2e-profile').toLowerCase()
+    const digest = createHash('sha256').update(home).digest('hex').slice(0, 12)
+    expect(startup.appIds).toEqual(process.platform === 'win32' ? [{ id: `com.davgor.darkmechanicus.isolated.${digest}`, windows: 0 }] : [])
   })
 })
 
