@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { IpcMain } from 'electron'
@@ -8,7 +8,9 @@ import { withForgeTransfer } from '../../core/repo/forgeBinding'
 import { createChatRecords } from '../agents/chatRecords'
 import { createChatStore } from '../agents/chatStore'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner } from '../git/runner'
+import { copyRepositories, useTemplate } from '../../test/gitTemplate'
+import { TEST_STORAGE } from '../../test/workspaceHarness'
+import { createGitRunner, type GitRunRequest } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { forgeAgentSessions } from './forgeAgents'
 import { createForge, updateForge } from './forgeManifest'
@@ -23,15 +25,47 @@ function initializeOrigin(root: string) {
   gitIn(root, 'remote', 'add', 'origin', 'https://github.com/owner/tickets.git')
 }
 
-function resolverFixture(options: { initializedWorld?: boolean; onConflict?: Parameters<typeof startForge>[1]['onConflict']; beforeRun?: (args: readonly string[]) => Promise<void> } = {}) {
-  const fixture = scratchDir('forge-resolver-')
-  const root = join(fixture.path, 'world')
-  const home = join(fixture.path, 'home')
+// Each repository below is built once for the file and copied per test (see `useTemplate`).
+const originTemplate = useTemplate(cleanups => {
+  const base = scratchDir('forge-resolver-')
+  cleanups.push(base.cleanup)
+  initializeOrigin(join(base.path, 'world'))
+  return base.path
+})
+
+/** A world whose `main` has a local README edit over the initial commit, and a `remote` branch that changed it too. */
+const seededTemplate = useTemplate(cleanups => {
+  const base = scratchDir('forge-resolver-seeded-')
+  cleanups.push(base.cleanup)
+  const root = join(base.path, 'world')
   initializeOrigin(root)
+  createForge(root, 'owner')
+  writeFileSync(join(root, 'README.md'), 'Original\n')
+  gitIn(root, 'add', '.')
+  gitIn(root, 'commit', '-m', 'Initial world')
+  gitIn(root, 'switch', '-c', 'remote')
+  writeFileSync(join(root, 'README.md'), 'Remote\n')
+  gitIn(root, 'commit', '-am', 'Remote edit')
+  const upstream = gitIn(root, 'rev-parse', 'HEAD').trim()
+  gitIn(root, 'switch', 'main')
+  writeFileSync(join(root, 'README.md'), 'Local\n')
+  return { root, upstream }
+})
+
+/** Like Git's own test suite, disposable fixtures need real objects, not power-loss hardware flushes. */
+function unflushed(request: GitRunRequest): GitRunRequest {
+  return { ...request, env: { ...request.env, GIT_TEST_FSYNC: '0' } }
+}
+
+function resolverFixture(options: { initializedWorld?: boolean; onConflict?: Parameters<typeof startForge>[1]['onConflict']; beforeRun?: (args: readonly string[]) => Promise<void> } = {}) {
+  const cleanups: Array<() => void> = []
+  const base = copyRepositories(originTemplate(), cleanups)
+  const root = join(base, 'world')
+  const home = join(base, 'home')
   if (options.initializedWorld) createForge(root, 'owner')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Resolver fixture', serverInfo: { name: 'fixture', version: '1' } }), home)
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Resolver fixture', serverInfo: { name: 'fixture', version: '1' }, ...TEST_STORAGE }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   const events: string[] = []
@@ -44,13 +78,13 @@ function resolverFixture(options: { initializedWorld?: boolean; onConflict?: Par
     onSynced: async () => { events.push('archive') },
     runner: { run: async req => {
       await options.beforeRun?.(req.args)
-      if (req.kind !== 'network') return runner.run(req)
+      if (req.kind !== 'network') return runner.run(unflushed(req))
       if (req.args.includes('fetch')) writeFileSync(join(root, '.git/FETCH_HEAD'), upstream + "\t\tbranch 'main'\n")
       if (req.args.includes('push')) { upstream = gitIn(root, 'rev-parse', 'HEAD').trim(); events.push('push') }
       return { code: 0, stderr: '', stdout: req.args.includes('ls-remote') ? upstream : '' }
     } }
   })
-  return { root, call, events, forge, registry, pool, setUpstream: (sha: string) => { upstream = sha }, cleanup: () => { forge.stop(); pool.closeAll(); fixture.cleanup() } }
+  return { root, call, events, forge, registry, pool, setUpstream: (sha: string) => { upstream = sha }, cleanup: () => { forge.stop(); pool.closeAll(); for (const cleanup of cleanups) cleanup() } }
 }
 
 function pending<T>() {
@@ -60,18 +94,11 @@ function pending<T>() {
   return { promise, resolve, reject }
 }
 
+/** Puts the seeded template's repository and working tree over the fixture's freshly initialized world. */
 function seedConflict(fixture: ReturnType<typeof resolverFixture>) {
-  const { root, setUpstream } = fixture
-  createForge(root, 'owner')
-  writeFileSync(join(root, 'README.md'), 'Original\n')
-  gitIn(root, 'add', '.')
-  gitIn(root, 'commit', '-m', 'Initial world')
-  gitIn(root, 'switch', '-c', 'remote')
-  writeFileSync(join(root, 'README.md'), 'Remote\n')
-  gitIn(root, 'commit', '-am', 'Remote edit')
-  setUpstream(gitIn(root, 'rev-parse', 'HEAD').trim())
-  gitIn(root, 'switch', 'main')
-  writeFileSync(join(root, 'README.md'), 'Local\n')
+  const seeded = seededTemplate()
+  cpSync(seeded.root, fixture.root, { recursive: true })
+  fixture.setUpstream(seeded.upstream)
 }
 
 it.each([new Error('Agent unavailable'), 'Agent unavailable'])('reports resolver failures, serializes background polling and stops repair after untracking: %s', async failure => {
@@ -286,12 +313,14 @@ interface ConflictingClones {
   cleanup(): void
 }
 
-function conflictingClones(): ConflictingClones {
+const CLONES_URL = 'https://github.com/owner/tickets.git'
+
+const clonesTemplate = useTemplate(cleanups => {
   const fixture = scratchDir('forge-scheduled-')
+  cleanups.push(fixture.cleanup)
   const root = join(fixture.path, 'world')
   const remote = join(fixture.path, 'origin.git')
   const peer = join(fixture.path, 'peer')
-  const home = join(fixture.path, 'home')
   gitIn(fixture.path, 'init', '--bare', '--initial-branch=main', remote)
   gitIn(fixture.path, 'clone', remote, root)
   gitIn(root, 'config', 'user.name', 'Test')
@@ -311,9 +340,17 @@ function conflictingClones(): ConflictingClones {
   gitIn(peer, 'push', 'origin', 'main')
   writeFileSync(join(root, 'README.md'), 'Local directions\n')
   writeFileSync(join(root, 'local.txt'), 'Compatible local work')
-  const url = 'https://github.com/owner/tickets.git'
-  gitIn(root, 'remote', 'set-url', 'origin', url)
-  return { root, remote, peer, home, url, cleanup: fixture.cleanup }
+  // The world's origin then names no folder, so a copy keeps it; `scheduledFixture` maps it to the copy's own bare
+  // origin. The peer's origin names the template's, which `copyRepositories` rewrites to the copy's.
+  gitIn(root, 'remote', 'set-url', 'origin', CLONES_URL)
+  return fixture.path
+})
+
+function conflictingClones(): ConflictingClones {
+  const cleanups: Array<() => void> = []
+  const path = copyRepositories(clonesTemplate(), cleanups)
+  return { root: join(path, 'world'), remote: join(path, 'origin.git'), peer: join(path, 'peer'), home: join(path, 'home'), url: CLONES_URL,
+    cleanup: () => { for (const cleanup of cleanups) cleanup() } }
 }
 
 it('leaves an off-main world and its index untouched when startup or open encounters a pending forced transfer', async () => {
@@ -327,7 +364,7 @@ it('leaves an off-main world and its index untouched when startup or open encoun
   const before = snapshot()
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, role: 'desktop', transport: 'desktop', label: 'Reservation fixture' }), home)
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, role: 'desktop', transport: 'desktop', label: 'Reservation fixture', ...TEST_STORAGE }), home)
   const forge = startForge({ handle: () => undefined }, {
     home, registry, pool, session: { getAccount: () => null, getToken: () => null },
     cleanup: () => undefined, pickDirectory: async () => null, publish: async () => undefined,
@@ -347,7 +384,7 @@ function scheduledFixture(
 ) {
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Scheduled fixture' }), home)
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Scheduled fixture', ...TEST_STORAGE }), home)
   const real = createGitRunner()
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const call = async (name: string) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, root)
@@ -356,10 +393,10 @@ function scheduledFixture(
     home, registry, pool, session: { getAccount: () => null, getToken: () => null },
     cleanup: () => undefined, pickDirectory: async () => null, publish: async () => undefined,
     ...events,
-    runner: { run: request => request.kind !== 'network' ? real.run(request) : real.run({ ...request, args: [
+    runner: { run: request => request.kind !== 'network' ? real.run(unflushed(request)) : real.run(unflushed({ ...request, args: [
       '-c', 'url.' + pathToFileURL(remote).href + '.insteadOf=' + url,
       ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
-    ] }) }
+    ] })) }
   })
   return { call, ready: forge.ready, registry, cleanup: () => { forge.stop(); vi.useRealTimers(); pool.closeAll(); cleanup() } }
 }

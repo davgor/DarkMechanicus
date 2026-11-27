@@ -241,6 +241,7 @@ function crashFixtureSource(): string {
     import { createTestWorkspacePool as createWorkspacePool } from './src/main/desktop/__mocks__/projectWorkspaceFixture';
     import { startForge } from './src/main/desktop/forgeService';
     import { createGitRunner } from './src/main/git/runner';
+    import { TEST_STORAGE } from './src/test/workspaceHarness';
     async function main() {
     const fs = require('node:fs'); const rename = fs.renameSync; const mkdir = fs.mkdirSync;
     const { home, source, world, point, spawnedAt } = JSON.parse(process.argv[2]);
@@ -260,12 +261,13 @@ function crashFixtureSource(): string {
           (point === 'manifest' && path.endsWith('/TicketStore/forge-world.json'))) process.exit(91);
     }; syncBuiltinESMExports();
     const registry = createFolderRegistry({ file: home + '/folders.json', dmHome: home, homeDir: home });
-    const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Crash fixture' }), home);
+    // Like the parent's fixture: no power-loss flushes, since the process death these cases prove survives the OS cache.
+    const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Crash fixture', ...TEST_STORAGE }), home);
     const real = createGitRunner(); const handlers = new Map();
     startForge({ handle: (key, handler) => handlers.set(key, handler) }, {
       home, registry, pool, session: { getAccount: () => ({login:'example',host:'github.com'}), getToken: () => null },
       pickDirectory: async () => source, cleanup() {}, publish: async () => {}, onSynced: async () => {}, onConflict: async () => {},
-      runner: { run: req => req.kind === 'network' ? Promise.resolve({code:0,stdout:'',stderr:''}) : real.run(req) }
+      runner: { run: req => req.kind === 'network' ? Promise.resolve({code:0,stdout:'',stderr:''}) : real.run({ ...req, env: { ...req.env, GIT_TEST_FSYNC: '0' } }) }
     });
     process.stderr.write('Conversion started at ' + (Date.now() - spawnedAt) + 'ms\\n');
     await handlers.get('forge:convert')({}, world, source, {force:true}); process.exit(92);
@@ -311,7 +313,7 @@ it('requires a live foreign source process to exit before restoring, even after 
   const f = fixture()
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true })
   const exited = once(child, 'exit')
-  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, role: 'orchestrator', transport: 'in_process', label: 'Legacy process', pid: child.pid })
+  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, role: 'orchestrator', transport: 'in_process', label: 'Legacy process', pid: child.pid, ...TEST_STORAGE })
   try {
     await f.pool.get(f.source).initializeRepository({ name: 'Legacy handle proof', mode: 'db' })
     await worker.getProject()
@@ -378,7 +380,7 @@ it.each([null, 'force', { force: false }, { force: true, unexpected: true }])('r
 
 it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
   const f = fixture(emptyWorldSeed)
-  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' } })
+  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' }, ...TEST_STORAGE })
   try {
     await f.pool.get(f.source).initializeRepository({ name: 'Force fixture', mode })
     const card = await f.pool.get(f.source).createKanbanCard({ title: 'Live work' })
@@ -390,7 +392,7 @@ it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private
     expect(existsSync(join(member, '.darkmechanicus/local/pre-forge-source/project.json'))).toBe(true)
     expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
     await expect(worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! })).rejects.toThrow('Reconnect')
-    const reconnected = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Reconnected worker' })
+    const reconnected = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Reconnected worker', ...TEST_STORAGE })
     try { expect((await reconnected.getKanbanCard({ cardId: card.id })).lane).toBe('backlog') }
     finally { reconnected.close() }
     expect(gitIn(f.world, 'ls-files').split('\n').some(p => p.includes('/local/'))).toBe(false)
