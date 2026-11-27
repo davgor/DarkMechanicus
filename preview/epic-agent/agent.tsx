@@ -337,6 +337,16 @@ const STATES: Record<string, StateDef> = {
       await until(() => treeItem('Inquisitor:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Inquisitor:DM-2 node')
     }
   },
+  'chat-rail-collapsed': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.tree.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await clickWhenPresent(() => buttonNamed('Collapse Chat agents'), 'Collapse Chat agents')
+      await until(() => $('aside[aria-label="Chat agents"]') === null && $('.agent-chat-agents')?.getAttribute('aria-pressed') === 'false',
+        'the rail closed by its chevron and the Agents toggle released')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -400,6 +410,7 @@ function observe(state: string): Record<string, unknown> {
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
+    agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     errors: [...window.__errors]
   }
 }

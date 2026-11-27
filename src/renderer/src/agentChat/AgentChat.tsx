@@ -8,7 +8,7 @@ import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { TurnActivityLine } from './TurnActivityLine'
-import { ChatAgentsRail, useChatRailOpen, useThreadReveal, type RailChat } from './ChatAgentsRail'
+import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat } from './useAgentChat'
 import { withoutTodoCalls } from './todoPanelModel'
@@ -73,14 +73,15 @@ const ORDINARY_CHAT: RailChat = { role: 'worker' }
 function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed }: Props): JSX.Element {
   const { state, send, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
   const command = useChatCommand()
-  const agents = useChatRailOpen(chatId)
+  const agents = useChatRail(chatId)
+  const agentsOpen = !agents.state.collapsed
   const { reveal, show } = useThreadReveal(state, revealThreadId, onRevealed)
   const railId = useId()
   const busy = state.status === 'busy'
   function stop(): void {
     if (busy) void command.run(interrupt)
   }
-  const showRail = rail === 'toggle' && agents.open
+  const showRail = rail === 'toggle' && agentsOpen
   return (
     <section className="agent-chat" aria-label={`${agentLabel} chat`} onKeyDown={(event) => {
       if (event.key === 'Escape' && busy) {
@@ -90,7 +91,7 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', c
     }}>
       <ChatHeader state={state} agentLabel={agentLabel} acting={command.acting}
         terminal={() => { void command.run(() => setSurface('terminal')) }}
-        agents={rail === 'toggle' ? { open: agents.open, toggle: agents.toggle, controls: railId } : null} />
+        agents={rail === 'toggle' ? { open: agentsOpen, toggle: () => agents.setCollapsed(agentsOpen), controls: railId } : null} />
       <div className="agent-chat-body">
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
@@ -104,7 +105,7 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', c
             queued={state.queued} command={command} send={send} stop={stop} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
-          <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} selected={reveal.target} select={show} />
+          <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
         </div>}
       </div>
     </section>

@@ -22,16 +22,13 @@ export const ThreadBlock = memo(function ThreadBlock({ node, renderRow }: Thread
   const [open, setOpen] = useState(false)
   const reveal = useContext(RevealThreadContext)
   const element = useRef<HTMLLIElement>(null)
-  const scrolled = useRef<number | null>(null)
   const onPath = reveal.path.has(item.id)
   useEffect(() => {
-    if (!onPath) return
+    if (!onPath || reveal.handled.get(item.id) === reveal.nonce) return
+    reveal.handled.set(item.id, reveal.nonce)
     setOpen(true)
-    if (reveal.target === item.id && scrolled.current !== reveal.nonce) {
-      scrolled.current = reveal.nonce
-      element.current?.scrollIntoView?.({ block: 'nearest' })
-    }
-  }, [onPath, reveal.target, reveal.nonce, item.id])
+    if (reveal.target === item.id) element.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [onPath, reveal.handled, reveal.target, reveal.nonce, item.id])
   const state = threadStateView(item.state)
   const name = item.callsign === undefined ? item.label : formatCallsign(item.callsign)
   return (
