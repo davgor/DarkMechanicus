@@ -92,6 +92,7 @@ src/renderer/src/ticket/ticketView.ts - metaLine
 src/renderer/src/ticket/ticketView.ts - scorecardRuns
 src/renderer/src/ticket/ticketView.ts - sizeAndEffortRows
 src/renderer/src/ticket/ticketView.ts - statePill
+src/shared/agents/agentChat.ts - AgentChatAnswer
 src/shared/agents/callsign.ts - subagentCallsign
 src/shared/agents/chat.ts - ApprovalRequestItem
 src/shared/agents/chat.ts - DarkMechanicusCli

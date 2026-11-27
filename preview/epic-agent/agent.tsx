@@ -35,7 +35,7 @@ declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'settings'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -46,6 +46,8 @@ interface StateDef {
 interface Seeded {
   backend: FakeBackend
   chatApi: FakeAgentChat
+  /** The `composer` mount's second chat, shown busy beside the idle one. */
+  busyChatApi: FakeAgentChat
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
   folder: TrackedFolderView
@@ -237,7 +239,7 @@ const agentStates: Record<string, StateDef> = {
     reach: async () => {
       await openAgentTab()
       await selectNode('Acolyte:DM-2')
-      await until(() => $('[aria-label="Acolyte:DM-2 thread"]') && $('.agent-chat-hint'), 'the worker thread with its relay note')
+      await until(() => $('[aria-label="Acolyte:DM-2 thread"] form.chat-composer'), 'the worker thread with its relay composer')
     }
   },
   'agent-legacy-thread': {
@@ -484,6 +486,22 @@ const STATES: Record<string, StateDef> = {
       await until(() => $('[aria-label="Thread: Servitor-2"]') && $('[aria-label="Thread: Servitor-1"]'), 'both Servitor thread blocks in the transcript')
     }
   },
+  'agent-composer': {
+    mount: 'composer',
+    seed: (context) => {
+      const turn: AgentChatSnapshot = { items: conversation, status: 'idle', pending: null, queued: 2, surface: 'gui', todos: [] }
+      context.chatApi.snapshotResult = { ok: true, data: turn }
+      context.busyChatApi.snapshotResult = { ok: true, data: { ...turn, status: 'busy' } }
+    },
+    reach: async () => {
+      const idle = await until(() => $('[aria-label="Idle Magos"] textarea:not(:disabled)') as HTMLTextAreaElement | null, 'the idle composer')
+      // React reads the native value setter's input event exactly as it reads typing.
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(idle, 'Run the targeted tests\nthen report the failures')
+      idle.dispatchEvent(new Event('input', { bubbles: true }))
+      await until(() => buttonNamed('Send', $('[aria-label="Idle Magos"]')!)?.disabled === false
+        && buttonNamed('Stop', $('[aria-label="Busy Magos"]')!), 'an enabled Send beside the idle draft and Stop on the busy chat')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -575,6 +593,30 @@ function glassObservations(): Record<string, unknown> | null {
   }
 }
 
+/** Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button. */
+function composerObservations(): Record<string, unknown>[] {
+  const shape = (button: HTMLElement | null): Record<string, unknown> | null => {
+    if (button === null) return null
+    const { width, height } = button.getBoundingClientRect()
+    return { radius: getComputedStyle(button).borderTopLeftRadius, width, height }
+  }
+  return [...document.querySelectorAll<HTMLElement>('form.chat-composer')].map((form) => {
+    const style = getComputedStyle(form)
+    const input = form.querySelector('textarea')
+    const inputStyle = input === null ? null : getComputedStyle(input)
+    const lines = input === null || inputStyle === null ? null
+      : Math.round((input.getBoundingClientRect().height - parseFloat(inputStyle.paddingTop) - parseFloat(inputStyle.paddingBottom))
+        / parseFloat(inputStyle.lineHeight))
+    return {
+      radius: style.borderTopLeftRadius, background: style.backgroundColor, backdropFilter: style.backdropFilter,
+      width: form.getBoundingClientRect().width, lines, placeholder: input?.placeholder ?? null,
+      chips: [...form.querySelectorAll('.chat-composer-chip')].map(text),
+      send: shape(form.querySelector<HTMLElement>('button[aria-label="Send"]')),
+      stop: shape(form.querySelector<HTMLElement>('button[aria-label="Stop"]'))
+    }
+  })
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -606,6 +648,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     ticketPanel: $('.tp') !== null,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
+    composers: composerObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
@@ -626,8 +669,8 @@ function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
   return {
-    backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER, finishedExpandedAtStart: null,
-    landing: null
+    backend, chatApi, busyChatApi: new FakeAgentChat(), clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR],
+    folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
 }
 
@@ -642,8 +685,20 @@ function render(mount: Mount, context: Seeded): JSX.Element {
     dm.agentChat = context.chatApi
     window.dm = dm
     return <ClockContext.Provider value={clock}><div className="preview-chat">
-      <AgentChat folder={null} chatId="fixture-chat" agentLabel="Magos" api={context.chatApi} rail="toggle"
-        chat={{ role: 'orchestrator', runId: 'rn_fixture' }} />
+      <AgentChat folder={null} chatId="fixture-chat" agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus"
+        api={context.chatApi} rail="toggle" chat={{ role: 'orchestrator', runId: 'rn_fixture' }} />
+    </div></ClockContext.Provider>
+  }
+  if (mount === 'composer') {
+    const dm = new FakeDm()
+    dm.agentChat = context.chatApi
+    window.dm = dm
+    const pane = (label: string, chatId: string, api: FakeAgentChat): JSX.Element => <div className="preview-chat" aria-label={label}>
+      <AgentChat folder={null} chatId={chatId} agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus" api={api} />
+    </div>
+    return <ClockContext.Provider value={clock}><div className="preview-composer">
+      {pane('Idle Magos', 'fixture-chat', context.chatApi)}
+      {pane('Busy Magos', 'fixture-busy-chat', context.busyChatApi)}
     </div></ClockContext.Provider>
   }
   window.dm = context.backend

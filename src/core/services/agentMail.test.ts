@@ -112,22 +112,115 @@ describe('two bound chats exchange mail', () => {
     expect(readAgentInbox(b.ctx).messages[0]?.acknowledgedAt).toBe(acked.acknowledged[0]?.acknowledgedAt)
   })
 
-  it('derives identity from the session grant, and lists peers by id and title only, never itself', () => {
+  it('derives identity from the session grant, and lists peers by id, title and trusted metadata, never itself', () => {
     const { a, b, c } = world()
     expect(getAgentIdentity(a.ctx)).toEqual({ endpointId: a.endpoint.id, name: 'Chat chat-a', role: 'worker', boundAt: expect.any(String) })
     expect(getAgentIdentity(b.ctx)).toMatchObject({ endpointId: b.endpoint.id, role: 'reviewer' })
     const peers = listAgentPeers(a.ctx)
     expect(peers).toEqual({
       peers: [
-        { endpointId: b.endpoint.id, name: 'Chat chat-b' },
-        { endpointId: c.endpoint.id, name: 'Chat chat-c' }
+        { endpointId: b.endpoint.id, name: 'Chat chat-b', epicId: null, role: null },
+        { endpointId: c.endpoint.id, name: 'Chat chat-c', epicId: null, role: null }
       ],
       nextAfterId: c.endpoint.id,
       hasMore: false
     })
     const first = listAgentPeers(a.ctx, { limit: 1 })
-    expect(first).toEqual({ peers: [{ endpointId: b.endpoint.id, name: 'Chat chat-b' }], nextAfterId: b.endpoint.id, hasMore: true })
-    expect(listAgentPeers(a.ctx, { afterId: b.endpoint.id, limit: 1 }).peers).toEqual([{ endpointId: c.endpoint.id, name: 'Chat chat-c' }])
+    expect(first).toEqual({ peers: [{ endpointId: b.endpoint.id, name: 'Chat chat-b', epicId: null, role: null }], nextAfterId: b.endpoint.id, hasMore: true })
+    expect(listAgentPeers(a.ctx, { afterId: b.endpoint.id, limit: 1 }).peers).toEqual([
+      { endpointId: c.endpoint.id, name: 'Chat chat-c', epicId: null, role: null }
+    ])
+  })
+})
+
+const E = 'ep_epic0000000000000000000000e'
+const F = 'ep_epic0000000000000000000000f'
+
+/** A chat the desktop provisioned with its chat record's epic and role, bound to a grant of `role`. */
+function epicChat(desktop: TestCtx, chatId: string, role: 'planner' | 'orchestrator' | 'worker', epicId: string | null): Chat {
+  const endpoint = provisionAgentMailEndpoint(desktop, { chatId, name: `Chat ${chatId}`, epicId, chatRole: role })
+  const { ctx, grantId } = grantedSession(desktop, role)
+  bindAgentMailEndpoint(desktop, { endpointId: endpoint.id, grantId })
+  return { ctx, endpoint, grantId }
+}
+
+/** Epic E's Lexmechanic and Magos, a planner bound to no epic, and epic F's planner. */
+function epicWorld() {
+  const desktop = desktopCtx()
+  return {
+    desktop,
+    planner: epicChat(desktop, 'lexmechanic', 'planner', E),
+    magos: epicChat(desktop, 'magos', 'orchestrator', E),
+    unbound: epicChat(desktop, 'loose', 'planner', null),
+    otherPlanner: epicChat(desktop, 'other-lexmechanic', 'planner', F)
+  }
+}
+
+describe('trusted epic and role of peers: listing and filters', () => {
+  it("lists the epic's planner for {epicId: E, role: 'planner'}, and nothing else", () => {
+    const { magos, planner } = epicWorld()
+    expect(listAgentPeers(magos.ctx, { epicId: E, role: 'planner' })).toEqual({
+      peers: [{ endpointId: planner.endpoint.id, name: 'Chat lexmechanic', epicId: E, role: 'planner' }],
+      nextAfterId: planner.endpoint.id,
+      hasMore: false
+    })
+  })
+
+  it('filters by epic alone and by role alone; a peer with no recorded value never matches', () => {
+    const { magos, planner, unbound, otherPlanner } = epicWorld()
+    expect(listAgentPeers(planner.ctx, { epicId: E }).peers).toEqual([
+      { endpointId: magos.endpoint.id, name: 'Chat magos', epicId: E, role: 'orchestrator' }
+    ])
+    const planners = listAgentPeers(magos.ctx, { role: 'planner' }).peers.map((peer) => peer.endpointId)
+    expect(planners.sort()).toEqual([planner.endpoint.id, unbound.endpoint.id, otherPlanner.endpoint.id].sort())
+    expect(listAgentPeers(magos.ctx, { epicId: F, role: 'orchestrator' }).peers).toEqual([])
+    expect(listAgentPeers(magos.ctx, { epicId: 'ep_missing00000000000000000000' }).peers).toEqual([])
+  })
+
+  it('pages through filtered peers with afterId', () => {
+    const { magos, planner, unbound, otherPlanner } = epicWorld()
+    const ids = [planner.endpoint.id, unbound.endpoint.id, otherPlanner.endpoint.id].sort()
+    const first = listAgentPeers(magos.ctx, { role: 'planner', limit: 2 })
+    expect(first.peers.map((peer) => peer.endpointId)).toEqual(ids.slice(0, 2))
+    expect(first.hasMore).toBe(true)
+    const second = listAgentPeers(magos.ctx, { role: 'planner', limit: 2, afterId: first.nextAfterId ?? '' })
+    expect(second.peers.map((peer) => peer.endpointId)).toEqual(ids.slice(2))
+    expect(second.hasMore).toBe(false)
+  })
+})
+
+describe('trusted epic and role of peers: only main sets them', () => {
+  it('a rename changes the name, never the epic or role; only main refreshes them, from the chat record', () => {
+    const { desktop, magos, planner } = epicWorld()
+    expect(renameAgentMailEndpoint(desktop, { endpointId: planner.endpoint.id, name: 'Renamed' })).toMatchObject({
+      name: 'Renamed',
+      epicId: E,
+      chatRole: 'planner'
+    })
+    expect(listAgentPeers(magos.ctx, { epicId: E, role: 'planner' }).peers).toEqual([
+      { endpointId: planner.endpoint.id, name: 'Renamed', epicId: E, role: 'planner' }
+    ])
+    // Provisioning the same chat again (a binding or a listing) records the chat record's values.
+    expect(provisionAgentMailEndpoint(desktop, { chatId: 'lexmechanic', name: 'Renamed', epicId: F, chatRole: 'planner' })).toMatchObject({
+      id: planner.endpoint.id,
+      epicId: F
+    })
+    expect(listAgentPeers(magos.ctx, { epicId: E, role: 'planner' }).peers).toEqual([])
+  })
+
+  it('the caller cannot set them: only the desktop provisions or renames, and a grant role never becomes the chat role', () => {
+    const { desktop, magos, planner } = epicWorld()
+    expect(domainErrorOf(() => provisionAgentMailEndpoint(magos.ctx, { chatId: 'magos', name: 'x', epicId: F, chatRole: 'planner' })).code).toBe('unauthorized')
+    expect(domainErrorOf(() => renameAgentMailEndpoint(magos.ctx, { endpointId: magos.endpoint.id, name: 'x', epicId: F, chatRole: 'planner' })).code).toBe(
+      'unauthorized'
+    )
+    expect(listAgentPeers(planner.ctx, { epicId: E }).peers).toEqual([
+      { endpointId: magos.endpoint.id, name: 'Chat magos', epicId: E, role: 'orchestrator' }
+    ])
+    // A chat provisioned without a record's role lists none, whatever role its grant carries.
+    const bare = boundChat(desktop, 'bare', 'orchestrator')
+    expect(listAgentPeers(magos.ctx).peers).toContainEqual({ endpointId: bare.endpoint.id, name: 'Chat bare', epicId: null, role: null })
+    expect(domainErrorOf(() => provisionAgentMailEndpoint(desktop, { chatId: 'odd', name: 'x', chatRole: 'desktop' as never })).code).toBe('invalid_input')
   })
 })
 

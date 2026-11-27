@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { agentChatEventSchema } from '../../shared/agents/agentChat'
+import { agentChatEventSchema, type AgentChatAnswer } from '../../shared/agents/agentChat'
 import type { ChatItem } from '../../shared/agents/chat'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpCommand, type OmpEvent } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
@@ -74,6 +74,10 @@ const scenarios: Record<string, ChatItem[]> = {
     { kind: 'approval_decision', id: 'omp:decision:ui_T1_question', at, requestId: 'ui_T1_question', decision: 'allow_once', decidedBy: 'person' },
     textItem('SQLite')
   ],
+  question_multi: ['', ':1'].flatMap((suffix, index) => [
+    { kind: 'approval_request', id: `omp:approval:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, category: 'other', tool: 'ask', summary: ['Which databases?', 'Which region?'][index] } as ChatItem,
+    { kind: 'approval_decision', id: `omp:decision:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, decision: 'allow_once', decidedBy: 'person' } as ChatItem
+  ]).concat(textItem('answers: [{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]')),
   error: [{ kind: 'error', id: 'omp:error:1', at, message: 'Fixture provider failure' }],
   interrupt: [textItem('Partial'), { kind: 'turn_stopped', id: 'omp:stopped:1', at }],
   queued: [textItem('Hello world')],
@@ -96,6 +100,11 @@ function encodeFixtureResponse(h: { send(command: OmpCommand): string[] }, next?
   if (next?.type === 'follow_up') return h.send({ type: 'send', id: String(next.id), text: String(next.message) })
   return []
 }
+/** The person's answers to a golden's prompt: the multi golden answers two questions, the first with several options. */
+function fixtureAnswers(name: string, promptId: string): AgentChatAnswer[] {
+  if (name === 'question_multi') return [{ promptId, optionIds: ['option_0', 'option_1'] }, { promptId: `${promptId}:1`, optionId: 'option_0' }]
+  return [{ promptId, optionId: name === 'approval' ? 'allow_once' : name === 'approval_chat' ? 'allow_chat' : 'option_0' }]
+}
 function replayGolden(name: string) {
   const h = initialized()
   const input = lines(name, 'in')
@@ -106,11 +115,7 @@ function replayGolden(name: string) {
     const frame = JSON.parse(line) as Record<string, unknown>
     if (frame.type === 'response') encoded.push(...encodeFixtureResponse(h, remaining.find(value => value.id === frame.id)))
     h.feed(line)
-    if (frame.type === 'extension_ui_request') {
-      const pending = h.state.pending[0].prompt
-      const optionId = name === 'approval' ? 'allow_once' : name === 'approval_chat' ? 'allow_chat' : 'option_0'
-      encoded.push(...h.send({ type: 'answer', id: pending.id, promptId: pending.id, optionId }))
-    }
+    if (frame.type === 'extension_ui_request') for (const answer of fixtureAnswers(name, h.state.pending[0].prompt.id)) encoded.push(...h.send({ type: 'answer', id: answer.promptId, ...answer }))
   }
   return { h, input, first, encoded }
 }
@@ -137,9 +142,10 @@ describe('OMP golden protocol', () => {
     const { h, input, first, encoded } = replayGolden(name)
     expect(encoded).toEqual(input)
     expect(h.items().filter(item => item.kind !== 'user_message')).toEqual(expected)
-    if (name === 'question') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
+    if (name === 'question' || name === 'question_multi') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
       { kind: 'user_message', id: first.id, at, text: first.message },
-      { kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }
+      ...(name === 'question' ? [{ kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }]
+        : [{ kind: 'user_message', id: 'omp:answer:ui_T1_question_multi', at, text: 'SQLite, Postgres' }, { kind: 'user_message', id: 'omp:answer:ui_T1_question_multi:1', at, text: 'EU' }])
     ])
     else expect(h.items().filter(item => item.kind === 'user_message')).toEqual([{ kind: 'user_message', id: first.id, at, text: first.message }, ...(name === 'queued' ? [{ kind: 'user_message', id: 'req_T1_followup', at, text: 'Second turn' }] : [])])
     expect(h.state.skipped).toBe(0)
@@ -292,13 +298,29 @@ describe('OMP amended edge contracts', () => {
       { kind: 'choice', name: 'letters', question: 'Letters?', multi: true, options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C', disabled: true }] }
     ] }] } })
     expect(h.send({ type: 'answer', id: 'one', promptId: 'form', optionId: 'text', text: '3' })).toEqual([])
-    expect(h.state.pending[0].prompt.options).toEqual([{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }, { id: 'text', label: 'Other' }])
-    expect(h.send({ type: 'answer', id: 'two', promptId: 'form:1', optionId: 'text', text: '["a","b"]' })).toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b"]}}'])
+    expect(h.state.pending[0].prompt).toMatchObject({ options: [{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }, { id: 'text', label: 'Other' }], multi: true, progress: { index: 2, total: 2 } })
+    expect(h.send({ type: 'answer', id: 'two', promptId: 'form:1', optionIds: ['option_1', 'option_0', 'text'], text: 'z' })).toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b","z"]}}'])
   })
-  it('collects multiple ask selections without flattening them into custom text', () => {
+  it('answers a multi ask with selectedOptions in option order and refuses unknown, repeated or text-less ids', () => {
     const h = initialized()
-    h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [{ id: 'q', question: 'Choose', multi: true, options: [{ label: 'A' }, { label: 'B' }] }] })
-    expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionId: 'text', text: '["A","B"]' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","B"]}]}'])
+    h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [
+      { id: 'q', question: 'Choose', multi: true, options: ['A', 'B', 'C', 'D'].map(label => ({ label, description: `Letter ${label}` })) },
+      { id: 'r', question: 'One', options: [{ label: 'X' }, { label: 'Y' }] }
+    ] })
+    expect(h.state.pending[0].prompt).toMatchObject({ multi: true, progress: { index: 1, total: 2 }, options: [{ id: 'option_0', label: 'A', description: 'Letter A' }, { id: 'option_1' }, { id: 'option_2' }, { id: 'option_3' }, { id: 'text' }] })
+    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0'], ['option_0', 'text']]) {
+      expect(h.send({ type: 'answer', id: 'bad', promptId: 'ask', optionIds })).toEqual([])
+      expect(h.state.pending[0].prompt.id).toBe('ask')
+    }
+    // A JSON list typed as free text is free text now, never a hidden selection.
+    const typed = encodeOmpCommand({ type: 'answer', id: 't', promptId: 'ask', optionId: 'text', text: '["A","B"]' }, h.state, at).state
+    expect(typed.pending[0].answers).toEqual([{ id: 'q', selectedOptions: [], customInput: '["A","B"]' }])
+    expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionIds: ['option_2', 'option_0'] })).toEqual([])
+    expect(h.items().filter(item => item.kind === 'user_message').at(-1)).toMatchObject({ text: 'A, C' })
+    expect(h.state.pending[0].prompt).toMatchObject({ id: 'ask:1', multi: false, progress: { index: 2, total: 2 } })
+    expect(h.send({ type: 'answer', id: 'b', promptId: 'ask:1', optionIds: ['option_0', 'option_1'] })).toEqual([])
+    expect(h.state.pending[0].prompt.id).toBe('ask:1')
+    expect(h.send({ type: 'answer', id: 'c', promptId: 'ask:1', optionId: 'option_1' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","C"]},{"id":"r","selectedOptions":["Y"]}]}'])
   })
   it('scopes successful todo execution through observed tail correlation and retains prior todos on invalid replacements', () => {
     const h = initialized()

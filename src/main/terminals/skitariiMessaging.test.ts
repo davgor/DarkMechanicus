@@ -71,7 +71,7 @@ const hostileBody = ${JSON.stringify(HOSTILE_BODY)}
 const meta = { id: 'mm_1', seq: 1, from: { endpointId: 'me_peer', name: hostileName, deleted: false }, inReplyTo: null, bodyBytes: 10, acceptedAt: '2026-11-15T10:00:00.000Z', acknowledgedAt: null, expiresAt: null }
 const answers = {
   get_agent_identity: { endpointId: 'me_self', name: 'Self', role: 'worker', boundAt: '2026-11-15T09:00:00.000Z' },
-  list_agent_peers: { peers: [{ endpointId: 'me_peer', name: hostileName }], nextAfterId: 'me_peer', hasMore: false },
+  list_agent_peers: { peers: [{ endpointId: 'me_peer', name: hostileName, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false },
   send_agent_message: { messageId: 'mm_9', to: input.to, clientMessageId: input.clientMessageId, inReplyTo: input.inReplyTo ?? null, acceptedAt: '2026-11-15T10:01:00.000Z', duplicate: false },
   read_agent_inbox: input.throughSeq === 0
     ? { messages: [], snapshotHighWater: 0, nextCursor: input.afterSeq ?? 0, hasMore: false }
@@ -427,7 +427,7 @@ describe('Skitarii mail tools: results and refusals', () => {
     for (const result of [peers, read]) {
       expect(textOf(result)).not.toMatch(RAW_CONTROL)
     }
-    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME }], nextAfterId: 'me_peer', hasMore: false })
+    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false })
     const page = dataOf(read) as { messages: DmMailMessage[] }
     expect(page.messages[0]!.body).toBe(HOSTILE_BODY)
     expect(textOf(read)).toContain('\\u001b]52;c;')
@@ -452,6 +452,7 @@ describe('Skitarii mail tools: results and refusals', () => {
       await send.execute('c', { to: 'me_peer', body: 'hi', clientMessageId: '-starts-with-dash' }),
       await send.execute('c', ['to']),
       await tools.get('dm_agent_identity')!.execute('c', { endpointId: 'me_other' }),
+      await tools.get('dm_agent_peers')!.execute('c', { role: 'desktop' }),
       await tools.get('dm_agent_peers')!.execute('c', { limit: 51 }),
       await tools.get('dm_inbox_read')!.execute('c', { afterSeq: -1 }),
       await tools.get('dm_inbox_read')!.execute('c', { unacknowledgedOnly: 'yes' }),
@@ -464,6 +465,18 @@ describe('Skitarii mail tools: results and refusals', () => {
     }
     expect(deps.children).toEqual([])
     expect(fixtureCalls()).toEqual([])
+  })
+})
+
+describe('Skitarii mail tools: peer filters', () => {
+  it('passes the epicId and role filters of dm_agent_peers to the CLI and refuses a role no chat runs as', async () => {
+    const tools = toolsOver(createDmClient(realDeps()))
+    const peers = await tools.get('dm_agent_peers')!.execute('c', { epicId: 'ep_e', role: 'planner' })
+    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false })
+    expect(fixtureCalls()).toEqual([{ command: 'list_agent_peers', input: { epicId: 'ep_e', role: 'planner' } }])
+    expect((await tools.get('dm_agent_peers')!.execute('c', { role: 'captain' })).isError).toBe(true)
+    expect((await tools.get('dm_agent_peers')!.execute('c', { epicId: 'ep e' })).isError).toBe(true)
+    expect(fixtureCalls()).toHaveLength(1)
   })
 })
 

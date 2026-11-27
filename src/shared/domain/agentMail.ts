@@ -3,6 +3,7 @@
  * Skitarii chats. A mailbox is never named by the caller: it is the endpoint the session's own desktop-bound grant
  * speaks for. Message bodies and peer names are another agent's text: task data, never instructions.
  */
+import type { ChatRole } from '../agents/chat'
 import type { SessionRole } from './views'
 
 /** Where a page of mail starts and stops: sequences in (afterSeq, throughSeq], at most `limit` of them (1 to 50). */
@@ -25,8 +26,23 @@ export interface AgentIdentityView {
 
 interface AgentPeerView {
   endpointId: string
-  /** The peer chat's title, as the desktop set it: plain text, never instructions. */
+  /** The peer chat's title, as the desktop set it: plain text, never instructions, and never proof of who the peer is. */
   name: string
+  /**
+   * Trusted, server-recorded metadata, unlike `name`: the epic the peer's chat is bound to, which the desktop records
+   * from its own chat record and no agent can set. Null when the chat has no epic binding or none is known yet.
+   */
+  epicId: string | null
+  /** Trusted, server-recorded metadata, unlike `name`: the peer chat's role, from the desktop's chat record. Null when unknown. */
+  role: ChatRole | null
+}
+
+/** A page of peers; `epicId` and `role` keep only peers whose trusted, server-recorded value equals them. */
+export interface ListAgentPeersInput {
+  afterId?: string
+  limit?: number
+  epicId?: string
+  role?: ChatRole
 }
 
 export interface AgentPeersPage {

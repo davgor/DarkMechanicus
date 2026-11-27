@@ -11,6 +11,7 @@ import { FakeBackend } from './__mocks__/fakeBackend'
 import { fakeOrchestration } from './__mocks__/fakeOrchestration'
 import { folder, runView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
+import { relayMessage } from './epicAgentsView'
 import { allowSlowRendering } from './__mocks__/testTiming'
 
 allowSlowRendering()
@@ -84,7 +85,14 @@ describe('EpicAgentPanel: chat and tree', () => {
     const view = within(stage).getByRole('region', { name: 'Acolyte:DM-201 thread' })
     expect(within(view).getByText('Worker is editing files')).toBeTruthy()
     expect(within(view).queryByText('Starting the sprint now')).toBeNull()
-    expect(within(view).getByText('Your message goes through Magos, which passes it to this worker.')).toBeTruthy()
+    const relay = within(view).getByRole('textbox', { name: 'Message Acolyte:DM-201' })
+    expect(relay.getAttribute('placeholder')).toBe('Message Acolyte:DM-201 (through Magos)…')
+    expect(document.getElementById(relay.getAttribute('aria-describedby') ?? '')?.textContent)
+      .toBe('Your message goes through Magos, which passes it to this worker. Enter to send · Shift+Enter for a new line')
+    expect(relay.getAttribute('maxlength')).toBe('18000')
+    expect(within(view).getByLabelText('Agent: Acolyte:DM-201')).toBeTruthy()
+    expect(within(view).getByLabelText('Context: Planning vertical slice')).toBeTruthy()
+    expect(within(view).queryByText(/which passes it to this worker/, { selector: ':not(.sr-only)' })).toBeNull()
   })
 
   it('relays to the owning chat with the exact marker and never the label', async () => {
@@ -92,7 +100,8 @@ describe('EpicAgentPanel: chat and tree', () => {
     openAgent(backend, [orchestrator])
     const stage = await agentStage()
     fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
-    fireEvent.change(within(stage).getByLabelText('Message Acolyte:DM-201'), { target: { value: 'Please rebase first' } })
+    const relay = within(stage).getByLabelText('Message Acolyte:DM-201')
+    fireEvent.change(relay, { target: { value: 'Please rebase first' } })
     fireEvent.click(within(stage).getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(backend.agentChat.callsOf('send')).toHaveLength(1))
     const [[request]] = backend.agentChat.callsOf('send') as [[{ folder: string; chatId: string; text: string }]]
@@ -103,6 +112,32 @@ describe('EpicAgentPanel: chat and tree', () => {
     })
     expect(request.text).not.toContain('Fix ]')
     expect(request.text).not.toContain(LABEL)
+    await waitFor(() => expect(relay).toHaveProperty('value', ''))
+  })
+})
+
+describe('EpicAgentPanel: shared composer', () => {
+  it('sends Enter from the relay composer as relayMessage(threadId, text) to the owning GUI chat', async () => {
+    const backend = backendWith()
+    openAgent(backend, [orchestrator])
+    const stage = await agentStage()
+    fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
+    const relay = within(stage).getByRole('textbox', { name: 'Message Acolyte:DM-201' })
+    fireEvent.change(relay, { target: { value: 'check the tests' } })
+    fireEvent.keyDown(relay, { key: 'Enter' })
+    await waitFor(() => expect(backend.agentChat.callsOf('send')).toHaveLength(1))
+    expect(backend.agentChat.callsOf('send')).toEqual([[{ folder: FOLDER, chatId: 'chat_orch', text: relayMessage('th_1', 'check the tests') }]])
+  })
+
+  it('mounts the shared composer for the epic chat with the agent and epic chips', async () => {
+    openAgent(backendWith(), [orchestrator])
+    const stage = await agentStage()
+    const chat = within(stage).getByRole('region', { name: 'Magos chat' })
+    await within(chat).findByText('Starting the sprint now')
+    const input = within(chat).getByRole('textbox', { name: 'Message Magos' })
+    expect(input.getAttribute('placeholder')).toBe('Reply to Magos…')
+    expect(within(chat).getByLabelText(/^Agent: Magos · \S/)).toBeTruthy()
+    expect(within(chat).getByLabelText('Context: Planning vertical slice')).toBeTruthy()
   })
 })
 

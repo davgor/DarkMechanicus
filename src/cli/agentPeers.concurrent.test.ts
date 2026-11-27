@@ -45,7 +45,7 @@ async function fixture(mode: 'repo' | 'db' = 'repo') {
   bindAgentMailEndpoint(desktop.ctx(), { endpointId: endpoint.id, grantId: grant.id })
   const peers = Array.from({ length: 51 }, (_, index) => {
     const peer = provisionAgentMailEndpoint(desktop.ctx(), { chatId: `peer-${index}`, name: `Peer ${index}` })
-    return { endpointId: peer.id, name: peer.name }
+    return { endpointId: peer.id, name: peer.name, epicId: null, role: null }
   }).sort((a, b) => a.endpointId.localeCompare(b.endpointId))
   const cli = join(harness.homeDir, 'cli.js')
   await build({
