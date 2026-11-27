@@ -1,11 +1,13 @@
 /**
  * Fail when ts-prune reports new unused exports not listed in .tsprune-ignore.
- * Scans tsconfig.node.json (main/preload) and tsconfig.web.json (renderer).
+ * Scans tsconfig.node.json (main/preload) and tsconfig.web.json (renderer). Both include src/shared, so an export is
+ * dead only when every project that includes its file reports it: one the renderer never imports may be used by main.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IGNORE_PATH = join(ROOT, '.tsprune-ignore')
@@ -55,6 +57,43 @@ export function findNewDeadExports(lines, ignore) {
   return lines.filter((line) => !ignore.has(baselineKey(line)))
 }
 
+/**
+ * The files a tsconfig project includes, from the TypeScript API, as paths relative to `root` with forward slashes
+ * (the form ts-prune reports).
+ * @param {string} project
+ * @param {string} [root]
+ */
+export function projectFiles(project, root = ROOT) {
+  const host = {
+    ...ts.sys,
+    onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+      throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+    }
+  }
+  const parsed = ts.getParsedCommandLineOfConfigFile(join(root, project), {}, host)
+  if (parsed === undefined) throw new Error(`Cannot read ${project}.`)
+  return new Set(parsed.fileNames.map((file) => relative(root, file).split('\\').join('/')))
+}
+
+/**
+ * The exports dead in every project that includes their file, one line each (as the first project reporting it wrote it).
+ * An export one project reports and another project including the same file does not is used there.
+ * @param {{ lines: string[], files: Set<string> }[]} reports normalized ts-prune lines and included files, per project
+ */
+export function deadInEveryProject(reports) {
+  const reported = reports.map(({ lines }) => new Set(lines.map(baselineKey)))
+  const dead = new Map()
+  reports.forEach(({ lines }, index) => {
+    for (const line of lines) {
+      const key = baselineKey(line)
+      const file = key.slice(0, key.indexOf(' - '))
+      const everywhere = reports.every(({ files }, other) => other === index || !files.has(file) || reported[other].has(key))
+      if (everywhere && !dead.has(key)) dead.set(key, line)
+    }
+  })
+  return [...dead.values()]
+}
+
 /** @param {string} project */
 function runTsPrune(project) {
   const result = spawnSync('npx', ['ts-prune', '--project', project], {
@@ -75,9 +114,13 @@ function runTsPrune(project) {
     .filter(Boolean)
 }
 
+/** The exports ts-prune finds dead in every scanned project that includes their file. */
+export function collectDeadExports() {
+  return deadInEveryProject(PROJECTS.map((project) => ({ lines: runTsPrune(project), files: projectFiles(project) })))
+}
+
 function main() {
-  const ignore = readIgnoreSet(IGNORE_PATH)
-  const findings = PROJECTS.flatMap((project) => findNewDeadExports(runTsPrune(project), ignore))
+  const findings = findNewDeadExports(collectDeadExports(), readIgnoreSet(IGNORE_PATH))
 
   if (findings.length > 0) {
     console.error('New dead exports detected:')
