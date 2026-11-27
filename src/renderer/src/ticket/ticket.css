@@ -619,6 +619,20 @@
   color: var(--ink);
 }
 
+.tp-delivery .tp-check-field:has(input:disabled),
+.tp-delivery .tp-input:disabled {
+  color: var(--ink-soft);
+}
+
+.tp-delivery-nested {
+  padding-left: 24px;
+}
+
+.tp-delivery-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .tp-criteria-edit {
   margin: 0;
   padding: 0;

@@ -1,6 +1,7 @@
 import '../epic/tones.css'
 import './ticket.css'
 import { useCallback, useEffect, useState } from 'react'
+import { isAcceptanceTicket } from '../../../core/plan/acceptance'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle, TicketBudget } from '../../../shared/domain/bundle'
 import type { SetTicketBudgetResultView } from '../../../shared/domain/scoreReads'
@@ -11,6 +12,7 @@ import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
 import type { TicketBadge } from '../graph/graphModel'
 import { BudgetFields } from './BudgetFields'
+import { DeliveryFields } from './DeliveryFields'
 import { BasicFields, CapabilityFields, CriteriaFields, DetailFields, ImageFields, PrerequisiteFields } from './editorFields'
 import { ProfileBar } from './ProfileBar'
 import {
@@ -160,7 +162,8 @@ function EditorHead(props: { ticketKey: string; badge: TicketBadge; onClose(): v
 export function TicketEditor(props: TicketEditorProps): JSX.Element {
   const editor = useEditor(props)
   const form = editor.state.form
-  const ticketKey = props.bundle.tickets.find((item) => item.id === props.ticketId)?.key ?? props.ticketId
+  const ticket = props.bundle.tickets.find((item) => item.id === props.ticketId)
+  const ticketKey = ticket?.key ?? props.ticketId
   if (form === null) {
     return (
       <aside className="tp" aria-label={`Edit ticket ${ticketKey}`}>
@@ -169,12 +172,18 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
       </aside>
     )
   }
+  // The sprint whose delivery an acceptance node edits; a work ticket has none.
+  const sprint = ticket !== undefined && isAcceptanceTicket(ticket) ? props.bundle.sprints.find((item) => item.ticketIds.includes(props.ticketId)) : undefined
   return (
     <aside className="tp tp-editor" aria-label={`Edit ticket ${ticketKey}`}>
       <EditorHead ticketKey={ticketKey} badge={props.badge} onClose={props.onClose} />
       <div className="tp-body tp-form">
         <BasicFields form={form} update={editor.update} />
         <CriteriaFields form={form} update={editor.update} />
+        {sprint === undefined ? null : (
+          // Keyed on the draft's delivery, so a reloaded draft starts the form again from what it declares.
+          <DeliveryFields key={`${sprint.id}:${JSON.stringify(sprint.delivery ?? null)}`} sprint={sprint} busy={props.busy} applyOps={props.applyOps} />
+        )}
         <ImageFields form={form} update={editor.update} runner={props.runner} folderKey={props.folderKey} />
         <DetailFields form={form} update={editor.update} bundle={props.bundle} repositories={props.repositories} />
         <BudgetFields
@@ -183,7 +192,7 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
           ticketId={props.ticketId}
           runId={props.runId}
           runEnded={props.runEnded}
-          draftBudget={props.bundle.tickets.find((item) => item.id === props.ticketId)?.budget}
+          draftBudget={ticket?.budget}
           draftRevision={props.draftRevision}
           busy={props.busy}
           setBudget={props.setBudget}
