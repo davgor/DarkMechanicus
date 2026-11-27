@@ -73,6 +73,15 @@ describe('bubbles in a crowded room', () => {
     }
     expect(placed.length).toBeLessThan(25)
   })
+
+  it('breaks a tie of priority, head height and position by id, whatever the input order', () => {
+    const [first, second] = layoutBubbles([input({ id: 'm2' }), input({ id: 'm1' })], ROOM_WIDTH)
+    const [alone] = layoutBubbles([input({ id: 'm1' })], ROOM_WIDTH)
+    expect([first!.id, second!.id]).toEqual(['m1', 'm2'])
+    expect(first!.top).toBe(alone!.top)
+    expect(second!.top).toBeLessThan(first!.top - first!.height)
+    expect(layoutBubbles([input({ id: 'm1' }), input({ id: 'm2' })], ROOM_WIDTH)).toEqual([first, second])
+  })
 })
 
 describe('name plates in a crowded room', () => {

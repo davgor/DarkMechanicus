@@ -193,3 +193,41 @@ describe('CultsSection menu', () => {
     expect(screen.getByRole('dialog', { name: 'Found a cult' })).toBeTruthy()
   })
 })
+
+describe('CultsSection sparse members and refusals', () => {
+  it('shows a Magos and an acolyte without a model, and only acolytes when no Magos is live', async () => {
+    cults.cults = [cultView(), cultView({ id: 'cult_2', name: 'Lone Acolytes' })]
+    cults.runsByCult = {
+      cult_1: [runDetail({}, [memberDetail({ model: null }), memberDetail({ chatId: 'chat_a', role: 'acolyte', displayName: 'Acolyte Bare-1', model: null, tier: null })])],
+      cult_2: [runDetail({ id: 'run_2', cultId: 'cult_2' }, [
+        memberDetail({ leftAt: '2026-11-27T12:05:00.000Z', state: 'dismissed' }),
+        memberDetail({ chatId: 'chat_z', role: 'acolyte', displayName: 'Acolyte Solo-5' })
+      ])]
+    }
+    await renderSection()
+    fireEvent.click(screen.getByRole('button', { name: 'Runs of Shrine Builders' }))
+    const members = within(screen.getAllByRole('list', { name: 'Members' })[0]!)
+    expect(members.getByRole('button', { name: /^Magos Vettius/ }).querySelector('.cult-member-meta')?.textContent).toBe('Magos')
+    expect(members.getByText('Acolyte Bare-1').closest('button')?.querySelector('.mono')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Runs of Lone Acolytes' }))
+    const lone = within(screen.getAllByRole('list', { name: 'Members' })[1]!)
+    expect(lone.getAllByRole('listitem').map((item) => item.querySelector('.cult-member-name')?.textContent)).toEqual(['Acolyte Solo-5'])
+  })
+
+  it('reads a past run with no end reason as ended', async () => {
+    cults.cults = [cultView()]
+    cults.runsByCult = { cult_1: [runDetail({ state: 'ended', endReason: null, startedAt: '2026-11-25T09:00:00.000Z' })] }
+    await renderSection()
+    fireEvent.click(screen.getByRole('button', { name: 'Runs of Shrine Builders' }))
+    fireEvent.click(screen.getByRole('button', { name: /Past runs \(1\)/ }))
+    const [item] = within(screen.getByRole('list', { name: 'Past runs' })).getAllByRole('listitem')
+    expect(item!.textContent).toBe(`${new Date('2026-11-25T09:00:00.000Z').toLocaleString()}ended`)
+  })
+
+  it('says why the cults could not be loaded', async () => {
+    cults.list = () => Promise.resolve({ ok: false, error: { code: 'internal', message: 'Cult store unreadable.' } })
+    await renderSection()
+    expect(screen.getByText('Could not load cults: Cult store unreadable.')).toBeTruthy()
+  })
+})

@@ -79,7 +79,7 @@ function RunControls({ run, refuse }: { run: CultRunDetail; refuse(message: stri
       {controls.pause ? <Button size="sm" icon="pause" onClick={() => void attempt(window.dm.cults.pause(id), refuse)}>Pause</Button> : null}
       {controls.resume ? <Button size="sm" variant="primary" onClick={() => void attempt(window.dm.cults.resume(id), refuse)}>Resume</Button> : null}
       {controls.stop ? <Button size="sm" onClick={() => setConfirming('stop')}>Stop</Button> : null}
-      {controls.kill ? <Button size="sm" variant="danger" onClick={() => setConfirming('kill')}>Kill now</Button> : null}
+      <Button size="sm" variant="danger" onClick={() => setConfirming('kill')}>Kill now</Button>
       {confirming === null ? null : <ConfirmEnd kind={confirming} run={run} refuse={refuse} onClose={() => setConfirming(null)} />}
     </>
   )
@@ -187,10 +187,9 @@ function StartControls({ cult, onStarted, refuse }: { cult: CultView; onStarted(
   const [busy, setBusy] = useState(false)
   const parsed = parseOverrides(form)
   const change = (patch: Partial<Overrides>): void => setForm((previous) => ({ ...previous, ...patch }))
-  const start = async (): Promise<void> => {
-    if (!parsed.ok) return
+  const start = async (overrides: Parameters<typeof window.dm.cults.start>[1]): Promise<void> => {
     setBusy(true)
-    const started = await attempt(window.dm.cults.start(cult.id, parsed.overrides), refuse)
+    const started = await attempt(window.dm.cults.start(cult.id, overrides), refuse)
     setBusy(false)
     if (started) onStarted()
   }
@@ -201,7 +200,7 @@ function StartControls({ cult, onStarted, refuse }: { cult: CultView; onStarted(
         <OverrideFields form={form} change={change} />
         {parsed.ok ? null : <p className="field-error" role="alert">{parsed.error}</p>}
       </details>
-      <Button size="sm" variant="primary" busy={busy} disabled={!parsed.ok} onClick={() => void start()}>Start</Button>
+      <Button size="sm" variant="primary" busy={busy} disabled={!parsed.ok} onClick={parsed.ok ? () => void start(parsed.overrides) : undefined}>Start</Button>
     </>
   )
 }

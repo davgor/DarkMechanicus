@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  advanceEffects, createPacket, createRing, createSparks, PACKET_MAX_MS, PACKET_MIN_MS, packetDuration,
+  advanceEffects, createPacket, createRing, createSparks, drawRandom, PACKET_MAX_MS, PACKET_MIN_MS, packetDuration,
   packetPoint, RING_MS, ringRadius, type ChamberEffect
 } from './effects'
 import { chamberLayout } from './layout'
@@ -79,5 +79,22 @@ describe('sparks', () => {
     expect(seedA).toBe(seedB)
     expect(first.sparks).toHaveLength(8)
     expect(advanceEffects([first], first.duration).effects).toEqual([])
+  })
+})
+
+describe('degenerate input', () => {
+  it('draws from a zero seed as from the fallback seed, never sticking at zero', () => {
+    expect(drawRandom(0)).toEqual(drawRandom(0x6d2b79f5))
+    expect(drawRandom(0)[1]).not.toBe(0)
+  })
+
+  it('gives packets in an unsized room the minimum flight, and a zero-length packet sits at its target', () => {
+    const empty = chamberLayout({ width: 0, height: 0 }, PROPS, 1)
+    expect(packetDuration({ x: 0, y: 0 }, { x: 300, y: 200 }, empty)).toBe(PACKET_MIN_MS)
+    const packet = createPacket(1, { purpose: 'mail', from: 'a', to: 'b',
+      fromPoint: { x: 10, y: 20 }, toPoint: { x: 90, y: 40 } }, layout)
+    const point = packetPoint({ ...packet, duration: 0 })
+    expect(point.x).toBe(90)
+    expect(point.y).toBeCloseTo(40, 9)
   })
 })

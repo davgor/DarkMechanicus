@@ -134,7 +134,52 @@ describe('CultChamber scene', () => {
     expect(view.query('.cc-conduit')).not.toBeNull()
     expect(view.all('[data-effect]')).toHaveLength(0)
   })
+})
 
+describe('CultChamber scene: degenerate art, unlisted members and the dark room', () => {
+  it('scales a backdrop whose floor line is its bottom edge by width and floor only', () => {
+    const layout = chamberLayout(ROOM, CHAMBER_PROPS, MEMBERS.length)
+    const rect = backdropRect(layout, { width: 1000, height: 400, floorY: 400 })
+    const scale = Math.max(ROOM.width / 1000, layout.floorY / 400)
+    expect(rect).toEqual({ x: (ROOM.width - 1000 * scale) / 2, y: layout.floorY - 400 * scale,
+      width: 1000 * scale, height: 400 * scale })
+    expect(rect.y + rect.height).toBeCloseTo(layout.floorY, 6)
+  })
+
+  it('names and tints an acolyte that has no roster entry by its id and the default hue', () => {
+    const events: ChamberEvent[] = [...JOIN, { type: 'memberJoined', id: 'ghost', present: true },
+      { type: 'bubble', id: 'ghost', text: 'Unlisted' }]
+    const view = mount({ events })
+    tick(0)
+    const ghost = view.query('[data-member-id="ghost"]')
+    expect(ghost.style.getPropertyValue('--member-hue')).toBe('0deg')
+    expect(ghost.querySelector('.cc-nameplate')!.textContent).toBe('ghost')
+    const bubble = view.query('.cc-bubble[data-speaker="ghost"]')
+    expect(bubble.textContent).toBe('Unlisted')
+    expect(bubble.style.getPropertyValue('--bubble-color')).toBe('hsl(0 70% 58%)')
+  })
+
+  it('draws the Magos bubble in brass over the helm, ahead of acolyte bubbles', () => {
+    const view = mount({ events: [...JOIN, { type: 'bubble', id: 'magos', text: 'Obey.' }] })
+    tick(0)
+    const layout = chamberLayout(ROOM, CHAMBER_PROPS, MEMBERS.length)
+    const bubble = view.query('.cc-bubble[data-speaker="magos"]')
+    expect(bubble.textContent).toBe('Obey.')
+    expect(bubble.style.getPropertyValue('--bubble-color')).toBe('var(--accent)')
+    expect(parseFloat(bubble.style.top)).toBeLessThan(layout.magos.y - layout.magosSize.height)
+  })
+
+  it('when dark draws only the lit-off scenery: no Magos, no acolytes and no frame loop', () => {
+    const view = render(<CultChamber events={JOIN} seed={7} members={MEMBERS} onSelectMember={() => undefined} dark
+      viewscreen={<span data-testid="shrine" />} />)
+    const scene = view.container.querySelector<HTMLElement>('.cc-scene')!
+    expect(scene.classList.contains('cc-lights-off')).toBe(true)
+    expect(view.container.querySelectorAll('.cc-acolyte, .cc-magos, .cc-effects')).toHaveLength(0)
+    expect(view.container.querySelector('.cc-prop[data-prop="door-closed"]')).not.toBeNull()
+    expect(view.getByTestId('shrine')).not.toBeNull()
+    expect(frames.size).toBe(0)
+    expect(view.container.querySelector<HTMLElement>('.cc-chamber')!.dataset.animated).toBe('false')
+  })
 })
 
 describe('CultChamber selection and accessibility', () => {
@@ -209,7 +254,42 @@ describe('CultChamber frame loop', () => {
     setOnScreen(true)
     expect(frames.size).toBe(1)
   })
+})
 
+describe('CultChamber frame loop: missing observers and restarted logs', () => {
+
+  it('runs the loop as on-screen where IntersectionObserver is missing', () => {
+    vi.stubGlobal('IntersectionObserver', undefined)
+    const view = mount()
+    expect(frames.size).toBe(1)
+    expect(intersections.size).toBe(0)
+    expect(view.query('.cc-chamber').dataset.animated).toBe('true')
+  })
+
+  it('keeps its on-screen state through an intersection batch with no entries', () => {
+    mount()
+    setOnScreen(false)
+    act(() => intersections.forEach((callback) => callback([])))
+    expect(frames.size).toBe(0)
+    setOnScreen(true)
+    act(() => intersections.forEach((callback) => callback([])))
+    expect(frames.size).toBe(1)
+  })
+
+  it('restarts from the end of a shorter log, replaying nothing, then applies what is appended', () => {
+    const view = mount()
+    tick(0)
+    const late: ChamberEvent = { type: 'memberJoined', id: 'late', present: true }
+    const later: ChamberEvent = { type: 'memberJoined', id: 'later', present: true }
+    const rerender = (events: ChamberEvent[]) => view.rerender(<CultChamber events={events} seed={7} members={MEMBERS}
+      onSelectMember={() => undefined} />)
+    rerender([late])
+    tick(16)
+    expect(view.all('.cc-acolyte').map((item) => item.dataset.memberId)).toEqual(['m1', 'm2', 'm3'])
+    rerender([late, later])
+    tick(32)
+    expect(view.all('.cc-acolyte').map((item) => item.dataset.memberId)).toEqual(['m1', 'm2', 'm3', 'later'])
+  })
 })
 
 describe('CultChamber loop timing and reduced motion', () => {

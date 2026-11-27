@@ -362,13 +362,12 @@ function routeToGoal(state: MotionState, tickets: MotionRect[], surfaces: Motion
   return candidates[0]?.path ?? []
 }
 
-function groundClimbAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState | null {
+/** Called only for a floor route's first hop that `floorClimbRoute` accepted, so an on-screen side exists. */
+function groundClimbAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState {
   const { half, width, floor } = dimensions(surfaces)
-  const sides = [ticket.x - half, ticket.x + ticket.width + half]
+  const sideX = [ticket.x - half, ticket.x + ticket.width + half]
     .filter((x) => x >= half && x <= width - half)
-    .sort((a, b) => Math.abs(a - state.x) - Math.abs(b - state.x))
-  const sideX = sides[0]
-  if (sideX === undefined) return null
+    .sort((a, b) => Math.abs(a - state.x) - Math.abs(b - state.x))[0]!
   if (Math.abs(state.x - sideX) <= 1) return sideJump(state, ticket)
   return action(state, { kind: Math.abs(state.x - sideX) > width * 0.55 ? 'run' : 'walk',
     x: sideX, y: floor, duration: Math.max(280, Math.abs(state.x - sideX) / 110 * 1000),
@@ -588,8 +587,8 @@ function completedTicketAction(state: MotionState, ticket: MotionRect, surfaces:
   return nextAction(state, surfaces)
 }
 
+/** Only `advancePose` completes actions, and it never runs while falling (`advanceFall` does). */
 function completedAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
-  if (state.falling) return land(state, undefined, surfaces)
   if (state.descending) return startFall(state, surfaces)
   if (state.working) return action(state, { kind: 'idle', x: state.x, y: state.y, duration: 480 })
   const ticket = state.targetId ? cleanTickets(surfaces).find((item) => item.id === state.targetId) : undefined

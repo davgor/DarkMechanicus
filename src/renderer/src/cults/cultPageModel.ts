@@ -63,7 +63,6 @@ interface Controls {
   pause: boolean
   resume: boolean
   stop: boolean
-  kill: boolean
   raise: boolean
 }
 
@@ -75,7 +74,6 @@ export function controlsFor(state: RunState | null): Controls {
     pause: state === 'running',
     resume: state === 'paused',
     stop: steady || state === 'starting',
-    kill: live,
     raise: steady
   }
 }

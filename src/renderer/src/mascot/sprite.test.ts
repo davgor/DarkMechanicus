@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { frameForMotion, spritePlacement } from './sprite'
+import { frameForMotion, spritePlacement, type SpriteSheet } from './sprite'
 import type { MotionAction } from './motion'
 import atlas from '../assets/mascot/atlas.json'
 import magosAtlas from '../assets/magos/atlas.json'
@@ -147,5 +147,25 @@ describe('the same reader on the Magos atlases', () => {
       expect(left.top + frame.footAnchor.y * left.scale).toBeCloseTo(300)
       expect(left.sheetWidth).toBeCloseTo(3 * magosAtlas.cell.width * left.scale)
     }
+  })
+})
+
+describe('a sheet whose frames share the clip foot anchor', () => {
+  const sheet: SpriteSheet<'stand'> = {
+    atlas: { cell: { width: 200, height: 300 }, actions: { stand: { fps: 4, loop: true, renderScale: 1,
+      footAnchor: { x: 60, y: 280 }, frames: [{ x: 0, y: 0, width: 120, height: 290 },
+        { x: 200, y: 0, width: 140, height: 290, footAnchor: { x: 90, y: 270 } }] } } },
+    images: { stand: 'stand.png' }, cellSize: 100, facing: 'right'
+  }
+
+  it('pins a frame without its own anchor by the clip anchor, and a frame with one by its own', () => {
+    const shared = spritePlacement({ action: 'stand', elapsed: 0, progress: 0, facing: 'left', x: 100, y: 200 }, sheet)
+    expect(shared.scale).toBe(0.5)
+    expect(shared.left).toBe(100 - (120 - 60) * 0.5)
+    expect(shared.top).toBe(200 - 280 * 0.5)
+    const own = spritePlacement({ action: 'stand', elapsed: 250, progress: 0, facing: 'right', x: 100, y: 200 }, sheet)
+    expect(own.index).toBe(1)
+    expect(own.left).toBe(100 - 90 * 0.5)
+    expect(own.top).toBe(200 - 270 * 0.5)
   })
 })

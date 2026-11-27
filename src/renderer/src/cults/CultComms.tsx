@@ -4,7 +4,7 @@
  * member's chat is read in its run's work folder, a tracked folder or a project-less cult's sanctum, which main resolves
  * for both, and its terminal is attached there through the same terminal IPC every chat uses.
  */
-import { useRef, type KeyboardEvent } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { CultMemberDetail, CultRunDetail } from '../../../shared/cults/cultApi'
 import type { Scheduler } from '../app/scheduler'
 import { TerminalPane } from '../agents/TerminalPane'
@@ -32,9 +32,9 @@ interface CommsProps {
 const tabKey = (tab: CommsTab): string => (tab.kind === 'watch' ? `watch:${tab.chatId}` : tab.kind)
 
 /** Left and Right move between the tabs, as a tab list does. */
-function arrowTo(event: KeyboardEvent<HTMLElement>, list: HTMLElement | null): void {
+function arrowTo(event: KeyboardEvent<HTMLElement>): void {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-  const tabs = [...(list?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])]
+  const tabs = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')]
   const at = tabs.indexOf(event.target as HTMLElement)
   if (at < 0) return
   const next = tabs[(at + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
@@ -43,7 +43,6 @@ function arrowTo(event: KeyboardEvent<HTMLElement>, list: HTMLElement | null): v
 }
 
 export function CultComms({ run, watched, tab, onTab, onCloseWatch, agentName, kit, scheduler }: CommsProps): JSX.Element {
-  const list = useRef<HTMLDivElement>(null)
   const magos = run?.members.find((member) => member.role === 'magos' && member.leftAt === null) ?? null
   const tabs: { tab: CommsTab; label: string; member?: CultMemberDetail }[] = [
     { tab: { kind: 'magos' }, label: magos?.displayName ?? 'Magos' },
@@ -53,7 +52,7 @@ export function CultComms({ run, watched, tab, onTab, onCloseWatch, agentName, k
   const shown = tabKey(tab)
   return (
     <section className="cult-comms" aria-label="Comms">
-      <div ref={list} className="cult-comms-tabs" role="tablist" aria-label="Comms channels" onKeyDown={(event) => arrowTo(event, list.current)}>
+      <div className="cult-comms-tabs" role="tablist" aria-label="Comms channels" onKeyDown={arrowTo}>
         {tabs.map((entry) => {
           const key = tabKey(entry.tab)
           return (

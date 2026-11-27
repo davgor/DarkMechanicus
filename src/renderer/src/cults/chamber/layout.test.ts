@@ -116,3 +116,34 @@ describe('chamberLayout surfaces and scale', () => {
     expect(layout.spriteSize.width).toBeCloseTo(52 * 0.6, 10)
   })
 })
+
+describe('chamberLayout with degenerate input', () => {
+  it('treats a non-finite room size as empty', () => {
+    const layout = chamberLayout({ width: Number.NaN, height: Number.POSITIVE_INFINITY }, PROPS, 6)
+    expect(layout.size).toEqual({ width: 0, height: 0 })
+    expect(layout.floorY).toBe(0)
+    expect(layout.propScale).toBe(0)
+    expect(layout.consoles).toEqual([])
+  })
+
+  it('scales fixed props by room height alone when they have no width', () => {
+    const flat = { ...PROPS, door: { ...PROPS.door, width: 0 }, teleportPad: { ...PROPS.teleportPad, width: 0 },
+      helm: { ...PROPS.helm, width: 0 } }
+    expect(chamberLayout(ROOMS[1], flat, 6).propScale).toBeCloseTo(ROOMS[1].height / 1200, 10)
+  })
+
+  it('draws zero-sized consoles and an empty viewscreen for zero-sized console and viewscreen art', () => {
+    const empty = { ...PROPS, console: { ...PROPS.console, height: 0 }, viewscreen: { ...PROPS.viewscreen, width: 0 } }
+    const layout = chamberLayout(ROOMS[1], empty, 6)
+    expect(layout.consoleScale).toBe(0)
+    expect(layout.consoles.length).toBeGreaterThan(0)
+    for (const station of layout.consoles) {
+      expect(station.rect).toMatchObject({ width: 0, height: 0, y: layout.floorY })
+      expect(station.operatorX - station.bounds.x).toBe(26)
+    }
+    expect(layout.viewscreen.rect.width).toBe(0)
+    expect(layout.viewscreen.rect.height).toBe(0)
+    expect(layout.viewscreen.window.width).toBe(0)
+    expect(layout.viewscreen.window.height).toBe(0)
+  })
+})

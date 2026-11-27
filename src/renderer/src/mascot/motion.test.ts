@@ -684,3 +684,221 @@ function hasLanded(state: State): boolean {
     expect(landing.x).toBeCloseTo(240)
     expect(landing.y).toBeCloseTo(240)
   })
+
+const open = { width: 500, height: 320 }
+const body = { width: 52, height: 80 }
+const lone = (ticket: MotionSurfaces['tickets'][number], extra: Partial<MotionSurfaces> = {}): MotionSurfaces =>
+  ({ viewport: open, mascotSize: body, tickets: [ticket], ...extra })
+
+function runUntil(surfaces: MotionSurfaces, start: State, stop: (state: State) => boolean, frames = 2000): State {
+  let state = start
+  for (let frame = 0; frame < frames && !stop(state); frame += 1) state = stepMotion(state, 40, surfaces)
+  return state
+}
+
+it('treats a zero or non-finite seed and position as the documented defaults', () => {
+  expect(createMotion(0).randomState).toBe(createMotion(0x6d2b79f5).randomState)
+  expect(createMotion(Number.NaN).randomState).toBe(0x6d2b79f5)
+  const broken: State = { ...createMotion(3), x: Number.NaN, y: Number.POSITIVE_INFINITY, duration: Number.NaN }
+  const next = stepMotion(broken, 0, { viewport: open, mascotSize: body, tickets: [] })
+  expect(next.x).toBe(250)
+  expect(next.y).toBe(320)
+  expect(next.duration).toBe(1)
+})
+
+it('keeps the fall trajectory when a shake arrives mid-fall, consuming the shake id', () => {
+  const empty: MotionSurfaces = { viewport: open, mascotSize: body, tickets: [] }
+  const falling = stepMotion({ ...createMotion(3, { x: 250, y: 100 }), supportId: 'gone' }, 40, empty)
+  expect(falling.falling).toBe(true)
+  const calm = stepMotion(falling, 40, empty)
+  const shaken = stepMotion(falling, 40, { ...empty, shakeId: 1 })
+  expect(shaken.falling).toBe(true)
+  expect(shaken.y).toBe(calm.y)
+  expect(shaken.elapsed).toBe(calm.elapsed)
+  expect(shaken.lastShakeId).toBe(1)
+})
+
+it('catches a fall on the lower id when two identical platforms overlap, in either order', () => {
+  const tops = (ids: string[]): MotionSurfaces => ({ viewport: open, mascotSize: body,
+    tickets: ids.map((id) => ({ id, x: 150, y: 250, width: 200, height: 40 })) })
+  for (const ids of [['b', 'a'], ['a', 'b']]) {
+    const start: State = { ...createMotion(3, { x: 250, y: 100 }), supportId: 'gone' }
+    const landed = runUntil(tops(ids), start, (state) => state.supportId === 'a' || state.supportId === 'b', 40)
+    expect(landed.supportId).toBe('a')
+    expect(landed.y).toBe(250)
+  }
+})
+
+it('resumes a resting climb that has no rest time left instead of stalling', () => {
+  const ticket = board.tickets[0]!
+  const resting: State = { ...createMotion(3, { x: 148, y: 222 }), action: 'climb', fromX: 148, fromY: 222,
+    toX: 214, toY: 150, targetId: ticket.id, duration: 1000, elapsed: 400, progress: 0.4, resting: true }
+  const next = stepMotion(resting, 100, board)
+  expect(next.action).toBe('climb')
+  expect(next.resting).toBe(false)
+  expect(next.elapsed).toBe(500)
+  expect(next.y).toBeLessThan(222)
+})
+
+it('ignores a degenerate remembered support rect and drops off a support too narrow to stand on', () => {
+  const support = { id: 'a', x: 100, y: 200, width: 200, height: 40 }
+  const standing: State = { ...createMotion(3, { x: 200, y: 200 }), supportId: 'a',
+    supportRect: { ...support, x: 50, y: 100, width: 0 } }
+  const kept = stepMotion(standing, 0, lone(support))
+  expect([kept.x, kept.y, kept.supportId]).toEqual([200, 200, 'a'])
+  const narrowed = stepMotion({ ...standing, supportRect: support }, 20, lone({ ...support, x: 180, width: 40 }))
+  expect(narrowed.falling).toBe(true)
+  expect(narrowed.supportId).toBeNull()
+  expect(narrowed.x).toBe(200)
+})
+
+it('falls when a climb completes onto a card that rose above the head room', () => {
+  const climbing: State = { ...createMotion(3, { x: 236, y: 70 }), action: 'climb', fromX: 154, fromY: 132,
+    toX: 236, toY: 60, targetId: 'hi', duration: 1000, elapsed: 990, progress: 0.99 }
+  const next = stepMotion(climbing, 20, lone({ id: 'hi', x: 180, y: 60, width: 200, height: 72 }))
+  expect(next.falling).toBe(true)
+  expect(next.supportId).toBeNull()
+  expect(next.x).toBe(236)
+  expect(next.y).toBeGreaterThan(60)
+})
+
+it('drops from a side jump whose grip side was panned off screen, keeping its facing', () => {
+  const ticket = board.tickets[0]!
+  const flight: State = { ...createMotion(3, { x: 148, y: 222 }), action: 'jump', fromX: 148, fromY: 320,
+    toX: 148, toY: 222, targetId: ticket.id, targetRect: ticket, duration: 520, elapsed: 500, progress: 0.96,
+    jumpHeight: 36, facing: 'left' }
+  const next = stepMotion(flight, 40, { ...board, tickets: [{ ...ticket, x: 20 }] })
+  expect(next.action).toBe('stumble')
+  expect(next.falling).toBe(true)
+  expect(next.facing).toBe('left')
+  expect(next.x).toBe(32)
+  expect(next.targetId).toBeNull()
+})
+
+it('never targets cards it cannot stand on or climb from an on-screen side', () => {
+  const pin = lone({ id: 'pin', x: 200, y: 240, width: 40, height: 40, inProgress: true })
+  const roof = { id: 'roof', x: 20, y: 150, width: 460, height: 72, inProgress: true }
+  for (const surfaces of [pin, lone(roof), lone(roof, { freeRoam: true })]) {
+    let state = createMotion(5, { x: 100, y: 320 })
+    for (let frame = 0; frame < 1500; frame += 1) {
+      state = stepMotion(state, 40, surfaces)
+      expect(state.targetId ?? state.supportId).toBeNull()
+    }
+  }
+})
+
+it('stays on a full-width roof with no on-screen exit, even with active work below', () => {
+  const surfaces: MotionSurfaces = { viewport: open, mascotSize: body, tickets: [
+    { id: 'roof', x: 20, y: 150, width: 460, height: 72 },
+    { id: 'desk', x: 100, y: 260, width: 150, height: 40, inProgress: true }] }
+  let state: State = { ...createMotion(3, { x: 200, y: 150 }), supportId: 'roof' }
+  const actions = new Set<string>()
+  for (let frame = 0; frame < 1500; frame += 1) {
+    state = stepMotion(state, 40, surfaces)
+    actions.add(state.action)
+    expect(state.supportId).toBe('roof')
+    expect(state.descending).not.toBe(true)
+  }
+  expect(actions.has('walk')).toBe(true)
+})
+
+it('free-roams onto a reachable top without working and runs to a distant climbable card', () => {
+  const top = lone({ id: 'top', x: 170, y: 230, width: 180, height: 50, inProgress: true }, { freeRoam: true })
+  const onTop = runUntil(top, createMotion(6, { x: 260, y: 320 }), (state) => state.supportId === 'top', 1500)
+  expect(onTop.supportId).toBe('top')
+  expect(runUntil(top, onTop, (state) => Boolean(state.working), 500).working).not.toBe(true)
+  const wide: MotionSurfaces = { viewport: { width: 900, height: 320 }, mascotSize: body, freeRoam: true,
+    tickets: [{ id: 'tall', x: 700, y: 150, width: 120, height: 72 }] }
+  const run = runUntil(wide, createMotion(1, { x: 40, y: 320 }), (state) => state.targetId === 'tall')
+  expect(run.action).toBe('run')
+  expect(run.toX).toBe(674)
+})
+
+it('runs along the floor to the grip side of a far active climbable card', () => {
+  const far = lone({ id: 'far', x: 380, y: 150, width: 80, height: 100, inProgress: true })
+  const approach = runUntil(far, createMotion(1, { x: 30, y: 320 }), (state) => state.targetId === 'far', 50)
+  expect(approach.action).toBe('run')
+  expect(approach.toX).toBe(354)
+  expect(approach.toY).toBe(320)
+})
+
+it('climbs an active card hugging the left edge from its only on-screen side', () => {
+  const edge = lone({ id: 'edge', x: 10, y: 150, width: 120, height: 100, inProgress: true })
+  const worked = runUntil(edge, createMotion(1, { x: 400, y: 320 }), (state) => Boolean(state.working))
+  expect(worked.supportId).toBe('edge')
+  expect(worked.working).toBe(true)
+})
+
+it('picks the cheaper of two stepping stones to reach active work', () => {
+  const surfaces: MotionSurfaces = { viewport: { width: 640, height: 600 }, mascotSize: { width: 64, height: 80 },
+    tickets: [{ id: 'a', x: 60, y: 500, width: 160, height: 60 }, { id: 'b', x: 360, y: 500, width: 160, height: 60 },
+      { id: 'top', x: 200, y: 400, width: 180, height: 60, inProgress: true }] }
+  const worked = runUntil(surfaces, createMotion(2, { x: 300, y: 600 }), (state) => Boolean(state.working), 3000)
+  expect(worked.supportId).toBe('top')
+})
+
+it('leaves active lower work for active higher work, and retargets when higher work starts', () => {
+  const both = { ...tower, tickets: tower.tickets.map((ticket) => ({ ...ticket, inProgress: ticket.id !== 'middle' })) }
+  let state: State = { ...createMotion(5, { x: 170, y: 480 }), supportId: 'low' }
+  for (let frame = 0; frame < 3000 && !(state.working && state.supportId === 'high'); frame += 1) {
+    state = stepMotion(state, 40, both)
+    expect(Boolean(state.working) && state.supportId === 'low').toBe(false)
+  }
+  expect(state.supportId).toBe('high')
+  const lowOnly = { ...tower, tickets: tower.tickets.map((ticket) => ({ ...ticket, inProgress: ticket.id === 'low' })) }
+  const atLow = runUntil(lowOnly, createMotion(11, { x: 100, y: 600 }), (next) => Boolean(next.working))
+  expect(atLow.supportId).toBe('low')
+  expect(stepMotion(atLow, 40, lowOnly).working).toBe(true)
+  const retargeted = stepMotion(atLow, 40, both)
+  expect(retargeted.working).toBe(false)
+  expect(retargeted.action).not.toBe('idle')
+})
+
+it('jumps off an unstandable sliver instead of leaping from it to higher work', () => {
+  const surfaces: MotionSurfaces = { viewport: open, mascotSize: body, tickets: [
+    { id: 'sliver', x: -150, y: 200, width: 170, height: 72 },
+    { id: 'up', x: 60, y: 120, width: 200, height: 40, inProgress: true }] }
+  const climbing: State = { ...createMotion(3, { x: 46, y: 210 }), action: 'climb', fromX: 46, fromY: 272,
+    toX: -8, toY: 200, targetId: 'sliver', duration: 1000, elapsed: 960, progress: 0.96, facing: 'left' }
+  const next = stepMotion(climbing, 40, surfaces)
+  expect(next.action).toBe('jump')
+  expect(next.descending).toBe(true)
+  expect(next.targetId).toBeNull()
+})
+
+it('tracks a direct jump target panned mostly off screen while keeping the body on screen', () => {
+  const old = { id: 'a', x: 80, y: 200, width: 180, height: 60 }
+  const flight: State = { ...createMotion(5, { x: 150, y: 260 }), action: 'jump', fromX: 150, fromY: 320,
+    toX: 170, toY: 200, targetId: 'a', targetRect: old, duration: 1000, elapsed: 500, progress: 0.5, jumpHeight: 70 }
+  const next = stepMotion(flight, 20, lone({ ...old, x: -170 }))
+  expect(next.action).toBe('jump')
+  expect(next.toX).toBe(-80)
+  expect(next.x).toBe(26)
+})
+
+it('abandons a floor approach whose grip no longer matches the resized body', () => {
+  const ticket = board.tickets[0]!
+  const approach: State = { ...createMotion(4, { x: 60, y: 320 }), action: 'walk', fromX: 60, fromY: 320,
+    toX: 148, toY: 320, targetId: ticket.id, targetRect: ticket, duration: 1000 }
+  expect(stepMotion(approach, 20, board).targetId).toBe(ticket.id)
+  const resized = stepMotion(approach, 20, { ...board, mascotSize: body, tickets: [{ ...ticket, x: 200 }] })
+  expect(resized.action).toBe('stumble')
+  expect(resized.targetId).toBeNull()
+})
+
+it('treats an idle pause at a grip as a fresh decision, not a side jump, and does not drag it with a pan', () => {
+  const ticket = board.tickets[0]!
+  const free = { ...board, freeRoam: true }
+  const atGrip = (action: 'idle' | 'walk', targetId: string | null): State => ({ ...createMotion(1, { x: 148, y: 320 }),
+    action, fromX: 148, toX: 148, fromY: 320, toY: 320, targetId, targetRect: ticket, duration: 300 })
+  const walked = stepMotion(atGrip('walk', ticket.id), 310, free)
+  expect([walked.action, walked.targetId, walked.toY]).toEqual(['jump', ticket.id, 222])
+  const paused = stepMotion(atGrip('idle', ticket.id), 310, free)
+  const { targetRect: _ignored, ...plain } = stepMotion(atGrip('idle', null), 310, free)
+  expect(paused).toEqual({ ...plain, targetRect: undefined })
+  expect(paused.action).toBe('run')
+  const panned = stepMotion(atGrip('idle', ticket.id), 20, { ...free, tickets: [{ ...ticket, x: 220 }] })
+  expect(panned.action).toBe('stumble')
+  expect(panned.x).toBe(148)
+  expect(panned.targetId).toBeNull()
+})

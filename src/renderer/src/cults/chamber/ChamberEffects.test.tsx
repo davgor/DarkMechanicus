@@ -100,6 +100,14 @@ describe('ChamberEffects from the chamber state', () => {
     state = stepChamber(state, 600, layout)
     expect(ringAt(state)).toBeGreaterThan(early)
   })
+
+  it('draws a zero-duration effect fully faded', () => {
+    const beam = { kind: 'beam' as const, id: 1, elapsed: 0, duration: 0, x: 100, y: 500, height: 400 }
+    const view = render(<ChamberEffects effects={[beam, { ...beam, id: 2, duration: 900 }]} width={ROOM.width}
+      height={ROOM.height} warning={false} stasis={false} />)
+    const beams = [...view.container.querySelectorAll('.cc-beam')].map((item) => item.getAttribute('opacity'))
+    expect(beams).toEqual(['0', '1'])
+  })
 })
 
 describe('run-state theatrics on the scene root', () => {
