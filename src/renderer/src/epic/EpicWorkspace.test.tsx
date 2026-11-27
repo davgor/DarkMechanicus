@@ -23,14 +23,41 @@ function button(name: string): HTMLButtonElement {
 }
 
 describe('epic workspace: Agent view', () => {
-  it('keeps the View order and renders the bold person button', async () => {
+  it('puts Agent first with the static mascot and its bold label', async () => {
     renderWorkspace(new FakeBackend())
     const view = await screen.findByRole('group', { name: 'View' })
-    expect(within(view).getAllByRole('button').map((item) => item.textContent)).toEqual(['Graph', 'List', 'Agent', 'Scorecard'])
+    const buttons = within(view).getAllByRole('button')
+    expect(buttons.map((item) => item.textContent)).toEqual(['Agent', 'Graph', 'List', 'Scorecard'])
     const agent = within(view).getByRole('button', { name: 'Agent' })
+    expect(agent).toBe(buttons[0])
     expect(agent.querySelector('strong')?.textContent).toBe('Agent')
-    expect(agent.querySelector('svg[data-icon="agent"]')).not.toBeNull()
+    expect(agent.querySelector('svg')).toBeNull()
+    const glyph = agent.querySelector<HTMLElement>('.mascot-glyph')!
+    expect(glyph.getAttribute('aria-hidden')).toBe('true')
+    expect(glyph.dataset.frame).toBe('settled')
+    expect(glyph.style.backgroundImage).toContain('idle.png')
     expect(agent.classList.contains('ew-toggle-agent')).toBe(true)
+  })
+
+  it('focuses the View buttons in their visual order, each once, with nothing else focusable inside', async () => {
+    renderWorkspace(new FakeBackend())
+    const view = await screen.findByRole('group', { name: 'View' })
+    const focusable = [...view.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, [tabindex]')]
+    expect(focusable.map((item) => item.textContent)).toEqual(['Agent', 'Graph', 'List', 'Scorecard'])
+    for (const item of focusable) {
+      expect(item.tagName).toBe('BUTTON')
+      expect(item.hasAttribute('tabindex')).toBe(false)
+      item.focus()
+      expect(document.activeElement).toBe(item)
+    }
+  })
+
+  it('gives the truncating breadcrumb and title their full text as a title tooltip', async () => {
+    renderWorkspace(new FakeBackend())
+    const crumb = (await screen.findByText('darkmechanicus / In progress')) as HTMLElement
+    expect(crumb.classList.contains('ew-crumb')).toBe(true)
+    expect(crumb.title).toBe('darkmechanicus / In progress')
+    expect(screen.getByRole('heading', { level: 1 }).title).toBe('Planning vertical slice')
   })
 })
 

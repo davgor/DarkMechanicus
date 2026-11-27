@@ -968,6 +968,89 @@ function threadView(_h) {
   }
 }
 
+/** The epic View buttons in their displayed order, and the stage each one opens. */
+const EPIC_VIEWS = [
+  ['Agent', 'section.eap'],
+  ['Graph', '[aria-label="Plan graph"]'],
+  ['List', '[aria-label="Plan list"]'],
+  ['Scorecard', 'section.es[aria-labelledby="es-title"]']
+]
+
+/**
+ * The epic header holds one row: the breadcrumb is a single line left of the View group, overlapping it neither
+ * across nor down, and carries its text as a title; nothing in the heading spills past it and nothing in the header
+ * past the window; the View group reads Agent, Graph, List, Scorecard with the mascot on Agent. Self-contained:
+ * `page` serializes only this function.
+ */
+function headerRow(h, order) {
+  const header = document.querySelector('section.ew[aria-label="Epic workspace"] header.ew-header')
+  const found = ['.ew-heading', '.ew-crumb', '[role="group"][aria-label="View"]'].map((selector) => header?.querySelector(selector) ?? null)
+  if (found.includes(null)) return { ok: false, found: found.map(Boolean) }
+  const [heading, crumb, view] = found
+  const box = { header: h.rect(header), heading: h.rect(heading), crumb: h.rect(crumb), view: h.rect(view) }
+  const buttons = [...view.querySelectorAll('button')].map((button) => button.textContent.trim())
+  const checks = {
+    oneLine: box.crumb.height <= parseFloat(getComputedStyle(crumb).lineHeight) + 1,
+    beside: box.heading.right <= box.view.left + 0.5,
+    contained: [...heading.querySelectorAll('*')].every((element) => h.rect(element).right <= box.heading.right + 0.5),
+    fits: header.scrollWidth <= header.clientWidth && box.header.right <= innerWidth,
+    sameRow: box.crumb.top < box.view.bottom && box.crumb.bottom > box.view.top,
+    titled: crumb.title === crumb.textContent,
+    mascot: !!view.querySelector('button.ew-toggle-agent:first-child .mascot-glyph'),
+    ordered: JSON.stringify(buttons) === JSON.stringify(order)
+  }
+  return { ok: Object.values(checks).every(Boolean), ...checks, buttons, box }
+}
+
+/** Presses `label` in the epic View group (once) until it is pressed and `selector`'s stage is shown. */
+function showView(h, label, selector) {
+  const button = h.button(document.querySelector('section.ew[aria-label="Epic workspace"] [role="group"][aria-label="View"]'), label)
+  if (!button) return { ok: false, label, found: false }
+  if (button.getAttribute('aria-pressed') !== 'true') button.click()
+  const shown = !!document.querySelector(selector)
+  return { ok: button.getAttribute('aria-pressed') === 'true' && shown, label, shown }
+}
+
+function focusView(h, label) {
+  const button = h.button(document.querySelector('section.ew[aria-label="Epic workspace"] [role="group"][aria-label="View"]'), label)
+  button?.focus()
+  return { ok: !!button && document.activeElement === button, label }
+}
+
+function focusedLabel(_h) {
+  const active = document.activeElement
+  const inView = !!active?.closest('section.ew[aria-label="Epic workspace"] [role="group"][aria-label="View"]')
+  return { ok: true, label: inView ? active.textContent.trim() : null }
+}
+
+/** Real Tab presses from the first View button: the focus visits each View button once, in the displayed order. */
+async function tabThroughView(session, signal) {
+  await until(session, signal, focusView, EPIC_VIEWS[0][0])
+  const visited = [EPIC_VIEWS[0][0]]
+  for (let index = 1; index < EPIC_VIEWS.length; index++) {
+    for (const type of ['rawKeyDown', 'keyUp']) {
+      await cdp(session, 'Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 })
+    }
+    visited.push((await page(session, focusedLabel)).label)
+  }
+  const expected = EPIC_VIEWS.map(([label]) => label)
+  if (JSON.stringify(visited) !== JSON.stringify(expected)) throw new Error(`Tab visits the View group as ${JSON.stringify(visited)}, not ${JSON.stringify(expected)}`)
+  return visited
+}
+
+/**
+ * Every other view opens from the View group in displayed order and Agent returns to the same selected worker thread;
+ * the header holds one row at `size`, which is captured after Agent returns.
+ */
+async function epicViews(session, signal, size, file) {
+  const order = EPIC_VIEWS.map(([label]) => label)
+  const header = await until(session, signal, headerRow, order)
+  const tabOrder = await tabThroughView(session, signal)
+  for (const [label, selector] of [...EPIC_VIEWS.slice(1), EPIC_VIEWS[0]]) await until(session, signal, showView, label, selector)
+  const thread = await until(session, signal, threadView)
+  return { header: { buttons: header.buttons, box: header.box }, tabOrder, thread, screenshot: await capture(session, file, size) }
+}
+
 /**
  * Step 6: the saved epic's Agent stage starts the planner (Lexmechanic) and, after `[subagent_tree]`, names its
  * workers in the rail's tree; a finished worker sits in the collapsed Finished group; a row opens its thread read-only.
@@ -994,12 +1077,13 @@ async function epicAgent(session, signal) {
   if (workers.some((row) => row.unverified !== 'Not confirmed by a claim')) throw new Error(`A worker is shown verified: ${JSON.stringify(workers)}`)
   await until(session, signal, clickSelector, 'aside[aria-label="Epic agents"] [role="treeitem"][aria-label="Acolyte:DM-2"] > .at-row')
   const thread = await until(session, signal, threadView)
-  const wide = await capture(session, 'e2e-epic-agent.png', WIDE_WINDOW)
+  const wide = await epicViews(session, signal, WIDE_WINDOW, 'e2e-epic-agent.png')
   await resizeWindow(session, signal, WINDOW)
   const narrow = await until(session, signal, railHas, [['Acolyte:DM-2', 2]])
+  const compact = await epicViews(session, signal, WINDOW, 'e2e-epic-agent-1024.png')
   return {
     planner: chat, kickoff, root: root.rows, collapsedTree: tree.rows, expandedTree: expanded.rows, thread, narrowRailRight: narrow.right,
-    screenshots: [wide, await capture(session, 'e2e-epic-agent-1024.png', WINDOW)]
+    views: { wide, compact }, screenshots: [wide.screenshot, compact.screenshot]
   }
 }
 

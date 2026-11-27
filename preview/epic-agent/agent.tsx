@@ -6,6 +6,7 @@ import './preview.css'
 import type { AgentChatEvent, AgentChatSnapshot, AttentionItem, PendingPrompt } from '../../src/shared/agents/agentChat'
 import type { Callsign } from '../../src/shared/agents/callsign'
 import type { ChatItem, ChatRecord } from '../../src/shared/agents/chat'
+import type { TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
@@ -20,7 +21,7 @@ import { EpicWorkspace } from '../../src/renderer/src/epic/EpicWorkspace'
 import { ViewMemoryContext, createViewMemory } from '../../src/renderer/src/epic/viewMemory'
 import { FakeBackend, scenario } from '../../src/renderer/src/epic/__mocks__/fakeBackend'
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
-import { bundle, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
+import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
 
 /**
@@ -45,6 +46,7 @@ interface Seeded {
   chatApi: FakeAgentChat
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
+  folder: TrackedFolderView
 }
 
 const STEP_MS = 12_000
@@ -325,8 +327,23 @@ const agentStates: Record<string, StateDef> = {
   }
 }
 
+async function reachGraph(): Promise<void> {
+  await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph')
+}
+
 const STATES: Record<string, StateDef> = {
-  graph: { mount: 'epic', reach: async () => { await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph') } },
+  graph: { mount: 'epic', reach: reachGraph },
+  'header-long': {
+    mount: 'epic',
+    seed: (context) => {
+      context.folder = { ...FOLDER, name: `a-very-long-repository-folder-name-${'that-cannot-fit-beside-the-view-group-'.repeat(3)}at-any-width` }
+      context.backend = new FakeBackend(scenario({
+        saved: planWithTreeTickets(), run: RUN,
+        epic: epicDetail({ title: 'An epic title long enough to need truncating beside the View group and plan actions at 1024 px' })
+      }))
+    },
+    reach: reachGraph
+  },
   ...agentStates,
   'chat-rail': {
     mount: 'chat',
@@ -374,6 +391,24 @@ function todoObservations(): Record<string, unknown> {
   }
 }
 
+/** The epic header's row: the breadcrumb and title truncation and tooltips, and their place beside the View group. */
+function headerObservations(): Record<string, unknown> | null {
+  const heading = $('.ew-heading')
+  const crumb = $('.ew-crumb')
+  const title = $('.ew-title')
+  const view = $('[role="group"][aria-label="View"]')
+  if (heading === null || crumb === null || title === null || view === null) return null
+  const box = { heading: heading.getBoundingClientRect(), crumb: crumb.getBoundingClientRect(), view: view.getBoundingClientRect() }
+  return {
+    crumb: crumb.textContent, crumbTitle: crumb.title, crumbTruncated: crumb.scrollWidth > crumb.clientWidth,
+    crumbOneLine: box.crumb.height <= parseFloat(getComputedStyle(crumb).lineHeight) + 1,
+    title: title.textContent, titleTitle: title.title, titleTruncated: title.scrollWidth > title.clientWidth,
+    besideView: box.heading.right <= box.view.left + 0.5,
+    sameRow: box.crumb.top < box.view.bottom && box.crumb.bottom > box.view.top,
+    contained: [...heading.querySelectorAll('*')].every((element) => element.getBoundingClientRect().right <= box.heading.right + 0.5)
+  }
+}
+
 function observe(state: string): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -381,6 +416,7 @@ function observe(state: string): Record<string, unknown> {
     state,
     viewButtons: view === null ? [] : [...view.querySelectorAll('button')].map((button) => text(button)),
     agentFontWeight: agentLabel === null ? null : getComputedStyle(agentLabel).fontWeight,
+    header: headerObservations(),
     planGraph: $('[aria-label="Plan graph"]') !== null,
     planList: $('[aria-label="Plan list"]') !== null,
     scorecard: $('section.es') !== null,
@@ -418,7 +454,7 @@ function publish(observations: Record<string, unknown>): void {
 function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
-  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR] }
+  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER }
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -439,7 +475,7 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   window.dm = context.backend
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
     <div className="preview-epic-agent">
-      <EpicWorkspace folder={FOLDER} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
+      <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
         onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })} />
     </div>
   </ViewMemoryContext.Provider></ClockContext.Provider>

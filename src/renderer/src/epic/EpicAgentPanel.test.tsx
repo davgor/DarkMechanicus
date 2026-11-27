@@ -106,6 +106,31 @@ describe('EpicAgentPanel: chat and tree', () => {
   })
 })
 
+describe('EpicAgentPanel: selection across views', () => {
+
+  it('keeps the selected worker thread while every other view opens in the View order and Agent returns', async () => {
+    openAgent(backendWith(), [orchestrator])
+    const stage = await agentStage()
+    fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
+    await waitFor(() => expect(within(stage).getByRole('region', { name: 'Acolyte:DM-201 thread' })).toBeTruthy())
+    const view = within(screen.getByRole('group', { name: 'View' }))
+    const opened: Record<string, () => HTMLElement> = {
+      Graph: () => screen.getByLabelText('Plan graph'),
+      List: () => screen.getByLabelText('Plan list'),
+      Scorecard: () => screen.getByRole('region', { name: 'Epic scorecard' })
+    }
+    for (const name of ['Graph', 'List', 'Scorecard']) {
+      fireEvent.click(view.getByRole('button', { name }))
+      expect(opened[name]!()).toBeTruthy()
+      expect(screen.queryByRole('region', { name: 'Agent chat' })).toBeNull()
+    }
+    fireEvent.click(view.getByRole('button', { name: 'Agent' }))
+    const back = screen.getByRole('region', { name: 'Agent chat' })
+    expect(await within(back).findByRole('region', { name: 'Acolyte:DM-201 thread' })).toBeTruthy()
+    expect((await within(back).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getAttribute('aria-selected')).toBe('true')
+  })
+})
+
 describe('EpicAgentPanel: rail memory and empty epic', () => {
   it('remembers a collapsed rail for the same epic but not for another epic', async () => {
     const chats = [orchestrator, { ...orchestrator, id: 'chat_other', epicId: 'ep_2', runId: undefined }]
