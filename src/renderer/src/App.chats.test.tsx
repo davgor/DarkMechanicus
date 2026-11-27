@@ -106,7 +106,7 @@ describe('App Agents block', () => {
 })
 
 describe('App new chat', () => {
-  it('asks before creating, then preserves the full first prompt and folder default settings', async () => {
+  it('asks for the role and first prompt before creating, then preserves the full first prompt and folder default settings', async () => {
     h.dm.agents = [agentView({ kind: 'codex' }), agentView({ kind: 'claude' })]
     h.dm.agentStatuses.codex = { state: 'signed_in', reason: 'x' }
     h.dm.agentStatuses.claude = { state: 'signed_in', reason: 'x' }
@@ -114,7 +114,9 @@ describe('App new chat', () => {
     await clickNewChat()
     expect(h.dm.chats.callsOf('create')).toEqual([])
     expect(h.terminalKit.views).toHaveLength(0)
-    expect(screen.getByRole('textbox', { name: 'First prompt' })).toBe(document.activeElement)
+    const magos = screen.getByRole('radio', { name: 'Magos' })
+    expect(magos).toBe(document.activeElement)
+    expect(magos.getAttribute('aria-checked')).toBe('true')
     await submitFirstPrompt()
     expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'claude', model: null, role: 'orchestrator', allowSave: true, firstPrompt: FIRST_PROMPT }]])
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -153,6 +155,17 @@ describe('App new chat', () => {
     expect(h.dm.chats.callsOf('create')).toEqual([])
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(workspace().getByRole('heading', { level: 1, name: 'Add an agent' })).toBeTruthy()
+  })
+})
+
+describe('App new chat roles', () => {
+  it('creates a planner chat when Lexmechanic is chosen', async () => {
+    connectClaude()
+    await clickNewChat()
+    fireEvent.click(screen.getByRole('radio', { name: 'Lexmechanic' }))
+    await submitFirstPrompt()
+    expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'claude', model: null, role: 'planner', allowSave: true, firstPrompt: FIRST_PROMPT }]])
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 
