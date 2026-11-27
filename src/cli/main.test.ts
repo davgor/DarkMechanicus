@@ -1,4 +1,4 @@
-import { resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
 import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../core/services/agentMail'
@@ -116,6 +116,20 @@ describe('dm --list and --describe', () => {
     expect(recorded.exits).toEqual([2])
     expect(recorded.stdout).toEqual([])
     expect(recorded.stderr.join('')).toContain('unknown command')
+  })
+})
+
+describe('dm serverInfo', () => {
+  it.each([
+    ['an installed app', join('C:', 'Programs', 'x', 'resources', 'app.asar', 'out', 'main', 'cli.js'), true],
+    ['a repository build', join('C:', 'repo', 'out', 'main', 'cli.js'), false]
+  ])('opens a granted session with serverInfo derived from the cli path of %s', async (_label, cliPath, packaged) => {
+    const recorded = recorder(['call', 'list_epics'], {
+      files: { [join(dirname(cliPath), '..', '..', 'package.json')]: '{"name":"dark-mechanicus","version":"9.8.7"}' }
+    })
+    recorded.host.cliPath = cliPath
+    await runCli(recorded.host)
+    expect(recorded.opened[0]?.serverInfo).toEqual({ name: 'darkmechanicus-cli', version: '9.8.7', packaged })
   })
 })
 

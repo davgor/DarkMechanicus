@@ -19,8 +19,8 @@ const write: Work = { kind: 'command', name: 'createKanbanCard', input: { title:
 it('forks the built entry and correlates a response by both generation and request ID', async () => {
   const child = new Child()
   fork.mockReturnValue(child)
-  const owner = openUtilityWorkspace(12, '/home', '1.0.0')
-  expect(fork).toHaveBeenCalledWith(expect.stringMatching(/workspaceOwner\.js$/), ['12', String(process.pid), '/home', '1.0.0'], { serviceName: 'Dark Mechanicus project' })
+  const owner = openUtilityWorkspace(12, '/home', '1.0.0', true)
+  expect(fork).toHaveBeenCalledWith(expect.stringMatching(/workspaceOwner\.js$/), ['12', String(process.pid), '/home', '1.0.0', 'packaged'], { serviceName: 'Dark Mechanicus project' })
   const result = owner.run('/project', read, undefined, 'expected')
   const request = child.requests[0]
   expect(request).toMatchObject({ path: '/project', generation: 12, id: 1, expected: 'expected', work: read })
@@ -43,7 +43,8 @@ it.each([
 ])('classifies a lost $work.name by its possible durable effects', async ({ work, completion }) => {
   const child = new Child()
   fork.mockReturnValue(child)
-  const owner = openUtilityWorkspace(1, '/home', '1.0.0')
+  const owner = openUtilityWorkspace(1, '/home', '1.0.0', false)
+  expect(fork.mock.calls[0]?.[1]).toEqual(['1', String(process.pid), '/home', '1.0.0', 'unpackaged'])
   const pending = owner.run('/project', work)
   child.emit('exit', 103)
   await expect(pending).rejects.toMatchObject({ code: 'internal', details: { ownerStopped: true, completion } })
@@ -55,7 +56,7 @@ it.each([
 it('propagates command refusals and distinguishes a refusal before a request was posted', async () => {
   const child = new Child()
   fork.mockReturnValue(child)
-  const owner = openUtilityWorkspace(2, '/home', '1.0.0')
+  const owner = openUtilityWorkspace(2, '/home', '1.0.0', false)
   const pending = owner.run('/project', write)
   child.emit('message', { ok: false, generation: 2, id: 1, error: { code: 'unauthorized', message: 'Denied' } })
   await expect(pending).rejects.toMatchObject({ code: 'unauthorized', message: 'Denied' })
@@ -68,7 +69,7 @@ it('propagates command refusals and distinguishes a refusal before a request was
 it('reports a lost warm project summary as unavailable once the child confirmed its binding', async () => {
   const child = new Child()
   fork.mockReturnValue(child)
-  const owner = openUtilityWorkspace(1, '/home', '1.0.0')
+  const owner = openUtilityWorkspace(1, '/home', '1.0.0', false)
   const first = owner.run('/project', read)
   child.emit('message', { ok: true, generation: 1, id: 1, result: { value: 'project', binding: 'p1' } })
   await first

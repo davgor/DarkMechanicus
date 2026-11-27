@@ -40,7 +40,8 @@ export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'r
 
 export interface CapabilitiesView {
   humanQuestions?: { available: boolean; guidance: string }
-  server: { name: string; version: string }
+  /** `packaged` is true only when this session's server runs from the installed (packaged) app. */
+  server: { name: string; version: string; packaged: boolean }
   apiVersion: number
   schemaVersion: number
   skillsVersion: string

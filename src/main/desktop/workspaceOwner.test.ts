@@ -12,7 +12,7 @@ afterEach(() => {
   served.lanes.length = 0
 })
 
-/** Loads the utility entry as Electron starts it: its last four arguments name the owner. */
+/** Loads the utility entry as Electron starts it: its last five arguments name the owner. */
 async function start(...args: string[]): Promise<void> {
   process.argv = ['electron', 'workspaceOwner.js', ...args]
   vi.resetModules()
@@ -20,16 +20,20 @@ async function start(...args: string[]): Promise<void> {
   await import('./workspaceOwner')
 }
 
-it('serves the owner its arguments name, reconciling on a sync lane thread beside it', async () => {
-  await start('7', '4242', '/home/dm', '1.2.3')
-  expect(served.options).toEqual([{ generation: 7, ownerPid: 4242, home: '/home/dm', version: '1.2.3', lane: { entry: expect.any(String) } }])
+it.each([
+  ['packaged', true],
+  ['unpackaged', false]
+])('serves the owner its arguments name (%s), reconciling on a sync lane thread beside it', async (arg, packaged) => {
+  await start('7', '4242', '/home/dm', '1.2.3', arg)
+  expect(served.options).toEqual([{ generation: 7, ownerPid: 4242, home: '/home/dm', version: '1.2.3', packaged, lane: { entry: expect.any(String) } }])
   expect(served.lanes.map((entry) => entry.endsWith(join('desktop', 'syncLaneWorker.js')))).toEqual([true])
 })
 
 it.each([
-  ['too few arguments', ['7', '4242', '/home/dm']],
-  ['a generation that is not an integer', ['x', '4242', '/home/dm', '1.2.3']],
-  ['an owner pid that is not an integer', ['7', '42.5', '/home/dm', '1.2.3']]
+  ['too few arguments', ['7', '4242', '/home/dm', '1.2.3']],
+  ['a generation that is not an integer', ['x', '4242', '/home/dm', '1.2.3', 'packaged']],
+  ['an owner pid that is not an integer', ['7', '42.5', '/home/dm', '1.2.3', 'packaged']],
+  ['a packaged state that is neither packaged nor unpackaged', ['7', '4242', '/home/dm', '1.2.3', 'true']]
 ])('refuses to start with %s', async (_case, args) => {
   process.argv = []
   await expect(start(...args)).rejects.toThrow('Project utility needs a desktop owner.')

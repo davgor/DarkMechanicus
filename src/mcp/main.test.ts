@@ -11,6 +11,7 @@ import { MCP_USAGE } from './args'
 import {
   canonicalRepoRoot,
   installWarningFilter,
+  isPackagedScript,
   type McpHost,
   readPackageVersion,
   redirectConsoleToStderr,
@@ -49,7 +50,7 @@ function createFakeScheduler() {
 
 const PROJECT = { projectId: 'pj_x', name: 'Demo' }
 
-async function startRig(argv: string[], workspaceOptions: StubWorkspaceOptions = {}) {
+async function startRig(argv: string[], workspaceOptions: StubWorkspaceOptions = {}, packaged = false) {
   const workspace = createStubWorkspace({ canned: { getProject: PROJECT }, ...workspaceOptions })
   const opened: OpenWorkspaceOptions[] = []
   const logs: string[] = []
@@ -67,6 +68,7 @@ async function startRig(argv: string[], workspaceOptions: StubWorkspaceOptions =
     transport: serverTransport,
     log: (line) => logs.push(line),
     version: '1.2.3',
+    packaged,
     scheduler: fake.scheduler,
     onClosed: (failure) => closedWith.push(failure)
   })
@@ -84,9 +86,15 @@ describe('startMcpServer opening the workspace', () => {
         transport: 'stdio',
         allowSave: true,
         pid: process.pid,
-        serverInfo: { name: 'darkmechanicus', version: '1.2.3' }
+        serverInfo: { name: 'darkmechanicus', version: '1.2.3', packaged: false }
       }
     ])
+  })
+
+  it('reports a server started from the packaged app as packaged', async () => {
+    const rig = await startRig([], {}, true)
+    expect(rig.opened[0]?.serverInfo).toEqual({ name: 'darkmechanicus', version: '1.2.3', packaged: true })
+    await rig.handle.close()
   })
 
   it('defaults to the orchestrator with save permission in the working directory', async () => {
@@ -112,7 +120,8 @@ describe('startMcpServer opening the workspace', () => {
       },
       transport: serverTransport,
       log: () => undefined,
-      version: '1.2.3'
+      version: '1.2.3',
+      packaged: false
     })
     await expect(attempt).rejects.toThrow(/desktop role is reserved/)
     expect(opened).toEqual([])
@@ -241,7 +250,8 @@ describe('startMcpServer heartbeat', () => {
       open: () => workspace,
       transport: serverTransport,
       log: () => undefined,
-      version: '1.2.3'
+      version: '1.2.3',
+      packaged: false
     })
     await handle.close()
     expect(workspace.closes).toBe(1)
@@ -298,6 +308,7 @@ describe('startMcpServer startup failures', () => {
       transport: broken,
       log: () => undefined,
       version: '1.2.3',
+      packaged: false,
       scheduler: fake.scheduler
     })
     await expect(attempt).rejects.toThrow('no stdio')
@@ -326,6 +337,7 @@ function createHost(overrides: Partial<McpHost> = {}, workspaceOptions: StubWork
     env: {},
     cwd: '/cwd',
     version: '1.2.3',
+    packaged: false,
     open: (options) => {
       record.opened.push(options)
       return workspace
@@ -373,6 +385,12 @@ describe('runMcpMain startup', () => {
     expect(rig.record.stdout).toEqual([])
     expect(rig.record.exits).toEqual([])
     expect(rig.record.listeners).toHaveLength(1)
+  })
+
+  it.each([true, false])('opens the session with the host packaged state %s', async (packaged) => {
+    const rig = createHost({ packaged })
+    await runMcpMain(rig.host)
+    expect(rig.record.opened[0]?.serverInfo).toEqual({ name: 'darkmechanicus', version: '1.2.3', packaged })
   })
 
   it('reports a workspace that cannot be opened and exits with code 1', async () => {
@@ -518,6 +536,24 @@ describe('readPackageVersion', () => {
     ['a non-string version', () => '{"version":7}']
   ])('falls back to 0.0.0 for %s', (_label, read) => {
     expect(readPackageVersion(script, read)).toBe('0.0.0')
+  })
+})
+
+describe('isPackagedScript', () => {
+  it.each([
+    'C:\\Users\\u\\AppData\\Local\\Programs\\x\\resources\\app.asar\\out\\main\\mcp.js',
+    '/Applications/X.app/Contents/Resources/app.asar/out/main/mcp.js'
+  ])('is true for a script inside app.asar: %s', (script) => {
+    expect(isPackagedScript(script)).toBe(true)
+  })
+
+  it.each([
+    'C:\\repo\\out\\main\\mcp.js',
+    '/repo/out/main/mcp.js',
+    'C:\\repo\\app.asar.unpacked\\out\\main\\mcp.js',
+    '/repo/not-app.asar/out/main/mcp.js'
+  ])('is false for a script outside app.asar: %s', (script) => {
+    expect(isPackagedScript(script)).toBe(false)
   })
 })
 
