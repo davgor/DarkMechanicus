@@ -14,7 +14,7 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notification
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
-import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentChatSnapshot, PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
 import type { ChatItem } from '../../shared/agents/chat'
 import { chatModelOptions } from '../../shared/agents/models'
@@ -71,6 +71,27 @@ function injector(r: ReturnType<typeof rig>) {
     lines.receive(JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool.name, input: tool.input } }))
 }
 
+/** The latest non-empty list per thread that `events` pushed, as a snapshot carries them. */
+function latestTodos(events: readonly AgentChatEvent[]): AgentChatSnapshot['todos'] {
+  const latest = new Map<string | null, AgentChatSnapshot['todos'][number]['phases']>()
+  for (const event of events) if (event.type === 'todos') {
+    if (event.phases.length) latest.set(event.threadId, event.phases)
+    else latest.delete(event.threadId)
+  }
+  return [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+}
+/**
+ * A restart drops the old process's to-do lists. A resumed OMP session reports its own (its start's `get_state`, here
+ * the `init_resume` golden's) before the start returns; Claude reports none.
+ */
+async function expectRestartTodos(r: Rig, chat: ChatRef, kind: 'claude' | 'omp') {
+  const before = r.pushes.length
+  await r.sessions.start(chat)
+  const todos = r.sessions.snapshot(chat).todos
+  expect(todos).toEqual(latestTodos(r.pushes.slice(before)))
+  expect(todos.length > 0).toBe(kind === 'omp')
+}
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI lifecycle`, () => {
   it('persists and pushes a text turn in order and submits the kickoff only once', async () => {
     const r = rig(kind), chat = r.newChat('[text]')
@@ -87,9 +108,8 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI life
     await r.sessions.start(chat)
     expect(r.children).toHaveLength(1)
     await r.sessions.stop(chat)
-    await r.sessions.start(chat)
+    await expectRestartTodos(r, chat, kind)
     expect(r.writes.filter(line => JSON.parse(line).type === (kind === 'claude' ? 'user' : 'prompt'))).toHaveLength(1)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
   })
 
   it('prefers the routing firstMessage over the saved first prompt', async () => {
@@ -1073,12 +1093,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     await r.sessions.start(chat)
     await eventually(() => r.pushes.some(event => event.type === 'todos' && event.phases.length > 0))
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
-    const latest = new Map()
-    for (const event of r.pushes) if (event.type === 'todos') {
-      if (event.phases.length) latest.set(event.threadId, event.phases)
-      else latest.delete(event.threadId)
-    }
-    const todos = [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+    const todos = latestTodos(r.pushes)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
     for (const file of filesUnder(r.userData)) {
       expect(file).not.toContain('"type":"todos"')
@@ -1086,8 +1101,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     }
     await r.sessions.stop(chat)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
-    await r.sessions.start(chat)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
+    await expectRestartTodos(r, chat, kind)
   })
 
   it('deletes only after the process is dead and its grant is revoked', async () => {
