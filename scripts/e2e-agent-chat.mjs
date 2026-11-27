@@ -1861,7 +1861,7 @@ const checkedOf = (state) => JSON.stringify(state.fields.map((field) => field.ch
  * One option row of the form field `legend`: clicks its input (`via: 'input'`), its label text (`'label'`), or only
  * focuses the input (`'focus'`) for a key press. Ok once done.
  */
-function formOption(_h, selector, legend, option, via) {
+function formOption(_h, selector, { legend, option, via }) {
   const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
     .find((entry) => entry.querySelector('legend')?.textContent === legend)
   const row = [...(fieldset?.querySelectorAll('label.agent-prompt-check') ?? [])]
@@ -1920,7 +1920,7 @@ async function polishMultiselect(session, signal) {
   await until(session, signal, composeAndSend, chatId, '[multiselect]')
   const shown = await formWhere(session, signal, (state) => state.fields.length === 2 && state.submits === 1 && !state.submitEnabled)
   for (const [legend, option] of [['Which letters?', 'A'], ['Which letters?', 'C'], ['Which database?', 'SQLite']]) {
-    await until(session, signal, formOption, FORM_CARD, legend, option, 'input')
+    await until(session, signal, formOption, FORM_CARD, { legend, option, via: 'input' })
   }
   const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["A","C"],["SQLite"]]' && state.submitEnabled)
   const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
@@ -1954,12 +1954,12 @@ async function polishMultiquestion(session, signal) {
   const defaults = await formWhere(session, signal, (state) => state.fields.length === 3 && checkedOf(state) === ASK_DEFAULTS
     && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
   const defaultsShot = await capture(session, 'e2e-polish-multiquestion-defaults.png', WINDOW)
-  await until(session, signal, formOption, FORM_CARD, 'Which databases?', 'Postgres', 'focus')
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'focus' })
   await pressSpace(session)
   const unchecked = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite"],["US"],[]]')
-  await until(session, signal, formOption, FORM_CARD, 'Which databases?', 'Postgres', 'label')
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'label' })
   await formWhere(session, signal, (state) => checkedOf(state) === ASK_DEFAULTS)
-  await until(session, signal, formOption, FORM_CARD, 'Which region?', 'EU', 'input')
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which region?', option: 'EU', via: 'input' })
   await until(session, signal, focusFormText, FORM_CARD, 'Anything else?')
   await cdp(session, 'Input.insertText', { text: 'note' })
   const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite","Postgres"],["EU"],[]]'

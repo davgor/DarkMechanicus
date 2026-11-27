@@ -203,6 +203,12 @@ const IMAGE_RESULT_CHECKS = [
 ]
 /** The question-form state's questions, as the recorded OMP ask asks them. */
 const FORM_LEGENDS = ['Which databases?', 'Which region?', 'Anything else?']
+/** At 1440 the form shows every question and checked default without scrolling. */
+const formAllInView = (card) => JSON.stringify(card?.legendsInView) === JSON.stringify(FORM_LEGENDS) && card.fieldsScroll === false
+  && JSON.stringify(card.checkedInView) === '["SQLite","Postgres","US"]'
+/** At 1024 the fields scroll inside the card, the first question and its two defaults in view. */
+const formScrollsInCard = (card) => card?.legendsInView?.[0] === FORM_LEGENDS[0] && card.fieldsScroll === true
+  && JSON.stringify(card.checkedInView?.slice(0, 2)) === '["SQLite","Postgres"]'
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -440,11 +446,7 @@ const STATE_CHECKS = {
     ['one enabled Submit, reading 3 of 3 answered', (o) => o.formCard?.submits === 1 && o.formCard.submitEnabled === true
       && o.formCard.count === '3 of 3 answered', (o) => JSON.stringify(o.formCard)],
     ['at 1440 every question and checked default in view without scrolling; at 1024 the fields scroll inside the card with the first question and its defaults in view',
-      (o) => o.state?.endsWith('-1440')
-        ? JSON.stringify(o.formCard?.legendsInView) === JSON.stringify(FORM_LEGENDS) && o.formCard.fieldsScroll === false
-          && JSON.stringify(o.formCard.checkedInView) === '["SQLite","Postgres","US"]'
-        : o.formCard?.legendsInView?.[0] === FORM_LEGENDS[0] && o.formCard.fieldsScroll === true
-          && JSON.stringify(o.formCard.checkedInView?.slice(0, 2)) === '["SQLite","Postgres"]',
+      (o) => o.state?.endsWith('-1440') ? formAllInView(o.formCard) : formScrollsInCard(o.formCard),
       (o) => JSON.stringify([o.formCard?.legendsInView, o.formCard?.fieldsScroll, o.formCard?.checkedInView])],
     ['Submit in view', (o) => o.formCard?.submitInView === true, (o) => JSON.stringify(o.formCard)],
     ['the transcript keeps at least its declared minimum height beside the card', (o) => o.formCard?.transcriptMin > 0

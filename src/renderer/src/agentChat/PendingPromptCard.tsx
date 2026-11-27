@@ -84,19 +84,22 @@ function Detail({ text }: { text: string }): JSX.Element | null {
 function Prompt({ prompt, answer }: { prompt: PendingPrompt; answer: Props['answer'] }): JSX.Element {
   const { busy, notice, closed, submit } = useAnswer(prompt, answer)
   if (closed) return <p className="agent-prompt-notice" role="status">{notice}</p>
-  const title = heading(prompt)
+  const card = { prompt, title: heading(prompt), busy, notice, submit }
   const form = prompt.kind === 'question' ? prompt.form : undefined
-  if (form) return (
-    <section className="agent-prompt agent-prompt-form-card glass-strong" role="alertdialog" aria-label={title} aria-busy={busy}>
-      {/* A one-question form's legend already asks it; the heading would only repeat it. */}
-      {(form.fields.length > 1 || form.fields[0].title !== prompt.title) && <h3>{title}</h3>}
-      {prompt.tool && <p className="agent-prompt-tool">Tool: {clip(prompt.tool.name, 120)}</p>}
-      <Detail text={prompt.detail} />
-      <Arbitration prompt={prompt} />
-      {notice && <p className="agent-prompt-error" role="alert">{notice}</p>}
-      <FormChoice prompt={prompt} fields={form.fields} busy={busy} submit={submit} />
-    </section>
-  )
+  return form ? <FormCard {...card} fields={form.fields} /> : <ChoiceCard {...card} />
+}
+
+/** What every prompt card shows besides its answer controls, and how it answers. */
+interface CardProps {
+  prompt: PendingPrompt
+  title: string
+  busy: boolean
+  notice: string | null
+  submit: (choice: Choice) => Promise<void>
+}
+
+/** An approval or a question without a form: a button per option, or DM-1034's multi-select card. */
+function ChoiceCard({ prompt, title, busy, notice, submit }: CardProps): JSX.Element {
   const freeText = prompt.kind === 'question' ? prompt.options.find((option) => option.id === 'text') : undefined
   const choices = prompt.options.filter((option) => option !== freeText)
   const multi = prompt.kind === 'question' && prompt.multi === true
@@ -215,19 +218,41 @@ function initialDraft(field: FormField): FieldDraft {
 }
 
 /**
- * A field's answer, or null while it has none. Options go in option order; nonblank Other text counts as a pick; a
- * single choice takes exactly one option or Other with text; a text field always answers, sending `text` only once it
- * differs from the default so an untouched one keeps the agent's.
+ * A field's answer, or null while it has none. A text field always answers, sending `text` only once it differs from
+ * the default so an untouched one keeps the agent's.
  */
 function fieldAnswer(field: FormField, draft: FieldDraft): FieldAnswer | null {
-  const fieldId = field.id
-  if (field.text === 'only') return draft.text === (field.defaultText ?? '') ? { fieldId, optionIds: [] } : { fieldId, optionIds: [], text: draft.text }
-  const written = field.text === 'other' && draft.text.trim() !== ''
-  const optionIds = field.options.filter((option) => draft.chosen.has(option.id)).map((option) => option.id)
-  if (!field.multi && draft.other) return written ? { fieldId, optionIds: [], text: draft.text } : null
-  if (!field.multi) return optionIds.length === 1 ? { fieldId, optionIds } : null
-  if (written) return { fieldId, optionIds, text: draft.text }
-  return optionIds.length > 0 ? { fieldId, optionIds } : null
+  if (field.text !== 'only') return choiceAnswer(field, draft)
+  return draft.text === (field.defaultText ?? '') ? { fieldId: field.id, optionIds: [] } : { fieldId: field.id, optionIds: [], text: draft.text }
+}
+
+/**
+ * A choice field's answer, or null while it has none: options in option order, nonblank Other text as one more pick
+ * (a single choice's only when Other is chosen); a single choice takes exactly one pick, a multi one at least one.
+ */
+function choiceAnswer(field: FormField, draft: FieldDraft): FieldAnswer | null {
+  const written = field.text === 'other' && draft.text.trim() !== '' && (field.multi || draft.other)
+  const optionIds = field.options.filter((option) => !draft.other && draft.chosen.has(option.id)).map((option) => option.id)
+  const picks = optionIds.length + (written ? 1 : 0)
+  if (field.multi ? picks === 0 : picks !== 1) return null
+  return written ? { fieldId: field.id, optionIds, text: draft.text } : { fieldId: field.id, optionIds }
+}
+
+type FormProps = CardProps & { fields: FormField[] }
+
+/** A form prompt's card: its heading, tool, detail, arbitration and error above the one form. */
+function FormCard({ prompt, fields, title, busy, notice, submit }: FormProps): JSX.Element {
+  return (
+    <section className="agent-prompt agent-prompt-form-card glass-strong" role="alertdialog" aria-label={title} aria-busy={busy}>
+      {/* A one-question form's legend already asks it; the heading would only repeat it. */}
+      {(fields.length > 1 || fields[0].title !== prompt.title) && <h3>{title}</h3>}
+      {prompt.tool && <p className="agent-prompt-tool">Tool: {clip(prompt.tool.name, 120)}</p>}
+      <Detail text={prompt.detail} />
+      <Arbitration prompt={prompt} />
+      {notice && <p className="agent-prompt-error" role="alert">{notice}</p>}
+      <FormChoice prompt={prompt} fields={fields} busy={busy} submit={submit} />
+    </section>
+  )
 }
 
 /**
@@ -235,23 +260,13 @@ function fieldAnswer(field: FormField, draft: FieldDraft): FieldAnswer | null {
  * Submit waits until each field has an answer (a default counts). The drafts live here, so they survive a failed
  * answer and reset only with the next prompt id.
  */
-function FormChoice({ prompt, fields, busy, submit }: {
-  prompt: PendingPrompt; fields: FormField[]; busy: boolean; submit: (choice: Choice) => Promise<void>
-}): JSX.Element {
+function FormChoice({ prompt, fields, busy, submit }: Omit<FormProps, 'title' | 'notice'>): JSX.Element {
   const [drafts, setDrafts] = useState<Record<string, FieldDraft>>(() => Object.fromEntries(fields.map((field) => [field.id, initialDraft(field)])))
   const answers = fields.map((field) => fieldAnswer(field, drafts[field.id]))
   const answered = answers.filter((entry) => entry !== null)
   const complete = answered.length === answers.length
-  function update(fieldId: string, change: Partial<FieldDraft>): void {
-    setDrafts((current) => ({ ...current, [fieldId]: { ...current[fieldId], ...change } }))
-  }
-  function toggle(fieldId: string, optionId: string, on: boolean): void {
-    setDrafts((current) => {
-      const chosen = new Set(current[fieldId].chosen)
-      if (on) chosen.add(optionId)
-      else chosen.delete(optionId)
-      return { ...current, [fieldId]: { ...current[fieldId], chosen } }
-    })
+  function update(fieldId: string, change: (draft: FieldDraft) => Partial<FieldDraft>): void {
+    setDrafts((current) => ({ ...current, [fieldId]: { ...current[fieldId], ...change(current[fieldId]) } }))
   }
   return (
     <form className="agent-prompt-form" onSubmit={(event) => {
@@ -259,38 +274,55 @@ function FormChoice({ prompt, fields, busy, submit }: {
       if (complete) void submit({ fields: answered })
     }}>
       <div className="agent-prompt-fields">
-        {fields.map((field) => {
-          const draft = drafts[field.id]
-          const id = `prompt-${prompt.id}-${field.id}`
-          return (
-            <fieldset className="agent-prompt-field" key={field.id} disabled={busy}>
-              <legend>{clip(field.title, 300)}</legend>
-              {field.text === 'only'
-                ? <textarea className="input" aria-label={clip(field.title, 300)} value={draft.text} maxLength={20_000} rows={1}
-                  onChange={(event) => update(field.id, { text: event.target.value })} />
-                : <div className="agent-prompt-choices">
-                  {field.options.map((option) => field.multi
-                    ? <OptionRow key={option.id} type="checkbox" option={option} checked={draft.chosen.has(option.id)}
-                      onChange={(on) => toggle(field.id, option.id, on)} />
-                    : <OptionRow key={option.id} type="radio" name={id} option={option} checked={!draft.other && draft.chosen.has(option.id)}
-                      onChange={() => update(field.id, { chosen: new Set([option.id]), other: false })} />)}
-                  {field.text === 'other' && !field.multi &&
-                    <OptionRow type="radio" name={id} option={{ id: 'other', label: 'Other' }} checked={draft.other}
-                      onChange={() => update(field.id, { chosen: new Set(), other: true })} />}
-                  {field.text === 'other' && <div className="agent-prompt-other">
-                    <label htmlFor={`${id}-other`}>{field.multi ? 'Other' : 'Other answer'}</label>
-                    <textarea className="input" id={`${id}-other`} value={draft.text} maxLength={20_000} rows={1}
-                      onChange={(event) => update(field.id, field.multi ? { text: event.target.value } : { text: event.target.value, chosen: new Set(), other: true })} />
-                  </div>}
-                </div>}
-            </fieldset>
-          )
-        })}
+        {fields.map((field) => (
+          <FormFieldset key={field.id} name={`prompt-${prompt.id}-${field.id}`} field={field} draft={drafts[field.id]} busy={busy}
+            update={(change) => update(field.id, change)} />
+        ))}
       </div>
       <div className="agent-prompt-submit">
         <span className="agent-prompt-count" aria-live="polite">{answered.length} of {answers.length} answered</span>
         <button className="btn btn-primary btn-sm" type="submit" disabled={busy || !complete}>Submit</button>
       </div>
     </form>
+  )
+}
+
+/** A checkbox draft with `optionId` checked or not. */
+function toggled(draft: FieldDraft, optionId: string, on: boolean): Partial<FieldDraft> {
+  const chosen = new Set(draft.chosen)
+  if (on) chosen.add(optionId)
+  else chosen.delete(optionId)
+  return { chosen }
+}
+
+/**
+ * One question: a text box for a text field, else its options as checkboxes (multi) or radios (single, with an Other
+ * radio where it takes free text), and the Other box; typing a single choice's Other answer picks Other.
+ */
+function FormFieldset({ name, field, draft, busy, update }: {
+  name: string; field: FormField; draft: FieldDraft; busy: boolean; update: (change: (draft: FieldDraft) => Partial<FieldDraft>) => void
+}): JSX.Element {
+  return (
+    <fieldset className="agent-prompt-field" disabled={busy}>
+      <legend>{clip(field.title, 300)}</legend>
+      {field.text === 'only'
+        ? <textarea className="input" aria-label={clip(field.title, 300)} value={draft.text} maxLength={20_000} rows={1}
+          onChange={(event) => update(() => ({ text: event.target.value }))} />
+        : <div className="agent-prompt-choices">
+          {field.options.map((option) => field.multi
+            ? <OptionRow key={option.id} type="checkbox" option={option} checked={draft.chosen.has(option.id)}
+              onChange={(on) => update((current) => toggled(current, option.id, on))} />
+            : <OptionRow key={option.id} type="radio" name={name} option={option} checked={!draft.other && draft.chosen.has(option.id)}
+              onChange={() => update(() => ({ chosen: new Set([option.id]), other: false }))} />)}
+          {field.text === 'other' && !field.multi &&
+            <OptionRow type="radio" name={name} option={{ id: 'other', label: 'Other' }} checked={draft.other}
+              onChange={() => update(() => ({ chosen: new Set(), other: true }))} />}
+          {field.text === 'other' && <div className="agent-prompt-other">
+            <label htmlFor={`${name}-other`}>{field.multi ? 'Other' : 'Other answer'}</label>
+            <textarea className="input" id={`${name}-other`} value={draft.text} maxLength={20_000} rows={1}
+              onChange={(event) => update(() => field.multi ? { text: event.target.value } : { text: event.target.value, chosen: new Set(), other: true })} />
+          </div>}
+        </div>}
+    </fieldset>
   )
 }

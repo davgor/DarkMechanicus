@@ -296,12 +296,22 @@ const AGENT_TABS = {
   aboveChat: true, activeJoined: true, roundedTop: true
 }
 
+/** Passing records for the docked question states: the one multi-select question and the form at both widths. */
+function passingQuestionStates() {
+  return {
+    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
+    'question-form-1024': ready('question-form-1024', { formCard: FORM_1024 }),
+    'question-form-1440': ready('question-form-1440', { formCard: FORM })
+  }
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
     ...passingRailStates(),
     ...passingChatStates(),
     ...passingDeliveryStates(),
+    ...passingQuestionStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -338,9 +348,6 @@ function passing() {
     'agent-role-picker-1024': ready('agent-role-picker-1024', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'agent-role-picker-1440': ready('agent-role-picker-1440', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, ...picked(ROLE_CARDS), newChat: NEW_CHAT }),
-    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
-    'question-form-1024': ready('question-form-1024', { formCard: FORM_1024 }),
-    'question-form-1440': ready('question-form-1440', { formCard: FORM }),
     'epic-agent-tabs-1024': ready('epic-agent-tabs-1024', { agentTabs: AGENT_TABS }),
     'epic-agent-tabs-1440': ready('epic-agent-tabs-1440', { agentTabs: AGENT_TABS }),
     'model-picker-epic': epicModelPickerRecord(),
