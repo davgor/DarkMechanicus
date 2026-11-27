@@ -114,4 +114,27 @@ describe('runCli production dependencies', () => {
       expect(merged.shard).toBeUndefined();
     });
   });
+
+  it('passes --ast-only to the run and refuses it with shards', async () => {
+    await withTempDir(async (dir) => {
+      initRepo(dir);
+      await writeFile(join(dir, 'tracked.txt'), 'base');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-qm', 'base');
+      const seen: Array<boolean | undefined> = [];
+      let errors = '';
+      const cli = (argv: string[]) => runCli({
+        cwd: dir, argv, env: { FIREGUARD_BASE_REF: 'HEAD' },
+        stdout: () => undefined,
+        stderr: (text) => { errors += text; },
+        runFireguardFn: async (deps) => { seen.push(deps.astOnly); return skipped; },
+      });
+      expect(await cli(['--ast-only'])).toBe(0);
+      expect(await cli([])).toBe(0);
+      expect(seen).toEqual([true, false]);
+      expect(await cli(['--ast-only', '--shard', '1/2'])).toBe(2);
+      expect(errors).toContain('--ast-only cannot shard or merge shards');
+      expect(seen).toHaveLength(2);
+    });
+  });
 });

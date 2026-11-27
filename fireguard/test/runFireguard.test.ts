@@ -79,6 +79,37 @@ it('empty', () => { fn(); });
     expect(openLanes).not.toHaveBeenCalled();
   });
 
+  it('grades Gate 1 alone with astOnly and never opens lanes', async () => {
+    const openLanes = vi.fn(killAll);
+    const solid = `
+import { it, expect } from 'vitest';
+import { add } from './add';
+it('works', () => { expect(add(1, 2)).toBe(3); });
+`;
+    const empty = `${solid}it('empty', () => { add(1, 2); });\n`;
+    const grade = (source: string) =>
+      runFireguard({
+        config: DEFAULT_CONFIG,
+        revision,
+        astOnly: true,
+        getDiffEntries: async () => [
+          { status: 'A', path: 'src/add.test.ts' },
+          { status: 'A', path: 'src/add.ts' },
+        ],
+        readFile: async (path) => (path.endsWith('.test.ts') ? source : 'export const add = (a: number, b: number) => a + b;'),
+        openLanes,
+      });
+    const passing = await grade(solid);
+    expect(passing.gates.ast?.pass).toBe(true);
+    expect(passing.gates.flake).toBeUndefined();
+    expect(passing.gates.mutation).toBeUndefined();
+    expect(passing.grade.letter).not.toBe('F');
+    const failing = await grade(empty);
+    expect(failing.gates.ast?.emptyTests).toEqual([{ file: 'src/add.test.ts', line: 5, name: 'empty' }]);
+    expect(failing.grade.letter).toBe('F');
+    expect(openLanes).not.toHaveBeenCalled();
+  });
+
   it('runs flake then mutation and returns a passing grade for solid work', async () => {
     const solidTest = `
 import { describe, it, expect } from 'vitest';

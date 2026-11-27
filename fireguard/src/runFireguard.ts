@@ -34,6 +34,11 @@ export interface RunFireguardDeps {
    * and always closed before `runFireguard` returns.
    */
   openLanes: () => Promise<Lanes>;
+  /**
+   * Gate 1 only: grade the changed tests' AST and open no lanes. A quick pre-check a ticket can run before review;
+   * CI still runs every gate.
+   */
+  astOnly?: boolean;
 }
 
 /** Lookup from a changed module to the graded tests that can kill its mutants, if scopable. */
@@ -160,7 +165,7 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
     }))
   );
   gates.ast = runAstGate({ config: deps.config, files });
-  if (!gates.ast.pass) {
+  if (!gates.ast.pass || deps.astOnly) {
     return {
       revision: deps.revision,
       grade: computeGrade(gates),

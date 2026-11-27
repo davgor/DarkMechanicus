@@ -38,6 +38,7 @@ npm run fireguard
 npm run fireguard -- --json
 npm run fireguard -- --comment-pr
 npm run fireguard -- --help
+FIREGUARD_BASE_REF=<sprint base> npm run fireguard -- --ast-only
 ```
 
 | Exit | Meaning |
@@ -45,6 +46,8 @@ npm run fireguard -- --help
 | 0 | Pass (grade A–D) |
 | 1 | Quality failure (grade **F**) |
 | 2 | Tool error |
+
+`--ast-only` runs Gate 1 alone on the committed tests that changed since `FIREGUARD_BASE_REF` and opens no snapshots, so it finishes in seconds. Run it before a ticket goes to review: CI's Gate 1 counts only a direct `expect(...)` call in a test's own body, so a test that asserts through `expectTypeOf` or a helper function is an empty test there. It cannot shard or merge shards, and CI still runs every gate.
 
 ### PR grade comments
 
