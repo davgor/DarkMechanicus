@@ -464,6 +464,55 @@ describe('patchSprint', () => {
   })
 })
 
+describe('sprint delivery', () => {
+  const identity = { id: 'sp_test', ordinal: 1 }
+  const delivery = { target: 'main', release: true, verifyInstalled: true }
+
+  it('builds a goal-only sprint with no delivery key', () => {
+    const keys = ['id', 'ordinal', 'goal', 'ticketIds', 'entryCriteria', 'exitCriteria', 'concurrencyCap', 'checkpoint']
+    expect(Object.keys(buildSprint({ goal: 'g' }, identity))).toEqual(keys)
+    expect(buildSprint({ goal: 'g', delivery: null }, identity)).toEqual(buildSprint({ goal: 'g' }, identity))
+    expect('delivery' in buildSprint({ goal: 'g', delivery: null }, identity)).toBe(false)
+  })
+
+  it('keeps the exact keys and content hash of a sprint without delivery through patches that set none', () => {
+    const saved = makeSprint(2, [1, 2], { goal: 'Original goal' })
+    const hash = contentHash(saved)
+    for (const patch of [{}, { goal: saved.goal }, { delivery: null }]) {
+      const patched = patchSprint(saved, patch)
+      expect(Object.keys(patched)).toEqual(Object.keys(saved))
+      expect('delivery' in patched).toBe(false)
+      expect(contentHash(patched)).toBe(hash)
+    }
+  })
+
+  it('stores a set delivery in a fixed key order and round-trips it', () => {
+    const built = buildSprint({ goal: 'g', delivery: { verifyInstalled: false, release: true, target: 'main' } }, identity)
+    expect(built.delivery).toEqual({ target: 'main', release: true, verifyInstalled: false })
+    expect(Object.keys(built.delivery ?? {})).toEqual(['target', 'release', 'verifyInstalled'])
+    const saved = makeSprint(2, [1])
+    const set = patchSprint(saved, { delivery })
+    expect(set.delivery).toEqual(delivery)
+    expect(set.delivery).not.toBe(delivery)
+    expect(patchSprint(set, { goal: 'Other' }).delivery).toEqual(delivery)
+    expect(contentHash(patchSprint(set, {}))).toBe(contentHash(set))
+  })
+
+  it('removes the delivery key with null and restores the original hash', () => {
+    const saved = makeSprint(2, [1])
+    const cleared = patchSprint(patchSprint(saved, { delivery }), { delivery: null })
+    expect('delivery' in cleared).toBe(false)
+    expect(Object.keys(cleared)).toEqual(Object.keys(saved))
+    expect(contentHash(cleared)).toBe(contentHash(saved))
+  })
+
+  it('replaces a set delivery with a given one', () => {
+    const set = patchSprint(makeSprint(2, [1]), { delivery })
+    const replaced = patchSprint(set, { delivery: { target: 'release/1.x', release: false, verifyInstalled: false } })
+    expect(replaced.delivery).toEqual({ target: 'release/1.x', release: false, verifyInstalled: false })
+  })
+})
+
 describe('createInitialBundle', () => {
   const epic = { title: 'Epic', intent: 'Intent', successCriteria: [criterion('s1', 'done')], ownerRole: null }
 

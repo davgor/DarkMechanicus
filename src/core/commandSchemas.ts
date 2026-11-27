@@ -492,6 +492,21 @@ export const COMMAND_SCHEMAS = {
     checks: rowCheckEntries,
     idempotencyKey
   }),
+  recordDelivery: z.strictObject({
+    runId: stableId,
+    sprintId: stableId,
+    commit: commitHash,
+    releaseTag: z.string().regex(/^v\d+\.\d+\.\d+$/).optional(),
+    observedInstalledVersion: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
+    checks: rowCheckEntries.optional(),
+    idempotencyKey
+  }),
+  waiveDelivery: z.strictObject({
+    runId: stableId,
+    sprintId: stableId,
+    reason: z.string().trim().min(1).max(2000),
+    idempotencyKey
+  }),
   pauseRun: z.strictObject({ runId: stableId, reason: note.optional() }),
   resumeRun: runRef,
   cancelRun: z.strictObject({ runId: stableId, reason: note.optional() }),

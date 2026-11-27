@@ -9,6 +9,7 @@ import type { CredentialSession } from '../git/credentials'
 import { DomainError } from '../../core/errors'
 import { assertForgeTransferIdle, assertForgeWorldSyncAllowed, bindForge, boundForgeRoot, FORGE_POINTER, pendingForgeForce, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { forgeCodeCheckout } from '../../core/repo/forgeCheckout'
+import type { RenameRetryNote } from '../../core/repo/forgeManifest'
 import { retireSqlitePolicy } from '../../core/repo/deliveryPolicy'
 import { readForgeRecipebook, readForgeSetupWorkflow, refreshForgeSetupWorkflow, writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import { gitCheckoutStamp } from '../../core/repo/git'
@@ -45,8 +46,8 @@ interface Services {
   provisioning?: Pick<Parameters<typeof createForgeProvisioningWork>[0], 'publisher' | 'discover'> & { journal: string }
   onImported?(member: string, agent?: string): Promise<void>
   setup?: Omit<ForgeSetupOnboardingOptions, 'resolveMember' | 'discover' | 'resolveCheckout' | 'mutate' | 'sync'>
-  /** Told the code of each busy manifest rename that is asked again; this module stays free of the Electron logger. */
-  onManifestRetry?(code: string): void
+  /** Told the code and file of each busy rename that is asked again; this module stays free of the Electron logger. */
+  onRenameRetry?: RenameRetryNote
 }
 interface MemberIdentity { key: string; identity: string }
 interface MemberPreparation { key: string | undefined; promise: Promise<void> }
@@ -90,7 +91,7 @@ class ForgeService {
   private readonly checking = new Map<string, Promise<WorldCheckout>>()
 
   constructor(private readonly deps: Services) {
-    this.git = new ForgeGit(deps.session, deps.runner)
+    this.git = new ForgeGit(deps.session, deps.runner, deps.onRenameRetry)
     if (deps.setup !== undefined && deps.provisioning !== undefined) {
       this.setup = createForgeSetupOnboarding({
         ...deps.setup, resolveMember: input => this.setupMember(input), discover: deps.provisioning.discover,
@@ -130,7 +131,7 @@ class ForgeService {
     const pending = this.checking.get(root)
     if (pending) return pending
     const key = this.rootKey(root)
-    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked, onManifestRetry: this.deps.onManifestRetry })).then(checkout => {
+    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home, checked, onRenameRetry: this.deps.onRenameRetry })).then(checkout => {
       if (key !== undefined && this.rootKey(root) === key) {
         this.validated.set(root, key)
         this.notifyMembers(root)
@@ -172,10 +173,18 @@ class ForgeService {
     this.provisioningWorlds.add(root)
     const key = this.rootKey(root)
     try {
-      await Promise.allSettled([this.active.get(root), this.pending.get(root), this.checking.get(root)])
+      await this.worldGitSettled(root)
       this.assertSyncTarget(root, key)
       return await change()
     } finally { this.provisioningWorlds.delete(root) }
+  }
+  /**
+   * Settles the world's running sync, its queued follow-up and its check. Their git children read forge-world.json
+   * and rewrite it, and Windows refuses to rename over a file another process holds open, so a manifest writer awaits
+   * this and writes in the same turn, before another sync or check can start.
+   */
+  private async worldGitSettled(root: string): Promise<void> {
+    while (this.isSyncing(root)) await Promise.allSettled([this.active.get(root), this.pending.get(root), this.checking.get(root)])
   }
   private async relatedMutation<T>(root: string, change: () => Promise<T>): Promise<T> {
     this.assertNotProvisioning(root)
@@ -406,7 +415,7 @@ class ForgeService {
     const worldRepository = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
     ensureForgeConfig(source, { version: 1, worldRepository, projectFolder: project.folder })
     const note = join(source, POINTER)
-    bindForge(this.deps.home, source, member, existsSync(note) ? readFileSync(note, 'utf8') : '')
+    bindForge(this.deps.home, source, { member, note: existsSync(note) ? readFileSync(note, 'utf8') : '', onRetry: this.deps.onRenameRetry })
     return member
   }
   async add(root: string, repository: string, name: string) {
@@ -423,7 +432,8 @@ class ForgeService {
     if (!existsSync(member)) mkdirSync(member)
     else throw new Error('The project folder already exists in this Forge World.')
     await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
-    updateForge(root, w => w.projects.push({ folder, repository: url }), this.deps.onManifestRetry)
+    await this.worldGitSettled(root)
+    updateForge(root, w => w.projects.push({ folder, repository: url }), this.deps.onRenameRetry)
     return member
   }
   async convert(root: string, source: string, force = false) {
@@ -445,7 +455,7 @@ class ForgeService {
     if (force) this.transferring.add(root)
     try {
     if (force) await this.active.get(root)
-    await withForgeTransfer(this.deps.home, source, { target: member, force }, async (phase, advance) => {
+    await withForgeTransfer(this.deps.home, source, { target: member, force, onRetry: this.deps.onRenameRetry }, async (phase, advance) => {
       const note = join(source, POINTER)
       const body = [
         '# Ticket source control', '', 'Forge World: ' + remote, 'Project folder: ' + folder, '',
@@ -464,7 +474,7 @@ class ForgeService {
       if (!existsSync(note)) writeFileSync(note, body, { flag: 'wx' })
       if (readFileSync(note, 'utf8') !== body) throw new Error('The source pointer changed during conversion.')
       ensureForgeConfig(source, { version: 1, worldRepository: remote, projectFolder: folder })
-      bindForge(this.deps.home, source, member, body)
+      bindForge(this.deps.home, source, { member, note: body, onRetry: this.deps.onRenameRetry })
       this.deps.registry.untrack(source)
     })
     } finally { if (force) this.transferring.delete(root) }
@@ -523,7 +533,8 @@ class ForgeService {
       if (realpathSync.native(move.member) !== move.member || dirname(move.member) !== move.root) throw new Error('The reserved export folder moved; the source was kept.')
       rmSync(move.member, { recursive: true })
     }
-    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) }, this.deps.onManifestRetry)
+    await this.worldGitSettled(move.root)
+    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) }, this.deps.onRenameRetry)
   }
 
   async retireForcedSource({ source, member }: ForgeMove) {
@@ -548,7 +559,7 @@ class ForgeService {
     const linked = this.worldAt(root).projects.find(p => p.folder === basename(member))
     if (!reference && (!linked || githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim()).toLowerCase() !== linked.repository.toLowerCase())) throw new Error('Select the linked code repository.')
     if (reference && (reference.worldRepository.toLowerCase() !== remote.toLowerCase() || reference.projectFolder !== basename(member))) throw new Error('Choose the code checkout linked to this project.')
-    await withForgeTransfer(this.deps.home, member, source + '/' + mode, async (phase, advance) => {
+    await withForgeTransfer(this.deps.home, member, { target: source + '/' + mode, force: false, onRetry: this.deps.onRenameRetry }, async (phase, advance) => {
       if (phase === 0) {
         await this.deps.pool.get(member).call('checkStorageIdle', false)
         await this.sync(root)
@@ -585,8 +596,8 @@ class ForgeService {
       withWorld: (root, change) => this.withProvisioningWorld(root, change),
       synchronize: (root, current) => this.sync(root, true, false, current),
       onProject: (member, agent) => this.imported(member, agent),
-      onManifestRetry: this.deps.onManifestRetry
-    }))
+      onRenameRetry: this.deps.onRenameRetry
+    }), this.deps.onRenameRetry)
     this.provisioning = provisioning
     ipc.handle('forgeSetup:provision', (_event, request, operationId) => provisioning.provision(request, operationId))
     ipc.handle('forgeSetup:provisioning', () => provisioning.provisioning())
@@ -671,10 +682,16 @@ class ForgeService {
       if (picked) await this.convert(root, this.deps.registry.track(picked).folder.path)
     })
     ipc.handle('forge:add', (_e, folder, repository, name) => this.add(this.rootOf(folder), repository, name))
-    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onManifestRetry); this.next.set(root, Date.now() + minutes * 60_000) })
+    ipc.handle('forge:interval', (_e, folder, minutes) => this.changeInterval(this.rootOf(folder), minutes))
     ipc.handle('forge:sync', (_e, folder) => this.sync(this.rootOf(folder)))
     ipc.handle('forge:memberStatus', (_e, folder, member: unknown) => this.memberStatus(folder, member))
     ipc.handle('forge:status', (_e, folder) => { const root = this.rootOf(folder); return { last: this.last.get(root) ?? null, error: this.errors.get(root) ?? null } })
+  }
+  private async changeInterval(root: string, minutes: number): Promise<void> {
+    await this.worldGitSettled(root)
+    this.assertNotProvisioning(root)
+    updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onRenameRetry)
+    this.next.set(root, Date.now() + minutes * 60_000)
   }
   private memberStatus(folder: unknown, member: unknown): ForgeMemberStatus {
     const root = this.memberRoot(folder)
@@ -874,7 +891,8 @@ class ForgeService {
       beforeVerify?.()
       await original.call('verifyForge', member, false)
     }
-    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }), this.deps.onManifestRetry)
+    await this.worldGitSettled(root)
+    if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }), this.deps.onRenameRetry)
   }
   private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
     const detection = this.setup === undefined ? undefined : await this.deps.provisioning?.discover(repository)
@@ -917,7 +935,8 @@ class ForgeService {
     mkdirSync(dirname(archive), { recursive: true })
     if (existsSync(join(member, '.darkmechanicus'))) renameSync(join(member, '.darkmechanicus'), archive)
     if (existsSync(member) && readdirSync(member).length === 0) rmdirSync(member)
-    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) }, this.deps.onManifestRetry)
+    await this.worldGitSettled(root)
+    updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) }, this.deps.onRenameRetry)
   }
 }
 

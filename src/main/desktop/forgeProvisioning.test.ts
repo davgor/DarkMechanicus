@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { RenameRetryNote } from '../../core/repo/forgeManifest'
+import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { createForgeProvisioning, type ForgeProvisioningWork } from './forgeProvisioning'
 import { ForgeCreationRefused, type ForgePublishedRepository } from './forgePublish'
 
+// vi.mock factories run before the file's static imports, so the helper is loaded from inside the factory.
+vi.mock('node:fs', async original => (await import('../../test/busyRename')).withBusyRename(await original()))
+
 const cleanups: Array<() => void> = []
-afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup() })
+afterEach(() => {
+  releaseRenames()
+  for (const cleanup of cleanups.splice(0)) cleanup()
+})
 const accounts = { owner: { login: 'owner', id: 42 }, changed: { login: 'other', id: 77 } }
 const createRequest = {
   world: { kind: 'new' as const, name: 'tickets' },
@@ -53,7 +61,7 @@ function fixture() {
     async publish() { calls.push('publish'); if (change.fail === 'publish') throw new Error('Publish blocked.') }
   }
   const operation = randomUUID()
-  return { calls, remotes, start: () => createForgeProvisioning(file, work), change, file, operation }
+  return { calls, remotes, start: (onRetry?: RenameRetryNote) => createForgeProvisioning(file, work, onRetry), change, file, operation }
 }
 
 function barrier() {
@@ -249,4 +257,44 @@ it('rejects overlapping world and code names and missing operation receipts befo
   await expect(creation.resumeProvision(f.operation)).rejects.toThrow('operation no longer exists')
   await expect(creation.resumeProvision('malformed')).rejects.toThrow('operation no longer exists')
   expect(f.calls).toEqual([])
+})
+
+describe('a busy rename onto the creation journal', () => {
+  it('asks again after one busy refusal and journals the creation within 300 ms', async () => {
+    const f = fixture()
+    const onRetry = vi.fn<RenameRetryNote>()
+    let firstCreate: number | undefined
+    f.change.beforeCreate = async () => { firstCreate ??= performance.now() }
+    refuseRenames('EPERM')
+    const started = performance.now()
+    const result = await f.start(onRetry).provision(createRequest, f.operation)
+    expect(result).toMatchObject({ state: 'complete', phase: 'complete' })
+    expect((firstCreate ?? Infinity) - started).toBeLessThan(300)
+    expect(onRetry.mock.calls).toEqual([['EPERM', f.file]])
+    expect(renamesAsked()).toBeGreaterThan(2)
+    expect(JSON.parse(readFileSync(f.file, 'utf8')).entries).toMatchObject([{ id: f.operation, state: 'complete' }])
+    expect(readdirSync(dirname(f.file))).not.toContainEqual(expect.stringMatching(/^provisioning\.json\./))
+  })
+
+  it('throws the last busy refusal after the bound and writes no journal', async () => {
+    const f = fixture()
+    const onRetry = vi.fn<RenameRetryNote>()
+    refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
+    await expect(f.start(onRetry).provision(createRequest, f.operation)).rejects.toThrow('EPERM: rename refused')
+    expect(renamesAsked()).toBe(4)
+    expect(onRetry.mock.calls).toEqual([['EPERM', f.file], ['EACCES', f.file], ['EBUSY', f.file]])
+    expect(existsSync(f.file)).toBe(false)
+    expect(readdirSync(dirname(f.file))).not.toContainEqual(expect.stringMatching(/^provisioning\.json/))
+    expect(f.calls).toEqual([])
+  })
+
+  it('throws any other error at once without asking again', async () => {
+    const f = fixture()
+    const onRetry = vi.fn<RenameRetryNote>()
+    refuseRenames('ENOENT')
+    await expect(f.start(onRetry).provision(createRequest, f.operation)).rejects.toThrow('ENOENT: rename refused')
+    expect(renamesAsked()).toBe(1)
+    expect(onRetry).not.toHaveBeenCalled()
+    expect(existsSync(f.file)).toBe(false)
+  })
 })

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { prepareInstallerToolchain, TOOLCHAIN_METADATA } from './prepareInstallerTests.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const nsis = value => value.replaceAll('$', '$$').replaceAll('"', '$\\"')
@@ -78,10 +79,13 @@ SectionEnd`)
 let root, installDir, nestedDir, outsideDir, probe, worker, failedSnapshot, fullProbe, uninstallProbe
 const running = []
 
+// CI provisions the compiler in its own step; a fresh local checkout provisions it here, on first use.
+async function provisionCompiler() {
+  if (!existsSync(TOOLCHAIN_METADATA)) await prepareInstallerToolchain()
+}
+
 function prepareFixture() {
-  const metadata = join(ROOT, 'out', 'installer-test-toolchain.json')
-  if (!existsSync(metadata)) throw new Error('Run node scripts/prepareInstallerTests.mjs to provision the pinned NSIS compiler before native installer tests.')
-  const compiler = JSON.parse(readFileSync(metadata, 'utf8'))
+  const compiler = JSON.parse(readFileSync(TOOLCHAIN_METADATA, 'utf8'))
   root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-install-native-')))
   installDir = join(root, "App's Unicode Ω folder")
   nestedDir = join(installDir, 'nested')
@@ -139,6 +143,9 @@ async function stopChildren() {
 }
 
 describe.runIf(process.platform === 'win32')('installer.nsh: native installed-process detection', () => {
+  // A first local run downloads the pinned NSIS archive (a few MB from GitHub) and verifies its checksum; that is a
+  // network fetch, not test work, so it gets a bound of its own. Later runs reuse out/ and electron-builder's cache.
+  beforeAll(provisionCompiler, 120_000)
   beforeAll(prepareFixture)
   afterEach(stopChildren)
   afterAll(() => { if (root) rmSync(root, { recursive: true, force: true }) })

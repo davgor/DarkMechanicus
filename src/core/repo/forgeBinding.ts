@@ -1,12 +1,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { contentHash } from '../canonical'
 import { fail } from '../errors'
 import { dbProjectDir, projectKey } from './storageMode'
 import type { FsAdapter } from './types'
 import { FORGE_CONFIG, readForgeReference } from './forgeReference'
+import { replaceForgeFile, type RenameRetryNote } from './forgeManifest'
 import { nodeFs } from './nodeFs'
 
 export const FORGE_POINTER = 'FORGE-WORLD.md'
@@ -94,20 +95,21 @@ export function assertForgeWorldSyncAllowed(fs: FsAdapter, home: string, root: s
   }
 }
 
-export function bindForge(home: string, source: string, member: string, note: string) {
+/** Binds `source` to its Forge member; `onRetry` is told of each busy rename that is asked again (the main process logs it). */
+export function bindForge(home: string, source: string, { member, note, onRetry }: { member: string; note: string; onRetry?: RenameRetryNote }) {
   const config = join(source, FORGE_CONFIG)
   if (existsSync(config) || nodeFs.isSymlink(config)) readForgeReference(nodeFs, source)
   const file = stateFile(home, source, 'link')
   mkdirSync(dirname(file), { recursive: true })
   const temp = file + '.' + randomUUID()
   writeFileSync(temp, JSON.stringify({ member, note: contentHash(note), config: existsSync(config) ? contentHash(readFileSync(config, 'utf8')) : undefined, epoch: randomUUID() }), { flag: 'wx' })
-  renameSync(temp, file)
+  replaceForgeFile(temp, file, onRetry)
   const local = join(member, '.darkmechanicus', 'local')
   if (existsSync(local) && realpathSync.native(local) === local) {
     const location = join(local, 'source-checkout.json')
     const draft = location + '.' + randomUUID()
     writeFileSync(draft, JSON.stringify({ checkout: source }) + '\n', { flag: 'wx' })
-    renameSync(draft, location)
+    replaceForgeFile(draft, location, onRetry)
   }
 }
 
@@ -169,9 +171,9 @@ function assertOwnerInactive(pid: number): void {
   throw new Error('Another Dark Mechanicus process owns this conversion.')
 }
 
-export async function withForgeTransfer<T>(home: string, source: string, destination: string | { target: string; force: boolean }, action: (phase: number, advance: (n: number) => void) => Promise<T>) {
-  const target = typeof destination === 'string' ? destination : destination.target
-  const force = typeof destination === 'string' ? false : destination.force
+/** A string destination is an unforced move; `onRetry` is told of each busy phase rename that is asked again. */
+export async function withForgeTransfer<T>(home: string, source: string, destination: string | { target: string; force: boolean; onRetry?: RenameRetryNote }, action: (phase: number, advance: (n: number) => void) => Promise<T>) {
+  const { target, force, onRetry } = typeof destination === 'string' ? { target: destination, force: false, onRetry: undefined } : destination
   const file = stateFile(home, source, 'move')
   if (owners.has(file)) throw new Error('This conversion is already running.')
   mkdirSync(dirname(file), { recursive: true })
@@ -189,7 +191,7 @@ export async function withForgeTransfer<T>(home: string, source: string, destina
   function advance(n: number) {
     const temp = file + '.' + randomUUID()
     writeFileSync(temp, JSON.stringify({ pid: process.pid, target, lease, phase: n, force }), { flag: 'wx' })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file, onRetry)
     phase = n
   }
   owners.add(file)

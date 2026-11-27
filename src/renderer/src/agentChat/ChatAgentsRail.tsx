@@ -4,38 +4,20 @@ import { AgentTree } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentStatus, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { chatAgentNodes } from '../agentTree/chatAgentNodes'
 import type { RevealThread } from '../agents/revealThread'
-import { readStored, writeStored } from '../app/storage'
 import { RightRail } from '../components/RightRail'
+import { useRailState, type RailStateHandle } from '../components/useRailState'
 import { useNow } from '../epic/clock'
 import type { AgentChatState } from './agentChatModel'
 
 export type RailChat = Pick<ChatRecord, 'role' | 'runId'>
 
-function railKey(chatId: string): string {
-  return `dm.chatRail.v1:${chatId}`
-}
-
-function storedRail(key: string): Record<string, unknown> | null {
-  return readStored(key, null, (value): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value))
-}
-
 /**
- * Whether this chat's Agents rail is shown. It shares the rail's own remembered state (`useRailState` under
- * `dm.chatRail.v1:<chatId>`): open while that state is stored and not collapsed. Nothing is stored until the
- * person toggles it, so a chat starts closed and the narrow-window default of the shared rail never applies.
+ * This chat's Agents rail state, remembered under `dm.chatRail.v1:<chatId>`. The chat's Agents toggle and the
+ * rail's own chevron both read and write it: the rail is shown while it is not collapsed. A chat with nothing
+ * stored starts collapsed, never at the narrow-window default of the shared rail.
  */
-export function useChatRailOpen(chatId: string): { open: boolean; toggle(): void } {
-  const key = railKey(chatId)
-  const [open, setOpen] = useState(() => storedRail(key)?.collapsed === false)
-  return {
-    open,
-    toggle: () => {
-      // Read again: the mounted rail may have changed its tab or cards since this chat opened.
-      writeStored(key, { tab: 'agents', cards: {}, ...storedRail(key), collapsed: open })
-      setOpen(!open)
-    }
-  }
+export function useChatRail(chatId: string): RailStateHandle {
+  return useRailState(`dm.chatRail.v1:${chatId}`, true)
 }
 
 const ROOT_STATUS: Record<NonNullable<AgentChatState['status']>, AgentStatus> = {
@@ -74,11 +56,11 @@ export function useThreadReveal(state: AgentChatState, landing: string | null | 
   reveal: RevealThread
   show(threadId: string): void
 } {
-  const [reveal, setReveal] = useState<RevealThread>({ path: new Set(), target: null, nonce: 0 })
+  const [reveal, setReveal] = useState<RevealThread>(() => ({ path: new Set(), target: null, nonce: 0, handled: new Map() }))
   const items = useRef(state.items)
   items.current = state.items
   const show = (threadId: string): void => {
-    setReveal((previous) => ({ path: pathTo(threadId, items.current), target: threadId, nonce: previous.nonce + 1 }))
+    setReveal((previous) => ({ ...previous, path: pathTo(threadId, items.current), target: threadId, nonce: previous.nonce + 1 }))
   }
   const taken = useRef<string | null>(null)
   const loaded = state.status !== null
@@ -86,18 +68,20 @@ export function useThreadReveal(state: AgentChatState, landing: string | null | 
     if (!landing) taken.current = null
     if (!landing || !loaded || taken.current === landing) return
     taken.current = landing
-    setReveal((previous) => ({ path: pathTo(landing, items.current), target: landing, nonce: previous.nonce + 1 }))
+    setReveal((previous) => ({ ...previous, path: pathTo(landing, items.current), target: landing, nonce: previous.nonce + 1 }))
     onRevealed?.()
   }, [landing, loaded, onRevealed])
   return { reveal, show }
 }
 
 /** The rail beside an ordinary chat: its Agents tab lists the chat and the subagents it started. */
-export function ChatAgentsRail({ chatId, chat, agentLabel, state, selected, select }: {
+export function ChatAgentsRail({ chatId, chat, agentLabel, state, rail, selected, select }: {
   chatId: string
   chat: RailChat
   agentLabel: string
   state: AgentChatState
+  /** The chat's rail state from `useChatRail`, shared with its Agents toggle. */
+  rail: RailStateHandle
   selected: string | null
   select(threadId: string): void
 }): JSX.Element {
@@ -107,5 +91,5 @@ export function ChatAgentsRail({ chatId, chat, agentLabel, state, selected, sele
     <AgentTree tree={tree} selectedId={selected} now={now} label="Chat agent tree"
       onSelect={(id) => { if (id !== rootId(chatId)) select(id) }} />
   )
-  return <RightRail label="Chat agents" storageKey={railKey(chatId)} tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }]} />
+  return <RightRail label="Chat agents" rail={rail} tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }]} />
 }

@@ -48,6 +48,7 @@ const ORCHESTRATOR: Capability[] = [
   'run.adopt',
   'run.redraft',
   'run.row_check',
+  'run.delivery',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -143,6 +144,7 @@ const AGENT_ONLY = [
   'report.submit',
   'run.start',
   'run.row_check',
+  'run.delivery',
   'host.register',
   'kanban.launch',
   'kanban.claim',
@@ -244,6 +246,11 @@ describe('capabilitiesForRole exact sets', () => {
       'orchestrator',
       'worker'
     ])
+  })
+
+  it('lets only the orchestrator record a sprint delivery check; the desktop waives instead and never records one', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('run.delivery'))).toEqual(['orchestrator'])
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('run.delivery')
   })
 
   it('lets the orchestrator do everything the planner can, except what is reserved to the planner', () => {

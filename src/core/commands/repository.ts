@@ -26,11 +26,17 @@ import { yoloSessionScope } from '../services/yolo'
 import { SKILLS_VERSION } from '../version'
 import type { CommandTable, WorkspaceCore } from './types'
 
+/** A missing `packaged` is false: an unpackaged or unidentified build never stands for the installed app. */
+function serverView(info: WorkspaceCore['options']['serverInfo']): CapabilitiesView['server'] {
+  const { name, version } = info ?? { name: 'darkmechanicus', version: '0.0.0' }
+  return { name, version, packaged: info?.packaged ?? false }
+}
+
 function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
   const initialized = core.isInitialized()
   const yolo = initialized ? yoloSessionScope(core.ctx()) : undefined
   return {
-    server: core.options.serverInfo ?? { name: 'darkmechanicus', version: '0.0.0' },
+    server: serverView(core.options.serverInfo),
     apiVersion: API_VERSION,
     schemaVersion: SCHEMA_VERSION,
     skillsVersion: SKILLS_VERSION,

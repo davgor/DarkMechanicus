@@ -53,35 +53,42 @@ function seed(dm: FakeDm, cults: FakeCults): void {
 
 const click = (element: Element | null | undefined): void => (element as HTMLElement | null)?.click()
 const byLabel = (label: string): Element | null => document.querySelector(`[aria-label="${label}"]`)
+// The preview's ES2022 lib predates Promise.withResolvers, so the executor form stays here.
 function tick(ms = 150): Promise<void> {
-  const { promise, resolve } = Promise.withResolvers<void>()
-  setTimeout(resolve, ms)
-  return promise
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
 }
 
-/** Real DOM clicks to reach the state. */
-async function drive(): Promise<void> {
+/** Opens the running cult's row and its past runs. */
+async function openRunning(): Promise<void> {
+  click(byLabel('Runs of Shrine Builders'))
+  await tick()
+  click(Array.from(document.querySelectorAll('.cult-past-toggle')).at(0))
+}
+
+/** Opens the Found a cult dialog and brings the state's part of it into view. */
+async function openDialog(): Promise<void> {
+  click(byLabel('Found a cult'))
   await tick(300)
-  if (state === 'running') {
-    click(byLabel('Runs of Shrine Builders'))
-    await tick()
-    click(Array.from(document.querySelectorAll('.cult-past-toggle')).at(0))
-  }
-  if (state.startsWith('dialog') || state === 'signedout') {
-    click(byLabel('Found a cult'))
-    await tick(300)
-  }
   if (state === 'dialog-advanced') {
     click(document.querySelector('.cult-advanced > summary'))
     await tick()
     document.querySelector('.cult-advanced')?.scrollIntoView({ block: 'end' })
   }
   if (state === 'signedout') document.querySelector('.cult-model-line')?.scrollIntoView({ block: 'center' })
-  if (state === 'dialog-planforge' || state === 'dialog-planforge-target') {
-    click(document.querySelector('input[value="plan_forge"]'))
-    await tick(300)
-  }
+  if (state.startsWith('dialog-planforge')) await choosePlanForge()
+}
+
+async function choosePlanForge(): Promise<void> {
+  click(document.querySelector('input[value="plan_forge"]'))
+  await tick(300)
   if (state === 'dialog-planforge-target') document.querySelector('.cult-roster ~ .field select')?.closest('.field')?.scrollIntoView({ block: 'center' })
+}
+
+/** Real DOM clicks to reach the state. */
+async function drive(): Promise<void> {
+  await tick(300)
+  if (state === 'running') await openRunning()
+  if (state.startsWith('dialog') || state === 'signedout') await openDialog()
   await document.fonts.ready
   await tick()
   document.getElementById('root')?.setAttribute('data-ready', state)

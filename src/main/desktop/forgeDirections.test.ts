@@ -1,12 +1,20 @@
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RenameRetryNote } from '../../core/repo/forgeManifest'
+import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { ensureForgeDirections, FORGE_DIRECTIONS, FORGE_REPOSITORY_GUIDANCE } from './forgeDirections'
 
+// vi.mock factories run before the file's static imports, so the helper is loaded from inside the factory.
+vi.mock('node:fs', async original => (await import('../../test/busyRename')).withBusyRename(await original()))
+
 let fixture: ReturnType<typeof scratchDir>
 beforeEach(() => { fixture = scratchDir('forge-directions-') })
-afterEach(() => fixture.cleanup())
+afterEach(() => {
+  releaseRenames()
+  fixture.cleanup()
+})
 const begin = '<!-- darkmechanicus:forge-repositories:v2:start -->'
 const end = '<!-- darkmechanicus:forge-repositories:end -->'
 
@@ -79,4 +87,44 @@ it('refuses malformed managed markers and nonregular guides without replacing th
   mkdirSync(other)
   mkdirSync(join(other, FORGE_DIRECTIONS))
   expect(() => ensureForgeDirections(other)).toThrow('ordinary file')
+})
+
+describe('a busy rename onto the directions', () => {
+  const custom = '# Custom\nUse our internal setup notes.\n'
+  const onRetry = vi.fn<RenameRetryNote>()
+  beforeEach(() => { onRetry.mockReset() })
+
+  it('asks again after one busy refusal and writes the update within 300 ms', () => {
+    const file = join(fixture.path, FORGE_DIRECTIONS)
+    writeFileSync(file, custom)
+    refuseRenames('EPERM')
+    const started = performance.now()
+    ensureForgeDirections(fixture.path, onRetry)
+    expect(performance.now() - started).toBeLessThan(300)
+    expect(renamesAsked()).toBe(2)
+    expect(onRetry.mock.calls).toEqual([['EPERM', file]])
+    expect(readFileSync(file, 'utf8')).toContain(begin)
+    expect(readdirSync(fixture.path)).toEqual([FORGE_DIRECTIONS])
+  })
+
+  it('throws the last busy refusal after the bound and leaves the directions unchanged', () => {
+    const file = join(fixture.path, FORGE_DIRECTIONS)
+    writeFileSync(file, custom)
+    refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
+    expect(() => ensureForgeDirections(fixture.path, onRetry)).toThrow('EPERM: rename refused')
+    expect(renamesAsked()).toBe(4)
+    expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
+    expect(readFileSync(file, 'utf8')).toBe(custom)
+    expect(readdirSync(fixture.path)).toEqual([FORGE_DIRECTIONS])
+  })
+
+  it('throws any other error at once, without asking again or rewriting the directions', () => {
+    const file = join(fixture.path, FORGE_DIRECTIONS)
+    writeFileSync(file, custom)
+    refuseRenames('ENOENT')
+    expect(() => ensureForgeDirections(fixture.path, onRetry)).toThrow('ENOENT: rename refused')
+    expect(renamesAsked()).toBe(1)
+    expect(onRetry).not.toHaveBeenCalled()
+    expect(readFileSync(file, 'utf8')).toBe(custom)
+  })
 })

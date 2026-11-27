@@ -13,7 +13,9 @@ import {
   runView,
   sprint
 } from '../epic/__mocks__/fixtures'
-import { followUpOp, gateView, reportView } from './gateView'
+import type { PlanBundle, SprintDelivery } from '../../../shared/domain/bundle'
+import type { CheckResult, DeliveryCheckView } from '../../../shared/domain/views'
+import { deliveryNotes, followUpOp, gateView, reportView } from './gateView'
 
 const FAILED_RUN = runView({
   state: 'awaiting_checkpoint',
@@ -377,5 +379,71 @@ describe('follow-up proposals', () => {
     const reversed = { ...draftPlan().bundle, sprints: [...draftPlan().bundle.sprints].reverse() }
     expect(followUpOp(proposal, reversed, 3)?.sprintOrdinal).toBe(3)
     expect(followUpOp(proposal, { ...draftPlan().bundle, sprints: [] }, 1)).toBe(null)
+  })
+})
+
+const MAIN: SprintDelivery = { target: 'main', release: true, verifyInstalled: true }
+const HOLD =
+  'After approval, Sprint 3 claims wait for recorded delivery verification or a person-owned waiver. Under current Sprint standards the protected PR and rollout are already complete before this checkpoint; the person controls any install restart, and the Magos records the release and installed-version evidence. An explicitly authorized legacy post-checkpoint delivery follows its approved exception.'
+
+function delivering(first: SprintDelivery | undefined, second: SprintDelivery | undefined): PlanBundle {
+  return bundle({
+    sprints: [
+      sprint(1, 'Storage foundation', ['tk_101', 'tk_102', 'tk_103'], first === undefined ? {} : { delivery: first }),
+      sprint(2, 'Authoring through MCP', ['tk_201', 'tk_202', 'tk_203', 'tk_204'], second === undefined ? {} : { delivery: second }),
+      sprint(3, 'Desktop editing', ['tk_301', 'tk_302', 'tk_304'])
+    ]
+  })
+}
+
+/** A delivery check; `reason` turns it into a waiver. */
+function record(sprintId: string, number: number, checks: CheckResult[], reason: string | null = null): DeliveryCheckView {
+  const kind = reason === null ? 'check' : 'waiver'
+  return {
+    id: `dc_${number}`, runId: 'rn_2', sprintId, number, kind, commit: null, releaseTag: null, releaseVersion: null, installedVersion: null,
+    checks, reasons: [], reason, passed: kind === 'waiver' || checks.every((item) => item.status === 'passed'), recordedBy: null,
+    createdAt: new Date(NOW).toISOString()
+  }
+}
+
+describe('checkpoint delivery notes', () => {
+  it('notes the post-approval hold only when the sprint under review declares delivery', () => {
+    const run = runView()
+    expect(deliveryNotes({ checkpoint: checkpointView(), run, bundle: delivering(undefined, MAIN) })).toEqual({ approval: HOLD, previous: null, waiver: null })
+    expect(deliveryNotes({ checkpoint: checkpointView(), run, bundle: delivering(MAIN, undefined) }).approval).toBeNull()
+    expect(deliveryNotes({ checkpoint: checkpointView(), run, bundle: null })).toEqual({ approval: null, previous: null, waiver: null })
+  })
+
+  it('does not present approval as pull request or merge authorization', () => {
+    const note = deliveryNotes({ checkpoint: checkpointView(), run: runView(), bundle: delivering(undefined, MAIN) }).approval ?? ''
+    expect(note).toContain('the protected PR and rollout are already complete before this checkpoint')
+    expect(note).not.toMatch(/approv\w* (authorizes|merges|opens|creates)/i)
+  })
+
+  it('has no hold note on the final sprint, which no sprint follows', () => {
+    const final = checkpointView({ isFinalSprint: true })
+    expect(deliveryNotes({ checkpoint: final, run: runView(), bundle: delivering(undefined, MAIN) }).approval).toBeNull()
+  })
+
+  it("lists the previous sprint's latest delivery check and its waiver", () => {
+    const run = runView({
+      deliveries: [
+        record('sp_1', 1, [{ name: 'on target', status: 'failed', detail: 'not on main' }]),
+        record('sp_1', 2, [
+          { name: 'on target', status: 'passed', detail: 'abc1234 on main' },
+          { name: 'installed', status: 'skipped', detail: 'not declared' }
+        ]),
+        record('sp_2', 3, [{ name: 'on target', status: 'failed', detail: 'the sprint under review' }]),
+        record('sp_1', 4, [], 'Shipped by hand')
+      ]
+    })
+    expect(deliveryNotes({ checkpoint: checkpointView(), run, bundle: delivering(MAIN, undefined) })).toEqual({
+      approval: null,
+      previous: [
+        { name: 'on target', status: 'passed', detail: 'abc1234 on main', icon: '✓' },
+        { name: 'installed', status: 'skipped', detail: 'not declared', icon: '–' }
+      ],
+      waiver: 'Shipped by hand'
+    })
   })
 })

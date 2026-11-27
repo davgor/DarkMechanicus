@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Callsign } from '../../../shared/agents/callsign'
+import type { ChatItem } from '../../../shared/agents/chat'
+import { ThreadBlock } from '../agents/ThreadBlock'
+import { transcriptTree } from '../agents/threadModel'
 import { AgentTree } from './AgentTree'
 import { buildAgentTree, type AgentTreeNodeInput } from './agentTreeModel'
+import { chatAgentNodes } from './chatAgentNodes'
 
 const now = 100_000
 function node(id: string, overrides: Partial<AgentTreeNodeInput> = {}): AgentTreeNodeInput {
@@ -60,6 +65,33 @@ describe('AgentTree rows and disclosure', () => {
     expect(onSelect).not.toHaveBeenCalled()
     fireEvent.click(screen.getByText('Acolyte:DM-1'))
     expect(onSelect).toHaveBeenCalledWith('old')
+  })
+})
+
+describe('AgentTree reveal of the selected node', () => {
+  it('opens the rows hiding a node selected from outside and scrolls it into view, once per selection', () => {
+    const inputs = [...chain(), node('old', { name: 'Acolyte:DM-1', parentId: 'root', status: 'done' })]
+    const scrolled: string[] = []
+    // jsdom has no scrollIntoView; record which row asked for it.
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) { scrolled.push(this.getAttribute('aria-label') ?? '') }
+    })
+    const view = show(inputs, 'root')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Magos' }))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="old" onSelect={view.onSelect} now={now} />)
+    expect(row('Magos').getAttribute('aria-expanded')).toBe('true')
+    expect(row('Finished 1').getAttribute('aria-expanded')).toBe('true')
+    expect(row('Acolyte:DM-1').getAttribute('aria-selected')).toBe('true')
+    expect(scrolled.at(-1)).toBe('Acolyte:DM-1')
+    fireEvent.click(screen.getByText('Finished 1'))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="old" onSelect={view.onSelect} now={now} />)
+    expect(screen.queryByText('Acolyte:DM-1')).toBeNull()
+    const count = scrolled.length
+    fireEvent.click(screen.getByText('Acolyte:DM-2'))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="worker" onSelect={view.onSelect} now={now} />)
+    expect(scrolled).toHaveLength(count)
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   })
 })
 
@@ -148,5 +180,50 @@ describe('AgentTree text and model updates', () => {
       selectedId={null} onSelect={onSelect} now={now} />)
     expect(screen.getByText('Idle')).toBeTruthy()
     expect(screen.getByText('1m ago')).toBeTruthy()
+  })
+})
+
+describe('AgentTree from a chat transcript mixing legacy and stamped threads', () => {
+  type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
+  const servitor = (ordinal: number): Callsign => ({ role: 'Servitor', ticketKey: null, ordinal, purpose: null, ticketVerified: false })
+  const thread = (id: string, callsign?: Callsign): ThreadItem => ({
+    id, at: '2026-11-25T10:00:00.000Z', kind: 'thread', parentItemId: null, label: 'Explore', state: 'running', ...(callsign ? { callsign } : {})
+  })
+  // A thread stored before callsigns existed, then one main stamped Servitor-1 because it counted only stamped threads.
+  const fixture: ChatItem[] = [thread('th_legacy'), thread('th_stamped', servitor(1))]
+  function treeOf(items: readonly ChatItem[]) {
+    return buildAgentTree(chatAgentNodes({
+      root: { id: 'chat:c1', chat: { role: 'orchestrator', runId: 'run-1' }, fallbackName: 'Claude', secondary: '', status: 'running', startedAt: null, endedAt: null },
+      items, savedTickets: []
+    }))
+  }
+  function subagentNames(): (string | null)[] {
+    return screen.getAllByRole('treeitem').slice(1).map((item) => item.getAttribute('aria-label'))
+  }
+  /** The heading the transcript gives the legacy thread (the first item), rendered as the chat renders it. */
+  function blockName(items: readonly ChatItem[]): string | null {
+    const node = transcriptTree(items).flatMap((row) => row.threads).find(({ item }) => item.id === 'th_legacy')!
+    const { container, unmount } = render(<ol><ThreadBlock node={node} renderRow={() => null} /></ol>)
+    const name = container.querySelector('.chat-thread-label')?.textContent ?? null
+    unmount()
+    return name
+  }
+
+  it('assigns unique Servitor-N callsigns', () => {
+    render(<AgentTree tree={treeOf(fixture)} selectedId={null} onSelect={vi.fn()} now={now} />)
+    const names = subagentNames()
+    expect([...names].sort()).toEqual(['Servitor-1', 'Servitor-2'])
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('names a live legacy thread alike in the tree and its transcript block, from first render through main\'s stamp', () => {
+    const view = render(<AgentTree tree={treeOf(fixture)} selectedId={null} onSelect={vi.fn()} now={now} />)
+    expect(subagentNames()[0]).toBe('Servitor-2')
+    expect(blockName(fixture)).toBe('Servitor-2')
+    // Main's next event for the live thread carries the ordinal it reserved for it (agentChatSessions seeds the same one).
+    const restamped = [thread('th_legacy', servitor(2)), fixture[1]!]
+    view.rerender(<AgentTree tree={treeOf(restamped)} selectedId={null} onSelect={vi.fn()} now={now} />)
+    expect(subagentNames()).toEqual(['Servitor-2', 'Servitor-1'])
+    expect(blockName(restamped)).toBe('Servitor-2')
   })
 })

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { FORGE_FILE, parseForgeManifest } from '../../core/repo/forgeManifest'
+import { FORGE_FILE, parseForgeManifest, replaceForgeFile, type RenameRetryNote } from '../../core/repo/forgeManifest'
 import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { checkCloneName } from '../git/cloneInput'
 
@@ -31,41 +31,7 @@ export function forgeKickoff(member: string): string {
     'The parent forge-world.json lists the other repositories available for this work.'
 }
 
-/** What Windows answers a rename onto a file another handle holds open (a scan, a reader) for a moment. */
-const RENAME_BUSY: Record<string, true> = { EPERM: true, EACCES: true, EBUSY: true }
-/** Waits after each busy refusal: 300 ms in all. */
-const RENAME_PAUSES_MS = [50, 100, 150]
-
-/**
- * Renames the written `temp` over `forge-world.json`. A busy refusal is asked again after each of
- * `RENAME_PAUSES_MS`, after telling `onRetry` its code; any other error, or the last refusal, is thrown as it came,
- * with the target untouched. This module logs nothing itself: plain Node scripts bundle it, so the main process
- * passes its logger in.
- */
-export function replaceForgeFile(temp: string, file: string, onRetry?: (code: string) => void, rename: (from: string, to: string) => void = renameSync): void {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      rename(temp, file)
-      return
-    } catch (error) {
-      const pause = RENAME_PAUSES_MS[attempt], code = (error as NodeJS.ErrnoException).code ?? ''
-      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, code)) throw error
-      noteRetry(onRetry, code)
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pause)
-    }
-  }
-}
-
-/** Tells `onRetry` of a busy rename that is asked again; a failing note never changes the rename's outcome. */
-function noteRetry(onRetry: ((code: string) => void) | undefined, code: string): void {
-  try {
-    onRetry?.(code)
-  } catch {
-    // A failed note must not turn a retry into a failure.
-  }
-}
-
-export function updateForge(root: string, change: (world: ForgeWorld) => void, onRetry?: (code: string) => void): void {
+export function updateForge(root: string, change: (world: ForgeWorld) => void, onRetry?: RenameRetryNote): void {
   const file = join(root, FORGE_FILE)
   const lock = file + '.lock'
   writeFileSync(lock, '', { flag: 'wx' })

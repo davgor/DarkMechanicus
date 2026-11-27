@@ -4,6 +4,7 @@ import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { CheckStatus, EventView, TicketDetailView } from '../../../shared/domain/views'
 import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import { errorMessage } from '../api/dm'
+import { deliverySummary } from '../epic/deliveryView'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import { InlineMarkdown, Markdown, SafeLink } from '../markdown/Markdown'
@@ -88,7 +89,8 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
   if (!isAcceptanceTicket(detail.ticket)) {
     return <CriteriaChecklist detail={detail} />
   }
-  const verification = bundle.sprints.find(sprint => sprint.ticketIds.includes(detail.ticket.id))?.deploymentVerification
+  const sprint = bundle.sprints.find(item => item.ticketIds.includes(detail.ticket.id))
+  const verification = sprint?.deploymentVerification
   return (
     <>
       {verification &&
@@ -97,6 +99,12 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
         </section>}
       <CoverageCriteria detail={detail} bundle={bundle} onSelect={onSelect} />
       <DefinitionOfDone runner={runner} detail={detail} bundle={bundle} />
+      {sprint?.delivery === undefined ? null : (
+        <section className="tp-section" aria-label="Delivery">
+          <h3 className="ew-eyebrow">DELIVERY</h3>
+          <p>Delivery verification: after the checkpoint → {deliverySummary(sprint.delivery)}</p>
+        </section>
+      )}
     </>
   )
 }

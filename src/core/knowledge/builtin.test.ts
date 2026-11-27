@@ -67,6 +67,7 @@ describe('built-in knowledge selection', () => {
       'time-box',
       'final-validation-ci',
       'post-checkpoint-delivery',
+      'sprint-delivery',
       'learning-card'
     ])
     for (const topic of topics) {

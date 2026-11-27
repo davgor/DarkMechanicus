@@ -92,6 +92,7 @@ src/renderer/src/ticket/ticketView.ts - metaLine
 src/renderer/src/ticket/ticketView.ts - scorecardRuns
 src/renderer/src/ticket/ticketView.ts - sizeAndEffortRows
 src/renderer/src/ticket/ticketView.ts - statePill
+src/shared/agents/callsign.ts - subagentCallsign
 src/shared/agents/chat.ts - ApprovalRequestItem
 src/shared/agents/chat.ts - DarkMechanicusCli
 src/shared/agents/chat.ts - ErrorProblem
@@ -168,6 +169,7 @@ src/shared/domain/api.ts - HeartbeatKanbanCardInput
 src/shared/domain/api.ts - IncrementRef
 src/shared/domain/api.ts - KickBackKanbanCardInput
 src/shared/domain/api.ts - LaunchKanbanCardsInput
+src/shared/domain/api.ts - RecordDeliveryInput
 src/shared/domain/api.ts - RecordRowCheckInput
 src/shared/domain/api.ts - SprintInput
 src/shared/domain/api.ts - SprintReportInput
@@ -175,6 +177,7 @@ src/shared/domain/api.ts - StartRunInput
 src/shared/domain/api.ts - SubmitAttemptInput
 src/shared/domain/api.ts - SubmitKanbanCardInput
 src/shared/domain/api.ts - TicketCriterionInput
+src/shared/domain/api.ts - WaiveDeliveryInput
 src/shared/domain/bundle.ts - CHECKPOINT_MODES
 src/shared/domain/bundle.ts - EpicContent
 src/shared/domain/bundle.ts - REFERENCE_KINDS

@@ -8,7 +8,10 @@ import type { EventView } from '../../../shared/domain/views'
 type RaiseRequest = Parameters<NotificationsApi['raise']>[0]
 
 interface NotificationRaise {
-  /** `checkpoint_ready:<runId>:<sprintId>`, so report revisions of one sprint share it, or `run_failed:<runId>`. */
+  /**
+   * `checkpoint_ready:<runId>:<sprintId>`, so report revisions of one sprint share it, or `run_failed:<runId>`. A key
+   * notifies once per app session (`useEventFeed`); across a restart see `raiseNotifications` there.
+   */
   key: string
   request: RaiseRequest
 }

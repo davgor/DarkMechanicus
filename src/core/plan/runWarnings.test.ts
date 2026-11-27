@@ -6,9 +6,10 @@ import { describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { makeBundle, sid, tid } from '../../test/bundles'
+import { contentHash } from '../canonical'
 import { applyDraftOps } from './draftOps'
 import { maxKeyNumber } from './normalize'
-import { runAwareWarnings } from './runWarnings'
+import { runAwareWarnings, settingsOf } from './runWarnings'
 
 /** Sprint 1 {DM-1, DM-2}, sprint 2 {DM-3, DM-4}, sprint 3 {DM-5, DM-6}; the run is on sprint 2 (run #4). */
 function planned(): PlanBundle {
@@ -186,5 +187,44 @@ describe('a run whose active sprint is not in its plan', () => {
     const draft = drafted({ op: 'update_ticket', ticket: 'DM-1', patch: { title: 'Changed' } }, { op: 'add_sprint', sprint: { goal: 'Squeezed in' }, position: 1 })
     expect(warningsFor(draft, { active: 9 })).toEqual([])
     expect(warningsFor(draft).map((warning) => warning.code)).toEqual(['edits_passed_sprint', 'sprint_before_active'])
+  })
+})
+
+describe('sprint delivery in a passed sprint', () => {
+  it('hashes a sprint without delivery exactly as the five settings fields did before', () => {
+    const sprint = planned().sprints[0]
+    const { goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint } = sprint
+    expect(sprint.delivery).toBeUndefined()
+    expect(settingsOf(sprint)).toBe(contentHash({ goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint }))
+    expect(settingsOf({ ...sprint, delivery: undefined })).toBe(settingsOf(sprint))
+  })
+
+  it('hashes a declared delivery into the settings', () => {
+    const sprint = planned().sprints[0]
+    expect(settingsOf({ ...sprint, delivery: { target: 'main', release: false, verifyInstalled: false } })).not.toBe(
+      settingsOf(sprint)
+    )
+  })
+
+  it('warns when a passed sprint gains, changes or loses its delivery', () => {
+    const delivery = { target: 'main', release: true, verifyInstalled: false }
+    const added = drafted({ op: 'update_sprint', sprint: '1', patch: { delivery } })
+    const changed = drafted({ op: 'update_sprint', sprint: '1', patch: { delivery: { ...delivery, verifyInstalled: true } } })
+    const run = drafted({ op: 'update_sprint', sprint: '1', patch: { delivery } })
+    const removed = planned()
+    for (const [draft, against] of [
+      [added, planned()],
+      [changed, run],
+      [removed, run]
+    ] as const) {
+      const [warning] = warningsFor(draft, { run: against })
+      expect(warning).toMatchObject({ code: 'edits_passed_sprint', sprintIds: [sid(1)] })
+      expect(warning?.message).toContain('sprint settings changed')
+    }
+  })
+
+  it('does not warn when a passed sprint keeps its delivery', () => {
+    const run = drafted({ op: 'update_sprint', sprint: '1', patch: { delivery: { target: 'main', release: false, verifyInstalled: false } } })
+    expect(warningsFor(structuredClone(run), { run })).toEqual([])
   })
 })

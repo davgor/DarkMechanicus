@@ -43,6 +43,9 @@ export const CAPABILITIES = [
   'run.pause_signed_out',
   'run.resume_signed_out',
   'run.row_check',
+  // Recording a sprint's delivery check (`record_delivery`). A person waives a delivery at the desktop instead
+  // (`waiveDelivery`, under the human-only `checkpoint.approve`).
+  'run.delivery',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -170,6 +173,7 @@ const ORCHESTRATOR: Capability[] = [
   'run.adopt',
   'run.redraft',
   'run.row_check',
+  'run.delivery',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -199,6 +203,7 @@ const AGENT_ONLY: readonly Capability[] = [
   'report.submit',
   'run.start',
   'run.row_check',
+  'run.delivery',
   'host.register',
   'kanban.launch',
   'kanban.claim',

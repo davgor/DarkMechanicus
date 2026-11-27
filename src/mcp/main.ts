@@ -5,11 +5,11 @@
  * redirected there too so a stray log line can never corrupt the protocol stream.
  */
 import { readFileSync, realpathSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { capabilitiesForRole } from '../core/authz'
 import { DomainError } from '../core/errors'
+import { isPackagedScript, readPackageVersion } from '../core/packageInfo'
 import { MCP_SERVER_NAME } from '../core/version'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import { MCP_USAGE, parseMcpArgs, type McpOptions } from './args'
@@ -18,7 +18,9 @@ import { BoundedStdioServerTransport } from './transport'
 
 /** A session that stops heartbeating drops out of the desktop's active list after 60 seconds. */
 const HEARTBEAT_INTERVAL_MS = 15_000
-const FALLBACK_VERSION = '0.0.0'
+
+// Re-exported for callers that still import them from the MCP entry point.
+export { isPackagedScript, readPackageVersion }
 const ENTRY_SCRIPT = /(?:^|[\\/])mcp\.js$/
 
 /** Repeating timer, injectable so tests can drive heartbeats without real time. */
@@ -43,6 +45,8 @@ interface StartMcpServerOptions {
   /** Diagnostics, one line per call. Must not write to stdout. */
   log: (line: string) => void
   version: string
+  /** True when this server runs from the packaged app (an `app.asar` script). */
+  packaged: boolean
   scheduler?: Scheduler
   /** Called once after shutdown finished (a failure is passed when closing went wrong). */
   onClosed?: (failure?: unknown) => void
@@ -163,7 +167,7 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     transport: 'stdio',
     allowSave: args.allowSave,
     pid: process.pid,
-    serverInfo: info
+    serverInfo: { ...info, packaged: options.packaged }
   })
   try {
     return await serve({ workspace, args, info, options })
@@ -211,23 +215,13 @@ export function canonicalRepoRoot(path: string, realpath: (path: string) => stri
   }
 }
 
-/** The app version lives in the package.json two folders above `out/main/mcp.js`, also inside app.asar. */
-export function readPackageVersion(scriptPath: string, readText: (path: string) => string): string {
-  try {
-    const parsed: unknown = JSON.parse(readText(join(dirname(scriptPath), '..', '..', 'package.json')))
-    const version = typeof parsed === 'object' && parsed !== null && 'version' in parsed ? parsed.version : undefined
-    return typeof version === 'string' ? version : FALLBACK_VERSION
-  } catch {
-    return FALLBACK_VERSION
-  }
-}
-
 /** Everything the entry point needs from the outside world, so it can be driven by tests. */
 export interface McpHost {
   argv: string[]
   env: Record<string, string | undefined>
   cwd: string
   version: string
+  packaged: boolean
   open: (options: OpenWorkspaceOptions) => Workspace
   createTransport: () => Transport
   writeStdout: (text: string) => void
@@ -261,6 +255,7 @@ function startOptionsFor(host: McpHost): StartMcpServerOptions {
     transport: host.createTransport(),
     log: (line) => host.writeStderr(`${line}\n`),
     version: host.version,
+    packaged: host.packaged,
     scheduler: host.scheduler,
     onClosed: (failure) => {
       if (failure !== undefined) {
@@ -307,6 +302,7 @@ function nodeHost(script: string): McpHost {
     env: process.env,
     cwd: process.cwd(),
     version: readPackageVersion(script, (path) => readFileSync(path, 'utf8')),
+    packaged: isPackagedScript(script),
     open: (options) =>
       openWorkspace({ ...options, repoRoot: canonicalRepoRoot(options.repoRoot, realpathSync) }),
     createTransport: () => new BoundedStdioServerTransport(),

@@ -200,6 +200,30 @@ describe('useEventFeed notifications', () => {
   })
 })
 
+describe('useEventFeed notifications across a restart', () => {
+  it('after a restart, a new report revision of an already-notified sprint notifies once more; earlier revisions stay silent', async () => {
+    const before = await mount({ paths: ['/a'], selected: '/a' })
+    reportSubmitted('/a', SPRINT_1, 1)
+    await poll()
+    reportSubmitted('/a', SPRINT_1, 2)
+    await poll()
+    expect(dm.notifications.raised).toHaveLength(1)
+    // The app restarts: the renderer starts again over the same folder store, with nothing notified in memory.
+    before.unmount()
+    await mount({ paths: ['/a'], selected: '/a' })
+    await poll()
+    expect(dm.notifications.raised).toHaveLength(1)
+    reportSubmitted('/a', SPRINT_1, 3)
+    await poll()
+    reportSubmitted('/a', SPRINT_1, 4)
+    await poll()
+    expect(dm.notifications.raised).toEqual([
+      { folder: '/a', kind: 'checkpoint_ready', epicId: EPIC_A, runId: RUN },
+      { folder: '/a', kind: 'checkpoint_ready', epicId: EPIC_A, runId: RUN }
+    ])
+  })
+})
+
 describe('useEventFeed notification dedupe and failures', () => {
   it('does not repeat a notification when a re-created poller refetches', async () => {
     const view = await mount({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'old']]) })

@@ -45,6 +45,18 @@ describe('epicAgentNodes roots', () => {
     expect(lexmechanic).toMatchObject({ id: 'plan', parentId: null, name: 'Lexmechanic', secondary: 'Planner', chip: 'Lexmechanic' })
   })
 
+  it('numbers later planners by creation, keeping the oldest bare and each name stable as newer ones arrive', () => {
+    const first = chat('plan-a', { role: 'planner', epicId: EPIC, createdAt: '2026-02-01T10:00:00.000Z' })
+    const second = chat('plan-b', { role: 'planner', epicId: EPIC, createdAt: '2026-02-02T10:00:00.000Z' })
+    const third = chat('plan-c', { role: 'planner', epicId: EPIC, createdAt: '2026-02-03T10:00:00.000Z' })
+    const named = (chats: ChatRecord[]) => nodes(chats).map((node) => [node.id, node.name, node.chip])
+    expect(named([first, second])).toEqual([['plan-b', 'Lexmechanic-2', 'Lexmechanic'], ['plan-a', 'Lexmechanic', 'Lexmechanic']])
+    expect(named([orchestrator, third, second, first])).toEqual([
+      ['orch', 'Magos', 'Magos'], ['plan-c', 'Lexmechanic-3', 'Lexmechanic'],
+      ['plan-b', 'Lexmechanic-2', 'Lexmechanic'], ['plan-a', 'Lexmechanic', 'Lexmechanic']
+    ])
+  })
+
   it('names an orchestrator without a run from its title, never Magos', () => {
     const [node] = nodes([chat('card', { role: 'orchestrator', epicId: EPIC })])
     expect(node).toMatchObject({ name: 'Title card', chip: null })

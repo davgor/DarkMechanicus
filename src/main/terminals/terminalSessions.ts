@@ -410,6 +410,9 @@ interface Live {
   contextPastes?: Map<string, string>
   revoke: () => Promise<void>
   killing?: Promise<unknown>
+  /** Tree kills asked so far (`KILL_ATTEMPTS` at most), and whether the last allowed one failed and was logged. */
+  killAttempts?: number
+  killsExhausted?: boolean
   retirement?: Promise<void>
   revocationError?: unknown
   /** Stopped for a confirmed surface switch: the chat stays fenced until this owner has fully retired. */
@@ -534,15 +537,32 @@ function revokeGrant(manager: Manager, grantId: string, failed?: (error: unknown
   )
 }
 
-/** Ends the PTY's process tree; never rejects. */
+/** How many tree kills one PTY gets at most: its stop or exit, then retries of a failed retirement. */
+const KILL_ATTEMPTS = 3
+
+/**
+ * Ends the PTY's process tree; never rejects. A kill in flight or settled is shared until a failed retirement forgets
+ * it; once `KILL_ATTEMPTS` kills have been asked, no further one is: the answer is false and the owner stays fenced.
+ */
 function killTree(manager: Manager, live: Live): Promise<unknown> {
-  live.killing ??= track(
+  if (live.killing !== undefined) return live.killing
+  if ((live.killAttempts ?? 0) >= KILL_ATTEMPTS) return Promise.resolve(false)
+  live.killAttempts = (live.killAttempts ?? 0) + 1
+  live.killing = track(
     manager,
     manager.deps.killTree(live.tree).catch((error: unknown) => {
       manager.onError(error)
     })
   )
   return live.killing
+}
+
+/** Logged once, when the last allowed kill of a PTY's tree has failed: nothing asks again, and the chat stays fenced. */
+function killsExhausted(manager: Manager, live: Live): void {
+  if (live.killsExhausted === true || (live.killAttempts ?? 0) < KILL_ATTEMPTS) return
+  live.killsExhausted = true
+  manager.onError(new Error(`The terminal process tree of chat ${live.chat.id} (pid ${live.tree.pid}) did not stop after ${KILL_ATTEMPTS} kill attempts; ` +
+    'it is not retried, and the chat cannot start again until the app restarts.'))
 }
 
 /**
@@ -608,7 +628,7 @@ function stop(manager: Manager, live: Live, message: string): Promise<unknown> {
 /**
  * Retains the old owner's identity until all three independently completing barriers have settled; a failed kill or
  * revocation fails at once and keeps the owner fenced. A failed retirement is not kept: the next stop, start or exit
- * asks again (a fresh tree kill and revocation), and the first success releases ownership.
+ * asks again (a fresh tree kill, at most `KILL_ATTEMPTS` in all, and revocation), and the first success releases ownership.
  */
 function retire(manager: Manager, live: Live): Promise<void> {
   if (live.retirement) return live.retirement
@@ -618,8 +638,9 @@ function retire(manager: Manager, live: Live): Promise<void> {
     if (result === true) return
     killFailed = true
     const error = new Error('The terminal process tree did not stop.')
-    // A kill that threw has already reported itself (`killTree`); one that answered false has not.
-    if (result === false) manager.onError(error)
+    // A kill that threw has already reported itself (`killTree`); one that answered false has not. Exhausted, nothing ran.
+    if (result === false && live.killsExhausted !== true) manager.onError(error)
+    killsExhausted(manager, live)
     throw error
   })
   const revoked = live.revoke().then(() => {

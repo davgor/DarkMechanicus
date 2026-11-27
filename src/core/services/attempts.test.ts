@@ -19,6 +19,7 @@ import {
   lastEventPayload,
   openAttemptIds,
   pendingOutbox,
+  seedDeliveryCheck,
   startedRun,
   submitClaim,
   tempDatabasePath,
@@ -160,6 +161,31 @@ describe('claimTicket — readiness rejections', () => {
     claim(ctx, runId, 1)
     const error = domainError(() => claim(ctx, runId, 2))
     expect([error.code, error.details]).toEqual(['capacity_exceeded', { ticketId: tid(2), limit: 1 }])
+  })
+})
+
+describe('claimTicket — the delivery hold', () => {
+  it("refuses a ticket held by the previous sprint's unverified delivery, naming record_delivery, until a check passes", () => {
+    const ctx = createTestCtx()
+    const bundle = makeBundle([[1], [2]])
+    bundle.sprints[0] = { ...bundle.sprints[0], delivery: { target: 'main', release: true, verifyInstalled: false } }
+    const { runId } = startedRun(ctx, { bundle })
+    completeTicket(ctx, runId, 1)
+    ctx.db.run('UPDATE runs SET active_sprint_id = ? WHERE id = ?', sid(2), runId)
+    const held = domainError(() => claim(ctx, runId, 2))
+    expect([held.code, held.message]).toEqual([
+      'unmet_prerequisite',
+      "DM-2 is waiting for its prerequisites to be accepted. Sprint 1's delivery is not verified yet: record a passing check with record_delivery, or the person waives it in the desktop app."
+    ])
+    expect(held.details).toEqual({
+      ticketId: tid(2),
+      state: 'waiting',
+      blockers: [{ kind: 'delivery_pending', sprintId: sid(1), ordinal: 1 }]
+    })
+    seedDeliveryCheck(ctx, runId, { number: 1, sprint: 1, kind: 'check', passed: false })
+    expect(domainError(() => claim(ctx, runId, 2)).message).toContain('record_delivery')
+    seedDeliveryCheck(ctx, runId, { number: 2, sprint: 1, kind: 'check', passed: true })
+    expect(claim(ctx, runId, 2).attempt).toMatchObject({ ticketId: tid(2), state: 'claimed' })
   })
 })
 

@@ -136,6 +136,7 @@ const EXPECTED_TABLES = [
   'checkpoints',
   'comments',
   'correction_links',
+  'delivery_checks',
   'delivery_context_notices',
   'drafts',
   'epics',
@@ -206,6 +207,7 @@ describe('the indexes a fresh database ends up with', () => {
       'comments_epic_ticket',
       'correction_links_epic',
       'correction_links_experiment',
+      'delivery_checks_run',
       'events_epic',
       'events_run',
       'experiment_events_run',
@@ -860,6 +862,70 @@ describe('schema v5 row checks', () => {
   })
 })
 
+function insertDeliveryCheckRow(db: Db, spec: { id: string; number?: number; runId?: string; kind?: string }): void {
+  db.run(
+    `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+     VALUES (?, ?, ?, 'sp1', ?, NULL, NULL, '{}', NULL, 't')`,
+    spec.id,
+    spec.runId ?? 'rn1',
+    spec.number ?? 1,
+    spec.kind ?? 'check'
+  )
+}
+
+describe('schema v37 delivery checks', () => {
+  it('upgrades a v36 database, keeping its runs and adding an empty delivery_checks table and its index', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 36))
+    insertEpic(db, 'ep1')
+    insertRevision(db, 'rv1', 'ep1')
+    insertRun(db, { id: 'rn1', state: 'running' })
+    expect(objectNames(db, 'table')).not.toContain('delivery_checks')
+    expect(migrate(db)).toEqual({ from: 36, to: SCHEMA_VERSION })
+    expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
+    expect(db.all('SELECT * FROM delivery_checks')).toEqual([])
+    expect(objectNames(db, 'index')).toContain('delivery_checks_run')
+  })
+
+  it('keeps a check and a waiver with their run, sprint, number, commit, release, verdict, author and time', () => {
+    const db = attemptsDb()
+    db.run(
+      `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+       VALUES ('dv1', 'rn1', 1, 'sp1', 'check', 'abcdef1', 'v1.2.0', '{"checks":[]}', 'server', 't')`
+    )
+    insertDeliveryCheckRow(db, { id: 'dv2', number: 2, kind: 'waiver' })
+    const columns = 'id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at'
+    expect(db.all(`SELECT ${columns} FROM delivery_checks ORDER BY number`).map((row) => Object.values(row as object))).toEqual([
+      ['dv1', 'rn1', 1, 'sp1', 'check', 'abcdef1', 'v1.2.0', '{"checks":[]}', 'server', 't'],
+      ['dv2', 'rn1', 2, 'sp1', 'waiver', null, null, '{}', null, 't']
+    ])
+  })
+
+  it('refuses a kind other than check or waiver, and numbers below 1', () => {
+    const db = attemptsDb()
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv1', kind: 'other' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv2', number: 0 })).toThrow(/CHECK constraint failed/)
+    expect(db.all('SELECT id FROM delivery_checks')).toEqual([])
+  })
+
+  it('rejects a second record with the same id or the same number in a run, and a missing run', () => {
+    const db = attemptsDb()
+    insertDeliveryCheckRow(db, { id: 'dv1' })
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv1', number: 2 })).toThrow(/UNIQUE constraint failed: delivery_checks.id/)
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv2', kind: 'waiver' })).toThrow(
+      /UNIQUE constraint failed: delivery_checks.run_id, delivery_checks.number/
+    )
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv3', runId: 'rn_missing' })).toThrow(/FOREIGN KEY constraint failed/)
+    expect(() => insertDeliveryCheckRow(db, { id: 'dv4', runId: 'rn2' })).not.toThrow()
+  })
+
+  it("looks up a run's records through the (run, sprint) index", () => {
+    const db = attemptsDb()
+    const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM delivery_checks WHERE run_id = 'rn1' AND sprint_id = 'sp1'")
+    expect(plan.map((row) => row.detail).join(' ')).toContain('USING INDEX delivery_checks_run')
+  })
+})
+
 describe('schema v6 sprint increments', () => {
   it('upgrades a v5 database, keeping its attempts and leaving their increment empty', () => {
     const db = freshDb()
@@ -1450,7 +1516,7 @@ describe('v23 elevation storage compatibility', () => {
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 22))
     db.run("INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, created_at, expires_at) VALUES ('gr1', 'worker', 0, 'Existing worker', 'old-hash', 'mc1', '2026-01-01', '2027-01-01')")
     insertAttachment(db, 'old-image', { kind: 'kanban_message', id: 'ke1' })
-    // Named columns: later migrations add grant columns (v37 run_save), which a cached SELECT * may or may not return.
+    // Named columns: later migrations add grant columns (v38 run_save), which a cached SELECT * may or may not return.
     expectAdditiveUpgrade(db, 22, { grants: { run_save: 1 }, attachments: {} })
     expect(db.all('SELECT * FROM yolo_elevations')).toEqual([])
     expect(db.all('SELECT * FROM yolo_chat_bindings')).toEqual([])
@@ -1525,9 +1591,12 @@ function v30WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
   return { db, cardId, eventIds }
 }
 
+/**
+ * The hashes of the plan and Kanban records. The run history is pinned to the released file's bytes after the upgrade
+ * instead: building it reads `delivery_checks` (v37), which a v30 database does not have yet.
+ */
 function recordHashes(db: Db, cardId: string, eventIds: string[]): string[] {
   return [
-    contentHash(buildRunHistoryRecord(db, LEGACY_RUN)),
     contentHash(buildSnapshotRecord(db, LEGACY_REVISION)),
     contentHash(buildKanbanCardRecord(db, cardId, { generation: 1 })),
     ...eventIds.map((eventId) => contentHash(buildKanbanEventRecord(db, eventId)))
@@ -1596,6 +1665,7 @@ describe('v31 learning storage upgrade', () => {
     expect(JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))).toBe(rows)
     expect(recordHashes(db, cardId, eventIds)).toEqual(hashes)
     expect(prettyJson(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(legacyText('history', LEGACY_RUN, 'run.json'))
+    expect(contentHash(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(contentHash(JSON.parse(legacyText('history', LEGACY_RUN, 'run.json'))))
     expect(db.all('PRAGMA foreign_key_check')).toEqual([])
     for (const table of ['learning_records', 'sprint_learning_cards', 'learning_integrations']) {
       expect(db.all(`SELECT * FROM ${table}`)).toEqual([])

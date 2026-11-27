@@ -12,6 +12,7 @@ import {
   type DependencyEdge,
   type PlanBundle,
   type SprintDef,
+  type SprintDelivery,
   type TicketContent
 } from '../../../../shared/domain/bundle'
 import type { SprintRetro, TicketTierFacts } from '../../../../shared/domain/retro'
@@ -27,7 +28,9 @@ import type { AttemptState, TicketExecutionState } from '../../../../shared/doma
 import type {
   AttemptView,
   CheckpointView,
+  CheckResult,
   CommentView,
+  DeliveryCheckView,
   EpicDetailView,
   EventView,
   GateCondition,
@@ -392,7 +395,7 @@ export function runView(patch: Partial<RunView> = {}): RunView {
       execution('DM-304', 'sp_3', 'later_sprint')
     ],
     rows: [],
-    increments: [], activeSprintTierFacts: [],
+    increments: [], deliveries: [], activeSprintTierFacts: [],
     attempts: SAMPLE_ATTEMPTS,
     checkpoint: null,
     ...patch
@@ -624,6 +627,49 @@ export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointV
     canAdvance: false,
     approval: null,
     ...patch
+  }
+}
+
+const DELIVER_TO_MAIN: SprintDelivery = { target: 'main', release: true, verifyInstalled: true }
+
+/**
+ * The sample plan with Sprint 1's acceptance node DM-199, and each sprint of `delivering` declaring
+ * `delivery {target: 'main', release: true, verifyInstalled: true}`.
+ */
+export function deliveryBundle(delivering: number[] = [1]): PlanBundle {
+  const base = bundle()
+  const acceptance = ticket('DM-199', 'Sprint 1 acceptance', {
+    kind: 'acceptance',
+    acceptanceCriteria: [{ id: 'c1', text: 'Sprint 1 increment verified on main' }]
+  })
+  return bundle({
+    tickets: [...base.tickets, acceptance],
+    sprints: base.sprints.map((item) => ({
+      ...item,
+      ticketIds: item.ordinal === 1 ? [...item.ticketIds, acceptance.id] : item.ticketIds,
+      ...(delivering.includes(item.ordinal) ? { delivery: DELIVER_TO_MAIN } : {})
+    }))
+  })
+}
+
+/** Sprint 1's delivery check number `number` with these named results; it passes only when every result passed. */
+export function deliveryCheck(number: number, checks: CheckResult[]): DeliveryCheckView {
+  return {
+    id: `dc_${number}`,
+    runId: 'rn_2',
+    sprintId: 'sp_1',
+    number,
+    kind: 'check',
+    commit: 'abc1234',
+    releaseTag: 'v0.50.0',
+    releaseVersion: '0.50.0',
+    installedVersion: '0.49.0',
+    checks,
+    reasons: checks.filter((item) => item.status === 'failed').map((item) => item.detail),
+    reason: null,
+    passed: checks.length > 0 && checks.every((item) => item.status === 'passed'),
+    recordedBy: 'ss_orch',
+    createdAt: iso(-number * MINUTE)
   }
 }
 
@@ -877,9 +923,15 @@ export function profileView(patch: Partial<ProfileView> = {}): ProfileView {
   }
 }
 
-/** The Linear packet the sample saved plan (rev 4) builds, as main stores it when the transfer is queued. */
+/**
+ * The Linear packet the sample saved plan (rev 4) builds, as main stores it when the transfer is queued. Its hash is
+ * a fixed stand-in: main's `contentHash` needs `node:crypto`, which the preview pages that load these fixtures cannot.
+ */
 export function transferPacket(): LinearTransferPacket {
-  return buildLinearPacket({ epic: { id: EPIC_ID }, bundle: bundle(), revisionId: 'rv_4', revisionNumber: 4, ticketStatuses: {} })
+  return buildLinearPacket(
+    { epic: { id: EPIC_ID }, bundle: bundle(), revisionId: 'rv_4', revisionNumber: 4, ticketStatuses: {} },
+    () => `sha256:${'4'.repeat(64)}`
+  )
 }
 
 /**

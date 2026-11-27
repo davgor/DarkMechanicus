@@ -110,6 +110,9 @@ const QUESTION: PendingPrompt = {
   ...approval(undefined), kind: 'question', options: [{ id: 'a', label: 'A' }], tool: { name: 'Bash', input: { command: 'npm test' } }
 }
 
+/** A word one byte over the longest name Linux and Windows accept. */
+const LONG_WORD = 'a'.repeat(256)
+
 /** From an input every rule excludes, each step clears the reported rule and exposes the next one. */
 function precedenceSteps(platform: Platform): [Partial<ArbitrationInput>, ExclusionReason | null][] {
   const notAnObject = { name: 'Bash', input: 'cat /etc/passwd' } as unknown as Tool
@@ -124,8 +127,9 @@ function precedenceSteps(platform: Platform): [Partial<ArbitrationInput>, Exclus
     [{ agentKind: 'claude' }, 'question'],
     [{ prompt: approval(notAnObject) }, 'always_ask'],
     [{ settings: { arbitration: { enabled: true, alwaysAsk: [], autoHandleNotes: '' } } }, 'no_tool_input'],
-    [{ prompt: approval(bash('cat /etc/passwd > .claude/settings.local.json')) }, 'control_file'],
-    [{ prompt: approval(bash('cat /etc/passwd')) }, 'outside_folder'],
+    [{ prompt: approval(bash(`cat /etc/passwd ${LONG_WORD} > .claude/settings.local.json`)) }, 'control_file'],
+    [{ prompt: approval(bash(`cat /etc/passwd ${LONG_WORD}`)) }, 'outside_folder'],
+    [{ prompt: approval(bash(`cat ${LONG_WORD}`)) }, 'path_too_long'],
     [{ prompt: approval(bash('npm test')) }, null]
   ]
 }
@@ -191,6 +195,15 @@ describe('always-ask list', () => {
   })
 })
 
+/** The written text of a file edit holds what would escalate as a path or command, and is never path-scanned (DM-1011). */
+const ROUTINE_CONTENT = 'const home = process.env.HOME ?? "$HOME" // see https://example.com\nconst digits = /\\d+/\nC:\\Windows\\x * \0 ~/x ../../secret'
+const FILE_EDIT_CONTENT: [string, Tool][] = [
+  ['Write content', { name: 'Write', input: { file_path: 'src/a.ts', content: ROUTINE_CONTENT } }],
+  ['Edit old and new strings', { name: 'Edit', input: { file_path: 'src/a.ts', old_string: '$HOME //', new_string: ROUTINE_CONTENT, replace_all: false } }],
+  ['MultiEdit edits', { name: 'MultiEdit', input: { file_path: 'src/a.ts', edits: [{ old_string: '*', new_string: ROUTINE_CONTENT }] } }],
+  ['NotebookEdit source', { name: 'NotebookEdit', input: { notebook_path: 'src/a.ipynb', new_source: ROUTINE_CONTENT, cell_type: 'code' } }]
+]
+
 const INSIDE: Record<Platform, [string, Tool][]> = {
   win32: [
     ['npm test', bash('npm test')],
@@ -202,7 +215,8 @@ const INSIDE: Record<Platform, [string, Tool][]> = {
     ['an in-folder forward-slash path in a command', bash('type C:/repo/src/a.ts')],
     ['paths[] inside', { name: 'Glob', input: { paths: ['src', 'C:\\wt\\dm-1\\test'] } }],
     ['an option with a relative value', bash('npx tsc --outDir=dist -p tsconfig.json')],
-    ['an 8-level input', { name: 'Tool', input: nested(8) }]
+    ['an 8-level input', { name: 'Tool', input: nested(8) }],
+    ...FILE_EDIT_CONTENT
   ],
   linux: [
     ['npm test', bash('npm test')],
@@ -212,7 +226,8 @@ const INSIDE: Record<Platform, [string, Tool][]> = {
     ['an in-folder path in a command', bash('cat /home/me/repo/src/a.ts')],
     ['paths[] inside', { name: 'Glob', input: { paths: ['src', '/home/me/wt/dm-1/test'] } }],
     ['an option with a relative value', bash('npx tsc --outDir=dist -p tsconfig.json')],
-    ['an 8-level input', { name: 'Tool', input: nested(8) }]
+    ['an 8-level input', { name: 'Tool', input: nested(8) }],
+    ...FILE_EDIT_CONTENT
   ]
 }
 
@@ -259,7 +274,11 @@ const OUTSIDE_COMMON: [string, Tool][] = [
   ['an empty path value', { name: 'Read', input: { path: '' } }],
   ['a non-array paths', { name: 'Glob', input: { paths: 'src' } }],
   ['an outside entry in paths[]', { name: 'Glob', input: { paths: ['src', '/etc'] } }],
-  ['an outside path under a nested path key', { name: 'MultiEdit', input: { edits: [{ cwd: '/etc' }] } }],
+  ['an outside path under a nested path key', { name: 'mcp__fs__edit', input: { edits: [{ cwd: '/etc' }] } }],
+  ['a file edit naming no file', { name: 'MultiEdit', input: { edits: [{ old_string: 'a', new_string: 'b' }] } }],
+  ['a Write whose file_path is outside, with routine content', { name: 'Write', input: { file_path: '../secret', content: 'plain' } }],
+  ['content written by Bash', bash('echo "$HOME" > src/a.ts')],
+  ['content under a key a file edit does not write', { name: 'Write', input: { file_path: 'src/a.ts', content: 'x', mode: '$HOME' } }],
   ['a link out of the folder', write('link/a.ts')],
   ['a dangling link', write('evil')],
   ['a path under a dangling link', write('evil/authorized_keys')],
@@ -268,8 +287,6 @@ const OUTSIDE_COMMON: [string, Tool][] = [
   ['an EACCES entry', write('locked/a.ts')],
   ['an EPERM entry', write('perm/a.ts')],
   ['an ELOOP entry', write('loop')],
-  ['an ENAMETOOLONG name', write('long/a.ts')],
-  ['an ENAMETOOLONG word in a command', bash('cat long')],
   ['quotes that the shell joins into ..', bash('cat \'.\'./secret')],
   ['double quotes that the shell joins into ..', bash('cat "."./secret')],
   ['a backslash escape that the shell drops', bash('cat .\\./secret')],
@@ -310,6 +327,44 @@ const OUTSIDE: Record<Platform, [string, Tool][]> = {
     ['a Windows absolute in-folder lookalike', write('C:/home/me/repo/a.ts')]
   ]
 }
+
+describe('too-long names (DM-1008)', () => {
+  describe.each(['win32', 'linux'] as const)('%s', (platform) => {
+    // The fake disk answers ENOENT for an unknown name, as Windows does for an over-long one, and ENAMETOOLONG for `long`.
+    it.each([
+      ['an ENAMETOOLONG word in a command', bash('cat long')],
+      ['an ENAMETOOLONG directory in a path value', write('long/a.ts')],
+      ['a 256-byte word in a command', bash(`echo ${LONG_WORD}`)],
+      ['a quoted 256-byte word', bash(`grep "${LONG_WORD}" src/a.ts`)],
+      ['a 256-byte UTF-8 word of 128 characters', bash(`echo ${'é'.repeat(128)}`)],
+      ['a 256-byte segment in a path value', write(`src/${LONG_WORD}`)]
+    ])('escalates %s as a path too long, not outside the folder', (_label, tool) => {
+      expect(exclusion(platform, tool)).toBe('path_too_long')
+    })
+
+    it('keeps a 255-byte word inside', () => {
+      expect(exclusion(platform, bash(`echo ${'a'.repeat(255)}`))).toBeNull()
+    })
+
+    it('still reports a real outside path, and a control file, over a too-long word', () => {
+      const outside = platform === 'win32' ? 'D:\\secret' : '/etc/shadow'
+      expect(exclusion(platform, bash(`cat ${LONG_WORD} ${outside}`))).toBe('outside_folder')
+      expect(exclusion(platform, bash(`cat long ${outside}`))).toBe('outside_folder')
+      expect(exclusion(platform, bash(`cat ${LONG_WORD} > .claude/settings.local.json`))).toBe('control_file')
+    })
+
+    it('never asks the disk about an over-long name', () => {
+      const asked: string[] = []
+      const disk = fakeFs(platform)
+      const fs: ArbitrationFs = {
+        realpath: path => { asked.push(path); return disk.realpath(path) },
+        lstat: path => { asked.push(path); return disk.lstat(path) }
+      }
+      expect(exclusion(platform, bash(`echo ${LONG_WORD}`), { fs })).toBe('path_too_long')
+      expect(asked.filter(path => path.includes(LONG_WORD))).toEqual([])
+    })
+  })
+})
 
 describe('outside-folder detection', () => {
   describe.each(['win32', 'linux'] as const)('%s', (platform) => {
@@ -454,7 +509,7 @@ describe('exclusionText', () => {
   it('gives a short plain sentence for every reason', () => {
     const reasons: ExclusionReason[] = [
       'disabled', 'not_magos_chat', 'project_less', 'unsupported_kind', 'question', 'always_ask',
-      'no_tool_input', 'control_file', 'outside_folder', 'never_arbitrate'
+      'no_tool_input', 'control_file', 'outside_folder', 'path_too_long', 'never_arbitrate'
     ]
     for (const reason of reasons) {
       expect(exclusionText(reason)).toMatch(/^[A-Z][^\n]{10,120}\.$/)

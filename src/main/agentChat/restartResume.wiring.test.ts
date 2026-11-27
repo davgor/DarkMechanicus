@@ -199,6 +199,14 @@ describe('restart resume: startup surface switch and failures', () => {
     expect(sessions.calls).toEqual([])
     expect(existsSync(f.file)).toBe(false)
   })
+
+  it('a marker dated 1 hour in the future sends nothing, launches nothing and is deleted', async () => {
+    const f = fixture(), sessions = fakeSessions(f.store)
+    writeRestartMarker(f.file, { fromVersion: '0.83.0', writtenAt: new Date(NOW + 60 * 60_000).toISOString(), chats: [{ folder: f.repo, chatId: chat(f.store, f.repo).id }] })
+    await resume(f, sessions)
+    expect(sessions.calls).toEqual([])
+    expect(existsSync(f.file)).toBe(false)
+  })
 })
 
 function launchesOf(env: NodeJS.ProcessEnv, kind: string): Array<{ argv: string[] }> {
