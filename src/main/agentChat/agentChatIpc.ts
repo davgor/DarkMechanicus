@@ -28,6 +28,7 @@ import {
   agentChatSnapshotRequestSchema,
   agentChatStageImageSchema,
   agentChatStartSchema,
+  agentChatStopSchema,
   type AgentChatEvent,
   type AgentChatSnapshot,
   type AttentionItem
@@ -62,7 +63,7 @@ interface AttachedEvidence {
 
 interface AgentChatHandlerDeps<S> {
   registry: Pick<FolderRegistry, 'resolve'>
-  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'stageImage' | 'setModel'>
+  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'stop' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'stageImage' | 'setModel'>
   /** The native confirmation, modal to the window that sent the request (`nativeTerminalStopConfirmation`). */
   confirmTerminalStop: (sender: S, chat: ChatRecord) => Promise<boolean>
   /** Skitarii model catalogs (`ompModels.ts`). */
@@ -75,6 +76,8 @@ interface AgentChatHandlers<S> {
   start(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   send(input: unknown): Promise<CommandResult<null>>
   interrupt(input: unknown): Promise<CommandResult<null>>
+  /** Ends the chat's GUI process; its transcript and record stay. */
+  stop(input: unknown): Promise<CommandResult<null>>
   answer(input: unknown): Promise<CommandResult<null>>
   /** `sender` is the requesting window's contents, which the confirmation is modal to. */
   setSurface(sender: S, input: unknown): Promise<CommandResult<AgentChatSnapshot>>
@@ -170,6 +173,14 @@ function switchModel<S>({ registry, sessions, models }: AgentChatHandlerDeps<S>,
   return sessions.setModel(ref, { provider, modelId, ...(effort === undefined ? {} : { effort }) }, () => models.chatModels(ref))
 }
 
+/** The `models` request: a chat's catalog, or before a chat starts, an agent's. */
+function modelCatalog<S>({ registry, models }: AgentChatHandlerDeps<S>, input: unknown): Promise<ChatModelOption[]> {
+  const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
+  const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
+  const options = { refresh: request.refresh === true }
+  return 'chatId' in request ? models.chatModels({ folder, id: request.chatId }, options) : models.catalogModels(request.agentId, options)
+}
+
 export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): AgentChatHandlers<S> {
   const { registry, sessions } = deps
   const attachEvidence = evidenceAttacher(registry, deps.evidence)
@@ -186,6 +197,10 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
     }),
     interrupt: input => answer(deps, async () => {
       await sessions.interrupt(chatRequest(registry, agentChatInterruptSchema, input).ref)
+      return null
+    }),
+    stop: input => answer(deps, async () => {
+      await sessions.stop(chatRequest(registry, agentChatStopSchema, input).ref)
       return null
     }),
     answer: input => answer(deps, async () => {
@@ -210,12 +225,7 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       return { image: await sessions.stageImage(ref, Buffer.from(request.data, 'base64')) }
     }),
     attachEvidence: input => answer(deps, () => attachEvidence(input)),
-    models: input => answer(deps, () => {
-      const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
-      const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
-      const options = { refresh: request.refresh === true }
-      return 'chatId' in request ? deps.models.chatModels({ folder, id: request.chatId }, options) : deps.models.catalogModels(request.agentId, options)
-    }),
+    models: input => answer(deps, () => modelCatalog(deps, input)),
     setModel: input => answer(deps, () => switchModel(deps, input))
   }
 }
@@ -224,6 +234,7 @@ export function registerAgentChatIpc<S>(ipcMain: Pick<IpcMain, 'handle'>, handle
   ipcMain.handle(AGENT_CHAT_CHANNELS.start, (_event, request: unknown) => handlers.start(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.send, (_event, request: unknown) => handlers.send(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.interrupt, (_event, request: unknown) => handlers.interrupt(request))
+  ipcMain.handle(AGENT_CHAT_CHANNELS.stop, (_event, request: unknown) => handlers.stop(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.answer, (_event, request: unknown) => handlers.answer(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.setSurface, (event, request: unknown) => handlers.setSurface(senderOf(event), request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.snapshot, (_event, request: unknown) => handlers.snapshot(request))

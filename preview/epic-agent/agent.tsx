@@ -16,7 +16,7 @@ import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
 import { FakeChatMail, mailEntry } from '../../src/renderer/src/__mocks__/fakeChatMail'
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
-import { AgentMailContext, createAgentMailStore } from '../../src/renderer/src/agents/useAgentMail'
+import { AgentMailContext, createAgentMailStore, type AgentMailStore } from '../../src/renderer/src/agents/useAgentMail'
 import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
@@ -55,6 +55,8 @@ interface Seeded {
   busyChatApi: FakeAgentChat
   /** The `mail` mount's chat mailboxes (`window.dm.chats.mail`). */
   chatMail: FakeChatMail
+  /** Whether the epic mount reads `chatMail` through the shell's mail store, for a state that shows unseen mail. */
+  epicMail: boolean
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
   folder: TrackedFolderView
@@ -581,6 +583,22 @@ const agentStates: Record<string, StateDef> = {
       await until(() => treeItem('Lexmechanic-2')?.getAttribute('aria-selected') === 'true' && treeItem('Lexmechanic-9'), 'the selected Lexmechanic-2')
       await chatLoaded()
     }
+  },
+  // The run's Magos selected beside a live Skitarii Lexmechanic with two messages the person has not seen.
+  'epic-agent-tabs': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, { ...scenarios.empty.snapshot, items: conversation })
+      context.chats = [{ ...ORCHESTRATOR, agent: 'omp' }, { ...PLANNER, agent: 'omp' }]
+      context.chatMail.put({ folder: FOLDER.path, chatId: PLANNER.id, unseenCount: 2, retainedCount: 2 })
+      context.epicMail = true
+    },
+    reach: async () => {
+      await openAgentTab()
+      await until(() => $('.ats-tab.is-active [aria-label="Magos"]'), 'the selected Magos tab')
+      await until(() => $('.ats-tab .ats-unread'), 'the Lexmechanic tab’s unread dot')
+      await chatLoaded()
+    }
   }
 }
 
@@ -1004,6 +1022,38 @@ function transcriptObservations(): Record<string, unknown> | null {
   }
 }
 
+/** Whether the active tab meets the chat header on the header's own surface, with rounded top corners only. */
+function activeTabJoined(active: HTMLElement | null): { activeJoined: boolean; roundedTop: boolean } {
+  const header = $('.eap-centre .agent-chat-header')
+  if (active === null || header === null) return { activeJoined: false, roundedTop: false }
+  const style = getComputedStyle(active)
+  return {
+    activeJoined: style.backgroundColor === getComputedStyle(header).backgroundColor
+      && Math.abs(active.getBoundingClientRect().bottom - header.getBoundingClientRect().top) <= 1,
+    roundedTop: style.borderTopLeftRadius === '8px' && style.borderTopRightRadius === '8px' && style.borderBottomLeftRadius === '0px'
+  }
+}
+
+/**
+ * The epic-agent-tabs strip: each tab's accessible name, selection, unread dot and ✕; whether the strip sits above the
+ * chat; and whether the active tab joins the chat header.
+ */
+function agentTabsObservations(): Record<string, unknown> | null {
+  const list = $('[role="tablist"][aria-label="Agent tabs"]')
+  if (list === null) return null
+  const chat = $('.eap-centre .agent-chat')
+  return {
+    tabs: [...list.querySelectorAll<HTMLElement>('.ats-tab')].map((tab) => ({
+      name: $('[role="tab"]', tab)?.getAttribute('aria-label') ?? null,
+      selected: $('[role="tab"]', tab)?.getAttribute('aria-selected') === 'true',
+      unread: $('.ats-unread', tab) !== null,
+      closable: $('.ats-close', tab) !== null
+    })),
+    aboveChat: chat !== null && list.getBoundingClientRect().bottom <= chat.getBoundingClientRect().top + 1,
+    ...activeTabJoined($('.ats-tab.is-active', list))
+  }
+}
+
 /** The mail-card state's transcript: rows in order (mail or item) and each card's head, body and whether markup rendered. */
 function mailObservations(mail: FakeChatMail | null): Record<string, unknown> | null {
   const cards = [...document.querySelectorAll<HTMLElement>('.chat-mail')]
@@ -1107,6 +1157,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     composers: composerObservations(),
     transcript: transcriptObservations(),
     mail: mailObservations(context?.chatMail ?? null),
+    agentTabs: agentTabsObservations(),
     workedFor: workedForObservations(),
     chatImages: chatImageObservations(),
     evidence: evidenceObservations(context),
@@ -1126,12 +1177,20 @@ function publish(observations: Record<string, unknown>): void {
 
 // ---------------------------------------------------------------------------------------------- mount
 
+/** The shell's mail store over the seeded mailboxes, tracking the preview's folder. */
+function epicMailStore(context: Seeded): AgentMailStore {
+  context.backend.chats.mail = context.chatMail
+  const store = createAgentMailStore(context.chatMail)
+  store.track([FOLDER.path])
+  return store
+}
+
 function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
   return {
-    backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), clock: createManualClock(agentChatScenarioClockStart),
-    chats: [ORCHESTRATOR],
+    backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), epicMail: false,
+    clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR],
     folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
 }
@@ -1185,11 +1244,11 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   }
   window.dm = context.backend
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
-    <div className="preview-epic-agent">
+    <AgentMailContext.Provider value={context.epicMail ? epicMailStore(context) : null}><div className="preview-epic-agent">
       <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
         onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })}
         landing={context.landing} onLanded={() => undefined} />
-    </div>
+    </div></AgentMailContext.Provider>
   </ViewMemoryContext.Provider></ClockContext.Provider>
 }
 

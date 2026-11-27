@@ -46,7 +46,8 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [AGENT_CHAT_CHANNELS.stageImage]: { folder: REPO, chatId: 'chat_1', data: SWATCH.toString('base64') },
   [AGENT_CHAT_CHANNELS.attachEvidence]: { folder: REPO, chatId: 'chat_1', imageId: IMAGE.id, epicId: 'ep_1' },
   [AGENT_CHAT_CHANNELS.models]: { folder: REPO, chatId: 'chat_1' },
-  [AGENT_CHAT_CHANNELS.setModel]: { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }
+  [AGENT_CHAT_CHANNELS.setModel]: { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol' },
+  [AGENT_CHAT_CHANNELS.stop]: { folder: REPO, chatId: 'chat_1' }
 }
 
 function rig() {
@@ -56,7 +57,7 @@ function rig() {
     start: record('start', SNAPSHOT), send: record('send', undefined), interrupt: record('interrupt', undefined),
     answer: record('answer', undefined), setSurface: record('setSurface', SNAPSHOT), snapshot: vi.fn((...args: unknown[]) => { calls.push(['snapshot', ...args]); return SNAPSHOT }),
     attention: vi.fn((...args: unknown[]) => { calls.push(['attention', ...args]); return [] }),
-    stageImage: record('stageImage', IMAGE), setModel: record('setModel', SNAPSHOT)
+    stageImage: record('stageImage', IMAGE), setModel: record('setModel', SNAPSHOT), stop: record('stop', undefined)
   } as unknown as AgentChatSessions
   const confirmTerminalStop = vi.fn(async () => false)
   const listeners = new Map<string, Listener>()
@@ -99,7 +100,8 @@ describe('agent chat IPC registration', () => {
     // `INVOKED` is sorted by channel name, so the manager is reached in that order.
     const ref = { folder: REPO, id: 'chat_1' }
     expect(state.calls.map(call => [call[0], call[1]])).toEqual([
-      ['answer', ref], ['getChat', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setModel', ref], ['setSurface', ref], ['snapshot', ref], ['stageImage', ref], ['start', ref]
+      ['answer', ref], ['getChat', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setModel', ref], ['setSurface', ref], ['snapshot', ref], ['stageImage', ref], ['start', ref],
+      ['stop', ref]
     ])
   })
 

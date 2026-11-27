@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_CHAT_CHANNELS, GUI_PROTOCOL_KINDS, TODO_TOOL_NAMES, agentChatStartSchema, agentChatSendSchema,
-  agentChatInterruptSchema, agentChatAnswerSchema, agentChatSetSurfaceSchema, agentChatSnapshotRequestSchema,
+  agentChatInterruptSchema, agentChatStopSchema, agentChatAnswerSchema, agentChatSetSurfaceSchema, agentChatSnapshotRequestSchema,
   agentChatEventSchema, agentChatSnapshotSchema, pendingPromptSchema, agentTodoTaskSchema, agentTodoPhaseSchema,
   agentChatAttentionSchema, attentionItemSchema, agentChatStageImageSchema, agentChatAttachEvidenceSchema, agentChatSetModelSchema,
   CHAT_IMAGE_MAX_BYTES, CHAT_IMAGES_PER_MESSAGE, chatImageIdSchema, chatImageRefSchema,
@@ -22,7 +22,7 @@ const prompt: PendingPrompt = {
 describe('agent chat contract', () => {
   it.each([
     ['start', agentChatStartSchema, ref], ['send', agentChatSendSchema, { ...ref, text: 'hello' }],
-    ['interrupt', agentChatInterruptSchema, ref],
+    ['interrupt', agentChatInterruptSchema, ref], ['stop', agentChatStopSchema, ref],
     ['answer', agentChatAnswerSchema, { ...ref, promptId: 'req_1', optionId: 'allow_once', text: 'yes' }],
     ['setSurface', agentChatSetSurfaceSchema, { ...ref, surface: 'gui' }],
     ['snapshot', agentChatSnapshotRequestSchema, ref]
@@ -162,7 +162,7 @@ describe('agent chat events and snapshots', () => {
   })
 
   it('fixes channel and protocol/tool names for all consumers', () => {
-    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence', 'models', 'setModel'].map(name => [name, `agentChat:${name}`])))
+    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence', 'models', 'setModel', 'stop'].map(name => [name, `agentChat:${name}`])))
     expect(GUI_PROTOCOL_KINDS).toEqual(['omp', 'claude'])
     expect(TODO_TOOL_NAMES).toEqual(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'])
   })
