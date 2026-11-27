@@ -29,9 +29,14 @@ export const agentChatSendSchema = z.strictObject({
   ...chatRef, text: z.string().max(20_000), imageIds: z.array(chatImageIdSchema).max(CHAT_IMAGES_PER_MESSAGE).optional()
 }).refine(request => request.text.length > 0 || (request.imageIds?.length ?? 0) > 0, { message: 'A message needs text or an image', path: ['text'] })
 export const agentChatInterruptSchema = z.strictObject(chatRef)
-export const agentChatAnswerSchema = z.strictObject({
-  ...chatRef, promptId: z.string().min(1), optionId: z.string().min(1), text: z.string().max(20_000).optional()
-})
+const answerFields = { ...chatRef, promptId: z.string().min(1), text: z.string().max(20_000).optional() }
+/** Exactly one of `optionId` (one option) or `optionIds` (a multi question's chosen options, `text` among them for free text). */
+export const agentChatAnswerSchema = z.union([
+  z.strictObject({ ...answerFields, optionId: z.string().min(1) }),
+  z.strictObject({ ...answerFields, optionIds: z.array(z.string().min(1)).min(1).max(50) })
+])
+/** A prompt answer without its chat reference, as main's sessions and translators take it. */
+export type AgentChatAnswer = { promptId: string; text?: string } & ({ optionId: string } | { optionIds: string[] })
 export const agentChatSetSurfaceSchema = z.strictObject({ ...chatRef, surface: surfaceSchema })
 export const agentChatSnapshotRequestSchema = z.strictObject(chatRef)
 export const agentChatAttentionSchema = z.strictObject({ folder: z.string().nullable() })
@@ -55,7 +60,12 @@ const promptFields = {
 }
 export const pendingPromptSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...promptFields, kind: z.literal('approval'), options: z.array(z.strictObject({ id: z.enum(['allow_once', 'allow_chat', 'deny']), label: z.string() })) }),
-  z.strictObject({ ...promptFields, kind: z.literal('question'), options: z.array(z.strictObject({ id: z.string().min(1), label: z.string() })) })
+  z.strictObject({ ...promptFields, kind: z.literal('question'),
+    options: z.array(z.strictObject({ id: z.string().min(1), label: z.string(), description: z.string().optional() })),
+    /** Several options may be chosen and sent together as `optionIds`; absent means one choice. */
+    multi: z.boolean().optional(),
+    /** This question's 1-based place among the questions of one ask. */
+    progress: z.strictObject({ index: z.number().int().min(1), total: z.number().int().min(1) }).optional() })
 ])
 export type PendingPrompt = z.infer<typeof pendingPromptSchema>
 

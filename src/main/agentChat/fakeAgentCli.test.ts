@@ -219,6 +219,29 @@ for (const protocol of protocols) {
       })
     }
 
+    it('multiselect asks the multi then the single question and echoes the answers it received', async () => {
+      const harness = await initialize(protocol)
+      harness.send(prompt(protocol, '[multiselect]'))
+      const expected = golden(protocol, 'question_multi')
+      const request = lines(expected).find((line) => ['control_request', 'extension_ui_request'].includes(JSON.parse(line).type))!
+      const questions = protocol === 'claude' ? JSON.parse(request).request.input.questions : JSON.parse(request).questions
+      expect(questions.map((question: Record<string, unknown>) => question.multiSelect ?? question.multi)).toEqual([true, false])
+      expect(questions[0].options).toHaveLength(4)
+      await harness.until(() => harness.stdout.includes(request))
+      // Not the golden's answers: the echo must report what reached the CLI.
+      const answer = JSON.parse(lines(golden(protocol, 'question_multi', 'in'))[1])
+      const holder = protocol === 'claude' ? answer.response.response.updatedInput : answer
+      const echo = (value: unknown): string => JSON.stringify(`answers: ${JSON.stringify(value)}`)
+      const goldenEcho = echo(holder.answers)
+      holder.answers = protocol === 'claude' ? { 'Which letters?': 'B, D', 'Which database?': 'Postgres' }
+        : [{ id: 'q_T1_databases', selectedOptions: ['MySQL', 'DuckDB'] }, { id: 'q_T1_region', selectedOptions: ['US'] }]
+      harness.send(answer)
+      await harness.until(() => completed(protocol, harness.stdout))
+      expect(await finish(harness)).toBe(0)
+      expect(expected).toContain(goldenEcho)
+      expect(harness.stdout).toBe(expected.replaceAll(goldenEcho, echo(holder.answers)))
+    })
+
     it('interrupt during slow ends the turn with the golden interrupt tail', async () => {
       const harness = await initialize(protocol)
       harness.send(prompt(protocol, '[slow]'))

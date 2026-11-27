@@ -43,6 +43,25 @@ describe('agent chat contract', () => {
     }
     expect(agentChatAnswerSchema.safeParse({ ...ref, promptId: 'p', optionId: 'x', text: 'a'.repeat(20_001) }).success).toBe(false)
   })
+
+  it('keeps a question single choice without multi and bounds its progress', () => {
+    const question = { ...prompt, kind: 'question' as const, options: [{ id: 'option_0', label: 'A' }, { id: 'text', label: 'Other' }] }
+    // A prompt persisted before multi-select carries none of the new fields and still parses, as single choice.
+    expect(pendingPromptSchema.parse(question)).toEqual(question)
+    const multi = { ...question, options: [{ id: 'option_0', label: 'A', description: 'Letter A' }], multi: true, progress: { index: 1, total: 2 } }
+    expect(pendingPromptSchema.parse(multi)).toEqual(multi)
+    expect(pendingPromptSchema.safeParse({ ...question, progress: { index: 0, total: 2 } }).success).toBe(false)
+    expect(pendingPromptSchema.safeParse({ ...prompt, multi: true }).success).toBe(false)
+  })
+
+  it('takes exactly one of optionId or a bounded, nonempty optionIds list', () => {
+    const answer = { ...ref, promptId: 'p' }
+    expect(agentChatAnswerSchema.parse({ ...answer, optionIds: ['option_0', 'option_2'], text: 'more' })).toEqual({ ...answer, optionIds: ['option_0', 'option_2'], text: 'more' })
+    for (const invalid of [answer, { ...answer, optionId: 'option_0', optionIds: ['option_1'] }, { ...answer, optionIds: [] },
+      { ...answer, optionIds: [''] }, { ...answer, optionIds: Array.from({ length: 51 }, (_, index) => `option_${index}`) }]) {
+      expect(agentChatAnswerSchema.safeParse(invalid).success).toBe(false)
+    }
+  })
 })
 
 describe('agent chat images', () => {

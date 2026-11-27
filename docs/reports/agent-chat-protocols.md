@@ -216,6 +216,8 @@ answers?: {
 
 I: question-text key → chosen label encoding in the fixture (`{'Which database?':'SQLite'}`), and `question/header/options[].label/description` values. The declaration establishes the map shape, not every serialization detail of multiple selections. Preserve the original input when adding answers.
 
+O (DM-1033, Claude Code 2.1.332 `@anthropic-ai/claude-code-win32-x64` `claude.exe`, sha256 `e6652f91…fd320`, read on the Windows host): a multiSelect answer is one string built by `function TFn(e){return e.map((t)=>t.includes(", ")||t.includes('"')?_(t):t).join(", ")}`: the chosen labels joined by `", "`, a label holding `", "` or `"` quoted (I: as a JSON string; the paired parser `V` reads quoted entries back with `JSON.parse`). The AskUserQuestion dialog uses it for every multiSelect answer (`if(Vl)la=TFn(Ra.map(Ci))`, free text included), and the SDK input check applies it to an array answer of a multiSelect question. The GUI answers a multi question with `optionIds` (exactly one of `optionId`/`optionIds`); Claude gets that string in option order with free text last, and OMP gets `selectedOptions` (ask) or an array value (form). Each question prompt carries `multi`, option `description`s and `progress` (`index` of `total`).
+
 ### Pending prompt ownership (DM-779)
 
 Main replays only the FIFO head of the translator-held queue. Later requests remain held; OMP `cancel` removes its target, and exit clears the queue immediately without changing the process-close/transport/grant cleanup barrier. Unknown, queued or withdrawn ids fail with typed `stale_prompt` and write nothing. There is no timeout answer or remembered host-side `allow_chat` policy.

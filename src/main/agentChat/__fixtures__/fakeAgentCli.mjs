@@ -137,7 +137,7 @@ function scenario(prompt) {
   const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+)\]/g)].map((match) => match[1])
   if (mode === 'omp' && keywords.includes('tasks')) return 'todo'
   if (mode === 'claude' && keywords.includes('todo_clear')) return 'text'
-  return keywords.find((key) => ['slow', 'hung', 'leak'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? 'text'
+  return keywords.find((key) => ['slow', 'hung', 'leak', 'multiselect'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? 'text'
 }
 
 function leakToken(lines) {
@@ -151,6 +151,16 @@ function leakToken(lines) {
     }
     return JSON.stringify(frame)
   })
+}
+
+/** A replayed `answers: …` text says what the app answered, so a multiselect run shows the answers that reached the CLI. */
+function echoAnswers(line, message) {
+  const answers = mode === 'claude' ? message?.response?.response?.updatedInput?.answers : message?.answers
+  if (answers === undefined || !line.includes('"answers: ')) return line
+  const echo = (value) => typeof value === 'string' ? value.startsWith('answers: ') ? `answers: ${JSON.stringify(answers)}` : value
+    : Array.isArray(value) ? value.map(echo)
+      : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, echo(entry)])) : value
+  return JSON.stringify(echo(JSON.parse(line)))
 }
 
 function tailBindings(name, turn) {
@@ -248,7 +258,7 @@ class ProtocolReplay {
       return false
     }
     this.active.waiting = requestId(frame)
-    emit(line)
+    emit(echoAnswers(line, this.active.answer))
     return true
   }
 
@@ -293,7 +303,7 @@ class ProtocolReplay {
     const prompt = typeof content === 'string' ? content : JSON.stringify(content)
     if (prompt?.includes('[crash]')) { crash(); this.stop(); return }
     const name = scenario(prompt)
-    const replay = { slow: 'text', hung: 'text', leak: 'tool' }[name] ?? name
+    const replay = { slow: 'text', hung: 'text', leak: 'tool', multiselect: 'question_multi' }[name] ?? name
     let lines = this.turnLines(replay, message)
     if (name === 'leak') lines = leakToken(lines)
     this.tailQueries.clear()
@@ -346,6 +356,7 @@ class ProtocolReplay {
     const id = mode === 'claude' && message.type === 'control_response' ? message.response?.request_id : message.type === 'extension_ui_response' ? message.id : null
     if (id && this.active?.waiting === id) {
       this.active.waiting = null
+      this.active.answer = message
       this.pump()
     }
   }
