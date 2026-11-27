@@ -1650,3 +1650,30 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images, qu
     expect(existsSync(join(r.userData, 'agents', 'chat-images'))).toBe(false)
   })
 })
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images across a restart`, () => {
+  it('deletes a restarted chat only after the old process’s tool image has landed, leaving no image directory', async () => {
+    const r = rig(kind), chat = r.newChat()
+    let release = (): void => undefined, storing = false
+    const landed = new Promise<void>(resolve => { release = resolve })
+    // A failing assertion still lets the held image land before the rig's dispose waits for it.
+    cleanups.unshift(async () => release())
+    const images = r.chatImages
+    r.deps.chatImages = { ...images, putToolImage: async (ref, bytes) => { storing = true; await landed; return images.putToolImage(ref, bytes) } }
+    await r.sessions.send(chat, { text: '[image]' })
+    await eventually(() => storing)
+    await r.sessions.stop(chat)
+    await r.sessions.start(chat)
+    const steps: string[] = []
+    const deleting = r.sessions.deleteChat(chat, async () => { steps.push('remove'); r.store.deleteChat(chat) })
+    // The restarted process has fully stopped; a macrotask turn flushes the deletion's remaining microtasks, so only the
+    // old tool image can still hold it.
+    await eventually(() => steps.length > 0 || !r.sessions.isLive(chat))
+    await new Promise(resolve => setImmediate(resolve))
+    expect(steps).toEqual([])
+    release()
+    await deleting
+    expect(steps).toEqual(['remove'])
+    expect(existsSync(join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id))).toBe(false)
+  })
+})

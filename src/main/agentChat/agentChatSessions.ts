@@ -214,7 +214,9 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
   return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude', attention: '[]',
     claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), requests: new Map(), grantIds: [], cancelled: false,
-    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose, toolCalls: new Map(), toolImages: new Map() }
+    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose, toolCalls: new Map(), toolImages: new Map(),
+    // A restarted chat still waits for (and chains after) the old process's tool images, so deleteChat sees them land.
+    imageWork: previous?.imageWork }
 }
 
 /** A missing close is a failure, not proof that the process or its authority was cleaned up. */
