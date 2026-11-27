@@ -38,7 +38,8 @@ interface ChatGrantsDeps {
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
-interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
+/** `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true. */
+interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean }
 /** The trusted chat a grant is issued for: its stored identity and title, and its connected agent's kind. */
 export type GrantChat = MailboxChat & { kind: string }
 function reachedMailbox(owner: string | null, chat?: GrantChat): GrantChat | undefined {
@@ -122,7 +123,8 @@ class ChatGrantRegistry implements ChatGrants {
   /** Issues one grant in the folder's workspace and holds it; answers it with its token and that workspace. */
   private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: ProjectWorkspace }> {
     const workspace = this.deps.workspaceFor(folder)
-    const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
+    const runSave = grant.runSave === false ? { runSave: false } : {}
+    const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes, ...runSave })
     this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }

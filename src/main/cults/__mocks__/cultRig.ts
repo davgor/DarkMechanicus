@@ -29,6 +29,7 @@ import { createCultLauncher, type CultLauncher } from '../cultLauncher'
 import { createCultStore, type CultStore } from '../cultStore'
 import { cheapest, parseOmpModels } from '../ompModels'
 import { createSanctumRegistry, withSanctums, type SanctumRegistry } from '../sanctumRegistry'
+import { createPlanForgeCouncil, type PlanForgeCouncil } from '../planForgeCouncil'
 
 const MODELS = readFileSync(new URL('../__fixtures__/omp-models.json', import.meta.url), 'utf8')
 export const CHEAPEST = cheapest(parseOmpModels(MODELS, ['anthropic']) ?? [])!.id
@@ -47,6 +48,8 @@ export interface CultHarness {
   launcher: CultLauncher
   handlers: ChatHandlers
   dmHome: string
+  /** The Plan Forge council over the rig's store and workspaces; every launch binds a Plan Forge run through it. */
+  council: PlanForgeCouncil
   /** The cult store's app database (`app-*` under the scratch folder); the harness closes it before removing the folder. */
   appDb: Db
 }
@@ -145,11 +148,15 @@ export async function cultHarness(options: CultHarnessOptions = {}): Promise<Cul
   const appDb = openAppDatabase(mkdtempSync(join(rig.root, 'app-')))
   const cults = createCultStore({ db: appDb, ...(options.now === undefined ? {} : { now: options.now }) })
   const control = createCultControl({ userData: rig.userData, epochOf: (chatId) => rig.sessions.generationOf(chatId) })
+  const workspaceFor = (folder: string) => {
+    if (gates.resolve(folder) !== folder) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
+    return pool.get(folder)
+  }
+  const council = createPlanForgeCouncil({ cults, workspaceFor, grantIdsOf: (run, chatId) => rig.store.getChat({ folder: run.workDir, id: chatId })?.grantIds ?? [] })
   const launcher = createCultLauncher({
     cults, folders: { resolve: (path) => (rig.tracked.has(path) ? path : null) }, sanctums, chats: records, terminals: rig.sessions, control,
     workspaceFor: (folder) => {
-      if (gates.resolve(folder) !== folder) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
-      const workspace = pool.get(folder)
+      const workspace = workspaceFor(folder)
       // The chat store keeps chats only in folders it can find; a sanctum is one from now on.
       rig.chatFs.folders.add(folder)
       return workspace
@@ -157,9 +164,10 @@ export async function cultHarness(options: CultHarnessOptions = {}): Promise<Cul
     closeWorkspace: (folder) => pool.close(folder),
     cheapestModel: async () => CHEAPEST,
     userData: rig.userData,
-    dmHome
+    dmHome,
+    bindTarget: (run) => council.bind(run)
   })
-  return { rig, pool, cults, sanctums, gates, records, grants, control, launcher, handlers: handlersOver(gates, records), dmHome, appDb }
+  return { rig, pool, cults, sanctums, gates, records, grants, control, launcher, handlers: handlersOver(gates, records), dmHome, council, appDb }
 }
 
 /**

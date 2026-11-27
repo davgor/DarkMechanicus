@@ -7,7 +7,7 @@ import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
 import type {
-  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultStatusResult, CultSummonArgs, CultSummonResult
+  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultRecordSynthesisArgs, CultStatusResult, CultSummonArgs, CultSummonResult
 } from '../cults/cultControl'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
@@ -475,6 +475,8 @@ export interface CommandApi {
   cultConcludeService(input: { report: string }): Promise<{ concluding: 'service'; reportStored: boolean }>
   /** Magos: a worker type for this run only, which acolytes may then be summoned as. */
   cultCreateWorkerType(input: { displayName: string; description: string; mission: string; rationale: string; requiredForConclusion: boolean }): Promise<{ workerTypeId: string; displayName: string; requiredForConclusion: boolean }>
+  /** Magos (Plan Forge): its synthesis of the reports for its latest draft edit, before it concludes. */
+  cultRecordSynthesis(input: CultRecordSynthesisArgs): Promise<{ draftRevision: number; accepted: number; rejected: number }>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>
@@ -532,6 +534,8 @@ export interface CommandApi {
     label: string
     minutes?: number
     allowSave?: boolean
+    /** False: never saves through the run-ownership exception, only with Allow save (a cult Magos). */
+    runSave?: boolean
   }): Promise<{ grant: GrantView; token: string }>
   listGrants(): Promise<GrantView[]>
   revokeGrant(input: { grantId: string }): Promise<GrantView>

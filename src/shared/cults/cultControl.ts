@@ -8,7 +8,7 @@
  * No Node imports, so every side can share it.
  */
 import { z } from 'zod'
-import { DYNAMIC_TYPE_LIMITS } from './archetypes'
+import { DYNAMIC_TYPE_LIMITS, MAX_DYNAMIC_WORKER_TYPES } from './archetypes'
 import { MAX_REPORT_BYTES, PETITION_KINDS } from './cult'
 import type { DomainErrorCode } from '../domain/errors'
 import { MAX_CAP } from './runState'
@@ -51,7 +51,8 @@ export const CULT_OPERATION_NAMES = [
   'cult_order_all',
   'cult_conclude_run',
   'cult_conclude_service',
-  'cult_create_worker_type'
+  'cult_create_worker_type',
+  'cult_record_synthesis'
 ] as const
 export type CultOperationName = (typeof CULT_OPERATION_NAMES)[number]
 
@@ -110,6 +111,22 @@ export const cultCreateWorkerTypeArgsSchema = z.strictObject({
   requiredForConclusion: z.boolean()
 })
 
+/** One recommendation of the Plan Forge synthesis: which specialist made it, and the Magos's decision with its reason. */
+export const MAX_SYNTHESIS_ITEMS = 96
+const recommendationSchema = z.strictObject({
+  workerType: id.describe('The slot id (a fixed type) or run worker type id (dyn_<n>) whose report made it.'),
+  recommendation: line(2000),
+  decision: z.enum(['accepted', 'rejected']),
+  reason: line(2000)
+})
+export const cultRecordSynthesisArgsSchema = z
+  .strictObject({
+    draftRevision: z.number().int().min(1).describe('The target draft revision this synthesis was applied to.'),
+    recommendations: z.array(recommendationSchema).min(1).max(MAX_SYNTHESIS_ITEMS)
+  })
+  .refine((args) => encoder.encode(JSON.stringify(args.recommendations)).byteLength <= MAX_LONG_TEXT_BYTES, 'The synthesis is at most 32 KiB.')
+export type CultRecordSynthesisArgs = z.infer<typeof cultRecordSynthesisArgsSchema>
+
 const operation = <N extends CultOperationName, A extends z.ZodType>(op: N, args: A) => z.strictObject({ op: z.literal(op), args })
 
 /** Each cult operation as the pipe carries it, without the request's authority fields. */
@@ -122,7 +139,8 @@ export const CULT_OPERATION_SCHEMAS = [
   operation('cult_order_all', cultOrderAllArgsSchema),
   operation('cult_conclude_run', cultConcludeRunArgsSchema),
   operation('cult_conclude_service', cultConcludeServiceArgsSchema),
-  operation('cult_create_worker_type', cultCreateWorkerTypeArgsSchema)
+  operation('cult_create_worker_type', cultCreateWorkerTypeArgsSchema),
+  operation('cult_record_synthesis', cultRecordSynthesisArgsSchema)
 ] as const
 export type CultOperation = z.infer<(typeof CULT_OPERATION_SCHEMAS)[number]>
 
@@ -134,12 +152,29 @@ export const MAGOS_OPERATIONS: readonly CultOperationName[] = [
   'cult_petition',
   'cult_order_all',
   'cult_conclude_run',
-  'cult_create_worker_type'
+  'cult_create_worker_type',
+  'cult_record_synthesis'
 ]
 /** The operations only an acolyte may send. */
 export const ACOLYTE_OPERATIONS: readonly CultOperationName[] = ['cult_conclude_service']
-/** The operations whose text runs past the shared request bound: a 32 KiB chronicle or report, a 16 KiB order. */
-export const LONG_TEXT_OPERATIONS: readonly string[] = ['cult_conclude_run', 'cult_conclude_service', 'cult_order_all']
+/** The operations whose text runs past the shared request bound: a 32 KiB chronicle, report or synthesis, a 16 KiB order. */
+export const LONG_TEXT_OPERATIONS: readonly string[] = ['cult_conclude_run', 'cult_conclude_service', 'cult_order_all', 'cult_record_synthesis']
+
+/**
+ * The Plan Forge council's state (`src/main/cults/planForgeCouncil.ts`): `stale` the target changed outside the run,
+ * `collecting` a required type has no report, `resolving` the synthesis is missing or behind the draft, `invalid` the
+ * draft does not validate, `valid` the run may conclude.
+ */
+export const PLAN_FORGE_STATES = ['collecting', 'resolving', 'valid', 'stale', 'invalid'] as const
+export type PlanForgeState = (typeof PLAN_FORGE_STATES)[number]
+export const planForgeStatusSchema = z.strictObject({
+  state: z.enum(PLAN_FORGE_STATES),
+  /** Fixed six types without a distinct member's report. */
+  missingFixed: z.array(z.string().max(80)).max(MAX_CAP),
+  /** Required Magos-created types without a distinct member's report. */
+  missingCreated: z.array(z.string().max(80)).max(MAX_DYNAMIC_WORKER_TYPES)
+})
+export type PlanForgeStatus = z.infer<typeof planForgeStatusSchema>
 
 export function isCultOperation(op: string): op is CultOperationName {
   return (CULT_OPERATION_NAMES as readonly string[]).includes(op)
@@ -178,7 +213,9 @@ export const cultStatusResultSchema = z.strictObject({
    * Tracked folders an approved `folder_access` petition opened to this member for the run. Each is reached only from
    * the shell, with the dm CLI: `usage` is the exact command line (`dm --repo <folder> --token-file <file> <command>`).
    */
-  folderAccess: z.array(z.strictObject({ folder: z.string().max(4096), tokenFile: z.string().max(4096), usage: z.string().max(9000) })).max(64)
+  folderAccess: z.array(z.strictObject({ folder: z.string().max(4096), tokenFile: z.string().max(4096), usage: z.string().max(9000) })).max(64),
+  /** The Plan Forge council's state and coverage; null in every other archetype. */
+  planForge: planForgeStatusSchema.nullable()
 })
 export type CultStatusResult = z.infer<typeof cultStatusResultSchema>
 
@@ -219,6 +256,7 @@ export type CultOrderAllResult = z.infer<typeof cultOrderAllResultSchema>
 export const cultConcludeRunResultSchema = z.strictObject({ concluding: z.literal('run') })
 export const cultConcludeServiceResultSchema = z.strictObject({ concluding: z.literal('service'), reportStored: z.boolean() })
 export const cultWorkerTypeResultSchema = z.strictObject({ workerTypeId: z.string().max(80), displayName: name, requiredForConclusion: z.boolean() })
+export const cultSynthesisResultSchema = z.strictObject({ draftRevision: z.number().int(), accepted: z.number().int(), rejected: z.number().int() })
 
 /** Every cult result, for the pipe's reply schema; each command parses its own. */
 export const CULT_RESULT_SCHEMAS = [
@@ -230,7 +268,8 @@ export const CULT_RESULT_SCHEMAS = [
   cultOrderAllResultSchema,
   cultConcludeRunResultSchema,
   cultConcludeServiceResultSchema,
-  cultWorkerTypeResultSchema
+  cultWorkerTypeResultSchema,
+  cultSynthesisResultSchema
 ] as const
 
 // --- errors ----------------------------------------------------------------------------------------------------
@@ -249,6 +288,7 @@ export const CULT_ERROR_CODES = [
   'reports_missing',
   'target_stale',
   'plan_invalid',
+  'synthesis_missing',
   'invalid_state'
 ] as const satisfies readonly DomainErrorCode[]
 export type CultErrorCode = (typeof CULT_ERROR_CODES)[number]
@@ -267,9 +307,18 @@ export const CULT_ERROR_MESSAGES: Readonly<Record<CultErrorCode, string>> = {
   reports_missing: 'Every required slot must report before the run concludes.',
   target_stale: 'The target plan changed outside this run. Re-read it before concluding.',
   plan_invalid: 'The target draft does not validate. Fix it before concluding.',
+  synthesis_missing: 'Record a synthesis (cult_record_synthesis) for your latest edit of the target draft, with a decision on a recommendation of every required type.',
   invalid_state: 'The run is not in a state that allows this.'
 }
 
-/** The only data a refusal carries: a refused model's signed-in alternatives. */
-export const cultErrorDetailsSchema = z.strictObject({ available: z.array(modelId).max(MAX_LISTED_MODELS) })
+/**
+ * What a refusal carries: a refused model's signed-in alternatives, the Plan Forge types still missing (fixed and
+ * Magos-created apart), or the target draft's validation errors. Each is app-generated, never member text.
+ */
+export const cultErrorDetailsSchema = z.strictObject({
+  available: z.array(modelId).max(MAX_LISTED_MODELS).optional(),
+  missingFixed: z.array(z.string().max(80)).max(MAX_CAP).optional(),
+  missingCreated: z.array(z.string().max(80)).max(MAX_DYNAMIC_WORKER_TYPES).optional(),
+  planErrors: z.array(z.strictObject({ code: z.string().max(80), message: z.string().max(500) })).max(20).optional()
+})
 export type CultErrorDetails = z.infer<typeof cultErrorDetailsSchema>

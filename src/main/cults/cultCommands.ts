@@ -4,22 +4,25 @@
  * run's own folder. A Magos-only operation from an acolyte, an acolyte-only one from the Magos, and every operation
  * from any other chat are refused with `unauthorized`. Arguments never name a run, a role or a sender.
  *
- * Refusals are typed codes the Magos can act on (`CULT_ERROR_CODES`); only `model_unavailable` carries data, the
- * signed-in model ids. Plan Forge conclusion checks go through the council seam (`council`); without one, a run whose
- * cult has required slots refuses to conclude with `reports_missing` until every one of them has reported.
+ * Refusals are typed codes the Magos can act on (`CULT_ERROR_CODES`); data rides only on `model_unavailable` (the
+ * signed-in model ids), `reports_missing` (the missing Plan Forge types) and `plan_invalid` (validation errors). A Plan
+ * Forge run concludes through its council (`planForgeCouncil.ts`); any other run whose cult has required slots refuses
+ * to conclude with `reports_missing` until every one of them has reported.
  */
 import { fail } from '../../core/errors'
 import { NamingControlError, type NamingOperation } from '../../shared/agents/chatNaming'
 import type { CultMemberView, CultRunView, PetitionInput, SlotCoverage } from '../../shared/cults/cult'
 import {
-  ACOLYTE_OPERATIONS, type CultAcolytesResult, type CultOperation, type CultPetitionArgs, type CultStatusResult,
-  type CultSummonArgs, type CultSummonResult, isCultOperation, MAGOS_OPERATIONS, MAX_LISTED_ACOLYTES, MAX_LISTED_MODELS
+  ACOLYTE_OPERATIONS, type CultAcolytesResult, type CultOperation, type CultPetitionArgs, type CultRecordSynthesisArgs,
+  type CultStatusResult, type CultSummonArgs, type CultSummonResult, isCultOperation, MAGOS_OPERATIONS, MAX_LISTED_ACOLYTES,
+  MAX_LISTED_MODELS
 } from '../../shared/cults/cultControl'
 import { remainingMs } from '../../shared/cults/runState'
 import type { NamingControlBinding, NamingDispatcher } from '../naming/controlPipe'
 import { newCultId } from './cultRecords'
 import type { CultStore } from './cultStore'
 import { requireRunningRun, type CultSupervisor } from './cultSupervisor'
+import type { PlanForgeCouncil } from './planForgeCouncil'
 import { cheapest, type CultModelOption, TIER_RANK } from './ompModels'
 
 /** One order: one mailbox message from the sender's own endpoint to each recipient, returning the message ids in order. */
@@ -37,8 +40,8 @@ export interface CultCommandDeps {
   /** The signed-in OMP models, cheapest first (`OmpModelCatalog.list`). */
   models: () => Promise<readonly CultModelOption[]>
   sendOrder: (order: CultOrderSend) => Promise<string[]>
-  /** The Plan Forge council (DM-738): throws `reports_missing`, `target_stale` or `plan_invalid` to refuse a conclusion. */
-  council?: { assertConclusion(run: CultRunView): Promise<void> | void }
+  /** The Plan Forge council (DM-738): the conclusion gate, state and synthesis of the runs it governs. */
+  council?: Pick<PlanForgeCouncil, 'governs' | 'status' | 'assertConclusion' | 'recordSynthesis'>
   /** The target revision a specialist saw when it reported; null when the run has no target. */
   targetRevision?: (run: CultRunView) => Promise<string | null>
   now?: () => string
@@ -86,7 +89,7 @@ function reportedChats(deps: CultCommandDeps, runId: string): Set<string> {
   return new Set(deps.cults.listReports(runId).map((report) => report.memberChatId))
 }
 
-function status(deps: CultCommandDeps, { run, member }: Caller): CultStatusResult {
+async function status(deps: CultCommandDeps, { run, member }: Caller): Promise<CultStatusResult> {
   const members = deps.cults.listMembers(run.id)
   const magos = members.find((candidate) => candidate.role === 'magos' && isLive(candidate))
   const pending = deps.cults.listPetitions(run.id).filter((petition) => petition.state === 'pending')
@@ -105,7 +108,8 @@ function status(deps: CultCommandDeps, { run, member }: Caller): CultStatusResul
     missingSlots: missingSlots(deps.cults.slotCoverage(run.id)),
     folderAccess: (deps.folderGrants?.(run.id, member.chatId) ?? []).slice(0, 64).map(({ folder, tokenFile }) => ({
       folder, tokenFile, usage: `dm --repo ${JSON.stringify(folder)} --token-file ${JSON.stringify(tokenFile)} <command>`
-    }))
+    })),
+    planForge: (await deps.council?.status(run)) ?? null
   }
 }
 
@@ -201,21 +205,25 @@ function assertReportsIn(deps: CultCommandDeps, run: CultRunView): void {
 
 async function concludeRun(deps: CultCommandDeps, { run }: Caller, args: { chronicle: string }) {
   if (run.state === 'ended') fail('run_ending', 'The cult run has ended.')
-  if (deps.council === undefined) assertReportsIn(deps, run)
-  else await deps.council.assertConclusion(run)
+  if (deps.council?.governs(run) === true) await deps.council.assertConclusion(run)
+  else assertReportsIn(deps, run)
   deps.cults.setChronicle(run.id, args.chronicle)
   await deps.supervisor.concludeRun(run.id)
   return { concluding: 'run' as const }
 }
 
-/** An acolyte's final report: a slot holder's is its specialist report; then its service ends, after this reply. */
+/**
+ * An acolyte's final report: a slot holder's, or a run worker type holder's, is its specialist report, tagged with the
+ * target revision it saw; then its service ends, after this reply.
+ */
 async function concludeService(deps: CultCommandDeps, { run, member }: Caller, args: { report: string }) {
   if (run.state === 'paused') fail('run_paused', 'The cult run is paused.')
   if (run.state === 'ended') fail('run_ending', 'The cult run has ended.')
   let reportStored = false
-  if (member.slotId !== null) {
+  if (member.slotId !== null || member.runWorkerTypeId !== null) {
     const targetRevision = (await deps.targetRevision?.(run)) ?? null
-    deps.cults.submitReport(run.id, { memberChatId: member.chatId, slotId: member.slotId, text: args.report, targetRevision })
+    const of = { slotId: member.slotId, runWorkerTypeId: member.runWorkerTypeId }
+    deps.cults.submitReport(run.id, { memberChatId: member.chatId, ...of, text: args.report, targetRevision })
     reportStored = true
   }
   setImmediate(() => void deps.supervisor.concludeMember(run.id, member.chatId).catch(deps.onError ?? (() => {})))
@@ -227,6 +235,13 @@ function createWorkerType(deps: CultCommandDeps, { run, member }: Caller, args: 
   return { workerTypeId: type.id, displayName: type.displayName, requiredForConclusion: type.requiredForConclusion }
 }
 
+/** The Magos's Plan Forge synthesis of its latest draft edit: accepted and rejected recommendations, each with a reason. */
+function recordSynthesis(deps: CultCommandDeps, { run, member }: Caller, args: CultRecordSynthesisArgs) {
+  requireRunningRun(run)
+  if (deps.council?.governs(run) !== true) fail('invalid_state', 'Only a Plan Forge run records a synthesis.')
+  return deps.council.recordSynthesis(run, member, args)
+}
+
 const HANDLERS: Readonly<Record<CultOperation['op'], Handler>> = {
   cult_status: status,
   cult_summon_acolyte: summon,
@@ -236,7 +251,8 @@ const HANDLERS: Readonly<Record<CultOperation['op'], Handler>> = {
   cult_order_all: orderAll,
   cult_conclude_run: concludeRun,
   cult_conclude_service: concludeService,
-  cult_create_worker_type: createWorkerType
+  cult_create_worker_type: createWorkerType,
+  cult_record_synthesis: recordSynthesis
 }
 
 /** The pipe dispatcher for cult operations; any other operation is not its to serve. */
