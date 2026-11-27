@@ -629,3 +629,61 @@ describe('TerminalPane: a project-less Skitarii chat', () => {
     expect(mail.calls).toEqual([])
   })
 })
+
+describe('TerminalPane readOnly (a watched cult acolyte)', () => {
+  const ACOLYTE = chatRecord({ id: 'chat_w', folder: '/a', title: 'Acolyte Ferrum-3', agent: 'omp', role: 'worker', cultRunId: 'run_1', cultRole: 'acolyte' })
+
+  async function watch(): Promise<void> {
+    terminals.screens.chat_w = 'snapshot'
+    render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} readOnly />)
+    await settle()
+  }
+
+  it('shows the output, headed by the member’s name and labelled Watch only', async () => {
+    await watch()
+    expect(screen.getByRole('heading', { level: 1, name: 'Acolyte Ferrum-3' })).toBeTruthy()
+    expect(details().getByText('Watch only')).toBeTruthy()
+    expect(kit.latest().written[0]).toBe('snapshot')
+    act(() => terminals.latest().emitOutput('more output'))
+    expect(kit.latest().written).toContain('more output')
+  })
+
+  it('sends no typed key or paste to the terminal, never resizes it and never focuses the emulator', async () => {
+    await watch()
+    const view = kit.latest()
+    const handle = terminals.latest()
+    expect(view.options.watchOnly).toBe(true)
+    view.type('a')
+    view.type('\r')
+    view.type('\x1b[200~pasted text\x1b[201~')
+    fireEvent.click(host())
+    fireEvent.keyDown(host(), { key: 'x' })
+    fireEvent.paste(host(), { clipboardData: { getData: () => 'clipboard' } })
+    kit.resizeTo({ cols: 40, rows: 10 })
+    scheduler.fireTimeouts()
+    expect(handle.writes).toEqual([])
+    expect(handle.resizes).toEqual([])
+    expect(view.focused).toBe(0)
+  })
+
+  it('offers no inbox, GUI switch, earlier conversation or Start again for the watched member', async () => {
+    terminals.outcomes.chat_w = { state: 'failed', message: 'It stopped.' }
+    render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} readOnly />)
+    await settle()
+    expect(screen.queryByRole('button', { name: /^Messages/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'GUI' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Earlier conversation/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start again' })).toBeNull()
+    expect(notice()).toBe('It stopped.')
+  })
+
+  it('an interactive pane of the same chat still forwards input, resizes and focuses', async () => {
+    render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} />)
+    await settle()
+    kit.latest().type('a')
+    expect(terminals.latest().writes).toEqual(['a'])
+    expect(terminals.latest().resizes).toEqual([[100, 30]])
+    expect(kit.latest().focused).toBe(1)
+    expect(screen.queryByText('Watch only')).toBeNull()
+  })
+})
