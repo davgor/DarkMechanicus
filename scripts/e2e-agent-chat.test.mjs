@@ -455,18 +455,20 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x']).agent).toBe('claude')
     expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
     expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
-    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart, polish-multiquestion; stream drive the claude fake.')
     expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
     expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
   })
 
-  it('runs the polish steps only when named, in the order given, after ready; claude only', () => {
+  it('runs the polish steps only when named, in the order given, after ready; claude only but polish-multiquestion', () => {
     const polish = ['polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack']
     expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('polish-'))).toEqual([])
     expect(parseArgs(['--out', 'x', '--steps', polish.join(',')]).keys).toEqual(['ready', ...polish])
     expect(parseArgs(['--out', 'x', '--steps', `ready,${polish[0]}`]).keys).toEqual(['ready', polish[0]])
     expect(parseArgs(['--out', 'x', '--steps', 'quit']).keys).toEqual(['ready', 'quit'])
     expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'polish-picker'])).toThrow('polish-picker drive the claude fake.')
+    expect(parseArgs(['--out', 'x', '--steps', 'polish-multiquestion'])).toMatchObject({ agent: 'omp', keys: ['ready', 'polish-multiquestion'] })
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'polish-multiquestion'])).toThrow('polish-multiquestion drive the omp fake: leave out --agent claude.')
   })
 })
 
