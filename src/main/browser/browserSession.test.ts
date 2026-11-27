@@ -341,8 +341,8 @@ function hardenedContents(sites: AllowedSites = { always: [], once: new Set() },
     onAsk,
     onPopupBlocked,
     openWindow: (url: string) => windowOpen?.({ url }),
-    navigate(event: string, url: string): NavigationDetails {
-      const details = { url, preventDefault: vi.fn() }
+    navigate(event: string, url: string, isMainFrame?: boolean): NavigationDetails {
+      const details = { url, preventDefault: vi.fn(), ...(isMainFrame === undefined ? {} : { isMainFrame }) }
       ;(listeners.get(event) as (details: NavigationDetails) => void)(details)
       return details
     }
@@ -442,6 +442,15 @@ describe('hardenBrowserContents WebRTC, Bluetooth and srcdoc', () => {
     const tab = hardenedContents({ always: ['https://example.com'], once: new Set() })
     expect(tab.navigate('will-frame-navigate', 'about:srcdoc').preventDefault).toHaveBeenCalledOnce()
     expect(tab.onAsk).not.toHaveBeenCalled()
+  })
+
+  it('denies a subframe to an unlisted origin silently, without asking (Fix 50)', () => {
+    const tab = hardenedContents({ always: ['https://example.com'], once: new Set() })
+    expect(tab.navigate('will-frame-navigate', 'https://ads.example/frame', false).preventDefault).toHaveBeenCalledOnce()
+    expect(tab.navigate('will-frame-navigate', 'https://example.com/embed', false).preventDefault).not.toHaveBeenCalled()
+    expect(tab.onAsk).not.toHaveBeenCalled()
+    expect(tab.navigate('will-frame-navigate', 'https://ads.example/', true).preventDefault).toHaveBeenCalledOnce()
+    expect(tab.onAsk).toHaveBeenCalledOnce()
   })
 })
 

@@ -231,6 +231,8 @@ export function hardenBrowserSession(session: HardenableSession, deps: SessionDe
 
 interface NavigationDetails {
   url: string
+  /** False for a subframe (`will-frame-navigate` of an iframe); a subframe never asks. */
+  isMainFrame?: boolean
   preventDefault(): void
 }
 
@@ -272,7 +274,8 @@ interface ContentsDeps {
  * Locks a browser tab's page down: popups are denied and reported, every navigation, redirect and frame navigation is
  * decided by the origin policy (`allow` proceeds, `ask` prevents and asks the person, `deny` prevents), DevTools are
  * closed as soon as they open, HTTP auth, client-certificate and Bluetooth chooser requests are refused, and WebRTC
- * sends no UDP outside a proxy.
+ * sends no UDP outside a proxy. A subframe (an ad or embed) to an unlisted origin is denied silently and never asks,
+ * so iframes cannot spam the person with cards (red-team Fix 50).
  */
 export function hardenBrowserContents(contents: HardenableContents, deps: ContentsDeps): void {
   contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
@@ -285,7 +288,9 @@ export function hardenBrowserContents(contents: HardenableContents, deps: Conten
     const decision = decideNavigation(target, deps.sites())
     if (decision === 'allow') return
     details.preventDefault()
-    if (decision === 'ask' && 'origin' in target && target.origin !== null) deps.onAsk(target.origin, target.href)
+    if (decision === 'ask' && details.isMainFrame !== false && 'origin' in target && target.origin !== null) {
+      deps.onAsk(target.origin, target.href)
+    }
   }
   // A main-frame navigation fires will-frame-navigate first and will-navigate only if that was not prevented
   // (probed on Electron 42), so the person is asked once.
