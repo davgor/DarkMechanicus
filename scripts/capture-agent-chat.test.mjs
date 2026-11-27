@@ -176,7 +176,8 @@ function passingChatStates() {
     'agent-image-result': imageRecord('agent-image-result'),
     'agent-image-viewer': imageRecord('agent-image-viewer'),
     'agent-image-evidence': evidenceRecord(),
-    'mail-card': mailRecord()
+    'mail-card': mailRecord(),
+    'model-picker': modelPickerRecord()
   }
 }
 
@@ -184,6 +185,30 @@ function passingChatStates() {
 const QUESTION = {
   legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
   checked: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true
+}
+
+/** The model-picker state: the chip on Opus 5.5 · High before Send, its menu open upward over the host's catalog. */
+const MODEL_PICKER = {
+  chip: 'Opus 5.5 · High', beforeSend: true, upward: true, inWindow: true, unclipped: true,
+  groups: [
+    { label: 'Claude', models: ['Fable 5.2', 'Haiku 5.5', 'Mythos 5.2', 'Opus 5.5', 'Sonnet 5.5'] },
+    { label: 'Codex', models: ['GPT-6 Astra', 'GPT-6 Luna', 'GPT-6.1 Sol', 'GPT-6.1 Terra'] }
+  ],
+  checked: ['Opus 5.5'], more: { name: 'More models', expanded: 'false' },
+  efforts: ['Low', 'Medium', 'High', 'XHigh', 'Max'].map((label) => ({ label, checked: label === 'High' })),
+  surface: { background: 'rgba(21, 18, 17, 0.9)', backdropFilter: 'blur(16px) saturate(1.2)' }
+}
+function modelPickerRecord(patch = {}) {
+  return ready('model-picker', { ...STANDALONE, modelPicker: { ...MODEL_PICKER, ...patch } })
+}
+/** The model-picker-epic state: the same chip in the epic Agent tab, More models expanded under the latest groups. */
+const MODEL_PICKER_EPIC = {
+  ...MODEL_PICKER,
+  groups: [...MODEL_PICKER.groups, { label: 'More Claude', models: ['Opus 4.5'] }, { label: 'More Codex', models: ['GPT-6 Sol'] }],
+  more: { name: 'More models', expanded: 'true' }
+}
+function epicModelPickerRecord(patch = {}) {
+  return ready('model-picker-epic', { modelPicker: { ...MODEL_PICKER_EPIC, ...patch } })
 }
 
 /** The epic-agent-tabs strip: the selected Magos without ✕, then a Lexmechanic with two unread messages. */
@@ -237,7 +262,8 @@ function passing() {
     'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
     'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT }),
     'question-multi': ready('question-multi', { questionCard: QUESTION }),
-    'epic-agent-tabs': ready('epic-agent-tabs', { agentTabs: AGENT_TABS })
+    'epic-agent-tabs': ready('epic-agent-tabs', { agentTabs: AGENT_TABS }),
+    'model-picker-epic': epicModelPickerRecord()
   }
 }
 
@@ -272,24 +298,59 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 41 states once each, in capture order', () => {
+  it('lists the 43 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
       'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
-      'agent-image-evidence', 'mail-card', 'epic-agent-tabs', 'settings-notifications', 'delivery-editor', 'delivery-pending',
-      'delivery-checkpoint'
+      'agent-image-evidence', 'mail-card', 'epic-agent-tabs', 'model-picker', 'model-picker-epic', 'settings-notifications', 'delivery-editor',
+      'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(41)
+    expect(new Set(STATES).size).toBe(43)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 630 s overall bound: 41 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 660 s overall bound: 43 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(630_000)
+    expect(OVERALL_LIMIT_MS).toBe(660_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: model-picker', () => {
+  it('passes the chip before Send with its upward menu of both providers, More models and Effort', () => {
+    expect(validateObservations('model-picker', modelPickerRecord())).toEqual([])
+  })
+
+  it('fails a downward menu, a missing provider, an open More models, a wrong effort and a missing chip', () => {
+    expect(validateObservations('model-picker', modelPickerRecord({ upward: false }))).toEqual([
+      'model-picker: expected the menu opens upward from the chip, inside the window and below the top of whatever clips it; got [false,true,true]'
+    ])
+    expect(validateObservations('model-picker', modelPickerRecord({ groups: MODEL_PICKER.groups.slice(0, 1) })))
+      .toEqual([expect.stringMatching(/^model-picker: expected Claude and Codex groups list the latest of each line; got /)])
+    expect(validateObservations('model-picker', modelPickerRecord({ more: { name: 'More models', expanded: 'true' } })))
+      .toEqual([expect.stringMatching(/^model-picker: expected Opus 5.5 is checked and a collapsed More models expander follows the groups; got /)])
+    expect(validateObservations('model-picker', modelPickerRecord({ efforts: MODEL_PICKER.efforts.map((entry) => ({ ...entry, checked: false })) })))
+      .toEqual([expect.stringMatching(/^model-picker: expected the Effort control lists Low to Max with High checked; got /)])
+    expect(validateObservations('model-picker', ready('model-picker', STANDALONE))).toHaveLength(6)
+  })
+})
+
+describe('capture-agent-chat: model-picker-epic', () => {
+  it('passes the epic chat’s chip with More models expanded inside the stage', () => {
+    expect(validateObservations('model-picker-epic', epicModelPickerRecord())).toEqual([])
+  })
+
+  it('fails a menu clipped by the stage, a collapsed More models and missing More groups', () => {
+    expect(validateObservations('model-picker-epic', epicModelPickerRecord({ unclipped: false }))).toEqual([
+      'model-picker-epic: expected the menu opens upward from the chip, inside the window and below the top of whatever clips it; got [true,true,false]'
+    ])
+    expect(validateObservations('model-picker-epic', epicModelPickerRecord({ more: { name: 'More models', expanded: 'false' } })))
+      .toEqual([expect.stringMatching(/^model-picker-epic: expected Opus 5.5 is checked and More models is expanded; got /)])
+    expect(validateObservations('model-picker-epic', epicModelPickerRecord({ groups: MODEL_PICKER.groups })))
+      .toEqual([expect.stringMatching(/^model-picker-epic: expected the latest Claude and Codex groups, then More Claude and More Codex; got /)])
   })
 })
 

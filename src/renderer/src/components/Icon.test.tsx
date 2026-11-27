@@ -31,6 +31,7 @@ const NAMES: IconName[] = [
   'download',
   'hourglass',
   'lock',
+  'image',
   'github',
   'settings'
 ]

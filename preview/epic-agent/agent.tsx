@@ -4,9 +4,11 @@ import '../../src/renderer/src/styles.css'
 import '../../src/renderer/src/settings/settings.css'
 import './preview.css'
 import type { AgentChatEvent, AgentChatSnapshot, AttentionItem, PendingPrompt } from '../../src/shared/agents/agentChat'
+import { chatModelOptions } from '../../src/shared/agents/models'
+import hostCatalog from '../../src/main/agentChat/__fixtures__/omp/models.json'
 import type { Callsign } from '../../src/shared/agents/callsign'
 import type { ChatItem, ChatRecord } from '../../src/shared/agents/chat'
-import type { TrackedFolderView } from '../../src/shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
 import { AgentRolePicker } from '../../src/renderer/src/agentRoles/AgentRolePicker'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
@@ -17,7 +19,7 @@ import { FakeChatMail, mailEntry } from '../../src/renderer/src/__mocks__/fakeCh
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
 import { AgentMailContext, createAgentMailStore, type AgentMailStore } from '../../src/renderer/src/agents/useAgentMail'
-import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
+import { agentView, chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
 import type { EpicLanding } from '../../src/renderer/src/app/landing'
@@ -40,7 +42,7 @@ declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat' | 'mail'
+type Mount = 'epic' | 'chat' | 'models' | 'composer' | 'settings' | 'roles' | 'newChat' | 'mail'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -59,6 +61,8 @@ interface Seeded {
   epicMail: boolean
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
+  /** The shell's connected agents, by which the epic mount tells a Skitarii chat from any other. */
+  agents: AgentView[]
   folder: TrackedFolderView
   /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
   finishedExpandedAtStart: boolean | null
@@ -718,6 +722,41 @@ const STATES: Record<string, StateDef> = {
       await until(() => $('.chat-composer [role="alert"]'), 'the fifth image refused inline')
     }
   },
+  // A Skitarii chat on Opus 5.5 · High over the Windows host's catalog, its model chip's menu open upward.
+  'model-picker': {
+    mount: 'models',
+    seed: (context) => {
+      context.chatApi.snapshotResult = {
+        ok: true, data: { items: conversation, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [], model: 'anthropic/claude-opus-5-5', thinking: 'high' }
+      }
+      context.chatApi.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    },
+    reach: async () => {
+      await until(() => $('.model-picker-label')?.textContent === 'Opus 5.5 · High' ? $('.model-picker-label') : null, 'the chip reading Opus 5.5 · High')
+      await clickWhenPresent(() => $('.model-picker-chip') as HTMLButtonElement | null, 'the model chip')
+      await until(() => $('.model-picker-menu [role="group"][aria-label="Codex"]') && $('.model-picker-menu [role="group"][aria-label="Effort"]'),
+        'the open menu with the Codex group and the Effort control')
+    }
+  },
+  // The run's Magos as a Skitarii chat in the epic Agent tab: its model menu open upward with More models expanded,
+  // bounded inside the scrolling stage above the chip.
+  'model-picker-epic': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, { ...scenarios.empty.snapshot, items: conversation, model: 'anthropic/claude-opus-5-5', thinking: 'high' })
+      context.backend.agentChat.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+      context.chats = [{ ...ORCHESTRATOR, agent: 'omp' }]
+      context.agents = [agentView({ kind: 'omp' })]
+    },
+    reach: async () => {
+      await openAgentTab()
+      await chatLoaded()
+      await until(() => $('.model-picker-label')?.textContent === 'Opus 5.5 · High' ? $('.model-picker-label') : null, 'the chip reading Opus 5.5 · High')
+      await clickWhenPresent(() => $('.model-picker-chip'), 'the model chip')
+      await clickWhenPresent(() => $('.model-picker-more'), 'More models')
+      await until(() => $('.model-picker-menu [role="group"][aria-label="More Codex"]'), 'the expanded More models groups')
+    }
+  },
   'agent-transcript': {
     mount: 'chat',
     seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: transcriptSnapshot() } },
@@ -1120,6 +1159,55 @@ function evidenceObservations(context: Seeded | null): Record<string, unknown> {
   return { toast: text($('.ew-toast span')), requests: context === null ? [] : context.backend.agentChat.callsOf('attachEvidence') }
 }
 
+const menuRadios = (root: ParentNode): HTMLElement[] => [...root.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+
+/** Where clipping starts above `element`: the window's top or, lower, the top of any ancestor that clips or scrolls. */
+function clipTop(element: HTMLElement): number {
+  let top = 0
+  for (let node = element.parentElement; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).overflowY !== 'visible') top = Math.max(top, node.getBoundingClientRect().top)
+  }
+  return top
+}
+
+/** Where the model menu sits: the chip just before Send, the menu above it, inside the window and whatever clips it. */
+function modelMenuPlacement(chip: HTMLElement, menu: HTMLElement): Record<string, unknown> {
+  const row = chip.closest('.chat-composer-row')
+  const send = row === null ? null : buttonNamed('Send', row)
+  const box = menu.getBoundingClientRect()
+  return {
+    beforeSend: send !== null && chip.closest('.model-picker')?.nextElementSibling === send,
+    upward: box.bottom <= chip.getBoundingClientRect().top,
+    inWindow: box.top >= 0 && box.left >= 0 && box.right <= window.innerWidth,
+    unclipped: box.top >= clipTop(chip)
+  }
+}
+
+/** What the open model menu lists: its provider groups, the checked model, More models and the Effort control. */
+function modelMenuContents(menu: HTMLElement): Record<string, unknown> {
+  const more = $('.model-picker-more', menu)
+  const style = getComputedStyle(menu)
+  return {
+    groups: [...menu.querySelectorAll<HTMLElement>('.model-picker-list [role="group"]')].map((group) => ({
+      label: group.getAttribute('aria-label'), models: menuRadios(group).map((item) => text($('.model-picker-name', item)))
+    })),
+    checked: menuRadios(menu).filter((item) => item.hasAttribute('data-model') && item.getAttribute('aria-checked') === 'true')
+      .map((item) => text($('.model-picker-name', item))),
+    more: more === null ? null : { name: text(more), expanded: more.getAttribute('aria-expanded') },
+    efforts: menuRadios($('[role="group"][aria-label="Effort"]', menu) ?? document.createElement('div'))
+      .map((item) => ({ label: text(item), checked: item.getAttribute('aria-checked') === 'true' })),
+    surface: { background: style.backgroundColor, backdropFilter: style.backdropFilter }
+  }
+}
+
+/** The model-picker state's chip and its open menu; null on a page without both. */
+function modelPickerObservations(): Record<string, unknown> | null {
+  const chip = $('.model-picker-chip')
+  const menu = $('.model-picker-menu')
+  if (chip === null || menu === null) return null
+  return { chip: text($('.model-picker-label', chip)), ...modelMenuPlacement(chip, menu), ...modelMenuContents(menu) }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -1161,6 +1249,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     workedFor: workedForObservations(),
     chatImages: chatImageObservations(),
     evidence: evidenceObservations(context),
+    modelPicker: modelPickerObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
@@ -1190,7 +1279,7 @@ function seeded(): Seeded {
   const chatApi = new FakeAgentChat()
   return {
     backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), epicMail: false,
-    clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR],
+    clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], agents: [],
     folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
 }
@@ -1220,13 +1309,13 @@ function render(mount: Mount, context: Seeded): JSX.Element {
     return <ToastProvider scheduler={browserScheduler}><div className="preview-settings"><NotificationSettings /></div></ToastProvider>
   }
   const clock: Clock = context.clock
-  if (mount === 'chat') {
+  if (mount === 'chat' || mount === 'models') {
     const dm = new FakeDm()
     dm.agentChat = context.chatApi
     window.dm = dm
     return <ClockContext.Provider value={clock}><div className="preview-chat">
       <AgentChat folder={null} chatId="fixture-chat" agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus"
-        api={context.chatApi} rail="toggle" chat={{ role: 'orchestrator', runId: 'rn_fixture' }} />
+        api={context.chatApi} rail="toggle" chat={{ role: 'orchestrator', runId: 'rn_fixture' }} skitarii={mount === 'models'} />
     </div></ClockContext.Provider>
   }
   if (mount === 'mail') return mailChat(context)
@@ -1246,7 +1335,7 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
     <AgentMailContext.Provider value={context.epicMail ? epicMailStore(context) : null}><div className="preview-epic-agent">
       <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
-        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })}
+        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats, agents: context.agents })}
         landing={context.landing} onLanded={() => undefined} />
     </div></AgentMailContext.Provider>
   </ViewMemoryContext.Provider></ClockContext.Provider>

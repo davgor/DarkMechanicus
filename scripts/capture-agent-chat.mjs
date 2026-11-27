@@ -25,13 +25,14 @@ export const STATES = Object.freeze([
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
   'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs',
+  'model-picker', 'model-picker-epic',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 41 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 630_000
+/** A declared bound: 43 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 660_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -76,7 +77,7 @@ const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
   'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'agent-worked-for',
-  'agent-image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
+  'agent-image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -172,6 +173,24 @@ const ROLE_PICKER_CHECKS = [
   ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
     === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
   ...ROLE_CARD_CHECKS
+]
+
+/** Both model-picker states: the chip on Opus 5.5 · High before Send, an upward glass menu nothing clips, Effort Low to Max. */
+const MODEL_PICKER_CHECKS = [
+  ['the chip reads Opus 5.5 · High just left of Send', (o) => o.modelPicker?.chip === 'Opus 5.5 · High' && o.modelPicker?.beforeSend === true,
+    (o) => JSON.stringify([o.modelPicker?.chip, o.modelPicker?.beforeSend])],
+  ['the menu opens upward from the chip, inside the window and below the top of whatever clips it',
+    (o) => o.modelPicker?.upward === true && o.modelPicker?.inWindow === true && o.modelPicker?.unclipped === true,
+    (o) => JSON.stringify([o.modelPicker?.upward, o.modelPicker?.inWindow, o.modelPicker?.unclipped])],
+  ['the Effort control lists Low to Max with High checked', (o) => JSON.stringify(o.modelPicker?.efforts)
+    === JSON.stringify(['Low', 'Medium', 'High', 'XHigh', 'Max'].map((label) => ({ label, checked: label === 'High' }))),
+  (o) => JSON.stringify(o.modelPicker?.efforts)],
+  ['the menu is blurred glass', (o) => matches(o.modelPicker?.surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(o.modelPicker?.surface?.background) > 0,
+    (o) => JSON.stringify(o.modelPicker?.surface)]
+]
+const LATEST_MODELS = [
+  { label: 'Claude', models: ['Fable 5.2', 'Haiku 5.5', 'Mythos 5.2', 'Opus 5.5', 'Sonnet 5.5'] },
+  { label: 'Codex', models: ['GPT-6 Astra', 'GPT-6 Luna', 'GPT-6.1 Sol', 'GPT-6.1 Terra'] }
 ]
 
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
@@ -306,6 +325,22 @@ const STATE_CHECKS = {
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
     (o) => JSON.stringify(o.questionCard)],
     ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'model-picker': [
+    ...MODEL_PICKER_CHECKS,
+    ['Claude and Codex groups list the latest of each line', (o) => JSON.stringify(o.modelPicker?.groups) === JSON.stringify(LATEST_MODELS),
+      (o) => JSON.stringify(o.modelPicker?.groups)],
+    ['Opus 5.5 is checked and a collapsed More models expander follows the groups', (o) => JSON.stringify(o.modelPicker?.checked) === '["Opus 5.5"]'
+      && o.modelPicker?.more?.name === 'More models' && o.modelPicker?.more?.expanded === 'false',
+    (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.more])]
+  ],
+  'model-picker-epic': [
+    ...MODEL_PICKER_CHECKS,
+    ['the latest Claude and Codex groups, then More Claude and More Codex', (o) => JSON.stringify(o.modelPicker?.groups?.slice(0, 2))
+      === JSON.stringify(LATEST_MODELS) && JSON.stringify(o.modelPicker?.groups?.slice(2).map((group) => group.label)) === '["More Claude","More Codex"]',
+    (o) => JSON.stringify(o.modelPicker?.groups?.map((group) => group.label))],
+    ['Opus 5.5 is checked and More models is expanded', (o) => JSON.stringify(o.modelPicker?.checked) === '["Opus 5.5"]'
+      && o.modelPicker?.more?.expanded === 'true', (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.more])]
   ],
   'epic-agent-tabs': [
     ['the tab strip reads Magos (selected, no ✕) then Lexmechanic (unread dot, ✕), above the chat', (o) => JSON.stringify(o.agentTabs?.tabs)
