@@ -23,6 +23,7 @@ import { newCultId } from './cultRecords'
 import type { CultStore } from './cultStore'
 import { requireRunningRun, type CultSupervisor } from './cultSupervisor'
 import type { PlanForgeCouncil } from './planForgeCouncil'
+import { createWorkerType, listWorkerTypes, requireSummonableType, retireWorkerType, type WorkerTypeDeps } from './dynamicWorkerTypes'
 import { cheapest, type CultModelOption, TIER_RANK } from './ompModels'
 
 /** One order: one mailbox message from the sender's own endpoint to each recipient, returning the message ids in order. */
@@ -36,7 +37,7 @@ export interface CultOrderSend {
 
 export interface CultCommandDeps {
   supervisor: Pick<CultSupervisor, 'memberOf' | 'summonAcolyte' | 'dismissAcolyte' | 'petition' | 'concludeRun' | 'concludeMember'>
-  cults: Pick<CultStore, 'getCult' | 'listMembers' | 'listPetitions' | 'listReports' | 'slotCoverage' | 'setChronicle' | 'submitReport' | 'createWorkerType' | 'recordOrder'>
+  cults: Pick<CultStore, 'getCult' | 'listMembers' | 'listPetitions' | 'listReports' | 'slotCoverage' | 'setChronicle' | 'submitReport' | 'recordOrder'> & WorkerTypeDeps['cults']
   /** The signed-in OMP models, cheapest first (`OmpModelCatalog.list`). */
   models: () => Promise<readonly CultModelOption[]>
   sendOrder: (order: CultOrderSend) => Promise<string[]>
@@ -127,6 +128,7 @@ async function summonModel(deps: CultCommandDeps, args: CultSummonArgs): Promise
 }
 
 async function summon(deps: CultCommandDeps, { run }: Caller, args: CultSummonArgs): Promise<CultSummonResult> {
+  requireSummonableType(deps, run, args.workerTypeId)
   const model = await summonModel(deps, args)
   const member = await deps.supervisor.summonAcolyte(run.id, {
     ...(args.name === undefined ? {} : { name: args.name }),
@@ -230,11 +232,6 @@ async function concludeService(deps: CultCommandDeps, { run, member }: Caller, a
   return { concluding: 'service' as const, reportStored }
 }
 
-function createWorkerType(deps: CultCommandDeps, { run, member }: Caller, args: Parameters<CultStore['createWorkerType']>[2]) {
-  const type = deps.cults.createWorkerType(run.id, member.chatId, args)
-  return { workerTypeId: type.id, displayName: type.displayName, requiredForConclusion: type.requiredForConclusion }
-}
-
 /** The Magos's Plan Forge synthesis of its latest draft edit: accepted and rejected recommendations, each with a reason. */
 function recordSynthesis(deps: CultCommandDeps, { run, member }: Caller, args: CultRecordSynthesisArgs) {
   requireRunningRun(run)
@@ -252,6 +249,8 @@ const HANDLERS: Readonly<Record<CultOperation['op'], Handler>> = {
   cult_conclude_run: concludeRun,
   cult_conclude_service: concludeService,
   cult_create_worker_type: createWorkerType,
+  cult_list_worker_types: listWorkerTypes,
+  cult_retire_worker_type: retireWorkerType,
   cult_record_synthesis: recordSynthesis
 }
 

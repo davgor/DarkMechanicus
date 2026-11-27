@@ -328,7 +328,15 @@ export interface DynamicTypeContext {
   now: string
 }
 
-export type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; error: string }
+/** Why a proposed or retired type is refused: the typed cult error code and its reason. */
+export type DynamicTypeRefusal =
+  | 'invalid_input'
+  | 'invalid_state'
+  | 'worker_type_name_taken'
+  | 'worker_type_limit'
+  | 'worker_type_required'
+  | 'worker_type_assigned'
+export type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; code: DynamicTypeRefusal; error: string }
 
 const BUILT_IN_IDS: ReadonlySet<string> = new Set<string>([...STANDARD_WORKER_TYPES, CUSTOM_WORKER_TYPE])
 const BUILT_IN_NAMES: ReadonlySet<string> = new Set(
@@ -357,22 +365,25 @@ export function createRunWorkerType(input: DynamicWorkerTypeInput, ctx: DynamicT
   if (ctx.existing.length >= MAX_DYNAMIC_WORKER_TYPES)
     return {
       ok: false,
+      code: 'worker_type_limit',
       error: `A run may create at most ${MAX_DYNAMIC_WORKER_TYPES} worker types.`
     }
   const fields = normalizeDynamicFields(input)
-  if (typeof fields === 'string') return { ok: false, error: fields }
+  if (typeof fields === 'string') return { ok: false, code: 'invalid_input', error: fields }
   const name = norm(fields.displayName)
   if (BUILT_IN_NAMES.has(name) || BUILT_IN_IDS.has(name.replace(/[\s/-]+/g, '_')))
     return {
       ok: false,
+      code: 'worker_type_name_taken',
       error: `"${fields.displayName}" collides with a built-in worker type.`
     }
   if (ctx.existing.some((t) => norm(t.displayName) === name))
     return {
       ok: false,
+      code: 'worker_type_name_taken',
       error: `"${fields.displayName}" already exists in this run.`
     }
-  if (!ctx.creatorMemberId.trim()) return { ok: false, error: 'creatorMemberId must not be blank.' }
+  if (!ctx.creatorMemberId.trim()) return { ok: false, code: 'invalid_input', error: 'creatorMemberId must not be blank.' }
   return {
     ok: true,
     type: Object.freeze({
@@ -389,9 +400,9 @@ export function createRunWorkerType(input: DynamicWorkerTypeInput, ctx: DynamicT
 
 /** Required types are immutable; optional types retire only while no acolyte holds them. */
 export function retireRunWorkerType(type: RunWorkerType, assignedCount: number, now: string): DynamicTypeResult {
-  if (type.requiredForConclusion) return { ok: false, error: 'A required worker type cannot be retired.' }
-  if (assignedCount > 0) return { ok: false, error: 'A worker type cannot retire while assigned.' }
-  if (type.retiredAt) return { ok: false, error: 'Worker type is already retired.' }
+  if (type.requiredForConclusion) return { ok: false, code: 'worker_type_required', error: 'A required worker type cannot be retired.' }
+  if (assignedCount > 0) return { ok: false, code: 'worker_type_assigned', error: 'A worker type cannot retire while assigned.' }
+  if (type.retiredAt) return { ok: false, code: 'invalid_state', error: 'Worker type is already retired.' }
   return {
     ok: true,
     type: Object.freeze({ ...type, retiredAt: now, updatedAt: now })

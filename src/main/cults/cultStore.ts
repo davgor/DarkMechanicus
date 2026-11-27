@@ -29,6 +29,7 @@ import type {
 } from '../../shared/cults/cult'
 import type { RunEvent } from '../../shared/cults/runState'
 import * as members from './cultMembers'
+import type { WorkerTypeRetirement } from './cultMembers'
 import * as petitions from './cultPetitions'
 import { findCult, type StoreContext } from './cultRecords'
 import * as runs from './cultRuns'
@@ -57,7 +58,7 @@ export interface CultStore {
   updateMember(runId: string, chatId: string, change: MemberUpdate): CultMemberView
   listMembers(runId: string): CultMemberView[]
   createWorkerType(runId: string, creatorChatId: string, input: DynamicWorkerTypeInput): RunWorkerType
-  retireWorkerType(runId: string, typeId: string): RunWorkerType
+  retireWorkerType(runId: string, typeId: string, retirement: WorkerTypeRetirement): RunWorkerType
   /** Retired types included: completed-run history keeps them. */
   listWorkerTypes(runId: string): RunWorkerType[]
   submitReport(runId: string, input: SpecialistReportInput): SpecialistReportView
@@ -99,7 +100,7 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     updateMember: (runId, chatId, change) => members.updateMember(ctx, runId, chatId, change),
     listMembers: (runId) => members.listMembers(ctx, runId),
     createWorkerType: (runId, creatorChatId, input) => members.createWorkerType(ctx, runId, creatorChatId, input),
-    retireWorkerType: (runId, typeId) => members.retireWorkerType(ctx, runId, typeId),
+    retireWorkerType: (runId, typeId, retirement) => members.retireWorkerType(ctx, runId, typeId, retirement),
     listWorkerTypes: (runId) => members.listWorkerTypes(ctx, runId),
     submitReport: (runId, input) => members.submitReport(ctx, runId, input),
     listReports: (runId) => members.listReports(ctx, runId),
