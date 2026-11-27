@@ -206,6 +206,10 @@ describe('glass tokens and utilities', () => {
     expect(glass.a).toBeLessThanOrEqual(0.72)
     expect(parseColor(tokens['--glass-bg-strong']).a).toBeGreaterThanOrEqual(0.9)
     expect(parseColor(tokens['--glass-bg-strong']).a).toBeLessThan(1)
+    const pane = parseColor(tokens['--glass-bg-pane'])
+    expect({ ...pane, a: 1 }).toEqual(parseColor(tokens['--bg']))
+    expect(pane.a).toBeGreaterThan(0)
+    expect(pane.a).toBeLessThan(parseColor(tokens['--glass-bg-strong']).a)
     expect(parseColor(tokens['--glass-edge']).a).toBeLessThan(1)
     const blur = /^(\d+)px$/.exec(tokens['--glass-blur'] ?? '')
     expect(Number(blur?.[1])).toBeGreaterThanOrEqual(12)
@@ -265,8 +269,10 @@ describe('the Agent backdrop, glass contrast and placement', () => {
   it.each([
     ['--ink', '--glass-bg-strong'],
     ['--ink', '--glass-bg'],
+    ['--ink', '--glass-bg-pane'],
     ['--muted', '--glass-bg-strong'],
-    ['--muted', '--glass-bg']
+    ['--muted', '--glass-bg'],
+    ['--muted', '--glass-bg-pane']
   ])('keeps %s on %s at 4.5:1 or more over the brightest backdrop glow', (text, surface) => {
     const ground = over(parseColor(tokens[surface]), brightestBackdrop(tokens))
     expect(contrastRatio(parseColor(tokens[text]), ground)).toBeGreaterThanOrEqual(4.5)
@@ -291,6 +297,107 @@ describe('the Agent backdrop, glass contrast and placement', () => {
     ] as const) {
       expect(Object.keys(rule(sheet, selector) ?? {}).filter((name) => /^(background|border)/.test(name)), `${sheet} ${selector}`).toEqual([])
     }
+  })
+})
+
+/** A GUI chat pane on the Agent stage: its stylesheet rule, the glass utility it wears and the markup that applies it. */
+const PANES = [
+  {
+    name: 'the chat header', sheet: './agentChat/agentChat.css', selector: '.agent-chat-header', utility: '.glass',
+    markup: [['agentChat/AgentChat.tsx', 'className="agent-chat-header glass"'], ['epic/EpicAgentPanel.tsx', 'className="agent-chat-header glass"']]
+  },
+  {
+    name: 'the agent rail', sheet: './components/rightRail.css', selector: '.rr', utility: '.glass',
+    markup: [['components/RightRail.tsx', 'className="rr glass"']]
+  },
+  {
+    name: 'the transcript pane', sheet: './agentChat/agentChat.css', selector: '.agent-chat-scroll', utility: '.glass-strong',
+    markup: [['agentChat/AgentChat.tsx', 'className="agent-chat-scroll glass-strong'], ['epic/EpicAgentPanel.tsx', 'className="agent-chat-scroll glass-strong"']]
+  }
+] as const
+
+const FALLBACKS = ['@supports not (backdrop-filter: blur(1px))', '@media (prefers-reduced-transparency: reduce)'] as const
+
+/** The custom property a `var(--name)` value reads; '' for anything else. */
+function tokenOf(value: string | undefined): string {
+  return /^var\((--[\w-]+)\)$/.exec(value ?? '')?.[1] ?? ''
+}
+
+describe('the frosted chat header, agent rail and transcript pane', () => {
+  const theme = SHEETS[THEME_SHEET] ?? ''
+  const tokens = rootTokens(theme)
+  const utilities = rulesOf(theme)
+  const own = (pane: (typeof PANES)[number]): Record<string, string> => rulesOf(SHEETS[pane.sheet] ?? '').get(pane.selector) ?? {}
+  /** The token a pane's glass paints: the utility's background token, or what the pane's own rule sets that token to. */
+  const tintOf = (pane: (typeof PANES)[number]): string => {
+    const token = tokenOf(utilities.get(pane.utility)?.background)
+    return tokenOf(own(pane)[token]) || token
+  }
+
+  it.each(PANES)('$name wears the glass utility in every place it renders', (pane) => {
+    for (const [file, literal] of pane.markup) expect(readFileSync(join(RENDERER_DIR, file), 'utf8'), file).toContain(literal)
+    expect(Object.keys(own(pane)).filter((name) => /^(background|border-color|border-bottom|border-top)/.test(name)), pane.selector).toEqual([])
+  })
+
+  it.each(PANES)('$name is translucent under a backdrop blur, not a solid panel', (pane) => {
+    const tint = tintOf(pane)
+    expect(tint).not.toBe('--panel')
+    const color = parseColor(tokens[tint])
+    expect(color.a).toBeGreaterThan(0)
+    expect(color.a).toBeLessThanOrEqual(0.72)
+    expect(utilities.get(pane.utility)?.['backdrop-filter']).toMatch(/^blur\(var\(--glass-blur\)\)/)
+  })
+
+  it.each(PANES.flatMap((pane) => ['--ink', '--muted'].map((text) => [pane.name, text, pane] as const)))(
+    '%s keeps %s at 4.5:1 or more over the brightest backdrop point under its tint',
+    (_name, text, pane) => {
+      const ground = over(parseColor(tokens[tintOf(pane)]), brightestBackdrop(tokens))
+      expect(contrastRatio(parseColor(tokens[text]), ground)).toBeGreaterThanOrEqual(4.5)
+    }
+  )
+
+  it.each(FALLBACKS)('turns the header, rail and transcript into opaque panels without a blur under %s', (prelude) => {
+    const fallback = rulesOf(atRuleBody(theme, prelude))
+    for (const pane of PANES) {
+      // The pane's own rule sets no background, so the utility's fallback background is the one that paints it.
+      expect(own(pane).background, pane.name).toBeUndefined()
+      expect(fallback.get(pane.utility)?.background, pane.name).toBe('var(--panel-2)')
+      expect(parseColor(tokens['--panel-2']).a).toBe(1)
+      if (prelude.startsWith('@media')) expect(fallback.get(pane.utility)?.['backdrop-filter'], pane.name).toBe('none')
+    }
+  })
+})
+
+describe('the transcript pane’s tint, the rail rows and the active agent tab on the glass', () => {
+  const tokens = rootTokens(SHEETS[THEME_SHEET] ?? '')
+
+  it('makes --glass-bg-pane the lowest two-decimal alpha of its tint that keeps --muted at 4.5:1', () => {
+    const pane = parseColor(tokens['--glass-bg-pane'])
+    const muted = (alpha: number): number => contrastRatio(parseColor(tokens['--muted']), over({ ...pane, a: alpha }, brightestBackdrop(tokens)))
+    expect(muted(pane.a)).toBeGreaterThanOrEqual(4.5)
+    expect(muted(Math.round(pane.a * 100 - 1) / 100)).toBeLessThan(4.5)
+  })
+
+  it('keeps the rail rows readable on the glass: hover and selection fill opaque panels holding --ink and --muted at 4.5:1', () => {
+    const tree = rulesOf(SHEETS['./agentTree/agentTree.css'] ?? '')
+    const rail = rulesOf(SHEETS['./components/rightRail.css'] ?? '')
+    const fills = [
+      tree.get('.at-row:hover')?.background,
+      tree.get('.at-root [aria-selected="true"] > .at-row')?.background,
+      rail.get('.rr button:hover')?.background
+    ]
+    for (const fill of fills) {
+      const ground = parseColor(tokens[tokenOf(fill)])
+      expect(ground.a, fill).toBe(1)
+      for (const text of ['--ink', '--muted']) expect(contrastRatio(parseColor(tokens[text]), ground), `${text} on ${fill}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('gives the epic’s active agent tab the header’s glass, its line cover included', () => {
+    expect(readFileSync(join(RENDERER_DIR, 'epic/AgentTabStrip.tsx'), 'utf8')).toContain("selected && 'is-active glass'")
+    const strip = rulesOf(SHEETS['./epic/agentTabStrip.css'] ?? '')
+    expect(strip.get('.ats-tab.is-active')?.background).toBeUndefined()
+    expect(strip.get('.ats-tab.is-active::after')?.background).toBe('inherit')
   })
 })
 

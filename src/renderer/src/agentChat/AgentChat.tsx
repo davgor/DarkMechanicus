@@ -184,7 +184,7 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   const status = state.status === 'busy' ? 'working' : state.status === 'signed_out' ? 'signed out' : state.status ?? 'starting'
   const threads = state.items.filter((item) => item.kind === 'thread').length
   return (
-    <header className="agent-chat-header">
+    <header className="agent-chat-header glass">
       <h2>{agentLabel}</h2>
       <span className="agent-chat-status" role="status">{status}</span>
       {agents && <button className="btn btn-sm agent-chat-agents" type="button" aria-pressed={agents.open}

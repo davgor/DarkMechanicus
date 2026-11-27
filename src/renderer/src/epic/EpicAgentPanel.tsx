@@ -138,7 +138,7 @@ function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
   const entries = useMemo(() => withoutTodoCalls(threadTranscript(withLegacyNames(items), threadId)), [items, threadId])
   return (
     <section className="agent-chat" aria-label={`${name} thread`}>
-      <header className="agent-chat-header"><h2>{name}</h2></header>
+      <header className="agent-chat-header glass"><h2>{name}</h2></header>
       <div className="agent-chat-scroll glass-strong">
         {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
         <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />

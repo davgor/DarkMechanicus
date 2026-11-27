@@ -327,6 +327,20 @@ function transcriptSnapshot(): AgentChatSnapshot {
   return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 }
 
+/** The folder glass states' chat: the person's ask, a helper the turn started, then the reply, so the rail holds a subagent. */
+function glassChatSnapshot(): AgentChatSnapshot {
+  const [ask, reply] = transcriptSnapshot().items
+  const helper: ChatItem = { id: 'th-442', at: AT, kind: 'thread', parentItemId: null, label: 'Acolyte:DM-442 Run tests', state: 'running', callsign: DM442 }
+  return { ...transcriptSnapshot(), items: [ask, helper, reply] }
+}
+
+/** Opens the folder chat's Agents rail and waits for the glass header, rail and the transcript's reply. */
+async function reachChatGlass(): Promise<void> {
+  await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+  await until(() => $('.agent-chat-header.glass') && $('aside.rr.glass[data-collapsed="false"]') && $('.agent-chat-scroll .chat-msg-assistant'),
+    'the glass header, the open glass rail and the transcript’s reply')
+}
+
 /** The mail-card state's Magos chat: the person's ask and the reply, with the Lexmechanic exchange between them. */
 const MAIL_CHAT = 'fixture-magos'
 const after = (seconds: number): string => new Date(Date.parse(AT) + seconds * 1000).toISOString()
@@ -545,11 +559,28 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('.agent-prompt .agent-prompt-arbitration'), 'the named approval card')
     }
   },
+  // The folder chat over its own backdrop: frosted header, open Agents rail and transcript pane.
   'agent-glass': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: glassChatSnapshot() } },
+    reach: reachChatGlass
+  },
+  // The same folder chat captured with reduced transparency emulated: every pane is a solid panel.
+  'agent-glass-solid': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: glassChatSnapshot() } },
+    reach: reachChatGlass
+  },
+  // The epic Agent tab, Magos tab selected and rail open, over the stage's one backdrop with a docked approval card.
+  'epic-agent-glass': {
     mount: 'epic',
-    seed: (context) => snapshot(context, namedApproval()),
+    seed: (context) => {
+      snapshot(context, namedApproval())
+      context.chats = [{ ...ORCHESTRATOR, agent: 'omp' }, { ...PLANNER, agent: 'omp' }]
+    },
     reach: async () => {
       await openAgentTab()
+      await until(() => $('.ats-tab.is-active [aria-label="Magos"]'), 'the selected Magos tab')
       await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
     }
   },
@@ -1008,17 +1039,24 @@ function questionObservations(): Record<string, unknown> | null {
   }
 }
 
-/** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
+/**
+ * The computed glass of the Agent stage (the epic's, else the folder chat's): the backdrop's image, whether the page
+ * matches reduced transparency, and the header's, rail's, docked card's and transcript pane's surfaces with their alpha.
+ */
 function glassObservations(): Record<string, unknown> | null {
-  const stage = $('section.eap')
+  const stage = $('section.eap') ?? $('section.agent-chat')
   if (stage === null) return null
-  const surface = (element: HTMLElement | null): { background: string; backdropFilter: string } | null => {
+  const surface = (element: HTMLElement | null): { background: string; alpha: number | null; backdropFilter: string } | null => {
     if (element === null) return null
     const style = getComputedStyle(element)
-    return { background: style.backgroundColor, backdropFilter: style.backdropFilter }
+    const channels = /^rgba?\(([^)]*)\)$/.exec(style.backgroundColor)?.[1].split(',') ?? null
+    const alpha = channels === null ? null : channels.length === 4 ? Number(channels[3]) : 1
+    return { background: style.backgroundColor, alpha, backdropFilter: style.backdropFilter }
   }
   return {
     backdrop: getComputedStyle(stage).backgroundImage,
+    reducedTransparency: window.matchMedia('(prefers-reduced-transparency: reduce)').matches,
+    header: surface($('.agent-chat-header')),
     rail: surface($('aside.rr')),
     card: surface($('.agent-prompt')),
     transcript: surface($('.agent-chat-scroll'))
@@ -1474,7 +1512,9 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 }
 
 /** The states the capture also takes at a fixed width, as `<state>-1024` and `<state>-1440`. */
-const SIZED_STATES: Record<string, true> = { 'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true }
+const SIZED_STATES: Record<string, true> = {
+  'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true
+}
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */
 function definitionOf(state: string): StateDef | undefined {
