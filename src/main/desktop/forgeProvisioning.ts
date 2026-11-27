@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import { replaceForgeFile, type RenameRetryNote } from '../../core/repo/forgeManifest'
 import { forgeSetupId } from '../../core/repo/forgeSetupFormat'
 import type { ForgeProvisionRequest, ForgeProvisionResult, ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { projectName } from './forgeManifest'
@@ -86,12 +87,12 @@ function readJournal(file: string): Map<string, ForgeProvisionIntent> {
   }
 }
 
-function writeJournal(file: string, entries: Map<string, ForgeProvisionIntent>): void {
+function writeJournal(file: string, entries: Map<string, ForgeProvisionIntent>, onRetry?: RenameRetryNote): void {
   mkdirSync(dirname(file), { recursive: true })
   const temp = file + '.' + randomUUID()
   try {
     writeFileSync(temp, JSON.stringify({ version: 1, entries: [...entries.values()] }) + '\n', { flag: 'wx', flush: true, mode: 0o600 })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file, onRetry)
   } finally {
     if (existsSync(temp)) unlinkSync(temp)
   }
@@ -148,14 +149,14 @@ class Provisioning implements ForgeProvisioning {
   private readonly active = new Map<string, Promise<ForgeProvisionStatus>>()
   private stopped = false
 
-  constructor(private readonly file: string, private readonly work: ForgeProvisioningWork) {}
+  constructor(private readonly file: string, private readonly work: ForgeProvisioningWork, private readonly onRetry?: RenameRetryNote) {}
 
   private journal() { return (this.records ??= readJournal(this.file)) }
 
   private save(intent: ForgeProvisionIntent): void {
     const next = new Map(this.journal())
     next.set(intent.id, intent)
-    writeJournal(this.file, next)
+    writeJournal(this.file, next, this.onRetry)
     this.records = next
   }
 
@@ -340,6 +341,7 @@ class Provisioning implements ForgeProvisioning {
   }
 }
 
-export function createForgeProvisioning(file: string, work: ForgeProvisioningWork): ForgeProvisioning {
-  return new Provisioning(file, work)
+/** `onRetry` is told of each busy journal rename that is asked again (the main process logs it). */
+export function createForgeProvisioning(file: string, work: ForgeProvisioningWork, onRetry?: RenameRetryNote): ForgeProvisioning {
+  return new Provisioning(file, work, onRetry)
 }

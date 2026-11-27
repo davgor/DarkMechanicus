@@ -569,7 +569,7 @@ async function seedLinkedTicket(f: ReturnType<typeof fixture>, title: string) {
   const note = `# Ticket source control\n\nForge World: ${worldRepository}\nProject folder: ${folder}\n`
   writeFileSync(join(f.source, 'FORGE-WORLD.md'), note)
   ensureForgeConfig(f.source, { version: 1, worldRepository, projectFolder: folder })
-  bindForge(f.home, f.source, member, note)
+  bindForge(f.home, f.source, { member, note })
   f.registry.untrack(f.source)
   gitIn(f.world, 'add', '--', 'forge-world.json', folder)
   gitIn(f.world, 'commit', '-m', 'Prepare an already linked ticket project')
