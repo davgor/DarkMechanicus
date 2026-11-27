@@ -31,6 +31,8 @@ export type MainView =
   | { kind: 'projectless-chat'; chat: ChatRecord }
   /** The app Settings screen, opened from the sidebar footer. */
   | { kind: 'settings' }
+  /** A cult's page, opened from its CULTS row. */
+  | { kind: 'cult'; cultId: string }
 
 interface ViewInput {
   loaded: boolean
@@ -68,6 +70,9 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
   }
   if (pane.kind === 'settings') {
     return { kind: 'settings' }
+  }
+  if (pane.kind === 'cult') {
+    return { kind: 'cult', cultId: pane.cultId }
   }
   if (pane.kind === 'chat') {
     if (projectless === null) {

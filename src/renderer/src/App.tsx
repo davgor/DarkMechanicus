@@ -294,6 +294,8 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvi
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
   if (view.kind === 'settings') return <SettingsView />
+  // The cult page is the next ticket's (DM-631); until then its pane is a placeholder.
+  if (view.kind === 'cult') return <p className="cult-placeholder">The cult page arrives with the next ticket.</p>
   if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics' || view.kind === 'learnings') && view.folder.forgeParent) {
     return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
@@ -488,6 +490,8 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onCreateFo
       onCreateForgeWorld={onCreateForgeWorld}
       onAddAgent={actions.openAddAgent}
       onSelectAgent={actions.openAgent}
+      onSelectCult={actions.openCult}
+      onOpenCultChat={actions.selectChat}
       onAgentStatus={shell.agents.recordStatus}
       onSelectFolder={actions.selectFolder}
       onSelectEpic={actions.selectEpic}

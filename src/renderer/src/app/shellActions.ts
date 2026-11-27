@@ -119,6 +119,8 @@ export interface ShellActions {
   openSettings(): void
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
+  /** Opens a cult's page in place of the folder or epic view. */
+  openCult(cultId: string): void
   changed(path: string): void
   track(mode?: 'forge-world'): Promise<void>
   /** A clone finished and main tracks the new folder: reloads the folders and selects it. */
@@ -162,7 +164,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectLearnings' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectLearnings' | 'selectChat' | 'openAddAgent' | 'openSettings' | 'openAgent' | 'openCult' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -218,6 +220,10 @@ function selectionActions(deps: ShellDeps): SelectionActions {
     openSettings: () => {
       deps.land(null)
       deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'settings' } })
+    },
+    openCult: (cultId) => {
+      deps.land(null)
+      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'cult', cultId } })
     },
     changed: (path) => deps.refresh(path)
   }
