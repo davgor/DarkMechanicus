@@ -8,8 +8,8 @@
  * the same run. Every sync merges the run's new events and its members' new mail by `(time, id)` and appends them to
  * `cult_pipeline` (app database v8) after everything already shown: what was paged never moves, so the order has no
  * gaps or duplicates. Message bodies are copied there, so the pipeline outlives mail retention and a member's
- * departure. An `order_all` comes back as one entry with its recipients, its messages folded into it; one of its
- * messages read before the order was recorded was served alone, so the renderer replaces it by the group.
+ * departure. An `order_all` comes back as one entry with its recipients, its messages folded into it. The order's
+ * messages and its event are written in one `exclusive` step, so no sync reads the messages before the order exists.
  *
  * Bodies and summaries are inert task data: returned as text, a preview unless the whole body is asked for.
  */
@@ -39,6 +39,8 @@ interface CultPipelineDeps {
 export interface CultPipeline {
   /** Reads what is new into the pipeline, then one page after `afterSeq`; `not_found` for an unknown run. */
   page(runId: string, request: { afterSeq?: number; limit: number; full?: boolean }): Promise<CultPipelinePage>
+  /** Runs `work` while no sync of the run's pipeline runs: one asked meanwhile waits until it has finished. */
+  exclusive<T>(runId: string, work: () => Promise<T>): Promise<T>
 }
 
 interface Cursor {
@@ -70,7 +72,8 @@ export function createCultPipeline(deps: CultPipelineDeps): CultPipeline {
         await sync(deps, run)
         return readPage(deps, run.id, request)
       })
-    }
+    },
+    exclusive: (runId, work) => serialized(runId, work)
   }
 }
 

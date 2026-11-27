@@ -1,16 +1,15 @@
 /**
  * The Cult page's data: the cult and its runs from `window.dm.cults`, kept current by the `cults:event` push; a
  * member's chat record (read through `chats.read` in its run's work folder, which main resolves for a tracked folder
- * and for a project-less cult's sanctum alike); and the chamber's event log derived from the run snapshots.
+ * and for a project-less cult's sanctum alike); and the live chamber's event log (`chamber/chamberFeed.ts`).
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { CultRunDetail } from '../../../shared/cults/cultApi'
-import type { RunState } from '../../../shared/cults/runState'
+import type { CultPipelineEntry, CultRunDetail } from '../../../shared/cults/cultApi'
+import { useNow } from '../epic/clock'
+import { advanceFeed, startFeed, type ChamberFeed } from './chamber/chamberFeed'
 import type { ChamberEvent } from './chamber/chamberState'
 import { applyRunEvent, type CultEntry } from './useCults'
-
-type RoomState = Extract<ChamberEvent, { type: 'runState' }>
 
 type Loaded<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; value: T }
 
@@ -69,56 +68,19 @@ export function useMemberChat(folder: string, chatId: string): Loaded<ChatRecord
   return chat
 }
 
-/** What of a run the chamber shows: who is in the room, who works, the run's state and whether a petition waits. */
-interface RoomFacts {
-  members: ReadonlySet<string>
-  working: ReadonlySet<string>
-  runState: RoomState
-  petition: boolean
-}
-
-const CHAMBER_STATE: Readonly<Record<RunState, RoomState['runState']>> = {
-  starting: 'running',
-  running: 'running',
-  paused: 'paused',
-  shutting_down: 'ending',
-  ended: 'ended'
-}
-
-function factsOf(run: CultRunDetail): RoomFacts {
-  const live = run.members.filter((member) => member.role === 'acolyte' && member.leftAt === null)
-  const runState = CHAMBER_STATE[run.run.state] === 'ended' && run.run.endReason === 'killed' ? 'killed' : CHAMBER_STATE[run.run.state]
-  return {
-    members: new Set(live.map((member) => member.chatId)),
-    working: new Set(live.filter((member) => member.activity?.working === true).map((member) => member.chatId)),
-    runState: { type: 'runState', runState },
-    petition: run.petitions.some((petition) => petition.state === 'pending')
-  }
-}
-
-const EMPTY_FACTS: RoomFacts = { members: new Set(), working: new Set(), runState: { type: 'runState', runState: 'idle' }, petition: false }
-
-/** The events that take the chamber from what it showed to what the run is now. */
-function roomEvents(before: RoomFacts, after: RoomFacts): ChamberEvent[] {
-  const joined = [...after.members].filter((id) => !before.members.has(id)).map((id): ChamberEvent => ({ type: 'memberJoined', id }))
-  const left = [...before.members].filter((id) => !after.members.has(id)).map((id): ChamberEvent => ({ type: 'memberLeft', id }))
-  const working = [...after.members].flatMap((id): ChamberEvent[] =>
-    before.working.has(id) === after.working.has(id) && before.members.has(id) ? [] : [{ type: 'working', id, on: after.working.has(id) }])
-  const state = before.runState.runState === after.runState.runState ? [] : [after.runState]
-  const petition = before.petition === after.petition ? [] : [{ type: 'petitionPending' as const, on: after.petition }]
-  return [...state, ...left, ...joined, ...working, ...petition]
-}
-
-/** The chamber's append-only event log for the run shown, derived from its snapshots; it starts afresh for another run. */
-export function useChamberLog(run: CultRunDetail | null): readonly ChamberEvent[] {
-  const log = useRef<{ runId: string | null; facts: RoomFacts; events: ChamberEvent[] }>({ runId: null, facts: EMPTY_FACTS, events: [] })
-  const runId = run?.run.id ?? null
-  if (log.current.runId !== runId) log.current = { runId, facts: EMPTY_FACTS, events: [] }
-  if (run !== null) {
-    const facts = factsOf(run)
-    const added = roomEvents(log.current.facts, facts)
-    if (added.length > 0) log.current = { runId, facts, events: [...log.current.events, ...added] }
+/**
+ * The chamber's append-only event log for the run shown, from its snapshots and its pipeline entries (`chamberFeed`):
+ * it opens on the run as it is now and adds each change once. The clock's tick lets idle quips and the last minute
+ * come due between snapshots. Mount it once per run.
+ */
+export function useChamberLog(run: CultRunDetail, entries: readonly CultPipelineEntry[], seed: number): readonly ChamberEvent[] {
+  const now = useNow()
+  const log = useRef<{ feed: ChamberFeed; events: readonly ChamberEvent[] } | null>(null)
+  const input = { run, entries, now }
+  if (log.current === null) log.current = startFeed(input, seed)
+  else {
+    const { feed, events } = advanceFeed(log.current.feed, input)
+    log.current = { feed, events: events.length === 0 ? log.current.events : [...log.current.events, ...events] }
   }
   return log.current.events
 }
-
