@@ -124,7 +124,10 @@ export interface CultSupervisor {
   raiseCap(runId: string, cap: number): CultRunSnapshot
   /** Tells the run's current snapshot as a change (a Magos command recorded something the snapshot shows). */
   changed(runId: string): void
-  /** Ends an active run gracefully (Stop, unless it is already shutting down) and resolves once it has ended. */
+  /**
+   * Ends an active run gracefully (Stop, unless it is already shutting down) and resolves once it has ended and settled:
+   * no file of its members is still being written. A run that has ended but is still settling is waited for alone.
+   */
   endRun(runId: string): Promise<void>
 }
 
@@ -152,6 +155,8 @@ interface State {
   wakeClosers: Set<WakeCloser>
   /** Each live member's working flag and last tool call, polled while its run is supervised. */
   activity: MemberActivityTracker
+  /** Runs that have ended and are still settling (`settle`): run id → its settling, until no file of a member is being written. */
+  settling: Map<string, Promise<void>>
 }
 
 const isLive = (member: Pick<CultMemberView, 'state'>): boolean => LIVE_MEMBER_STATES.includes(member.state)
@@ -483,15 +488,29 @@ async function revokeUpgrades(s: State, runId: string): Promise<void> {
   await Promise.all(upgrades.map((grant) => revokeUpgrade(s.upgrades, grant).catch(s.onError)))
 }
 
-/** After the run ended: every upgrade revoked, the run's records here dropped, the end told, its members' files cleared. */
-async function settle(s: State, runId: string): Promise<void> {
+/**
+ * After the run ended: every upgrade revoked, the run's records here dropped, the end told, its members' files cleared.
+ * Kept in `settling` until it is done, so `endRun` can wait for it.
+ */
+function settle(s: State, runId: string): Promise<void> {
+  const settling = settleRun(s, runId)
+  s.settling.set(runId, settling)
+  const done = (): void => {
+    if (s.settling.get(runId) === settling) s.settling.delete(runId)
+  }
+  settling.then(done, done)
+  return settling
+}
+
+async function settleRun(s: State, runId: string): Promise<void> {
   await revokeUpgrades(s, runId)
   const members = s.deps.cults.listMembers(runId)
   for (const member of members) s.chatRuns.delete(member.chatId)
   s.runs.delete(runId)
   s.activity.endRun(runId)
   emit(s, runId)
-  // Awaited, so a run has ended (and a quit finished) only once no file of its members is still being written.
+  // Awaited, so a run has settled (and a quit finished) only once no file of its members is still being written: each
+  // clear is queued behind the control writes still in flight for its chat (`cultControl.ts`).
   await Promise.all(members.flatMap((member) => [
     s.deps.control.clear(member.chatId).catch(s.onError),
     s.deps.ledger.removeProcess(member.chatId).catch(s.onError)
@@ -594,9 +613,17 @@ async function reconcileOnStartup(s: State): Promise<CultRunView[]> {
   }))
 }
 
-/** Stops the run (unless it is already shutting down) and waits until it has ended; a run not supervised here has nothing to wait for. */
+/**
+ * Stops the run (unless it is already shutting down) and waits until it has ended and settled (`settle`): its end is told
+ * before its members' control files are cleared, and a write still in flight there would race the removal of their
+ * folders when the cult is deleted. A run neither supervised nor settling here has nothing to wait for.
+ */
 async function endRun(s: State, runId: string): Promise<void> {
-  if (!s.runs.has(runId)) return
+  if (!s.settling.has(runId) && s.runs.has(runId)) await stopAndWait(s, runId)
+  await s.settling.get(runId)
+}
+
+async function stopAndWait(s: State, runId: string): Promise<void> {
   let resolve: () => void = () => {}
   // The lib target predates `Promise.withResolvers`.
   const ended = new Promise<void>((done) => {
@@ -641,16 +668,21 @@ function watchActivity(s: State): void {
   })
 }
 
-export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
+function supervisorState(deps: CultSupervisorDeps): State {
   const onError = deps.onError ?? (() => {})
   const upgrades: UpgradeDeps = {
     userData: deps.userData, chatStore: deps.chatStore, grants: deps.grants, terminals: deps.terminals, ledger: deps.ledger,
     revokeGrantIn: deps.revokeGrantIn, onError
   }
-  const s: State = {
+  return {
     deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter(), wakeClosers: new Set(),
+    settling: new Map(),
     activity: createMemberActivity({ userData: deps.userData, clock: deps.activityClock ?? deps.clock ?? systemClock })
   }
+}
+
+export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
+  const s = supervisorState(deps)
   watchActivity(s)
   watchTerminals(s)
   return {
@@ -675,7 +707,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
     snapshot: (runId) => snapshot(s, runId),
     reconcileOnStartup: () => reconcileOnStartup(s),
     dispose: async () => {
-      await Promise.all([...s.runs.keys()].map((runId) => abort(s, runId, 'interrupted').catch(onError)))
+      await Promise.all([...s.runs.keys()].map((runId) => abort(s, runId, 'interrupted').catch(s.onError)))
       s.activity.dispose()
     },
     busy: () => s.runs.size > 0,
