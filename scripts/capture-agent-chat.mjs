@@ -26,7 +26,8 @@ export const STATES = Object.freeze([
   'agent-planners', 'chat-rail-legacy',
   'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024', 'epic-agent-glass-1440',
   'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
-  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'image-result', 'agent-image-viewer',
+  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'question-form-1024', 'question-form-1440', 'agent-transcript',
+  'agent-worked-for', 'image-result', 'agent-image-viewer',
   'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
   'new-chat-model', 'start-run-model', 'lexmechanic-model',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
@@ -51,8 +52,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 53 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 810_000
+/** A declared bound once the preview is built: 55 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 840_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -200,6 +201,8 @@ const IMAGE_RESULT_CHECKS = [
   ['no Attach as evidence outside an epic', (o) => Array.isArray(o.chatImages?.evidence) && o.chatImages.evidence.length === 0,
     (o) => JSON.stringify(o.chatImages?.evidence)]
 ]
+/** The question-form state's questions, as the recorded OMP ask asks them. */
+const FORM_LEGENDS = ['Which databases?', 'Which region?', 'Anything else?']
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -413,7 +416,7 @@ const STATE_CHECKS = {
       (o) => JSON.stringify(composersOf(o)[0]?.images?.alert)]
   ],
   'question-multi': [
-    ['a docked multi-select question headed Question 1 of 2 with its legend', (o) => o.questionCard?.progress === 'Question 1 of 2'
+    ['a docked multi-select question with its legend and no step counter', (o) => o.questionCard?.progress === null
       && matches(o.questionCard?.legend, /\S/), (o) => JSON.stringify(o.questionCard)],
     ['Lint and Unit tests checked among the checkboxes, reading 2 selected', (o) => o.questionCard?.checkboxes >= 2
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
@@ -425,6 +428,27 @@ const STATE_CHECKS = {
     ['Submit in view', (o) => o.questionCard?.submitInView === true, (o) => JSON.stringify(o.questionCard)],
     ['the transcript keeps at least its declared minimum height beside the card', (o) => o.questionCard?.transcriptMin > 0
       && o.questionCard?.transcriptHeight >= o.questionCard?.transcriptMin, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'question-form': [
+    ['one docked glass-strong card headed Answer 3 questions', (o) => o.formCard?.cards === 1 && o.formCard.glassStrong === true
+      && o.formCard.heading === 'Answer 3 questions', (o) => JSON.stringify(o.formCard)],
+    ['every question at once: a checkbox group, a radio group and a text field under their legends', (o) =>
+      JSON.stringify(o.formCard?.legends) === JSON.stringify(FORM_LEGENDS) && JSON.stringify(o.formCard?.kinds) === '["checkbox","radio","text"]',
+    (o) => JSON.stringify([o.formCard?.legends, o.formCard?.kinds])],
+    ['the defaults checked: SQLite and Postgres, and US', (o) => JSON.stringify(o.formCard?.checked) === '[["SQLite","Postgres"],["US"],[]]',
+      (o) => JSON.stringify(o.formCard?.checked)],
+    ['one enabled Submit, reading 3 of 3 answered', (o) => o.formCard?.submits === 1 && o.formCard.submitEnabled === true
+      && o.formCard.count === '3 of 3 answered', (o) => JSON.stringify(o.formCard)],
+    ['at 1440 every question and checked default in view without scrolling; at 1024 the fields scroll inside the card with the first question and its defaults in view',
+      (o) => o.state?.endsWith('-1440')
+        ? JSON.stringify(o.formCard?.legendsInView) === JSON.stringify(FORM_LEGENDS) && o.formCard.fieldsScroll === false
+          && JSON.stringify(o.formCard.checkedInView) === '["SQLite","Postgres","US"]'
+        : o.formCard?.legendsInView?.[0] === FORM_LEGENDS[0] && o.formCard.fieldsScroll === true
+          && JSON.stringify(o.formCard.checkedInView?.slice(0, 2)) === '["SQLite","Postgres"]',
+      (o) => JSON.stringify([o.formCard?.legendsInView, o.formCard?.fieldsScroll, o.formCard?.checkedInView])],
+    ['Submit in view', (o) => o.formCard?.submitInView === true, (o) => JSON.stringify(o.formCard)],
+    ['the transcript keeps at least its declared minimum height beside the card', (o) => o.formCard?.transcriptMin > 0
+      && o.formCard?.transcriptHeight >= o.formCard?.transcriptMin, (o) => JSON.stringify(o.formCard)]
   ],
   'model-picker': [
     ...MODEL_PICKER_CHECKS,

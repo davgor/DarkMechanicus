@@ -266,7 +266,7 @@ function FormChoice({ prompt, fields, busy, submit }: {
             <fieldset className="agent-prompt-field" key={field.id} disabled={busy}>
               <legend>{clip(field.title, 300)}</legend>
               {field.text === 'only'
-                ? <textarea className="input" aria-label={clip(field.title, 300)} value={draft.text} maxLength={20_000} rows={2}
+                ? <textarea className="input" aria-label={clip(field.title, 300)} value={draft.text} maxLength={20_000} rows={1}
                   onChange={(event) => update(field.id, { text: event.target.value })} />
                 : <div className="agent-prompt-choices">
                   {field.options.map((option) => field.multi
