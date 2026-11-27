@@ -43,8 +43,7 @@ import { createChatHandlers } from '../agents/chatHandlers'
 import type { PlannerAgents } from '../agents/plannerStart'
 import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
 import { createAgentContextDelivery, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
-import { resumeChatOnSurface } from '../agents/chatSurfaceStart'
-import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
+import { pasteBoardOnSurface, resumeChatOnSurface } from '../agents/chatSurfaceStart'
 import type { ConversationReads } from '../agents/conversationTarget'
 import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc, sendToWindows } from '../agents/chatIpc'
@@ -639,11 +638,12 @@ interface ContextTerminals extends Pick<ChatProcesses, 'terminals' | 'logins' | 
 
 /**
  * The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. Delivery
- * wakes a chat on its stored surface (`resumeChatOnSurface`) through `agentChats`, the GUI manager built after the terminals.
+ * wakes a chat and gives it a pending body on its stored surface (`resumeChatOnSurface`, `pasteBoardOnSurface`)
+ * through `agentChats`, the GUI manager built after the terminals: a GUI chat never gets a PTY.
  */
 function createContextTerminals(
   store: ChatStore, options: Omit<Parameters<typeof createTerminalProcesses>[1], 'beforeContextPaste'>,
-  push: ReturnType<typeof createChatPush>, agentChats: () => Pick<AgentChatSessions, 'start'>
+  push: ReturnType<typeof createChatPush>, agentChats: () => Pick<AgentChatSessions, 'start' | 'send'>
 ): ContextTerminals {
   const userData = app.getPath('userData')
   const deliveries = createConversationDeliveries({
@@ -660,10 +660,9 @@ function createContextTerminals(
     resolveFolder: (folder) => options.folders.trackedFolder(folder),
     getChat: (ref) => store.getChat(ref),
     resume: resumeChat,
-    paste: async (chat, message) => {
-      const result = await terminals.paste(chat, boardContextText(message), message.id)
-      return result.state === 'running' ? null : result.message
-    }
+    paste: (chat, message) => pasteBoardOnSurface({
+      terminals, agentChats: agentChats(), reserveBoardInput: (recipient, id, content) => contextDelivery.reserveBoardInput(recipient, id, content)
+    }, chat, message)
   }
   return { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport }
 }
