@@ -294,7 +294,38 @@ describe('GitAdapter.isAncestor and commitParents (CLI answers)', () => {
       expect(await createGitAdapter(ROOT, { runGit: run.runGit }).commitParents('x')).toBeNull()
     }
   })
+})
 
+describe('GitAdapter.mergeBase and changedPaths (CLI answers)', () => {
+  it('asks git merge-base for the common ancestor and answers null for anything but one commit id', async () => {
+    const found = fakeRun(0, `${SHA_C}\n`)
+    expect(await createGitAdapter(ROOT, { runGit: found.runGit }).mergeBase(SHA_A, 'refs/heads/main')).toBe(SHA_C)
+    expect(found.calls).toEqual([['merge-base', SHA_A, 'refs/heads/main']])
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(0, `${SHA_C}\r\n`).runGit }).mergeBase(SHA_A, SHA_B)).toBe(SHA_C)
+    // Exit 1: the commits share no history. Exit 128: a name git does not know.
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(1, '').runGit }).mergeBase(SHA_A, SHA_B)).toBeNull()
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(128, '').runGit }).mergeBase(SHA_A, SHA_B)).toBeNull()
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(0, 'not a sha\n').runGit }).mergeBase(SHA_A, SHA_B)).toBeNull()
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(0, `${SHA_A}\n${SHA_B}\n`).runGit }).mergeBase(SHA_A, SHA_B)).toBeNull()
+  })
+
+  it('runs git diff --name-only --no-renames -z and splits the NUL-terminated paths verbatim', async () => {
+    const run = fakeRun(0, 'docs/with space.md\u0000src/a.ts\u0000caf\u00e9 \u00fcber.txt\u0000')
+    expect(await createGitAdapter(ROOT, { runGit: run.runGit }).changedPaths(SHA_A, 'refs/heads/main')).toEqual([
+      'docs/with space.md',
+      'src/a.ts',
+      'caf\u00e9 \u00fcber.txt'
+    ])
+    expect(run.calls).toEqual([['diff', '--name-only', '--no-renames', '-z', SHA_A, 'refs/heads/main', '--']])
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(0, '').runGit }).changedPaths(SHA_A, SHA_B)).toEqual([])
+  })
+
+  it('answers null whenever git exits with anything but 0', async () => {
+    for (const code of [1, 128, 129]) {
+      const run = fakeRun(code, 'a.txt\u0000')
+      expect(await createGitAdapter(ROOT, { runGit: run.runGit }).changedPaths(SHA_A, SHA_B)).toBeNull()
+    }
+  })
 })
 
 describe('GitAdapter ancestry queries refuse hostile refs', () => {
@@ -306,7 +337,12 @@ describe('GitAdapter ancestry queries refuse hostile refs', () => {
       () => git.isAncestor('main', '-p'),
       () => git.isAncestor(`${SHA_A}\u0000`, 'main'),
       () => git.commitParents('--all'),
-      () => git.commitParents('main\u0000x')
+      () => git.commitParents('main\u0000x'),
+      () => git.mergeBase('--octopus', 'main'),
+      () => git.mergeBase('main', `${SHA_A}\u0000`),
+      () => git.changedPaths('--output=/tmp/x', 'main'),
+      () => git.changedPaths('main', '-R'),
+      () => git.changedPaths('main\u0000x', 'main')
     ]
     for (const attempt of attempts) {
       expect((await domainErrorOfAsync(attempt)).code).toBe('unsafe_path')
@@ -420,6 +456,68 @@ describe('GitAdapter.commitParents with the real git binary', () => {
   })
 })
 
+describe('GitAdapter.mergeBase with the real git binary', () => {
+  const history = useHistory()
+
+  it('finds where a squashed branch, a merged branch and the target diverged', async () => {
+    const { repo, base, w2, squashed, merged, sideTip } = history()
+    const adapter = createGitAdapter(repo.root)
+    expect(await adapter.mergeBase(w2, 'refs/heads/main')).toBe(base)
+    expect(await adapter.mergeBase('refs/heads/work', squashed)).toBe(base)
+    expect(await adapter.mergeBase(sideTip, merged)).toBe(sideTip)
+    expect(await adapter.mergeBase(squashed.slice(0, 10), squashed)).toBe(squashed)
+  })
+
+  it('answers null for an unknown commit or name', async () => {
+    const { repo, base } = history()
+    const adapter = createGitAdapter(repo.root)
+    expect(await adapter.mergeBase('f'.repeat(40), 'refs/heads/main')).toBeNull()
+    expect(await adapter.mergeBase(base, 'refs/heads/no-such-branch')).toBeNull()
+  })
+})
+
+describe('GitAdapter real repositories of its own', () => {
+  let repo: GitRepo | undefined
+  afterEach(() => {
+    repo?.cleanup()
+    repo = undefined
+  })
+
+  it('changedPaths lists both files a commit changed, a path with a space included, and both sides of a rename', async () => {
+    repo = createGitRepo()
+    const before = repo.rev('main')
+    mkdirSync(join(repo.root, 'docs'))
+    mkdirSync(join(repo.root, 'src'))
+    writeFileSync(join(repo.root, 'docs', 'with space.md'), 'spaced\n')
+    writeFileSync(join(repo.root, 'src', 'two.txt'), 'two\n')
+    repo.git('add', '--', 'docs', 'src')
+    repo.git('commit', '-q', '-m', 'two files')
+    const after = repo.rev('main')
+    const adapter = createGitAdapter(repo.root)
+    expect(await adapter.changedPaths(before, after)).toEqual(['docs/with space.md', 'src/two.txt'])
+    expect(await adapter.changedPaths(after, before)).toEqual(['docs/with space.md', 'src/two.txt'])
+    expect(await adapter.changedPaths(after, 'refs/heads/main')).toEqual([])
+    repo.git('mv', '--', 'docs/with space.md', 'docs/moved here.md')
+    repo.git('commit', '-q', '-m', 'rename')
+    expect(await adapter.changedPaths(after, 'refs/heads/main')).toEqual(['docs/moved here.md', 'docs/with space.md'])
+  })
+
+  it('changedPaths answers null for a commit the repository does not have', async () => {
+    repo = createGitRepo()
+    const adapter = createGitAdapter(repo.root)
+    expect(await adapter.changedPaths('f'.repeat(40), 'refs/heads/main')).toBeNull()
+    expect(await adapter.changedPaths('refs/heads/main', 'refs/heads/no-such-branch')).toBeNull()
+  })
+
+  it('mergeBase answers null for commits that share no history', async () => {
+    repo = createGitRepo()
+    const main = repo.commit('on main')
+    repo.git('checkout', '-q', '--orphan', 'unrelated')
+    const lone = repo.commit('unrelated root')
+    expect(await createGitAdapter(repo.root).mergeBase(main, lone)).toBeNull()
+  })
+})
+
 describe('GitAdapter ancestry queries are read-only', () => {
   const history = useHistory()
 
@@ -435,6 +533,11 @@ describe('GitAdapter ancestry queries are read-only', () => {
     await adapter.commitParents(squashed)
     await adapter.commitParents(merged)
     await adapter.commitParents('f'.repeat(40))
+    const squashedPaths = await adapter.changedPaths(base, squashed)
+    expect(squashedPaths).toHaveLength(2)
+    expect(await adapter.changedPaths(base, 'refs/heads/work')).toEqual(squashedPaths)
+    await adapter.mergeBase('refs/heads/work', 'refs/heads/main')
+    await adapter.changedPaths('f'.repeat(40), 'refs/heads/main')
     expect(gitDirSnapshot(repo.root)).toEqual(before)
     expect(repo.git('status', '--porcelain')).toBe(status)
     expect(repo.git('for-each-ref')).toBe(refs)

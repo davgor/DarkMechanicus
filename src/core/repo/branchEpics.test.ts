@@ -33,6 +33,8 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
     isAncestor: async () => null,
     isAncestorSync: () => null,
     commitParents: async () => null,
+    mergeBase: async () => null,
+    changedPaths: async () => null,
     diffPaths: () => ({ ok: false, reason: 'git_failed' }),
     statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null

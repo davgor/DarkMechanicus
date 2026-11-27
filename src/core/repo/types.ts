@@ -96,6 +96,18 @@ export interface GitAdapter {
    */
   commitParents(ref: string): Promise<{ commit: string; parents: string[] } | null>
   /**
+   * The best common ancestor of commits `a` and `b` (`git merge-base`), as a full commit id. Null when git cannot
+   * answer: the commits share no history, either name is unknown, or git is unavailable. Throws `unsafe_path` for an
+   * option-like name. Read-only.
+   */
+  mergeBase(a: string, b: string): Promise<string | null>
+  /**
+   * Repository-relative paths, with forward slashes, whose content differs between commits `from` and `to`
+   * (`git diff --name-only --no-renames`; a rename lists both the old and the new path). Null when git cannot answer:
+   * either commit is unknown, or git is unavailable. Throws `unsafe_path` for an option-like name. Read-only.
+   */
+  changedPaths(from: string, to: string): Promise<string[] | null>
+  /**
    * Paths below `.darkmechanicus/` that differ between commits `from` and `to` (`git diff --name-status --no-renames
    * --relative`, run in that folder, so a project nested in a larger repository works). A rename is a delete plus an add.
    * A typed failure, never a throw, when git fails; throws `unsafe_path` for an option-like ref. Read-only. Synchronous,
