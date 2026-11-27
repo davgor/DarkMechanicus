@@ -240,7 +240,11 @@ const executionCommands = {
   recordDelivery: {
     schema: COMMAND_SCHEMAS.recordDelivery,
     mutates: true,
-    run: async (core, input) => recordDelivery(core.ctx(), input, await verifiedDelivery(core, input))
+    run: async (core, input) => {
+      // The storage is checked (core.ctx) after the verification awaits, as submitAttempt does, so it is current at the write.
+      const verified = await verifiedDelivery(core, input)
+      return recordDelivery(core.ctx(), input, verified)
+    }
   },
   waiveDelivery: {
     schema: COMMAND_SCHEMAS.waiveDelivery,

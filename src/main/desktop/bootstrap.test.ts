@@ -69,6 +69,11 @@ vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.
 vi.mock('../autoUpdate', () => ({ setBeforeInstall: desktop.setBeforeInstall }))
 vi.mock('../terminals/ptyHost', () => ({ createNodePtyHost: desktop.startPty }))
 
+// The first import of the bridge transforms its whole module graph (seconds on a busy host). Paying it here, before any
+// test, keeps it out of the first test's budget; each fixture still re-evaluates fresh modules after `vi.resetModules()`.
+await import('./workspaceOwnerRuntime')
+await import('./bootstrap')
+
 class InProcessUtility extends EventEmitter {
   readonly messages = new EventEmitter()
   readonly requests: WorkspaceRequest[] = []
@@ -127,7 +132,10 @@ async function bridgeFixture(options: { home?: string; version?: string; seed?: 
   })
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const { startDesktopBridge } = await import('./bootstrap')
+  // The bridge registers its protocols synchronously: those after this mark are its own, never another test's bridge's.
+  const registered = desktop.registerProtocol.mock.calls.length
   const bridge = startDesktopBridge([], { handle: (channel, listener) => { handlers.set(channel, listener) } })
+  const attachmentHandler = desktop.registerProtocol.mock.calls.slice(registered).find(([scheme]) => scheme === ATTACHMENT_SCHEME)?.[1] as ((request: Request) => Promise<Response>) | undefined
   let closed = false
   const finish = async () => {
     if (closed) return
@@ -147,10 +155,8 @@ async function bridgeFixture(options: { home?: string; version?: string; seed?: 
   return {
     root, owners, invoke, bridge, finish, command,
     attach: async (url: string) => {
-      const handler = desktop.registerProtocol.mock.calls.find(([scheme]) => scheme === ATTACHMENT_SCHEME)?.[1] as
-        ((request: Request) => Promise<Response>) | undefined
-      if (!handler) throw new Error('The attachment protocol was not registered')
-      return handler(new Request(url))
+      if (!attachmentHandler) throw new Error('The attachment protocol was not registered')
+      return attachmentHandler(new Request(url))
     }
   }
 }

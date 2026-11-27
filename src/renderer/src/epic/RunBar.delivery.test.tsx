@@ -88,7 +88,8 @@ describe('Run bar: Sprint delivery line', () => {
       '✓releasev1.2.0 contains abc1234',
       `✗installed${STALE}`
     ])
-    expect(within(items[2] as HTMLElement).getByLabelText('failed').textContent).toBe('✗')
+    expect(within(items[2] as HTMLElement).getByRole('img', { name: 'failed' }).textContent).toBe('✗')
+    expect(within(items[0] as HTMLElement).getByRole('img', { name: 'passed' }).textContent).toBe('✓')
   })
 
   it('is hidden once the latest check passed, and without a declared delivery', async () => {

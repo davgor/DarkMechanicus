@@ -944,25 +944,36 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inte
 
   it('force-kills an unresponsive turn at five seconds and remains resumable', async () => {
     const r = rig(kind), chat = r.newChat()
-    const start = r.deps.startProcess!, forced: number[] = []
+    // Stops are recorded at once and reach the real child only once the deadline has been checked on the fake clock,
+    // so no timer the kill starts is left on that clock.
+    const start = r.deps.startProcess!, stops: Array<{ force?: boolean }> = []
+    // The repository's ES library predates Promise.withResolvers.
+    let reachChild = (): void => undefined
+    const deadlineChecked = new Promise<void>(resolve => { reachChild = resolve })
     r.deps.startProcess = spec => {
       const child = start(spec)
-      return { ...child, stop: options => { if (options?.force) forced.push(Date.now()); return child.stop(options) } }
+      return { ...child, stop: options => { stops.push({ ...options }); return deadlineChecked.then(() => child.stop(options)) } }
     }
     await r.sessions.send(chat, { text: '[hung]' })
     await eventually(() => r.store.getChat(chat)!.sessionId !== null)
     const session = r.store.getChat(chat)!.sessionId, pid = r.children[0].pid!
+    const failures: string[] = []
     const pushed = r.deps.push
-    const failed = new Promise<void>(resolve => {
-      r.deps.push = event => { pushed(event); if (event.type === 'status' && event.status === 'failed') resolve() }
-    })
-    const interrupted = Date.now()
+    r.deps.push = event => { pushed(event); if (event.type === 'status' && event.status === 'failed') failures.push(event.detail ?? '') }
+    // Only the deadline runs on the fake clock; the child's stdout and exit stay real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     await r.sessions.interrupt(chat)
     await r.sessions.interrupt(chat)
-    await failed
-    expect(forced).toHaveLength(1)
-    expect(forced[0] - interrupted).toBeGreaterThanOrEqual(4900)
-    expect(forced[0] - interrupted).toBeLessThan(6000)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(stops).toEqual([])
+    expect(failures).toEqual([])
+    expect(r.sessions.snapshot(chat).status).toBe('busy')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(stops[0]).toEqual({ force: true })
+    expect(stops.filter(stop => stop.force)).toHaveLength(1)
+    expect(failures).toEqual(['The agent did not end its turn within 5 seconds of interrupt.'])
+    vi.useRealTimers()
+    reachChild()
     await eventually(() => !r.sessions.isLive(chat))
     expect(() => process.kill(pid, 0)).toThrow()
     expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'failed', queued: 0 })

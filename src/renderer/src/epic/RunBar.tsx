@@ -114,7 +114,7 @@ function DeliveryChecks({ checks }: { checks: DeliveryHold['checks'] }): JSX.Ele
       {checks.map((check, index) => (
         // Two checks can share a name, so the position identifies the entry.
         <li key={`${index}:${check.name}`} className={`is-${check.status}`}>
-          <span className="cp-icon" aria-label={check.status}>
+          <span className="cp-icon" role="img" aria-label={check.status}>
             {check.icon}
           </span>
           <span>{check.name}</span>
