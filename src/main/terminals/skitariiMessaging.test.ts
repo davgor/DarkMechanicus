@@ -3,6 +3,7 @@
  * Consumer regressions exercise ordered pickup, native continuation boundaries, trust, recovery and explicit ack.
  */
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -124,7 +125,23 @@ beforeEach(async () => {
   })
 })
 
-afterEach(() => {
+/** Every `dm` child a test's real deps started, including those a watcher's tick started after the test stopped looking. */
+const spawned = new Set<ChildProcess>()
+
+/**
+ * A child still running holds the scratch folder as its working directory. A watcher tick can start one just before a
+ * test ends, and `removeScratch` is synchronous: it blocked the event loop before the child's stdin was written, so the
+ * child waited on its input until the removal's retries ran out (the hook timed out). So each child is ended and its
+ * exit awaited first.
+ */
+afterEach(async () => {
+  const running = [...spawned].filter((child) => child.pid !== undefined && child.exitCode === null && child.signalCode === null)
+  spawned.clear()
+  await Promise.all(running.map((child) => {
+    const exited = once(child, 'exit')
+    child.kill('SIGKILL')
+    return exited
+  }))
   removeScratch(root)
 })
 
@@ -139,6 +156,7 @@ function realDeps(token = TOKEN, limits = DM_CLIENT_LIMITS, runLimits = DM_RUN_L
     spawn: (command, args, options) => {
       const child = nodeSpawn(command, [...args], options)
       children.push(child)
+      spawned.add(child)
       waiting.splice(0).forEach((resolve) => resolve(child))
       return child
     },
