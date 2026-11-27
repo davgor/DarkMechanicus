@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -94,10 +95,15 @@ async function initialize(protocol: Protocol, extra: string[] = [], executable =
   return harness
 }
 
-function prompt(protocol: Protocol, text: string, turn = 1): object {
+function prompt(protocol: Protocol, text: string, turn = 1, id = `req_T${turn}_prompt`): object {
   return protocol === 'claude'
     ? { type: 'user', session_id: `session_T${turn}`, message: { role: 'user', content: text } }
-    : { type: 'prompt', id: `req_T${turn}_prompt`, message: text }
+    : { type: 'prompt', id, message: text }
+}
+
+/** The prompt id a scenario's OMP golden answers, which the replay echoes back as the id it was sent. */
+function goldenPromptId(scenario: string): string {
+  return lines(golden('omp', scenario, 'in')).map((line) => JSON.parse(line)).find((frame) => frame.type === 'prompt')?.id ?? 'req_T1_prompt'
 }
 
 function completed(protocol: Protocol, stdout: string): boolean {
@@ -149,7 +155,7 @@ for (const protocol of protocols) {
     for (const scenario of scenarios) {
       it(`replays ${scenario} turn 1 byte-for-byte against the golden`, async () => {
         const harness = await initialize(protocol)
-        harness.send(prompt(protocol, `[${scenario}]`))
+        harness.send(prompt(protocol, `[${scenario}]`, 1, protocol === 'omp' ? goldenPromptId(scenario) : undefined))
         const expected = golden(protocol, scenario)
         const request = lines(expected).find((line) => {
           const frame = JSON.parse(line)
@@ -474,6 +480,72 @@ for (const [protocol, keyword, target] of [['omp', 'tasks', 'todo'], ['claude', 
     await harness.until(() => completed(protocol, harness.stdout))
     expect(await finish(harness)).toBe(0)
     expect(harness.stdout).toBe(golden(protocol, target))
+  })
+}
+
+const swatch = readFileSync(join(fixtures, 'images', 'swatch.png'))
+/** A second image, distinct in type, length and hash from the swatch; the fake echoes bytes without decoding them. */
+const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9])
+const echoLine = (mimeType: string, bytes: Buffer): string => `received image ${mimeType} ${bytes.length} ${createHash('sha256').update(bytes).digest('hex').slice(0, 12)}`
+
+function imagePrompt(protocol: Protocol, text: string, images: Array<[string, Buffer]>, turn: number): object {
+  return protocol === 'claude'
+    ? { type: 'user', session_id: `session_T${turn}`, message: { role: 'user', content: [...images.map(([mimeType, bytes]) => ({ type: 'image', source: { type: 'base64', media_type: mimeType, data: bytes.toString('base64') } })), { type: 'text', text }] } }
+    : { type: 'prompt', id: `req_T${turn}_prompt`, message: text, images: images.map(([mimeType, bytes]) => ({ type: 'image', mimeType, data: bytes.toString('base64') })) }
+}
+
+/** A turn's reply text: Claude's result, or OMP's first ended assistant message text. */
+function replyText(protocol: Protocol, stdout: string): string {
+  const frames = lines(stdout).map((line) => JSON.parse(line))
+  if (protocol === 'claude') return frames.find((frame) => frame.type === 'result').result
+  return frames.find((frame) => frame.type === 'message_end' && frame.message.role === 'assistant' && frame.message.content.some((block: { type: string }) => block.type === 'text'))
+    .message.content.find((block: { type: string }) => block.type === 'text').text
+}
+
+for (const protocol of protocols) {
+  it(`${protocol} echoes received image for swatch.png and turn 1 of the image_in input equals the golden`, async () => {
+    const harness = await initialize(protocol)
+    for (const line of lines(golden(protocol, 'image_in', 'in'))) harness.send(line)
+    await harness.until(() => completed(protocol, harness.stdout))
+    expect(await finish(harness)).toBe(0)
+    expect(echoLine('image/png', swatch)).toBe('received image image/png 132 6f7ffeeb8892')
+    expect(replyText(protocol, harness.stdout)).toBe(echoLine('image/png', swatch))
+    expect(harness.stdout).toBe(golden(protocol, 'image_in'))
+  })
+
+  it(`${protocol} [image] replays image_result: turn 1 equals the golden and turn 2 renumbers T1 to T2`, async () => {
+    const harness = await initialize(protocol)
+    harness.send(prompt(protocol, 'Read swatch.png [image]', 1, goldenPromptId('image_result')))
+    await harness.until(() => completed(protocol, harness.stdout))
+    const first = harness.stdout
+    harness.stdout = ''
+    harness.send(prompt(protocol, 'Read swatch.png again [image]', 2, goldenPromptId('image_result').replace('T1', 'T2')))
+    await harness.until(() => completed(protocol, harness.stdout))
+    expect(await finish(harness)).toBe(0)
+    expect(first).toBe(golden(protocol, 'image_result'))
+    expect(harness.stdout).toBe(golden(protocol, 'image_result').replaceAll('T1', 'T2'))
+  })
+
+  it(`${protocol} a turn with two images echoes two lines in order, before the chosen scenario's reply`, async () => {
+    const harness = await initialize(protocol)
+    harness.send(imagePrompt(protocol, 'what colour', [['image/png', swatch], ['image/jpeg', jpeg]], 1))
+    await harness.until(() => completed(protocol, harness.stdout))
+    const first = harness.stdout
+    harness.stdout = ''
+    harness.send(imagePrompt(protocol, 'Read swatch.png [image]', [['image/jpeg', jpeg], ['image/png', swatch]], 2))
+    await harness.until(() => completed(protocol, harness.stdout))
+    expect(await finish(harness)).toBe(0)
+    expect(replyText(protocol, first)).toBe(`${echoLine('image/png', swatch)}\n${echoLine('image/jpeg', jpeg)}`)
+    expect(replyText(protocol, harness.stdout)).toBe(`${echoLine('image/jpeg', jpeg)}\n${echoLine('image/png', swatch)}\nRed`)
+    if (protocol === 'claude') return
+    const frames = lines(first).map((line) => JSON.parse(line))
+    expect(frames.find((frame) => frame.type === 'message_start' && frame.message.role === 'user').message.content).toEqual([
+      { type: 'text', text: 'what colour' },
+      { type: 'image', mimeType: 'image/png', data: swatch.toString('base64') },
+      { type: 'image', mimeType: 'image/jpeg', data: jpeg.toString('base64') },
+    ])
+    expect(frames.at(-1)).toEqual({ type: 'prompt_result', id: 'req_T1_prompt', agentInvoked: true, status: 'completed' })
+    expect(JSON.parse(lines(harness.stdout).at(-1) ?? '')).toMatchObject({ type: 'prompt_result', id: 'req_T2_prompt' })
   })
 }
 
