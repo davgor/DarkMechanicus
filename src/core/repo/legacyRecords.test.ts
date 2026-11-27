@@ -141,6 +141,20 @@ describe('a run history saved before row checks', () => {
   })
 })
 
+describe('a run history saved before delivery checks', () => {
+  it('parses without a deliveryChecks key, imports none and exports back byte for byte', () => {
+    const record = parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run')
+    expect(Object.keys(record)).not.toContain('deliveryChecks')
+    expect(prettyJson(record)).toBe(RUN_TEXT)
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    expect(env.db.all('SELECT id FROM delivery_checks')).toEqual([])
+    const exported = prettyJson(buildRunHistoryRecord(env.db, RUN))
+    expect(exported).not.toContain('deliveryChecks')
+    expect(trackedRunHash(exported)).toBe(trackedRunHash(RUN_TEXT))
+  })
+})
+
 describe('a project record saved before the Definition of Done', () => {
   const PROJECT_TEXT = fixture('project.json')
 
