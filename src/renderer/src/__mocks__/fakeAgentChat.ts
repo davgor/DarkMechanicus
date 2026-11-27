@@ -1,4 +1,4 @@
-import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem } from '../../../shared/agents/agentChat'
+import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem, ChatImageRef } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import { deferred, type Deferred } from './deferred'
@@ -11,6 +11,12 @@ export class FakeAgentChat implements AgentChatApi {
     ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
   }
   attentionResult: CommandResult<AttentionItem[]> = { ok: true, data: [] }
+  stageImageResult: CommandResult<{ image: ChatImageRef }> = {
+    ok: true, data: { image: { id: 'ci_00000000000000000000000000', mime: 'image/png', width: 1, height: 1, bytes: 68 } }
+  }
+  attachEvidenceResult: CommandResult<{ commentId: string; attachmentId: string }> = {
+    ok: true, data: { commentId: 'cm_1', attachmentId: 'im_1' }
+  }
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   calls: { method: Method; args: unknown[] }[] = []
   private holds: Partial<Record<Method, Deferred[]>> = {}
@@ -71,6 +77,16 @@ export class FakeAgentChat implements AgentChatApi {
   attention(request: Parameters<AgentChatApi['attention']>[0]) {
     const result = this.attentionResult
     return this.call('attention', request, () => result)
+  }
+
+  stageImage(request: Parameters<AgentChatApi['stageImage']>[0]) {
+    const result = this.stageImageResult
+    return this.call('stageImage', request, () => result)
+  }
+
+  attachEvidence(request: Parameters<AgentChatApi['attachEvidence']>[0]) {
+    const result = this.attachEvidenceResult
+    return this.call('attachEvidence', request, () => result)
   }
 
   private async call<T>(method: Method, request: unknown, produce: () => CommandResult<T>): Promise<CommandResult<T>> {

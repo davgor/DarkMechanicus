@@ -3,7 +3,9 @@ import {
   AGENT_CHAT_CHANNELS, GUI_PROTOCOL_KINDS, TODO_TOOL_NAMES, agentChatStartSchema, agentChatSendSchema,
   agentChatInterruptSchema, agentChatAnswerSchema, agentChatSetSurfaceSchema, agentChatSnapshotRequestSchema,
   agentChatEventSchema, agentChatSnapshotSchema, pendingPromptSchema, agentTodoTaskSchema, agentTodoPhaseSchema,
-  agentChatAttentionSchema, attentionItemSchema, type AgentChatEvent, type AttentionItem, type PendingPrompt
+  agentChatAttentionSchema, attentionItemSchema, agentChatStageImageSchema, agentChatAttachEvidenceSchema,
+  CHAT_IMAGE_MAX_BYTES, CHAT_IMAGES_PER_MESSAGE, chatImageIdSchema, chatImageRefSchema,
+  type AgentChatEvent, type AttentionItem, type PendingPrompt
 } from './agentChat'
 
 const ref = { folder: null, chatId: 'chat_1' }
@@ -29,7 +31,7 @@ describe('agent chat contract', () => {
     expect(schema.safeParse({ ...value, unexpected: true }).success).toBe(false)
   })
 
-  it('keeps requests text-only and bounded, with no renderer-supplied identity or authority', () => {
+  it('keeps requests bounded, with images only as ids and no renderer-supplied identity or authority', () => {
     expect(agentChatSendSchema.safeParse({ ...ref, text: '' }).success).toBe(false)
     expect(agentChatSendSchema.safeParse({ ...ref, text: 'a'.repeat(20_000) }).success).toBe(true)
     expect(agentChatSendSchema.safeParse({ ...ref, text: 'a'.repeat(20_001) }).success).toBe(false)
@@ -40,6 +42,55 @@ describe('agent chat contract', () => {
       expect(agentChatAnswerSchema.safeParse({ ...ref, promptId: 'p', optionId: 'deny', [field]: 'magos' }).success).toBe(false)
     }
     expect(agentChatAnswerSchema.safeParse({ ...ref, promptId: 'p', optionId: 'x', text: 'a'.repeat(20_001) }).success).toBe(false)
+  })
+
+  const ids = ['ci_01m8ec59dbq52ydhsy6ry7knhv', 'ci_01m8ec42c2xgm8dptjcywxm0fx', 'ci_01m7x2qsm36jdzebeysf4mgna8', 'ci_01m7x2qsm33eckprx1gjn0y5zs', 'ci_01m8drz8d8qqz934xa0c2vjy63']
+
+  it('sends up to four ci_ image ids, with or without text, and never an empty message', () => {
+    expect(CHAT_IMAGES_PER_MESSAGE).toBe(4)
+    expect(agentChatSendSchema.parse({ ...ref, text: '', imageIds: [ids[0]] })).toEqual({ ...ref, text: '', imageIds: [ids[0]] })
+    expect(agentChatSendSchema.parse({ ...ref, text: 'look', imageIds: ids.slice(0, 4) })).toEqual({ ...ref, text: 'look', imageIds: ids.slice(0, 4) })
+    expect(agentChatSendSchema.safeParse({ ...ref, text: '' }).success).toBe(false)
+    expect(agentChatSendSchema.safeParse({ ...ref, text: '', imageIds: [] }).success).toBe(false)
+    expect(agentChatSendSchema.safeParse({ ...ref, text: 'look', imageIds: ids }).success).toBe(false)
+    for (const id of ['im_01m8ec59dbq52ydhsy6ry7knhv', 'ci_01M8EC59DBQ52YDHSY6RY7KNHV', 'ci_01m8ec59dbq52ydhsy6ry7knh', 'ci_01m8ec59dbq52ydhsy6ry7knhu', '../ci_01m8ec59dbq52ydhsy6ry7knhv']) {
+      expect(chatImageIdSchema.safeParse(id).success, id).toBe(false)
+      expect(agentChatSendSchema.safeParse({ ...ref, text: 'look', imageIds: [id] }).success, id).toBe(false)
+    }
+    for (const field of ['images', 'data', 'path', 'url']) {
+      expect(agentChatSendSchema.safeParse({ ...ref, text: 'look', imageIds: [ids[0]], [field]: 'forbidden' }).success, field).toBe(false)
+    }
+  })
+
+  it('stages only plain base64 within the image limit', () => {
+    const data = 'iVBORw0KGgo='
+    expect(agentChatStageImageSchema.parse({ ...ref, data })).toEqual({ ...ref, data })
+    const limit = Math.ceil(CHAT_IMAGE_MAX_BYTES / 3) * 4
+    expect(CHAT_IMAGE_MAX_BYTES).toBe(10 * 1024 * 1024)
+    expect(agentChatStageImageSchema.safeParse({ ...ref, data: 'A'.repeat(limit) }).success).toBe(true)
+    expect(agentChatStageImageSchema.safeParse({ ...ref, data: 'A'.repeat(limit + 4) }).success).toBe(false)
+    expect(agentChatStageImageSchema.safeParse({ ...ref, data: `data:image/png;base64,${data}` }).success).toBe(false)
+    expect(agentChatStageImageSchema.safeParse({ ...ref, data: '' }).success).toBe(false)
+    expect(agentChatStageImageSchema.safeParse({ ...ref, data, mime: 'image/png' }).success).toBe(false)
+  })
+
+  it('attaches evidence only from a folder chat, naming one held image and an epic', () => {
+    const request = { folder: '/repo', chatId: 'chat_1', imageId: ids[0], epicId: 'ep_1', ticketId: 'tk_1' }
+    expect(agentChatAttachEvidenceSchema.parse(request)).toEqual(request)
+    const { ticketId: _ticketId, ...epicOnly } = request
+    expect(agentChatAttachEvidenceSchema.parse(epicOnly)).toEqual(epicOnly)
+    expect(agentChatAttachEvidenceSchema.safeParse({ ...request, folder: null }).success).toBe(false)
+    expect(agentChatAttachEvidenceSchema.safeParse({ ...request, imageId: 'im_1' }).success).toBe(false)
+    expect(agentChatAttachEvidenceSchema.safeParse({ ...request, epicId: '' }).success).toBe(false)
+    expect(agentChatAttachEvidenceSchema.safeParse({ ...request, path: 'C:\\shot.png' }).success).toBe(false)
+  })
+
+  it('re-exports the transcript image ref: only png or jpeg within the measured limits', () => {
+    const image = { id: ids[0], mime: 'image/png', width: 8000, height: 1, bytes: CHAT_IMAGE_MAX_BYTES }
+    expect(chatImageRefSchema.parse(image)).toEqual(image)
+    for (const invalid of [{ ...image, mime: 'image/gif' }, { ...image, width: 8001 }, { ...image, height: 0 }, { ...image, bytes: CHAT_IMAGE_MAX_BYTES + 1 }, { ...image, path: 'x' }]) {
+      expect(chatImageRefSchema.safeParse(invalid).success).toBe(false)
+    }
   })
 })
 
@@ -90,7 +141,7 @@ describe('agent chat events and snapshots', () => {
   })
 
   it('fixes channel and protocol/tool names for all consumers', () => {
-    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention'].map(name => [name, `agentChat:${name}`])))
+    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence'].map(name => [name, `agentChat:${name}`])))
     expect(GUI_PROTOCOL_KINDS).toEqual(['omp', 'claude'])
     expect(TODO_TOOL_NAMES).toEqual(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'])
   })

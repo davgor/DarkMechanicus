@@ -113,6 +113,29 @@ describe('chatItemSchema: stopped turns and cancelled calls', () => {
   })
 })
 
+describe('chatItemSchema: image refs', () => {
+  const image = { id: 'ci_01m8ec59dbq52ydhsy6ry7knhv', mime: 'image/png', width: 1280, height: 720, bytes: 40_960 }
+  const message = { ...BASE, kind: 'user_message', text: 'See this' }
+  const call = { ...BASE, kind: 'tool_call', name: 'screenshot', input: {}, status: 'completed', resultSummary: 'Captured' }
+
+  it('reads a user message and a tool call with and without images', () => {
+    for (const item of [message, call]) {
+      expect(chatItemSchema.parse(item)).toEqual(item)
+      expect(chatItemSchema.parse({ ...item, images: [image] })).toEqual({ ...item, images: [image] })
+      expect(chatItemSchema.parse({ ...item, images: Array(8).fill(image) })).toHaveProperty('images.length', 8)
+      expect(chatItemSchema.safeParse({ ...item, images: Array(9).fill(image) }).success).toBe(false)
+      expect(chatItemSchema.safeParse({ ...item, images: [{ ...image, path: 'C:\\shot.png' }] }).success).toBe(false)
+      expect(chatItemSchema.safeParse({ ...item, images: [{ ...image, mime: 'image/webp' }] }).success).toBe(false)
+    }
+    expect(chatItemSchema.parse({ ...message, text: '', images: [image] })).toHaveProperty('text', '')
+  })
+
+  it('still reads a legacy stored line with no images', () => {
+    const line = '{"id":"it_9","at":"2025-06-01T10:00:00.000Z","kind":"user_message","text":"hello"}'
+    expect(chatItemSchema.parse(JSON.parse(line))).toEqual({ id: 'it_9', at: '2025-06-01T10:00:00.000Z', kind: 'user_message', text: 'hello' })
+  })
+})
+
 describe('chatItemSchema: nested threads', () => {
   const thread = { ...BASE, id: 'th_1', kind: 'thread', parentItemId: 'call_1', label: 'Summarize a.txt', state: 'running' }
 

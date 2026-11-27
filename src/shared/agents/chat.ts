@@ -36,6 +36,26 @@ export function canSavePlans(role: ChatRole): boolean {
 /** Chat ids name files on disk, so they are restricted to filesystem-safe characters. */
 export const chatIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/)
 
+/** The largest chat image: the same limit as a stored attachment (`MAX_IMAGE_BYTES` in core attachment intake). */
+export const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+/** The id main gives an image it holds for a chat: `ci_` and a lower-case ULID. */
+export const chatImageIdSchema = z.string().regex(/^ci_[0-9a-hjkmnp-tv-z]{26}$/)
+
+/** An image main holds for a chat, as a transcript item names it: the id and what main measured, never bytes or a path. */
+export const chatImageRefSchema = z.strictObject({
+  id: chatImageIdSchema,
+  mime: z.enum(['image/png', 'image/jpeg']),
+  width: z.number().int().min(1).max(8000),
+  height: z.number().int().min(1).max(8000),
+  bytes: z.number().int().min(1).max(CHAT_IMAGE_MAX_BYTES)
+})
+
+export type ChatImageRef = z.infer<typeof chatImageRefSchema>
+
+/** The images on one transcript item; absent on every item stored before chats took images. */
+const itemImages = z.array(chatImageRefSchema).max(8).optional()
+
 const timestampSchema = z.string().min(1)
 
 export const chatRecordSchema = z.object({
@@ -168,7 +188,7 @@ export type ErrorProblem = (typeof ERROR_PROBLEMS)[number]
 export const IDLE_STOP_CODE = 'idle_stop'
 
 export const chatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string() }),
+  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string(), images: itemImages }),
   /** Streamed as deltas while the agent writes; stored once, whole. */
   z.object({ ...itemBase, kind: z.literal('assistant_text'), text: z.string() }),
   z.object({
@@ -178,7 +198,9 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     /** The call's input, summarized by the adapter to what is worth showing. */
     input: toolInputSchema,
     status: z.enum(TOOL_CALL_STATUSES),
-    resultSummary: z.string().nullable()
+    resultSummary: z.string().nullable(),
+    /** Screenshots the call produced, held by main for the chat. */
+    images: itemImages
   }),
   z.object({
     ...itemBase,
