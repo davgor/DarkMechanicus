@@ -110,6 +110,26 @@ describe('browser driver read', () => {
   })
 })
 
+describe('browser driver read password descendants', () => {
+  it('drops the text inside a password field even when Chromium does not flag it editable', async () => {
+    const { driver, dbg } = rig()
+    const variant = structuredClone(axTree) as { nodes: { nodeId: string; parentId?: string; name?: { value?: unknown }; properties?: { name: string }[] }[] }
+    // Node 28 is the bullet StaticText under the password field's inner generic (11 -> 12 -> 28); its inline box is -1000000004.
+    const inner = variant.nodes.filter((node) => node.nodeId === '28' || node.nodeId === '-1000000004')
+    expect(inner).toHaveLength(2)
+    for (const node of inner) {
+      node.properties = []
+      node.name = { value: 'fixture-password-0123456789' }
+    }
+    dbg.handlers['Accessibility.getFullAXTree'] = () => variant
+    for (const mode of ['tree', 'text'] as const) {
+      const { content } = await driver.read({ mode })
+      expect(content).toBe(mode === 'tree' ? TREE_GOLDEN : TEXT_GOLDEN)
+      expect(content).not.toContain('fixture-password')
+    }
+  })
+})
+
 describe('browser driver read redaction and clipping', () => {
   it('never returns a password value, its bullets or its length', async () => {
     const { driver } = rig()

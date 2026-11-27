@@ -139,7 +139,7 @@ class Driver implements BrowserDriver {
         })
         if (password) passwords.add(id)
       }
-      return this.project(nodes, passwords, args)
+      return this.project(nodes.filter((node) => !insidePassword(node, byId, passwords)), passwords, args)
     })
   }
 
@@ -338,6 +338,19 @@ function listedText(node: AxNode, name: string, byId: ReadonlyMap<string, AxNode
   if (name === '' || node.properties?.some((property) => property.name === 'editable') === true) return false
   const parent = node.parentId === undefined ? undefined : byId.get(node.parentId)
   return parent === undefined || nameOf(parent) !== name
+}
+
+/**
+ * Whether any ancestor is a password field. Its descendants (the inner text holding the bullets) are dropped whatever
+ * Chromium's `editable` flag says; the walk is bounded by the node count so a malformed parent cycle cannot loop.
+ */
+function insidePassword(node: AxNode, byId: ReadonlyMap<string, AxNode>, passwords: ReadonlySet<number>): boolean {
+  let parent = node.parentId === undefined ? undefined : byId.get(node.parentId)
+  for (let steps = 0; parent !== undefined && steps < byId.size; steps += 1) {
+    if (parent.backendDOMNodeId !== undefined && passwords.has(parent.backendDOMNodeId)) return true
+    parent = parent.parentId === undefined ? undefined : byId.get(parent.parentId)
+  }
+  return false
 }
 
 function textLine(node: AxNode, password: boolean): string | null {
