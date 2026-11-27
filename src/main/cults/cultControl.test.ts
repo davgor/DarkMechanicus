@@ -159,7 +159,8 @@ const ARGS: Readonly<Record<string, object>> = {
   cult_order_all: { body: 'Kneel.' },
   cult_conclude_run: { chronicle: 'It is done.' },
   cult_conclude_service: { report: 'It is done.' },
-  cult_create_worker_type: { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false }
+  cult_create_worker_type: { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false },
+  cult_record_synthesis: { draftRevision: 1, recommendations: [{ workerType: 'security', recommendation: 'Hold.', decision: 'accepted', reason: 'Sound.' }] }
 }
 
 describe('cult control: the caller comes only from its bound grant (c3)', () => {

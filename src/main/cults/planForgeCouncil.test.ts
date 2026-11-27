@@ -210,6 +210,21 @@ describe('Plan Forge council: binding and coverage (c1)', () => {
   })
 })
 
+/** The Magos fixes the invalid draft; after a synthesis of that edit the valid, unsaved draft concludes the run. */
+async function fixAndConclude(run: CultRunView, magos: Member, epicId: string, ticketId: string): Promise<void> {
+  const fixed = await magosEdit(run, magos, epicId, [
+    { op: 'update_sprint', sprint: '1', patch: { goal: 'Ship the forged plan', deploymentVerification: 'Open the forged plan in the desktop app.' } },
+    { op: 'update_ticket', ticket: ticketId, patch: { testCases: [testCase] } }
+  ])
+  expect(await call(magos, 'cult_conclude_run', { chronicle: 'Done.' })).toMatchObject(refusal('synthesis_missing'))
+  await data(synthesis(magos, fixed.draftRevision, FIXED))
+  expect(await planForgeStatus(magos)).toEqual({ state: 'valid', missingFixed: [], missingCreated: [] })
+  expect(await data(call(magos, 'cult_conclude_run', { chronicle: 'Forged.' }))).toEqual({ concluding: 'run' })
+  expect(f.h.cults.getRun(run.id)!.chronicle).toBe('Forged.')
+  // Concluding never saves: the target keeps its unsaved draft and no saved revision.
+  expect(await desk().getEpic({ epicId })).toMatchObject({ currentRevisionNumber: null, draftRevision: fixed.draftRevision })
+}
+
 describe('Plan Forge council: synthesis and real validation (c2, c3)', () => {
   it('needs a synthesis of the Magos edit, refuses an invalid draft with its errors, then concludes the valid unsaved draft', async () => {
     const { epicId, run, magos } = await planForge({}, async () => {
@@ -228,17 +243,7 @@ describe('Plan Forge council: synthesis and real validation (c2, c3)', () => {
     expect(await planForgeStatus(magos)).toEqual({ state: 'invalid', missingFixed: [], missingCreated: [] })
     expect(f.h.cults.getRun(run.id)).toMatchObject({ state: 'running', chronicle: null })
 
-    const fixed = await magosEdit(run, magos, epicId, [
-      { op: 'update_sprint', sprint: '1', patch: { goal: 'Ship the forged plan', deploymentVerification: 'Open the forged plan in the desktop app.' } },
-      { op: 'update_ticket', ticket: invalid.refMap['a']!, patch: { testCases: [testCase] } }
-    ])
-    expect(await call(magos, 'cult_conclude_run', { chronicle: 'Done.' })).toMatchObject(refusal('synthesis_missing'))
-    await data(synthesis(magos, fixed.draftRevision, FIXED))
-    expect(await planForgeStatus(magos)).toEqual({ state: 'valid', missingFixed: [], missingCreated: [] })
-    expect(await data(call(magos, 'cult_conclude_run', { chronicle: 'Forged.' }))).toEqual({ concluding: 'run' })
-    expect(f.h.cults.getRun(run.id)!.chronicle).toBe('Forged.')
-    // Concluding never saves: the target keeps its unsaved draft and no saved revision.
-    expect(await desk().getEpic({ epicId })).toMatchObject({ currentRevisionNumber: null, draftRevision: fixed.draftRevision })
+    await fixAndConclude(run, magos, epicId, invalid.refMap['a']!)
     expect(f.h.cults.latestSynthesis(run.id)!.recommendations.map((item) => [item.workerType, item.decision, item.reason])).toEqual(
       FIXED.map((type, index) => [type, index % 2 === 0 ? 'accepted' : 'rejected', `Weighed against the plan: ${type}.`]))
   })

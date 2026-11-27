@@ -24,7 +24,7 @@ import type { CultMemberView, CultRunView, SpecialistReportView } from '../../sh
 import type { CultRecordSynthesisArgs, PlanForgeStatus } from '../../shared/cults/cultControl'
 import type { ValidationIssue } from '../../shared/domain/views'
 import type { ProjectWorkspace } from '../desktop/workspaceClient'
-import type { PlanBinding } from './cultPlanRecords'
+import type { PlanBinding, SynthesisView } from './cultPlanRecords'
 import type { CultStore } from './cultStore'
 
 export interface PlanForgeCouncilDeps {
@@ -92,9 +92,8 @@ function changedOutside(binding: PlanBinding, trace: PlanTrace, magos: ReadonlyS
   return trace.savedRevision !== binding.savedRevision && !trace.changes.some((change) => change.kind === 'plan.save_requested')
 }
 
-/** True unless the latest synthesis is of the current draft revision, which a Magos edit wrote, and names every required type. */
-function synthesisMissing(deps: PlanForgeCouncilDeps, run: CultRunView, required: readonly RequiredType[], trace: PlanTrace, magos: ReadonlySet<string>): boolean {
-  const synthesis = deps.cults.latestSynthesis(run.id)
+/** True unless the synthesis is of the current draft revision, which a Magos edit wrote, and names every required type. */
+function synthesisMissing(synthesis: SynthesisView | null, required: readonly RequiredType[], trace: PlanTrace, magos: ReadonlySet<string>): boolean {
   if (synthesis === null || synthesis.draftRevision !== trace.draftRevision) return true
   const edited = trace.changes.some((change) => change.kind === 'draft.updated' && change.draftRevision === synthesis.draftRevision && magos.has(change.grantId ?? ''))
   const named = new Set(synthesis.recommendations.map((item) => item.workerType))
@@ -112,7 +111,7 @@ async function evaluate(deps: PlanForgeCouncilDeps, run: CultRunView): Promise<E
   const magos = magosGrants(deps, run)
   if (changedOutside(binding, trace, magos)) return at('stale')
   if (missing.missingFixed.length + missing.missingCreated.length > 0) return at('collecting')
-  if (synthesisMissing(deps, run, required, trace, magos)) return at('resolving')
+  if (synthesisMissing(deps.cults.latestSynthesis(run.id), required, trace, magos)) return at('resolving')
   const report = await workspace.validatePlan({ epicId: binding.epicId, view: 'draft' })
   return report.valid ? at('valid') : at('invalid', report.errors)
 }
