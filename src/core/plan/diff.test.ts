@@ -512,3 +512,42 @@ describe('computeChanges for ticket images', () => {
     expect(computeChanges(next, base)).toEqual([])
   })
 })
+
+describe('computeChanges for sprint delivery', () => {
+  const base = makeBundle([[1], [2]])
+  const delivering = edited(base, (copy) => {
+    copy.sprints[0].delivery = { target: 'main', release: false, verifyInstalled: false }
+  })
+
+  it('phrases adding a delivery as one edited sprint', () => {
+    expect(computeChanges(base, delivering)).toEqual([
+      { kind: 'edited', target: 'sprint', id: sid(1), label: 'Sprint 1', detail: 'delivery none → main' }
+    ])
+  })
+
+  it('phrases changing a delivery with the checks it asks for', () => {
+    const released = edited(delivering, (copy) => {
+      copy.sprints[0].delivery = { target: 'release/1', release: true, verifyInstalled: true }
+    })
+    expect(details(delivering, released)).toEqual(['edited sprint: delivery main → release/1 · release · verify installed'])
+    const releaseOnly = edited(released, (copy) => {
+      copy.sprints[0].delivery = { target: 'release/1', release: true, verifyInstalled: false }
+    })
+    expect(details(released, releaseOnly)).toEqual([
+      'edited sprint: delivery release/1 · release · verify installed → release/1 · release'
+    ])
+  })
+
+  it('phrases removing a delivery as one edited sprint', () => {
+    const removed = edited(delivering, (copy) => {
+      delete copy.sprints[0].delivery
+    })
+    expect(computeChanges(delivering, removed)).toEqual([
+      { kind: 'edited', target: 'sprint', id: sid(1), label: 'Sprint 1', detail: 'delivery main → none' }
+    ])
+  })
+
+  it('reports nothing for an unchanged delivery', () => {
+    expect(computeChanges(delivering, structuredClone(delivering))).toEqual([])
+  })
+})
