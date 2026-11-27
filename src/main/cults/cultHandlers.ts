@@ -76,7 +76,7 @@ const pipelineSchema = z.strictObject({ afterSeq: z.number().int().min(0).option
 
 export interface CultHandlerDeps {
   cults: Pick<CultStore, 'getCult' | 'listCults' | 'createCult' | 'updateCult' | 'listRuns' | 'getRun' | 'listMembers' | 'listPetitions' | 'slotCoverage' | 'listWorkerTypes' | 'listReports' | 'latestSynthesis'>
-  supervisor: Pick<CultSupervisor, 'start' | 'pause' | 'resume' | 'stop' | 'killNow' | 'raiseCap' | 'decidePetition' | 'dismissAcolyte' | 'endRun' | 'on'>
+  supervisor: Pick<CultSupervisor, 'start' | 'pause' | 'resume' | 'stop' | 'killNow' | 'raiseCap' | 'decidePetition' | 'dismissAcolyte' | 'endRun' | 'on' | 'snapshot'>
   launcher: Pick<CultLauncher, 'deleteCult'>
   /** The Folders registry only: a sanctum is never a folder the renderer may name. */
   folders: { resolve(path: string): string | null }
@@ -214,7 +214,7 @@ async function deleteCult(deps: CultHandlerDeps, cultId: unknown): Promise<null>
 function runsOf(deps: CultHandlerDeps, cultId: unknown): CultRunDetail[] {
   const cult = requireCult(deps, cultId)
   return deps.cults.listRuns(cult.id).map((run) =>
-    runDetail(deps, { run, members: deps.cults.listMembers(run.id), petitions: deps.cults.listPetitions(run.id) }))
+    runDetail(deps, deps.supervisor.snapshot(run.id)))
 }
 
 function pipeline(runId: unknown, request: unknown): never {

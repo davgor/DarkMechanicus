@@ -79,10 +79,21 @@ export interface CultCatalogView {
  */
 type MemberTypeOrigin = 'definition_slot' | 'magos_created' | null
 
+/** What a live member is doing (`docs/design/cults.md` section 8); the renderer phrases it. */
+export interface MemberActivity {
+  working: boolean
+  /** The last tool call: its name lower-cased and a reduced target (at most 80 characters, never the raw input). */
+  tool: { name: string; target: string } | null
+  /** When this activity was published, ISO. */
+  at: string
+}
+
 export interface CultMemberDetail extends CultMemberView {
   typeOrigin: MemberTypeOrigin
   /** Whether the member has submitted a specialist report. */
   reported: boolean
+  /** Null for a member not tracked live (not yet read, left, or the run ended). */
+  activity: MemberActivity | null
 }
 
 /** A run-scoped type the Magos created (never from the renderer), with who holds it and its report state. */
