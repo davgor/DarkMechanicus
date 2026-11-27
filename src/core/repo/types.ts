@@ -78,8 +78,8 @@ export interface GitAdapter {
   listLocalBranches(): Promise<string[]>
   /** Absolute paths of this repository's worktrees, main checkout first (`git worktree list --porcelain`); empty when git is unavailable. */
   listWorktrees(): Promise<string[]>
-  /** Paths tracked at `ref` under `pathspec` (no checkout switch). */
-  listFiles(ref: string, pathspec: string): Promise<string[]>
+  /** Paths tracked at `ref` under `pathspec` (no checkout switch); null when git cannot list them (unknown ref, git unavailable). */
+  listFiles(ref: string, pathspec: string): Promise<string[] | null>
   /** File contents at `ref`, or null when absent. */
   showFile(ref: string, path: string): Promise<string | null>
   /**

@@ -153,12 +153,13 @@ describe('GitAdapter.listWorktrees', () => {
     expect(await createGitAdapter(ROOT, { runGit: fakeRun(128, '').runGit }).listWorktrees()).toEqual([])
   })
 
-  it('lists files at a ref without switching the checkout', async () => {
+  it('lists files at a ref without switching the checkout, and null when git fails', async () => {
     const run = fakeRun(0, '.darkmechanicus/epics/a/current.json\n.darkmechanicus/epics/a/state.json\n')
     const files = await createGitAdapter(ROOT, { runGit: run.runGit }).listFiles('feature/x', '.darkmechanicus/epics')
     expect(files).toEqual(['.darkmechanicus/epics/a/current.json', '.darkmechanicus/epics/a/state.json'])
     expect(run.calls).toEqual([['ls-tree', '-r', '--name-only', 'feature/x', '--', '.darkmechanicus/epics']])
-    expect(await createGitAdapter(ROOT, { runGit: fakeRun(128, 'x\n').runGit }).listFiles('gone', '.darkmechanicus')).toEqual([])
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(128, 'x\n').runGit }).listFiles('gone', '.darkmechanicus')).toBeNull()
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(0, '').runGit }).listFiles('main', 'absent')).toEqual([])
   })
 
   it('shows a file at a ref relative to the repository root, or null when absent', async () => {
