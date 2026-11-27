@@ -15,7 +15,7 @@ import {
   type RunStartInput,
   runStartSchema
 } from '../../shared/cults/cult'
-import { denyPendingPetitions, type RunEvent, RunTransitionError, transition } from '../../shared/cults/runState'
+import { denyPendingPetitions, MAX_CAP, type RunEvent, RunTransitionError, transition } from '../../shared/cults/runState'
 import {
   findCult,
   insertEvent,
@@ -209,6 +209,17 @@ function defaultSummary(event: RunEvent): string {
   if (event.type === 'shutdown') return `Shutdown started (${event.reason}).`
   if (event.type === 'abort') return `Run ended (${event.reason}).`
   return event.type === 'finish' ? 'Run ended.' : `Run ${EVENT_OF[event.type]}.`
+}
+
+/** Raises a running or paused run's acolyte cap; never lowers it, never past the ceiling. */
+export function raiseCap(ctx: StoreContext, runId: string, cap: number): CultRunView {
+  return ctx.db.tx(() => {
+    const run = requireRun(ctx.db, runId)
+    if (run.state !== 'running' && run.state !== 'paused') fail('invalid_state', `Cannot raise the cap while the cult run is ${run.state.replace('_', ' ')}.`)
+    if (!Number.isInteger(cap) || cap <= run.cap || cap > MAX_CAP) fail('invalid_input', `The new cap must be a whole number above ${run.cap} and at most ${MAX_CAP}.`)
+    ctx.db.run('UPDATE cult_runs SET cap = ? WHERE id = ?', cap, runId)
+    return toRunView(requireRun(ctx.db, runId))
+  })
 }
 
 /** Records the run's chronicle text (inert). */

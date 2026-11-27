@@ -49,6 +49,8 @@ export interface CultStore {
   transitionRun(runId: string, event: RunEvent, summary?: string): CultRunView
   setChronicle(runId: string, chronicle: string): CultRunView
   recordShrine(runId: string, shrine: { path: string; revision: string }): CultRunView
+  /** Raises a running or paused run's cap (never lowers it). */
+  raiseCap(runId: string, cap: number): CultRunView
   getRun(runId: string): CultRunView | null
   /** Newest first. */
   listRuns(cultId?: string): CultRunView[]
@@ -93,6 +95,7 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     transitionRun: (runId, event, summary) => runs.transitionRun(ctx, runId, event, summary),
     setChronicle: (runId, chronicle) => runs.setChronicle(ctx, runId, chronicle),
     recordShrine: (runId, shrine) => runs.recordShrine(ctx, runId, shrine),
+    raiseCap: (runId, cap) => runs.raiseCap(ctx, runId, cap),
     getRun: (runId) => runs.getRun(ctx, runId),
     listRuns: (cultId) => runs.listRuns(ctx, cultId),
     activeRunsOnStartup: () => runs.activeRunsOnStartup(ctx),
