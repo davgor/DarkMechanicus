@@ -129,6 +129,19 @@ describe('createNotifier dedupe bound, sound and text', () => {
     expect(FakeNotification.instances).toHaveLength(502)
   })
 
+  it('keeps its dedupe in memory only: after a restart the same key shows again', () => {
+    const checkpoint = event({ kind: 'checkpoint_ready', key: 'checkpoint_ready:rn_1' })
+    const before = harness()
+    before.notifier.notify(checkpoint)
+    before.notifier.notify(checkpoint)
+    before.notifier.dispose()
+    expect(FakeNotification.instances).toHaveLength(1)
+    const after = harness()
+    after.notifier.notify(checkpoint)
+    expect(FakeNotification.instances).toHaveLength(1)
+    expect(FakeNotification.instances[0]?.shown).toBe(true)
+  })
+
   it('sets silent from the sound setting', () => {
     const h = harness({ settings: { sound: true } })
     h.notifier.notify(event({ key: 'a' }))
