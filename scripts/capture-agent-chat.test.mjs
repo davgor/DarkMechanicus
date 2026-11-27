@@ -11,6 +11,7 @@ import {
   STATES,
   STATE_DEADLINE_MS,
   electronEnv,
+  mediaOf,
   parseArgs,
   previewBuildConfig,
   runFailures,
@@ -45,14 +46,24 @@ const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servi
 const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 const HELD = 'Sprint 1 delivery to main: the latest check failed'
 const PLAN = { agentChatRegion: false, railWidth: null, railRightOfStage: null }
-/** The agent-glass state's computed glass, as Chromium reports the shipped tokens. */
+const FROSTED = { background: 'rgba(33, 27, 24, 0.7)', alpha: 0.7, backdropFilter: 'blur(16px) saturate(1.2)' }
+/** The glass states' computed glass, as Chromium reports the shipped tokens: --glass-bg panes, the --glass-bg-pane transcript. */
 const GLASS = {
   backdrop: 'radial-gradient(75% 85% at 85% 0%, rgba(214, 155, 74, 0.28), rgba(0, 0, 0, 0) 70%), '
     + 'radial-gradient(70% 85% at 0% 100%, rgba(181, 26, 31, 0.3), rgba(0, 0, 0, 0) 70%), none',
-  rail: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
-  card: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
-  transcript: { background: 'rgba(21, 18, 17, 0.9)', backdropFilter: 'blur(16px) saturate(1.2)' }
+  reducedTransparency: false,
+  header: FROSTED,
+  rail: FROSTED,
+  card: FROSTED,
+  transcript: { background: 'rgba(21, 18, 17, 0.5)', alpha: 0.5, backdropFilter: 'blur(16px) saturate(1.2)' }
 }
+/** The folder chat's glass states, outside the epic workspace, with the Chat agents rail open. */
+const CHAT_GLASS = {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: 280, railRightOfStage: true, glass: { ...GLASS, card: null }
+}
+const PANEL = { background: 'rgb(40, 33, 29)', alpha: 1, backdropFilter: 'none' }
+/** agent-glass-solid under emulated reduced transparency: every pane the fallback's --panel-2. */
+const SOLID_GLASS = { ...CHAT_GLASS, glass: { ...GLASS, reducedTransparency: true, header: PANEL, rail: PANEL, card: null, transcript: PANEL } }
 const ROLE_CARD = { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)', artWidth: 160, artHeight: 160, clipped: false }
 /** The agent-role-picker state's two cards, Magos checked, as the preview measures them. */
 const ROLE_CARDS = [
@@ -161,9 +172,10 @@ function passingDeliveryStates() {
 
 /**
  * Passing records for the rail states: the tree, the collapsed rail, the landings that expand it on their own, and
- * the glass rail beside a docked approval card.
+ * the frosted glass of the folder chat and the epic Agent tab, and the solid panes under reduced transparency.
  */
 function passingRailStates() {
+  const epicGlass = (state) => ready(state, { cardHeading: 'Acolyte:DM-442 wants to run: npm test', agentTabs: AGENT_TABS, glass: GLASS })
   return {
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
@@ -171,7 +183,11 @@ function passingRailStates() {
     'landing-activity': ready('landing-activity', {
       treeRows: TREE.map((entry) => entry.name === 'Acolyte:DM-1' ? { ...entry, selected: true } : entry)
     }),
-    'agent-glass': ready('agent-glass', { cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: GLASS })
+    'agent-glass-1024': ready('agent-glass-1024', CHAT_GLASS),
+    'agent-glass-1440': ready('agent-glass-1440', CHAT_GLASS),
+    'agent-glass-solid': ready('agent-glass-solid', SOLID_GLASS),
+    'epic-agent-glass-1024': epicGlass('epic-agent-glass-1024'),
+    'epic-agent-glass-1440': epicGlass('epic-agent-glass-1440')
   }
 }
 
@@ -351,26 +367,27 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 49 states once each, in capture order', () => {
+  it('lists the 53 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
+      'agent-planners', 'chat-rail-legacy', 'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024',
+      'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
       'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
       'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
       'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
       'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(49)
+    expect(new Set(STATES).size).toBe(53)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
   it('captures the full Sprint 3 image and polish set, each state once', () => {
     expect(S3_STATES).toEqual([
-      'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
-      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
-      'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
+      'chat-images', 'image-result', 'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript',
+      'agent-worked-for', 'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
+      'mail-card', 'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
     ])
     expect(S3_STATES.filter((state) => !STATES.includes(state))).toEqual([])
     expect(new Set(S3_STATES).size).toBe(S3_STATES.length)
@@ -383,9 +400,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 750 s overall bound: 49 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 810 s overall bound: 53 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(750_000)
+    expect(OVERALL_LIMIT_MS).toBe(810_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -801,17 +818,65 @@ describe('capture-agent-chat: per-state observations', () => {
   })
 })
 
-describe('capture-agent-chat: agent-glass observations', () => {
-  it('requires agent-glass to show the glows, a frosted rail and card, and a near-solid transcript', () => {
-    const glass = (patch) => validateObservations('agent-glass', ready('agent-glass', {
-      cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: { ...GLASS, ...patch }
-    }))
-    expect(glass({ backdrop: 'none' })).toEqual(['agent-glass: expected the stage paints the brass and crimson radial glows; got none'])
-    expect(glass({ rail: { background: 'rgb(40, 33, 29)', backdropFilter: 'none' } }))
-      .toEqual(['agent-glass: expected the open rail is frosted glass; got {"background":"rgb(40, 33, 29)","backdropFilter":"none"}'])
-    expect(glass({ card: { background: 'rgba(33, 27, 24, 0.95)', backdropFilter: 'blur(16px) saturate(1.2)' } })).toHaveLength(1)
-    expect(glass({ transcript: { background: 'rgba(21, 18, 17, 0.5)', backdropFilter: 'none' } })).toHaveLength(1)
-    expect(validateObservations('agent-glass', ready('agent-glass'))).toHaveLength(4)
+const withGlass = (record, patch) => ({ ...record, glass: { ...record.glass, ...patch } })
+/** A glass state's problems with its passing record's glass (and other fields) patched. */
+const chatGlass = (state, patch = {}, extra = {}) => validateObservations(state, ready(state, { ...withGlass(CHAT_GLASS, patch), ...extra }))
+const epicGlass = (state, patch = {}, extra = {}) => validateObservations(state, ready(state, {
+  cardHeading: 'Acolyte:DM-442 wants to run: npm test', agentTabs: AGENT_TABS, glass: { ...GLASS, ...patch }, ...extra
+}))
+const solidGlass = (patch = {}) => validateObservations('agent-glass-solid', ready('agent-glass-solid', withGlass(SOLID_GLASS, patch)))
+
+describe('capture-agent-chat: folder chat glass states', () => {
+  it('takes the folder and epic glass at 1024x768 and 1440x900, and agent-glass-solid alone under reduced transparency', () => {
+    expect(viewportOf('agent-glass-1024')).toEqual({ width: 1024, height: 768 })
+    expect(viewportOf('epic-agent-glass-1440')).toEqual({ width: 1440, height: 900 })
+    expect(mediaOf('agent-glass-solid')).toEqual([{ name: 'prefers-reduced-transparency', value: 'reduce' }])
+    expect(STATES.filter((state) => mediaOf(state).length > 0)).toEqual(['agent-glass-solid'])
+  })
+
+  it('passes a frosted header, rail and transcript pane over the glows in the folder chat and the epic Agent tab', () => {
+    for (const state of ['agent-glass-1024', 'agent-glass-1440']) expect(chatGlass(state)).toEqual([])
+    for (const state of ['epic-agent-glass-1024', 'epic-agent-glass-1440']) expect(epicGlass(state)).toEqual([])
+    expect(solidGlass()).toEqual([])
+  })
+
+  it('fails a glass state for missing glows, reduced transparency, a closed rail, or a pane that is solid, too opaque or reports no alpha', () => {
+    expect(chatGlass('agent-glass-1024', { backdrop: 'none' })).toEqual(['agent-glass-1024: expected the stage paints the brass and crimson radial glows; got none'])
+    expect(chatGlass('agent-glass-1024', { reducedTransparency: true })).toEqual(['agent-glass-1024: expected transparency is not reduced; got true'])
+    expect(chatGlass('agent-glass-1440', {}, { railWidth: null, railRightOfStage: null }))
+      .toEqual(['agent-glass-1440: expected the rail is open at 280 px right of the chat; got [null,null]'])
+    expect(chatGlass('agent-glass-1440', { header: PANEL })).toEqual([
+      'agent-glass-1440: expected the chat header is frosted glass (a blur, alpha 0.72 or less) and reports its alpha; got {"background":"rgb(40, 33, 29)","alpha":1,"backdropFilter":"none"}'
+    ])
+    expect(chatGlass('agent-glass-1440', { transcript: { ...GLASS.transcript, background: 'rgba(21, 18, 17, 0.9)', alpha: 0.9 } }))
+      .toEqual([expect.stringMatching(/^agent-glass-1440: expected the transcript pane is frosted glass/)])
+    expect(chatGlass('agent-glass-1024', { rail: { ...FROSTED, alpha: null } }))
+      .toEqual([expect.stringMatching(/^agent-glass-1024: expected the agent rail is frosted glass/)])
+    expect(validateObservations('agent-glass-1024', ready('agent-glass-1024'))).toHaveLength(5)
+  })
+})
+
+describe('capture-agent-chat: epic and reduced-transparency glass states', () => {
+  it('fails the epic glass unless the Magos tab is selected and joined to the header and the docked card is frosted', () => {
+    const [magos, planner] = AGENT_TABS.tabs
+    const tabs = (patch) => epicGlass('epic-agent-glass-1024', {}, { agentTabs: { ...AGENT_TABS, ...patch } })
+    expect(tabs({ activeJoined: false })).toEqual([expect.stringMatching(/^epic-agent-glass-1024: expected the Magos tab is selected and joined to the glass header/)])
+    expect(tabs({ tabs: [{ ...magos, name: 'Magos, working' }, planner] })).toEqual([])
+    expect(tabs({ tabs: [{ ...magos, selected: false }, { ...planner, selected: true }] })).toHaveLength(1)
+    expect(epicGlass('epic-agent-glass-1440', { card: PANEL })).toEqual([expect.stringMatching(/^epic-agent-glass-1440: expected the docked approval card is frosted glass/)])
+    expect(epicGlass('epic-agent-glass-1440', { transcript: PANEL })).toHaveLength(1)
+    expect(validateObservations('epic-agent-glass-1440', ready('epic-agent-glass-1440'))).toHaveLength(7)
+  })
+
+  it('requires agent-glass-solid to match reduced transparency with every pane opaque and unblurred', () => {
+    expect(solidGlass({ reducedTransparency: false })).toEqual(['agent-glass-solid: expected the page matches reduced transparency; got false'])
+    expect(solidGlass({ header: FROSTED })).toEqual([
+      'agent-glass-solid: expected the chat header is a solid panel (alpha 1, no backdrop filter) and reports its alpha; got {"background":"rgba(33, 27, 24, 0.7)","alpha":0.7,"backdropFilter":"blur(16px) saturate(1.2)"}'
+    ])
+    expect(solidGlass({ transcript: { ...PANEL, backdropFilter: 'blur(16px) saturate(1.2)' } }))
+      .toEqual([expect.stringMatching(/^agent-glass-solid: expected the transcript pane is a solid panel/)])
+    expect(solidGlass({ rail: { ...PANEL, alpha: null } })).toEqual([expect.stringMatching(/^agent-glass-solid: expected the agent rail is a solid panel/)])
+    expect(validateObservations('agent-glass-solid', ready('agent-glass-solid'))).toHaveLength(4)
   })
 })
 

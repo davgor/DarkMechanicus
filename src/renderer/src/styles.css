@@ -57,11 +57,14 @@
   /* Lens green: brand glow only; the running state shares it */
   --lens: #84c20a;
 
-  /* Glass: frosted panels over a brass/crimson glow on the Agent surface. --glass-bg is a --panel tint for the rail,
-     docked prompt cards and composer; --glass-bg-strong is a near-solid --bg tint for text-bearing surfaces (the
-     transcript). styles.test.ts holds --ink and --muted on both, over the brightest point of --agent-backdrop, to 4.5:1. */
+  /* Glass: frosted panels over a brass/crimson glow on the Agent surface. --glass-bg is a --panel tint for the chat
+     header, rail, docked prompt cards and composer; --glass-bg-strong is a near-solid --bg tint for menus and cards that
+     float over the transcript; --glass-bg-pane is the transcript pane's --bg tint, the lowest that keeps --muted at
+     4.5:1, so the backdrop shows through it (the pane sets --glass-bg-strong to it). styles.test.ts holds --ink and
+     --muted on each, over the brightest point of --agent-backdrop, to 4.5:1. */
   --glass-bg: rgba(33, 27, 24, 0.7);
   --glass-bg-strong: rgba(21, 18, 17, 0.9);
+  --glass-bg-pane: rgba(21, 18, 17, 0.5);
   --glass-edge: rgba(242, 215, 174, 0.12);
   --glass-blur: 16px;
   --glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);

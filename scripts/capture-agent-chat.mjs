@@ -24,16 +24,21 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
+  'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024', 'epic-agent-glass-1440',
+  'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
   'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'image-result', 'agent-image-viewer',
   'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
   'new-chat-model', 'start-run-model', 'lexmechanic-model',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
-/** The Sprint 3 image and polish states every capture run must write, as the review asks for them. */
+/**
+ * The Sprint 3 image and polish states every capture run must write, as the review asks for them. Sprint 3's
+ * agent-glass (the epic stage's glass) is captured as epic-agent-glass-1440 since the folder chat took that name.
+ */
 export const S3_STATES = Object.freeze([
-  'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
+  'chat-images', 'image-result', 'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript',
+  'agent-worked-for',
   'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
   'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
 ])
@@ -46,8 +51,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 49 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 750_000
+/** A declared bound once the preview is built: 53 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 810_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -63,6 +68,14 @@ const baseState = (state) => state.replace(SIZE_SUFFIX, '')
 export function viewportOf(state, viewport = DEFAULT_VIEWPORT) {
   const match = SIZE_SUFFIX.exec(state)
   return match === null ? viewport : SIZED[match[1]]
+}
+
+/**
+ * The CSS media features a state is captured under, for CDP `Emulation.setEmulatedMedia`: a `-solid` state emulates
+ * reduced transparency, every other none.
+ */
+export function mediaOf(state) {
+  return state.endsWith('-solid') ? [{ name: 'prefers-reduced-transparency', value: 'reduce' }] : []
 }
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -109,7 +122,7 @@ const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 const CHAT_STATES = new Set([
   'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'chat-images', 'agent-transcript', 'agent-worked-for',
   'image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker',
-  'new-chat-model'
+  'new-chat-model', 'agent-glass', 'agent-glass-solid'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(baseState(state))))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -129,6 +142,21 @@ const alphaOf = (color) => {
 /** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
 const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
   && alphaOf(surface?.background) <= 0.72
+/** A solid surface, as the glass fallbacks paint it: an opaque background and no backdrop filter. */
+const solid = (surface) => alphaOf(surface?.background) === 1 && surface?.backdropFilter === 'none'
+/** The panes every glass state measures, by their key in the glass observations. */
+const GLASS_PANES = [['header', 'the chat header'], ['rail', 'the agent rail'], ['transcript', 'the transcript pane']]
+/** A pane's surface carries the alpha the page read off its computed background. */
+const reportsAlpha = (surface) => typeof surface?.alpha === 'number' && surface.alpha === alphaOf(surface.background)
+/** The backdrop glows behind the glass, with transparency as the person left it. */
+const GLASS_STAGE_CHECKS = [
+  ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
+  ['transparency is not reduced', (o) => o.glass?.reducedTransparency === false, (o) => JSON.stringify(o.glass?.reducedTransparency)],
+  ['the rail is open at 280 px right of the chat', (o) => near(o.railWidth, 280) && o.railRightOfStage === true,
+    (o) => JSON.stringify([o.railWidth, o.railRightOfStage])],
+  ...GLASS_PANES.map(([key, name]) => [`${name} is frosted glass (a blur, alpha 0.72 or less) and reports its alpha`,
+    (o) => frosted(o.glass?.[key]) && reportsAlpha(o.glass[key]), (o) => JSON.stringify(o.glass?.[key])])
+]
 /** A role-picker state's cards as the page measured them; empty when it reported none. */
 const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
 /** Each role card as [name, checked, disabled reason], for the epic Agent tab's picker states. */
@@ -321,13 +349,20 @@ const STATE_CHECKS = {
     ['the card is headed Acolyte:DM-442 wants to run: npm test', (o) => o.cardHeading === 'Acolyte:DM-442 wants to run: npm test'],
     ['the card says The Magos asks you', (o) => matches(o.cardArbitration, /^The Magos asks you: \S/)]
   ],
-  'agent-glass': [
-    ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
-    ['the open rail is frosted glass', (o) => near(o.railWidth, 280) && frosted(o.glass?.rail), (o) => JSON.stringify(o.glass?.rail)],
+  'agent-glass': GLASS_STAGE_CHECKS,
+  'epic-agent-glass': [
+    ...GLASS_STAGE_CHECKS,
+    ['the Magos tab is selected and joined to the glass header', (o) => matches(o.agentTabs?.tabs?.find((tab) => tab.selected)?.name, /^Magos(?:,|$)/)
+      && o.agentTabs.activeJoined === true, (o) => JSON.stringify(o.agentTabs)],
     ['the docked approval card is frosted glass', (o) => matches(o.cardHeading, /wants to run/) && frosted(o.glass?.card),
-      (o) => JSON.stringify(o.glass?.card)],
-    ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
-      (o) => JSON.stringify(o.glass?.transcript)]
+      (o) => JSON.stringify(o.glass?.card)]
+  ],
+  'agent-glass-solid': [
+    ['the page matches reduced transparency', (o) => o.glass?.reducedTransparency === true, (o) => JSON.stringify(o.glass?.reducedTransparency)],
+    ['the rail is open at 280 px right of the chat', (o) => near(o.railWidth, 280) && o.railRightOfStage === true,
+      (o) => JSON.stringify([o.railWidth, o.railRightOfStage])],
+    ...GLASS_PANES.map(([key, name]) => [`${name} is a solid panel (alpha 1, no backdrop filter) and reports its alpha`,
+      (o) => solid(o.glass?.[key]) && reportsAlpha(o.glass[key]), (o) => JSON.stringify(o.glass?.[key])])
   ],
   'agent-role-picker': ROLE_PICKER_CHECKS,
   'new-chat-picker': [
@@ -618,7 +653,7 @@ async function servePreview(outDir) {
  */
 function runElectron({ base, out, userData, session, viewport }) {
   const { promise, resolve: done, reject } = Promise.withResolvers()
-  const states = STATES.map((state) => ({ state, viewport: viewportOf(state, viewport) }))
+  const states = STATES.map((state) => ({ state, viewport: viewportOf(state, viewport), media: mediaOf(state) }))
   const config = Buffer.from(JSON.stringify({ base, states, out, deadlineMs: STATE_DEADLINE_MS })).toString('base64')
   const electron = createRequire(import.meta.url)('electron')
   const child = spawn(electron, [ELECTRON_ENTRY, `--user-data-dir=${userData}`, `--capture-config=${config}`],
