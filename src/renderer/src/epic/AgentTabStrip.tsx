@@ -228,7 +228,7 @@ function TabList({ tabs, selectedId, agents, select, onClose }: {
   )
 }
 
-export interface AgentTabStripProps {
+interface AgentTabStripProps {
   ws: WorkspaceHandle
   /** The epic's chats (`epicChats`). */
   chats: readonly ChatRecord[]

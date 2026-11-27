@@ -603,6 +603,7 @@ All of these go through the guarded `ipc` (see [Bridge hardening](#bridge-harden
 | `agentChat:start` | invoke | `agentChatIpc.ts`, `agentChatSessions.ts` | folder (null for a project-less chat) and chat; starts or attaches its GUI process and answers the `AgentChatSnapshot` |
 | `agentChat:send` | invoke | `agentChatIpc.ts` | folder, chat and text (1 to 20,000 characters); queued while a turn runs |
 | `agentChat:interrupt` | invoke | `agentChatIpc.ts` | folder and chat; interrupts the running turn |
+| `agentChat:stop` | invoke | `agentChatIpc.ts`, `agentChatSessions.ts` | folder and chat; stops the chat's GUI process and waits for it to close (its record and transcript stay; nothing when none runs). The epic Agent tab's ✕ calls it after its own confirmation |
 | `agentChat:answer` | invoke | `agentChatIpc.ts`, `pendingPrompts.ts` | folder, chat, prompt id, option id and, for a question's free-text option, `text`; refused for a prompt main no longer holds |
 | `agentChat:setSurface` | invoke | `agentChatIpc.ts`, `agentChatWiring.ts` | folder, chat and `gui` or `terminal`; the snapshot after the switch, or `busy`, `unsupported` or `cancelled` (see [GUI chats](#gui-chats-srcmainagentchat)). Stopping a live terminal is confirmed only by main's native dialog for that request |
 | `agentChat:snapshot` | invoke | `agentChatIpc.ts` | folder and chat; the chat's items, status, pending prompts and to-dos without starting anything |

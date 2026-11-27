@@ -23,7 +23,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex: 0 1 200px;
+  flex: 0 1 180px;
+  /* An explicit width, so the list's own size counts each tab at full width before it shrinks. */
+  width: 180px;
   min-width: 96px;
   height: 32px;
   margin-bottom: -1px;
