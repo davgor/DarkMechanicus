@@ -201,6 +201,13 @@ button.cult-member:hover {
   min-width: 0;
 }
 
+.cult-slot-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .cult-slot-label {
   font-size: 13px;
 }

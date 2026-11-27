@@ -19,17 +19,23 @@ interface SlotRowProps {
   onRemove(): void
 }
 
-/** A fixed slot reads as text; an editable one as its label and mission fields. */
+/** A fixed slot reads as text; an editable one as its label and mission fields. Its worker type heads either. */
 function SlotText({ slot, editing, onChange }: Pick<SlotRowProps, 'slot' | 'editing' | 'onChange'>): JSX.Element {
+  const type = WORKER_TYPE_INFO[slot.workerType]
+  const badge = <span className="badge cult-slot-type" title={type.description}>{type.displayName}</span>
   if (!editing.text)
     return (
       <span className="cult-slot-text">
-        <span className="cult-slot-label">{slot.label}</span>
+        <span className="cult-slot-head">
+          {badge}
+          {slot.label === type.displayName ? null : <span className="cult-slot-label">{slot.label}</span>}
+        </span>
         <span className="field-hint">{slot.mission}</span>
       </span>
     )
   return (
     <span className="cult-slot-text">
+      <span className="cult-slot-head">{badge}</span>
       <input className="input" aria-label={`Label of slot ${slot.id}`} value={slot.label} maxLength={80} onChange={(event) => onChange({ ...slot, label: event.target.value })} />
       <textarea className="input" rows={2} aria-label={`Mission of ${slot.label || slot.id}`} value={slot.mission} maxLength={4000} onChange={(event) => onChange({ ...slot, mission: event.target.value })} />
     </span>
@@ -40,7 +46,6 @@ function SlotRow({ slot, index, count, editing, onChange, onMove, onRemove }: Sl
   const name = slot.label || `slot ${index + 1}`
   return (
     <li className="cult-slot">
-      <span className="badge" title={WORKER_TYPE_INFO[slot.workerType].description}>{WORKER_TYPE_INFO[slot.workerType].displayName}</span>
       <SlotText slot={slot} editing={editing} onChange={onChange} />
       {editing.shape ? (
         <span className="cult-slot-actions">
