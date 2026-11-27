@@ -74,14 +74,28 @@ function distinctColors(image) {
   return colors.size
 }
 
-async function captureState({ state, viewport }) {
-  const { width, height } = viewport
+/** A hidden offscreen window of the given content size, as every state and the warm-up open it. */
+function captureWindow({ width, height }) {
   // Offscreen rendering keeps painting while hidden, so `capturePage()` shows the reached state rather than the first
   // frame, and the page's viewport is exactly the requested size (no native frame or display scaling in between).
-  const window = new BrowserWindow({
+  return new BrowserWindow({
     show: false, width, height, paintWhenInitiallyHidden: true, useContentSize: true,
     webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false }
   })
+}
+
+/**
+ * Starts Chromium's GPU and renderer processes once on a blank page, inside Electron's start, so the first state's
+ * deadline holds only that state's own page as every later state's does.
+ */
+async function warmUp() {
+  const window = captureWindow(config.states[0].viewport)
+  try { await window.loadURL('about:blank') } finally { window.destroy() }
+}
+
+async function captureState({ state, viewport }) {
+  const startedAt = Date.now()
+  const window = captureWindow(viewport)
   try {
     const url = `${config.base}?state=${encodeURIComponent(state)}`
     const loaded = window.loadURL(url).then(() => null, (error) => error.message)
@@ -91,7 +105,7 @@ async function captureState({ state, viewport }) {
       const errors = await window.webContents.executeJavaScript('JSON.stringify(window.__errors ?? [])', true).catch(() => '[]')
       const pageErrors = JSON.parse(errors)
       const detail = failedLoad ?? `no observations within ${config.deadlineMs} ms`
-      return { state, ready: false, error: pageErrors.length === 0 ? detail : `${detail}; page errors: ${pageErrors.join(' | ')}` }
+      return { state, ready: false, ms: Date.now() - startedAt, error: pageErrors.length === 0 ? detail : `${detail}; page errors: ${pageErrors.join(' | ')}` }
     }
     const [pageWidth, pageHeight] = await window.webContents.executeJavaScript(VIEWPORT_SIZE, true)
     const image = await window.webContents.capturePage()
@@ -99,7 +113,8 @@ async function captureState({ state, viewport }) {
     const file = join(config.out, `${state}.png`)
     if (!image.isEmpty()) writeFileSync(file, png)
     return {
-      state, ready: true, observations, empty: image.isEmpty(), bytes: png.length, file, colors: image.isEmpty() ? 0 : distinctColors(image),
+      state, ready: true, ms: Date.now() - startedAt, observations, empty: image.isEmpty(), bytes: png.length, file,
+      colors: image.isEmpty() ? 0 : distinctColors(image),
       viewport: { width: pageWidth, height: pageHeight }, image: image.getSize()
     }
   } finally {
@@ -113,6 +128,7 @@ app.whenReady().then(async () => {
     if (pathname.endsWith('zz')) return new Response(null, { status: 404 })
     return new Response(fixtureImage(pathname), { headers: { 'content-type': 'image/png' } })
   })
+  await warmUp()
   send({ type: 'started', electron: process.versions.electron })
   for (const state of config.states) send({ type: 'state', record: await captureState(state) })
   app.exit(0)
