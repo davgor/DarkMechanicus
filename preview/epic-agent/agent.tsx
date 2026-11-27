@@ -8,6 +8,7 @@ import type { Callsign } from '../../src/shared/agents/callsign'
 import type { ChatItem, ChatRecord } from '../../src/shared/agents/chat'
 import type { TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
+import { AgentRolePicker } from '../../src/renderer/src/agentRoles/AgentRolePicker'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
@@ -28,14 +29,14 @@ import { NotificationSettings } from '../../src/renderer/src/settings/Notificati
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
- * `AgentChat` / `NotificationSettings`) over the renderer test fakes, seeded from `agentChatScenario.ts`. `?state=`
+ * `AgentChat` / `NotificationSettings` / `AgentRolePicker`) over the renderer test fakes, seeded from `agentChatScenario.ts`. `?state=`
  * picks the state; the page reaches it with real DOM clicks after mount, then writes `#observations` (data-ready).
  */
 declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -506,6 +507,13 @@ const STATES: Record<string, StateDef> = {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
   },
+  'agent-role-picker': {
+    mount: 'roles',
+    reach: async () => {
+      await until(() => document.querySelectorAll('.arp [role="radio"]').length === 2 && document.querySelectorAll('.arp svg[role="img"]').length === 2,
+        'the Magos and Lexmechanic cards with their art')
+    }
+  },
   ...deliveryStates
 }
 
@@ -593,6 +601,36 @@ function glassObservations(): Record<string, unknown> | null {
   }
 }
 
+const ROLE_CARD_TEXTS = '.arc-name, .arc-role, .arc-facts li, .arc-reason'
+
+/**
+ * One role card: its radio's name and checked state, its art's label and rendered size, the card's surface, the texts
+ * that overflow their boxes, and whether anything is clipped (an overflowing text, or the card leaving the window).
+ */
+function roleCardObservation(card: HTMLElement): Record<string, unknown> {
+  const radio = $('[role="radio"]', card)
+  const art = card.querySelector<SVGSVGElement>('svg[role="img"]')
+  if (radio === null || art === null) return { name: null, art: null }
+  const box = card.getBoundingClientRect()
+  const artBox = art.getBoundingClientRect()
+  const overflowing = [...card.querySelectorAll<HTMLElement>(ROLE_CARD_TEXTS)]
+    .filter((element) => element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1)
+    .map((element) => text(element))
+  const offscreen = box.left < 0 || box.top < 0 || box.right > window.innerWidth || box.bottom > window.innerHeight
+  const style = getComputedStyle(card)
+  return {
+    name: accessibleName(radio), checked: radio.getAttribute('aria-checked') === 'true', art: art.getAttribute('aria-label'),
+    artWidth: artBox.width, artHeight: artBox.height, background: style.backgroundColor, backdropFilter: style.backdropFilter,
+    overflowing, clipped: offscreen || overflowing.length > 0
+  }
+}
+
+/** The role picker's cards in order; null when the page shows none. */
+function rolePickerObservations(): Record<string, unknown> | null {
+  const cards = [...document.querySelectorAll<HTMLElement>('.arp .arc')]
+  return cards.length === 0 ? null : { cards: cards.map(roleCardObservation) }
+}
+
 /** Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button. */
 function composerObservations(): Record<string, unknown>[] {
   const shape = (button: HTMLElement | null): Record<string, unknown> | null => {
@@ -643,6 +681,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
+    rolePicker: rolePickerObservations(),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     ticketPanel: $('.tp') !== null,
@@ -675,6 +714,9 @@ function seeded(): Seeded {
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
+  if (mount === 'roles') {
+    return <div className="preview-roles"><AgentRolePicker onChoose={() => undefined} /></div>
+  }
   if (mount === 'settings') {
     window.dm = new FakeDm()
     return <ToastProvider scheduler={browserScheduler}><div className="preview-settings"><NotificationSettings /></div></ToastProvider>

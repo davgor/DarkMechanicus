@@ -107,11 +107,13 @@ describe('parseAttachmentUrl', () => {
 })
 
 describe('registerAttachmentScheme and registerAttachmentProtocol', () => {
-  it('registers dm-attachment as a standard, secure scheme', () => {
+  it('registers dm-attachment and dm-chat-image as standard, secure schemes in one single privileged call', () => {
     const registerSchemesAsPrivileged = vi.fn()
     registerAttachmentScheme({ registerSchemesAsPrivileged } as never)
+    expect(registerSchemesAsPrivileged).toHaveBeenCalledTimes(1)
     expect(registerSchemesAsPrivileged).toHaveBeenCalledWith([
-      { scheme: 'dm-attachment', privileges: { standard: true, secure: true } }
+      { scheme: 'dm-attachment', privileges: { standard: true, secure: true } },
+      { scheme: 'dm-chat-image', privileges: { standard: true, secure: true } }
     ])
   })
 

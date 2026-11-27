@@ -121,6 +121,8 @@ import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from './ipc
 import { createYoloHandlers } from './yoloHandlers'
 import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
+import { createChatImages, type ChatImages } from '../agentChat/chatImages'
+import { createChatImageLookup, registerChatImageProtocol } from '../agentChat/chatImageProtocol'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
@@ -445,6 +447,8 @@ interface ChatProcessOptions {
   notify: (event: NotificationEvent) => void
   sourceCheckouts: SourceCheckouts
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
+  /** The chats' images (`userData/agents/chat-images`): deleting a chat removes its images with its transcript. */
+  chatImages: ChatImages
 }
 interface ChatQuitOptions {
   grants: ChatGrants
@@ -474,10 +478,10 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuit
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
-  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
+  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
   const push = createChatPush(() => BrowserWindow.getAllWindows())
   let namingPipe: ControlPipe | null = null
@@ -1026,6 +1030,17 @@ function startAttachmentProtocol(registry: FolderRegistry, pool: WorkspacePool):
 }
 
 /**
+ * Serves the chats' images to the window (`dm-chat-image:`), each through the folder its per-run key names. Only the
+ * default session's `protocol` gets the handler: a browser partition must never reach the chats' images.
+ */
+function startChatImageProtocol(registry: FolderRegistry, chatImages: ChatImages): void {
+  registerChatImageProtocol(
+    protocol,
+    createChatImageLookup({ pathForKey: (key) => registry.pathForKey(key), read: (ref, id) => chatImages.read(ref, id) })
+  )
+}
+
+/**
  * The installed app's own folders: the one holding the executable and `resources/`, and on macOS the `.app` bundle.
  * None in development, where the app runs from a source checkout that may well be the one chosen.
  */
@@ -1323,8 +1338,9 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const settings = createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })
   const notifier = startNotifications(ipc, registry, pool, settings)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
+  const chatImages = createChatImages({ root: join(app.getPath('userData'), 'agents', 'chat-images') })
   const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail } = createChatProcesses({
-    folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts,
+    folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)
@@ -1348,6 +1364,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
+  startChatImageProtocol(registry, chatImages)
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
