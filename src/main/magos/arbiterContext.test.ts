@@ -54,15 +54,16 @@ describe('readArbiterContext', () => {
     expect(reads.getTicket).not.toHaveBeenCalled()
   })
 
-  for (const fail of ['getRun', 'getEpic', 'getAttemptTimeline', 'getTicket'] as const) it(`a throwing ${fail} gives nulls`, async () => {
-    expect(await readArbiterContext(workspace(fail), { chat: { runId: RUN }, threadId: THREAD, binding: BINDING })).toEqual({ ticket: null, standards: null })
+  for (const fail of ['getRun', 'getEpic', 'getAttemptTimeline', 'getTicket'] as const) it(`a throwing ${fail} rejects`, async () => {
+    await expect(readArbiterContext(workspace(fail), { chat: { runId: RUN }, threadId: THREAD, binding: BINDING })).rejects.toThrow(`${fail} failed`)
   })
 
-  it('an unknown run, a chat with no run, or an attempt of another run gives nulls', async () => {
-    expect(await readArbiterContext(workspace(), { chat: { runId: 'rn_01j0000000000000000000000x' }, threadId: null, binding: null })).toEqual({ ticket: null, standards: null })
+  it('an unknown run or an attempt of another run rejects; a chat with no run gives nulls', async () => {
+    await expect(readArbiterContext(workspace(), { chat: { runId: 'rn_01j0000000000000000000000x' }, threadId: null, binding: null }))
+      .rejects.toThrow('The run of the chat was not found.')
     expect(await readArbiterContext(workspace(), { chat: { runId: undefined }, threadId: null, binding: null })).toEqual({ ticket: null, standards: null })
-    expect(await readArbiterContext(workspace(undefined, 'rn_01j0000000000000000000000x'), { chat: { runId: RUN }, threadId: THREAD, binding: BINDING }))
-      .toEqual({ ticket: null, standards: null })
+    await expect(readArbiterContext(workspace(undefined, 'rn_01j0000000000000000000000x'), { chat: { runId: RUN }, threadId: THREAD, binding: BINDING }))
+      .rejects.toThrow('The bound attempt belongs to another run.')
   })
 
   it('an epic with no Standards section gives a null section and keeps the ticket', async () => {

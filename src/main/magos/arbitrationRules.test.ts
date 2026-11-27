@@ -191,6 +191,15 @@ describe('always-ask list', () => {
   })
 })
 
+/** The written text of a file edit holds what would escalate as a path or command, and is never path-scanned (DM-1011). */
+const ROUTINE_CONTENT = 'const home = process.env.HOME ?? "$HOME" // see https://example.com\nconst digits = /\\d+/\nC:\\Windows\\x * \0 ~/x ../../secret'
+const FILE_EDIT_CONTENT: [string, Tool][] = [
+  ['Write content', { name: 'Write', input: { file_path: 'src/a.ts', content: ROUTINE_CONTENT } }],
+  ['Edit old and new strings', { name: 'Edit', input: { file_path: 'src/a.ts', old_string: '$HOME //', new_string: ROUTINE_CONTENT, replace_all: false } }],
+  ['MultiEdit edits', { name: 'MultiEdit', input: { file_path: 'src/a.ts', edits: [{ old_string: '*', new_string: ROUTINE_CONTENT }] } }],
+  ['NotebookEdit source', { name: 'NotebookEdit', input: { notebook_path: 'src/a.ipynb', new_source: ROUTINE_CONTENT, cell_type: 'code' } }]
+]
+
 const INSIDE: Record<Platform, [string, Tool][]> = {
   win32: [
     ['npm test', bash('npm test')],
@@ -202,7 +211,8 @@ const INSIDE: Record<Platform, [string, Tool][]> = {
     ['an in-folder forward-slash path in a command', bash('type C:/repo/src/a.ts')],
     ['paths[] inside', { name: 'Glob', input: { paths: ['src', 'C:\\wt\\dm-1\\test'] } }],
     ['an option with a relative value', bash('npx tsc --outDir=dist -p tsconfig.json')],
-    ['an 8-level input', { name: 'Tool', input: nested(8) }]
+    ['an 8-level input', { name: 'Tool', input: nested(8) }],
+    ...FILE_EDIT_CONTENT
   ],
   linux: [
     ['npm test', bash('npm test')],
@@ -212,7 +222,8 @@ const INSIDE: Record<Platform, [string, Tool][]> = {
     ['an in-folder path in a command', bash('cat /home/me/repo/src/a.ts')],
     ['paths[] inside', { name: 'Glob', input: { paths: ['src', '/home/me/wt/dm-1/test'] } }],
     ['an option with a relative value', bash('npx tsc --outDir=dist -p tsconfig.json')],
-    ['an 8-level input', { name: 'Tool', input: nested(8) }]
+    ['an 8-level input', { name: 'Tool', input: nested(8) }],
+    ...FILE_EDIT_CONTENT
   ]
 }
 
@@ -259,7 +270,11 @@ const OUTSIDE_COMMON: [string, Tool][] = [
   ['an empty path value', { name: 'Read', input: { path: '' } }],
   ['a non-array paths', { name: 'Glob', input: { paths: 'src' } }],
   ['an outside entry in paths[]', { name: 'Glob', input: { paths: ['src', '/etc'] } }],
-  ['an outside path under a nested path key', { name: 'MultiEdit', input: { edits: [{ cwd: '/etc' }] } }],
+  ['an outside path under a nested path key', { name: 'mcp__fs__edit', input: { edits: [{ cwd: '/etc' }] } }],
+  ['a file edit naming no file', { name: 'MultiEdit', input: { edits: [{ old_string: 'a', new_string: 'b' }] } }],
+  ['a Write whose file_path is outside, with routine content', { name: 'Write', input: { file_path: '../secret', content: 'plain' } }],
+  ['content written by Bash', bash('echo "$HOME" > src/a.ts')],
+  ['content under a key a file edit does not write', { name: 'Write', input: { file_path: 'src/a.ts', content: 'x', mode: '$HOME' } }],
   ['a link out of the folder', write('link/a.ts')],
   ['a dangling link', write('evil')],
   ['a path under a dangling link', write('evil/authorized_keys')],

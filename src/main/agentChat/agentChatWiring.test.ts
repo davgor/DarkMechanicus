@@ -50,7 +50,7 @@ function app(
   })
   const arbiter: ArbiterWiring = {
     settings: () => DEFAULT_NOTIFICATION_SETTINGS, arbiterReads: () => { throw new Error('No workspace in this test.') },
-    bindings: gui.deps.bindings, allowedRoots: () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
+    bindings: gui.deps.bindings, allowedRoots: async () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
     log: { info: vi.fn(), warn: vi.fn() },
     ...arbiterOverrides
   }
@@ -158,12 +158,15 @@ describe('agent chat wiring: the Magos arbiter', () => {
     await vi.waitFor(() => expect(state.gui.store.readTranscript(chat)!.items.find(item => item.id === WORKER_THREAD)).toMatchObject({ callsign: { ticketKey: 'DM-442', ticketVerified: true } }))
   })
 
-  it('a failing context read still arbitrates, with neither ticket nor Standards', async () => {
+  it('a failing context read escalates to the person and starts no arbiter (DM-1011)', async () => {
     const runner = stubRunner({ verdict: { decision: 'deny', reason: 'Not needed.' } })
-    const state = open(undefined, { startArbiter: runner.start })
-    await state.wiring.agentChats.start(magosChat(state))
-    await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
-    expect(requestOf(runner)).toMatchObject({ ticket: null, standards: null })
+    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    expect(state.wiring.agentChats.snapshot(chat).pending?.arbitration).toEqual({
+      state: 'escalated', reason: 'The Magos could not read the ticket or the Standards for this request; decide this yourself.'
+    })
+    expect(runner.start).not.toHaveBeenCalled()
   })
 
   it('settings with the arbiter off reach the gate: no arbiter runs and the OS notifier is told', async () => {
@@ -179,7 +182,7 @@ describe('agent chat wiring: the Magos arbiter', () => {
 describe('agent chat wiring: quit cancels every arbiter', () => {
   it('quit cancels a hanging real arbiter within 5 s, its process gone and its working folder removed', async () => {
     // The fake CLI's arbiter mode hangs on the `[arbiter:hang]` keyword, which the auto-handle notes carry into its stdin.
-    const state = open(undefined, { settings: () => withArbitration({ autoHandleNotes: '[arbiter:hang]' }) }), chat = magosChat(state)
+    const state = open(undefined, { settings: () => withArbitration({ autoHandleNotes: '[arbiter:hang]' }), arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     const log = join(state.gui.root, 'agent.jsonl')
     const arbiterPid = await vi.waitFor(() => {
@@ -197,7 +200,7 @@ describe('agent chat wiring: quit cancels every arbiter', () => {
 
   it('a stuck arbiter whose runner never settles still lets the quit finish within the 5 s bound', async () => {
     const runner = stubRunner({ stuck: true })
-    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
     const listeners: ((event: { preventDefault(): void }) => void)[] = []
@@ -237,7 +240,7 @@ describe('agent chat wiring: the arbiter root', () => {
 describe('agent chat wiring: attention reaches the OS notifier', () => {
   it('an escalated worker approval names its callsign and lands on the chat, thread and prompt', async () => {
     const runner = stubRunner({ verdict: { decision: 'escalate', cause: 'verdict', reason: 'Needs the person.' } })
-    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
     const prompt = state.wiring.agentChats.snapshot(chat).pending!

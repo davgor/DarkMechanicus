@@ -25,22 +25,25 @@ const DISPOSE_TIMEOUT_MS = 4_000
 /** Exclusions the person decides with no Magos line on the card; every other exclusion shows its reason. */
 const OFF_REASONS: ReadonlySet<ExclusionReason> = new Set(['disabled', 'not_magos_chat', 'project_less', 'unsupported_kind'])
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
+const CONTEXT_UNAVAILABLE = 'The Magos could not read the ticket or the Standards for this request; decide this yourself.'
 
 type ArbiterTicket = Parameters<typeof buildArbiterRequest>[0]['ticket']
-type Cause = ExclusionReason | 'too_large' | 'cancelled' | Extract<ArbiterResult, { decision: 'escalate' }>['cause']
+type Arbitration = Pick<NotificationSettings, 'arbitration'>
+interface ArbiterContext { ticket: ArbiterTicket; standards: string | null }
+type Cause = ExclusionReason | 'too_large' | 'context_unavailable' | 'cancelled' | Extract<ArbiterResult, { decision: 'escalate' }>['cause']
 
 interface PromptArbitrationDeps {
   /** The main store's arbitration settings, read at the moment each prompt arrives. */
   settings(): Pick<NotificationSettings, 'arbitration'>
   /** The person must look at `prompt`: it was excluded, escalated, or the arbiter is off. */
   onAttention(event: Extract<AttentionEvent, { prompt: PendingPrompt }>): void
-  /** The bound ticket and the epic's Standards section (DM-821 `readArbiterContext`); a failure reads as nulls. */
-  readContext(input: { chat: ChatRecord; prompt: PendingPrompt }): Promise<{ ticket: ArbiterTicket; standards: string | null }>
+  /** The bound ticket and the epic's Standards section (DM-821 `readArbiterContext`); a rejection escalates, starting no arbiter. */
+  readContext(input: { chat: ChatRecord; prompt: PendingPrompt }): Promise<ArbiterContext>
   /**
-   * Canonical registered worktrees of the chat's repository, besides the folder itself. Wired by the arbiter boot;
-   * omitted, only the folder is a root.
+   * The chat folder's place in each registered worktree of its repository, read off the main thread. Wired by the
+   * arbiter boot; omitted, only the folder is a root.
    */
-  allowedRoots?(chat: ChatRecord): readonly string[]
+  allowedRoots?(chat: ChatRecord): Promise<readonly string[]>
   platform: NodeJS.Platform
   env: Readonly<Record<string, string | undefined>>
   /** Where each arbiter's fresh working folder is made (`<userData>/agents/arbiter`, swept at startup by DM-821). */
@@ -69,7 +72,7 @@ interface PromptArbitration {
   dispose(): Promise<void>
 }
 
-type Verdict = ArbiterResult | { decision: 'escalate'; cause: 'too_large'; reason: string }
+type Verdict = ArbiterResult | { decision: 'escalate'; cause: ExclusionReason | 'too_large' | 'context_unavailable'; reason: string }
 
 function log(deps: PromptArbitrationDeps, input: ArbitrateInput, decision: string, cause: Cause | 'verdict'): void {
   try {
@@ -88,25 +91,34 @@ function excluded(deps: PromptArbitrationDeps, input: ArbitrateInput, { state, r
   return { state, reason, awaitingPerson: prompt => attention(deps, input, prompt) }
 }
 
-/** The person decides at once: an exclusion (fix 7 mapping), or a tool input clipped before it reached the prompt. */
-function exclusionGate(deps: PromptArbitrationDeps, input: ArbitrateInput): ArbitrationGate | null {
+function exclusionOf(deps: PromptArbitrationDeps, input: ArbitrateInput, settings: Arbitration, allowedRoots: readonly string[]): { reason: ExclusionReason } | null {
   const { chat, agent, prompt } = input
-  const exclusion = arbitrationExclusion({
-    chat, agentKind: agent.kind, prompt, folder: chat.folder, settings: deps.settings(), platform: deps.platform,
-    allowedRoots: deps.allowedRoots?.(chat) ?? []
-  })
+  return arbitrationExclusion({ chat, agentKind: agent.kind, prompt, folder: chat.folder, settings, platform: deps.platform, allowedRoots })
+}
+
+/**
+ * The person decides at once: an exclusion (fix 7 mapping), or a tool input clipped before it reached the prompt.
+ * `exclusion` counts only the folder as a root: a path outside it may lie in a registered worktree, which the job
+ * reads asynchronously and checks before any arbiter starts.
+ */
+function exclusionGate(deps: PromptArbitrationDeps, input: ArbitrateInput, exclusion: { reason: ExclusionReason } | null): ArbitrationGate | null {
   if (exclusion !== null) {
+    // Decided by the job once the worktrees are read; it also applies the clip flag, which an exclusion outranks.
+    if (exclusion.reason === 'outside_folder' && deps.allowedRoots !== undefined) return null
     const { reason } = exclusion
     return OFF_REASONS.has(reason)
       ? excluded(deps, input, { state: 'off', reason: null }, reason)
       : excluded(deps, input, { state: 'escalated', reason: exclusionText(reason) }, reason)
   }
   // The prompt shows a clipped input but the CLI runs the whole one: nothing past the cut was scanned.
-  if (input.inputClipped || prompt.tool === undefined) return excluded(deps, input, { state: 'escalated', reason: TOO_LARGE }, 'too_large')
+  if (input.inputClipped || input.prompt.tool === undefined) return excluded(deps, input, { state: 'escalated', reason: TOO_LARGE }, 'too_large')
   return null
 }
 
-/** One arbiter for one prompt: waits for a slot, then reads context and runs until its verdict, cancellation or dispose. */
+/**
+ * One arbiter for one prompt: is admitted once the worktree roots are checked (when the folder alone left a path
+ * outside, `checkRoots`), then waits for a slot, reads context and runs until its verdict, cancellation or dispose.
+ */
 class ArbiterJob {
   /** Its outcome is out (verdict or cancellation); a running runner may still be cleaning up. */
   private settled = false
@@ -114,7 +126,10 @@ class ArbiterJob {
   private complete!: (outcome: ArbiterOutcome) => void
   readonly result = new Promise<ArbiterOutcome>(resolve => { this.complete = resolve })
 
-  constructor(private readonly deps: PromptArbitrationDeps, readonly input: ArbitrateInput) {}
+  constructor(
+    private readonly deps: PromptArbitrationDeps, readonly input: ArbitrateInput,
+    private readonly settings: Arbitration, private readonly checkRoots: boolean
+  ) {}
 
   get waiting(): boolean { return !this.settled }
 
@@ -126,12 +141,26 @@ class ArbiterJob {
     try { this.cancelRunner?.() } catch { /* The runner's own fence still drops its result. */ }
   }
 
+  /**
+   * Whether the job may wait for a slot: false once it is settled, here by the worktree-roots exclusion or the clip
+   * flag it outranks. Needs no slot, so a prompt that escalates anyway never waits behind running arbiters.
+   */
+  async admit(): Promise<boolean> {
+    try {
+      const escalation = await this.rootsExclusion()
+      if (escalation !== null) this.finish(escalation)
+    } catch {
+      this.finish({ decision: 'escalate', cause: 'error', reason: 'The Magos could not check this request; decide this yourself.' })
+    }
+    return this.waiting
+  }
+
   /** Resolves once the runner has settled, process cleanup included. */
   async start(): Promise<void> {
     try {
       const request = await this.request()
       if (this.settled) return
-      if (request === null) { this.finish({ decision: 'escalate', cause: 'too_large', reason: TOO_LARGE }); return }
+      if (typeof request !== 'string') { this.finish(request); return }
       const { deps } = this, { agent } = this.input
       // The runner makes its fresh folder inside; an existing root is one stat.
       mkdirSync(deps.arbiterRoot, { recursive: true })
@@ -146,17 +175,34 @@ class ArbiterJob {
     }
   }
 
-  /** The masked stdin request, or null when it is too large to review whole (fix 17). */
-  private async request(): Promise<string | null> {
+  /**
+   * The exclusion once the registered worktrees are roots too, then the clip flag it outranks, as an escalation; null
+   * when neither applies.
+   */
+  private async rootsExclusion(): Promise<Verdict | null> {
+    if (!this.checkRoots || this.deps.allowedRoots === undefined) return null
+    const roots = await this.deps.allowedRoots(this.input.chat)
+    const exclusion = exclusionOf(this.deps, this.input, this.settings, roots)
+    if (exclusion !== null) return { decision: 'escalate', cause: exclusion.reason, reason: exclusionText(exclusion.reason) }
+    return this.input.inputClipped ? { decision: 'escalate', cause: 'too_large', reason: TOO_LARGE } : null
+  }
+
+  /** The masked stdin request, or the escalation when the context cannot be read or the request is too large (fix 17). */
+  private async request(): Promise<string | Verdict> {
     const { chat, prompt } = this.input
-    const context = await this.deps.readContext({ chat, prompt }).catch(() => ({ ticket: null, standards: null }))
+    let context: ArbiterContext
+    try {
+      context = await this.deps.readContext({ chat, prompt })
+    } catch {
+      return { decision: 'escalate', cause: 'context_unavailable', reason: CONTEXT_UNAVAILABLE }
+    }
     const request = buildArbiterRequest({
       prompt, callsign: prompt.callsign, ticket: context.ticket,
       // buildArbiterRequest re-extracts a Standards section; an extracted section holds no level-1 heading, so this is lossless.
       intent: context.standards === null ? null : `# Standards\n${context.standards}`,
       autoHandle: this.deps.settings().arbitration.autoHandleNotes
     })
-    return typeof request === 'string' ? request : null
+    return typeof request === 'string' ? request : { decision: 'escalate', cause: 'too_large', reason: TOO_LARGE }
   }
 
   private finish(verdict: Verdict): void {
@@ -167,20 +213,31 @@ class ArbiterJob {
   }
 }
 
-/** FIFO, at most one per chat and `MAX_ARBITERS` app-wide; a cancelled runner holds its slot until its cleanup ends. */
+/**
+ * FIFO, at most one per chat and `MAX_ARBITERS` app-wide; a cancelled runner holds its slot until its cleanup ends. A
+ * job joins the FIFO only once admitted.
+ */
 class ArbiterQueue {
   private readonly queue: ArbiterJob[] = []
+  /** Jobs whose worktree roots are still being checked, before they join the FIFO. */
+  private readonly admitting = new Set<ArbiterJob>()
   /** Each running job with its start, which settles once its runner has cleaned up. */
   private readonly running = new Map<ArbiterJob, Promise<void>>()
 
   add(job: ArbiterJob): void {
-    this.queue.push(job)
-    // The gate returns before any work starts, so the prompt is published as deciding first.
-    queueMicrotask(() => this.pump())
+    this.admitting.add(job)
+    // admit() never rejects, and resolves after the gate returns, so the prompt is published as deciding first.
+    void job.admit().then(admitted => {
+      this.admitting.delete(job)
+      if (!admitted) return
+      this.queue.push(job)
+      this.pump()
+    })
   }
 
   /** Cancels every job; resolves once the running ones' runners have cleaned up. */
   cancelAll(): Promise<void> {
+    for (const job of this.admitting) job.cancel()
     for (const job of this.queue) job.cancel()
     for (const job of this.running.keys()) job.cancel()
     return Promise.all(this.running.values()).then(() => undefined)
@@ -214,15 +271,18 @@ function atMost(work: Promise<void>, ms: number): Promise<void> {
 
 export function createPromptArbitration(deps: PromptArbitrationDeps): PromptArbitration {
   const queue = new ArbiterQueue()
-  const decide = (input: ArbitrateInput): ArbitrationGate => {
-    const job = new ArbiterJob(deps, input)
+  const decide = (input: ArbitrateInput, settings: Arbitration, checkRoots: boolean): ArbitrationGate => {
+    const job = new ArbiterJob(deps, input, settings, checkRoots)
     queue.add(job)
     return { state: 'deciding', result: job.result, cancel: () => job.cancel(), awaitingPerson: prompt => attention(deps, input, prompt) }
   }
   return {
     arbitrate: input => {
       try {
-        return exclusionGate(deps, input) ?? decide(input)
+        const settings = deps.settings()
+        const exclusion = exclusionOf(deps, input, settings, [])
+        // Past the gate, a remaining exclusion is a path outside the folder alone: the job checks it with the worktrees.
+        return exclusionGate(deps, input, exclusion) ?? decide(input, settings, exclusion !== null)
       } catch {
         return excluded(deps, input, { state: 'escalated', reason: 'The Magos could not check this request; decide this yourself.' }, 'error')
       }

@@ -1,8 +1,7 @@
 /**
  * What the Magos arbiter is told besides the prompt: the ticket a worker thread is bound to and the epic's Standards
  * section, read through the chat folder's own desktop workspace (the read pattern of `conversationReads` in
- * `bootstrap.ts`). Every failure reads as nulls, so a broken read never decides anything: the arbiter, told less,
- * escalates more.
+ * `bootstrap.ts`). A failed read rejects, so the arbiter never decides without its context: the person does.
  */
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandApi } from '../../shared/domain/api'
@@ -39,23 +38,19 @@ async function attemptTicket(workspace: ArbiterReads, epicId: string, attemptId:
 
 /**
  * The context of one prompt of a run's Magos chat: the epic's Standards section, plus the bound ticket when the prompt
- * comes from a worker thread bound to an attempt (`binding`). A main-thread or unbound prompt has no ticket; any
- * failed read gives nulls for both.
+ * comes from a worker thread bound to an attempt (`binding`). A main-thread or unbound prompt has no ticket; a chat
+ * with no run has neither. Any failed or refused read rejects.
  */
 export async function readArbiterContext(
   workspace: ArbiterReads,
   input: { chat: Pick<ChatRecord, 'runId'>; threadId: string | null; binding: ActivityBinding | null }
 ): Promise<ArbiterContext> {
   const { chat, threadId, binding } = input
-  try {
-    if (chat.runId === undefined) return NO_CONTEXT
-    const { epicId, standards } = await runEpic(workspace, chat.runId)
-    const bound = threadId !== null && binding?.kind === 'attempt' && binding.threadId === threadId ? binding : null
-    const ticket = bound === null ? null : await attemptTicket(workspace, epicId, bound.attemptId, chat.runId)
-    return { ticket, standards }
-  } catch {
-    return NO_CONTEXT
-  }
+  if (chat.runId === undefined) return NO_CONTEXT
+  const { epicId, standards } = await runEpic(workspace, chat.runId)
+  const bound = threadId !== null && binding?.kind === 'attempt' && binding.threadId === threadId ? binding : null
+  const ticket = bound === null ? null : await attemptTicket(workspace, epicId, bound.attemptId, chat.runId)
+  return { ticket, standards }
 }
 
 /** The ticket key of a bound attempt, through the same reads; null on any error. */
