@@ -67,6 +67,10 @@ function passing() {
       approvalRecord: 'Approval Denied by the Magos Run npm test Asked by Acolyte:DM-442 The Magos decided: docs only.'
     }),
     'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '2 needs you · 4 working', badgedRows: 2 }),
+    'chat-rail-legacy': ready('chat-rail-legacy', {
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
+      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-1')]
+    }),
     'settings-notifications': ready('settings-notifications', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
       settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
@@ -105,19 +109,19 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 19 states once each, in capture order', () => {
+  it('lists the 20 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
       'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(19)
+    expect(new Set(STATES).size).toBe(20)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 300 s overall bound that covers all 19', () => {
+  it('declares 15 s per state within a 330 s overall bound that covers all 20', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(300_000)
+    expect(OVERALL_LIMIT_MS).toBe(330_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
   })
 })
@@ -205,6 +209,13 @@ describe('capture-agent-chat: per-state observations', () => {
   it('fails agent-tool unless the tree lists the subagent Acolyte:DM-785, not just any second row', () => {
     expect(validateObservations('agent-tool', ready('agent-tool', { treeRows: [row('Magos', true), row('Finished 1')] })))
       .toEqual(['agent-tool: expected the tree lists Magos and the subagent Acolyte:DM-785'])
+  })
+
+  it('fails chat-rail-legacy when the legacy helper repeats a stamped Servitor callsign', () => {
+    const base = { viewButtons: [], agentFontWeight: null, agentChatRegion: false }
+    expect(validateObservations('chat-rail-legacy', ready('chat-rail-legacy', {
+      ...base, treeRows: [row('Magos'), row('Servitor-1', true), row('Servitor-1')]
+    }))).toEqual(['chat-rail-legacy: expected the legacy and stamped helpers are Servitor-2 (selected) and Servitor-1, each named once'])
   })
 
   it('fails any agent state whose rail is not right of the stage', () => {

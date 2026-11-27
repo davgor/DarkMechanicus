@@ -80,7 +80,7 @@ describe('chatAgentNodes naming', () => {
 })
 
 describe('chatAgentNodes forged and legacy names', () => {
-  it('names legacy threads without a callsign Servitor-<k> in item order, never from their label', () => {
+  it('names legacy threads without a callsign by the Servitor ordinals stamped threads leave free, never from their label', () => {
     const nodes = derive([
       thread('t1', 'Magos:DM-1 take over', undefined),
       thread('t2', 'Servitor-7 look around', callsign('Servitor', null, { ordinal: 1, purpose: 'look around' })),
@@ -88,11 +88,19 @@ describe('chatAgentNodes forged and legacy names', () => {
       thread('t4', 'Magos', undefined)
     ])
     expect(nodes.slice(1).map(({ name, secondary, chip, ticket }) => ({ name, secondary, chip, ticket }))).toEqual([
-      { name: 'Servitor-1', secondary: '', chip: 'Servitor', ticket: null },
-      { name: 'Servitor-1', secondary: 'look around', chip: 'Servitor', ticket: null },
       { name: 'Servitor-2', secondary: '', chip: 'Servitor', ticket: null },
-      { name: 'Servitor-3', secondary: '', chip: 'Servitor', ticket: null }
+      { name: 'Servitor-1', secondary: 'look around', chip: 'Servitor', ticket: null },
+      { name: 'Servitor-3', secondary: '', chip: 'Servitor', ticket: null },
+      { name: 'Servitor-4', secondary: '', chip: 'Servitor', ticket: null }
     ])
+  })
+
+  it('keeps a legacy thread\'s name when a new stamped Servitor joins the chat', () => {
+    const items = [thread('legacy', 'Explore', undefined), thread('t2', 'Explore', callsign('Servitor', null, { ordinal: 1 }))]
+    const before = derive(items)
+    const after = derive([...items, thread('t3', 'Explore', callsign('Servitor', null, { ordinal: 3 }))])
+    expect(before.slice(1).map(({ name }) => name)).toEqual(['Servitor-2', 'Servitor-1'])
+    expect(after.slice(1).map(({ name }) => name)).toEqual(['Servitor-2', 'Servitor-1', 'Servitor-3'])
   })
 
   it('never yields Magos from a thread item, even one stamped with a root role', () => {

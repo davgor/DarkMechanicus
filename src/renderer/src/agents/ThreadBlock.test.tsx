@@ -33,7 +33,7 @@ describe('ThreadBlock heading', () => {
     expect(block.textContent).not.toContain('Explore')
   })
 
-  it('falls back to the label only for a thread stored before callsigns', () => {
+  it('falls back to the label only for a thread with no callsign (a lost thread with no stamped request)', () => {
     const block = show(thread())
 
     expect(block.querySelector('.chat-thread-label')?.textContent).toBe('Explore')
