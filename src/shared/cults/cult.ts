@@ -64,7 +64,9 @@ export const CULT_EVENT_KINDS = [
   'report_submitted',
   'worker_type_created',
   'worker_type_retired',
-  'worker_type_assigned'
+  'worker_type_assigned',
+  /** One order the Magos sent every live acolyte (`cult_order_all`), with its mailbox message ids. */
+  'order_all'
 ] as const
 export type CultEventKind = (typeof CULT_EVENT_KINDS)[number]
 
@@ -273,6 +275,13 @@ export interface CultPetitionView {
   decidedAt: string | null
 }
 
+/** What an `order_all` event records: the order, its one mailbox message per recipient, and the recipients by name. */
+export interface CultOrderData {
+  orderId: string
+  messageIds: string[]
+  recipients: string[]
+}
+
 export interface CultEventView {
   runId: string
   seq: number
@@ -280,6 +289,8 @@ export interface CultEventView {
   memberName: string | null
   kind: CultEventKind
   summary: string
+  /** Structured data of the event: an `order_all` event's order; null for every other kind. */
+  data: CultOrderData | null
 }
 
 export interface CultEventPage {

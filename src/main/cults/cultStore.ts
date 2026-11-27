@@ -11,6 +11,7 @@ import type {
   CultEventPage,
   CultEventPageRequest,
   CultEventView,
+  CultOrderData,
   CultInput,
   CultMemberView,
   CultPetitionView,
@@ -66,6 +67,8 @@ export interface CultStore {
   getPetition(petitionId: string): CultPetitionView | null
   listPetitions(runId: string): CultPetitionView[]
   appendEvent(runId: string, input: CultEventInput): CultEventView
+  /** One `order_all` event with its order id, mailbox message ids and recipients. */
+  recordOrder(runId: string, memberName: string, order: CultOrderData): CultEventView
   pageEvents(runId: string, request?: CultEventPageRequest): CultEventPage
 }
 
@@ -98,6 +101,7 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     getPetition: (petitionId) => petitions.getPetition(ctx, petitionId),
     listPetitions: (runId) => petitions.listPetitions(ctx, runId),
     appendEvent: (runId, input) => petitions.appendEvent(ctx, runId, input),
+    recordOrder: (runId, memberName, order) => petitions.recordOrder(ctx, runId, memberName, order),
     pageEvents: (runId, request) => petitions.pageEvents(ctx, runId, request)
   }
 }

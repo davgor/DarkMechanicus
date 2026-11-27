@@ -10,6 +10,7 @@ import type { CultArchetype, RosterSlot, RunWorkerType, WorkerType } from '../..
 import type {
   CultEventKind,
   CultEventView,
+  CultOrderData,
   CultMemberView,
   CultPetitionView,
   CultRunView,
@@ -27,7 +28,7 @@ export interface StoreContext {
   now: () => string
 }
 
-export const newCultId = (prefix: 'ct' | 'cr' | 'cp'): string => `${prefix}_${newUlid()}`
+export const newCultId = (prefix: 'ct' | 'cr' | 'cp' | 'co'): string => `${prefix}_${newUlid()}`
 
 /** Validates input at the store boundary; a refusal is `invalid_input` carrying zod's issues. */
 export function parseInput<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
@@ -280,6 +281,22 @@ export interface NewEvent {
   memberName: string | null
   summary: string
   at: string
+  data?: CultOrderData | null
+}
+
+export interface EventRow {
+  run_id: string
+  seq: number
+  at: string
+  member_name: string | null
+  kind: CultEventKind
+  summary: string
+  data: string | null
+}
+
+export function toEventView(row: EventRow): CultEventView {
+  const data = row.data === null ? null : (JSON.parse(row.data) as CultOrderData)
+  return { runId: row.run_id, seq: row.seq, at: row.at, memberName: row.member_name, kind: row.kind, summary: row.summary, data }
 }
 
 /** Appends one pipeline event at the run's next sequence number. */
@@ -289,14 +306,16 @@ export function insertEvent(db: Db, event: NewEvent): CultEventView {
     event.runId
   )
   const seq = next?.seq ?? 1
+  const data = event.data == null ? null : JSON.stringify(event.data)
   db.run(
-    'INSERT INTO cult_events (run_id, seq, at, member_name, kind, summary) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO cult_events (run_id, seq, at, member_name, kind, summary, data) VALUES (?, ?, ?, ?, ?, ?, ?)',
     event.runId,
     seq,
     event.at,
     event.memberName,
     event.kind,
-    event.summary
+    event.summary,
+    data
   )
-  return { runId: event.runId, seq, at: event.at, memberName: event.memberName, kind: event.kind, summary: event.summary }
+  return toEventView({ run_id: event.runId, seq, at: event.at, member_name: event.memberName, kind: event.kind, summary: event.summary, data })
 }

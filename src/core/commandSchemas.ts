@@ -2,6 +2,10 @@ import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
+import {
+  cultConcludeRunArgsSchema, cultConcludeServiceArgsSchema, cultCreateWorkerTypeArgsSchema, cultDismissArgsSchema, cultOrderAllArgsSchema,
+  cultPetitionArgsSchema, cultSummonArgsSchema
+} from '../shared/cults/cultControl'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
 import { repositoryName } from './repo/portable'
@@ -226,6 +230,16 @@ export const COMMAND_SCHEMAS = {
   getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,
   recoverTooling: toolingRecoveryInputSchema,
+  // Cult member commands (`src/shared/cults/cultControl.ts`): never a run, a role or a sender; main derives them.
+  cultStatus: noInput,
+  cultSummonAcolyte: cultSummonArgsSchema,
+  cultDismissAcolyte: cultDismissArgsSchema,
+  cultListAcolytes: noInput,
+  cultPetition: cultPetitionArgsSchema,
+  cultOrderAll: cultOrderAllArgsSchema,
+  cultConcludeRun: cultConcludeRunArgsSchema,
+  cultConcludeService: cultConcludeServiceArgsSchema,
+  cultCreateWorkerType: cultCreateWorkerTypeArgsSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   standardizeProjectWork: z.strictObject({
     expectedRevision: z.number().int().positive(),

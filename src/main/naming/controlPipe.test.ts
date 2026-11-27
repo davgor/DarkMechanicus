@@ -107,9 +107,9 @@ it('decodes fragmented UTF-8 only after the complete raw-bounded frame arrives',
   expect(seen).toEqual([{ op: 'name_chat', args: { title: 'Repair \u732b display' } }])
   expect(JSON.stringify(seen)).not.toContain(issued.token)
 })
-it('rejects 4096+1 unterminated bytes before JSON parsing or authorization', async () => {
+it('rejects an unterminated frame past the largest request bound before JSON parsing or authorization', async () => {
   const server = await endpoint()
-  expect(await raw(server.address, [Buffer.alloc(NAMING_CONTROL.requestBytes + 1, 120)], false).reply).toMatchObject({ ok: false, error: { code: 'invalid_request' } })
+  expect(await raw(server.address, [Buffer.alloc(NAMING_CONTROL.cultRequestBytes + 1, 120)], false).reply).toMatchObject({ ok: false, error: { code: 'invalid_request' } })
 })
 it.each([
   () => Buffer.from('{bad}\n'),

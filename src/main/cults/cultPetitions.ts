@@ -9,6 +9,8 @@ import {
   type CultEventPage,
   type CultEventPageRequest,
   type CultEventView,
+  type CultOrderData,
+  MAX_EVENT_SUMMARY_CHARS,
   type CultPetitionView,
   eventInputSchema,
   eventPageSchema,
@@ -19,7 +21,9 @@ import {
 } from '../../shared/cults/cult'
 import { MAX_CAP } from '../../shared/cults/runState'
 import {
+  type EventRow,
   insertEvent,
+  toEventView,
   newCultId,
   parseInput,
   type PetitionRow,
@@ -108,22 +112,24 @@ export function appendEvent(ctx: StoreContext, runId: string, input: CultEventIn
   })
 }
 
+/** Records one `order_all` event: the Magos's order, its mailbox message ids and its recipients. */
+export function recordOrder(ctx: StoreContext, runId: string, memberName: string, order: CultOrderData): CultEventView {
+  return ctx.db.tx(() => {
+    requireRun(ctx.db, runId)
+    const summary = `Order to every acolyte (${order.recipients.length}): ${order.recipients.join(', ')}`.slice(0, MAX_EVENT_SUMMARY_CHARS)
+    return insertEvent(ctx.db, { runId, kind: 'order_all', memberName, summary, at: ctx.now(), data: order })
+  })
+}
+
 /** One page of a run's events after `afterSeq`, in sequence order. */
 export function pageEvents(ctx: StoreContext, runId: string, request: CultEventPageRequest = {}): CultEventPage {
   const { afterSeq, limit } = parseInput(eventPageSchema, request)
-  const rows = ctx.db.all<{ run_id: string; seq: number; at: string; member_name: string | null; kind: CultEventView['kind']; summary: string }>(
+  const rows = ctx.db.all<EventRow>(
     'SELECT * FROM cult_events WHERE run_id = ? AND seq > ? ORDER BY seq LIMIT ?',
     runId,
     afterSeq,
     limit + 1
   )
-  const events = rows.slice(0, limit).map((row) => ({
-    runId: row.run_id,
-    seq: row.seq,
-    at: row.at,
-    memberName: row.member_name,
-    kind: row.kind,
-    summary: row.summary
-  }))
+  const events = rows.slice(0, limit).map((row) => toEventView(row))
   return { events, nextAfterSeq: rows.length > limit ? events[events.length - 1].seq : null }
 }

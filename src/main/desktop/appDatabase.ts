@@ -241,13 +241,19 @@ CREATE TABLE cult_specialist_reports (
 CREATE INDEX cult_specialist_reports_slot ON cult_specialist_reports(run_id, slot_id, id);
 `
 
+/** An event's structured data as JSON (an `order_all` event's order id, message ids and recipients); null otherwise. */
+const V6 = `
+ALTER TABLE cult_events ADD COLUMN data TEXT CHECK (data IS NULL OR json_valid(data));
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
 export const APP_MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
   { version: 3, sql: V3 },
   { version: 4, sql: V4 },
-  { version: 5, sql: V5 }
+  { version: 5, sql: V5 },
+  { version: 6, sql: V6 }
 ]
 
 /**

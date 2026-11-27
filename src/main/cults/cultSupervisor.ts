@@ -53,7 +53,7 @@ export interface CultRunSnapshot {
 export type RunOptions = Omit<RunStartInput, 'workDir'>
 
 export interface CultSupervisorDeps {
-  cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup'>
+  cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup' | 'slotCoverage'>
   launcher: Pick<CultLauncher, 'launch' | 'startAcolyte' | 'endMember'>
   terminals: Pick<TerminalSessions, 'onExit' | 'isRunning' | 'attachGrant' | 'detachGrant'>
   control: CultControl
@@ -80,6 +80,15 @@ export interface CultSupervisor {
   killNow(runId: string): Promise<CultRunSnapshot>
   /** Refused unless the run is running, or past its cap; a missing or taken name is generated. */
   addAcolyte(runId: string, request: AcolyteRequest): Promise<CultMemberView>
+  /**
+   * The Magos's own summon (`cult_summon_acolyte`), refused with a typed code: `run_paused`, `run_ending`,
+   * `cap_reached`, `name_taken` (never renamed), and in a cult with a roster `slot_unknown` or `slot_occupied`.
+   */
+  summonAcolyte(runId: string, request: AcolyteRequest): Promise<CultMemberView>
+  /** The live member a chat is, with its supervised run; null for any other chat. */
+  memberOf(chatId: string): { run: CultRunView; member: CultMemberView } | null
+  /** The Magos concluded the run: its graceful shutdown starts (`completed`); `run_ending` once it has ended. */
+  concludeRun(runId: string): Promise<CultRunSnapshot>
   /** Refused unless the run is running. */
   dismissAcolyte(runId: string, chatId: string): Promise<CultMemberView>
   /** A member concluded: an acolyte is ended gracefully; the Magos concluding winds the run down (`completed`). */
@@ -213,6 +222,51 @@ function requireLiveMember(s: State, runId: string, chatId: string): CultMemberV
 
 function requireRunning(run: CultRunView, what: string): void {
   if (run.state !== 'running') fail('invalid_state', `Cannot ${what} while the cult run is ${run.state.replace('_', ' ')}.`)
+}
+
+/** The typed refusal of a member's command that needs a running run. */
+export function requireRunningRun(run: Pick<CultRunView, 'state'>): void {
+  if (run.state === 'paused') fail('run_paused', 'The cult run is paused.')
+  if (run.state === 'shutting_down' || run.state === 'ended') fail('run_ending', 'The cult run is ending.')
+  if (run.state !== 'running') fail('invalid_state', 'The cult run has not started yet.')
+}
+
+/** A cult with a roster: every acolyte holds a free slot of it, unless it serves as a run worker type. */
+function requireFreeSlot(s: State, runId: string, request: AcolyteRequest): void {
+  const slots = s.deps.cults.slotCoverage(runId)
+  if (request.slotId == null) {
+    if (slots.length > 0 && request.runWorkerTypeId == null) fail('slot_unknown', 'This cult has a roster: name the slot the acolyte fills.')
+    return
+  }
+  const slot = slots.find((candidate) => candidate.slotId === request.slotId) ?? fail('slot_unknown', `The cult has no roster slot ${request.slotId}.`)
+  if (slot.liveMemberChatIds.length > 0) fail('slot_occupied', `A live acolyte already holds the slot ${slot.slotId}.`)
+}
+
+async function summonAcolyte(s: State, runId: string, request: AcolyteRequest): Promise<CultMemberView> {
+  const run = requireRun(s, runId)
+  requireRunningRun(run)
+  const members = s.deps.cults.listMembers(runId)
+  const acolytes = members.filter((member) => member.role === 'acolyte' && isLive(member)).length
+  if (acolytes >= run.cap) fail('cap_reached', `The cult run is at its cap of ${run.cap} acolytes.`)
+  const wanted = request.name?.trim().toLowerCase() ?? ''
+  if (wanted !== '' && members.some((member) => member.displayName.toLowerCase() === wanted)) fail('name_taken', `The name ${request.name} is taken in this run.`)
+  requireFreeSlot(s, runId, request)
+  const member = await track(s, runId, await s.deps.launcher.startAcolyte(run, request))
+  emit(s, runId)
+  return member
+}
+
+function memberOf(s: State, chatId: string): { run: CultRunView; member: CultMemberView } | null {
+  const runId = s.chatRuns.get(chatId)
+  if (runId === undefined || !s.runs.has(runId)) return null
+  const member = liveMembers(s, runId).find((candidate) => candidate.chatId === chatId)
+  return member === undefined ? null : { run: requireRun(s, runId), member }
+}
+
+async function concludeRun(s: State, runId: string): Promise<CultRunSnapshot> {
+  const run = requireRun(s, runId)
+  if (run.state === 'ended') fail('run_ending', 'The cult run has ended.')
+  return run.state === 'shutting_down' ? snapshot(s, runId) : beginShutdown(s, runId, 'completed')
 }
 
 async function addAcolyte(s: State, runId: string, request: AcolyteRequest): Promise<CultMemberView> {
@@ -379,7 +433,7 @@ async function settle(s: State, runId: string): Promise<void> {
 // --- petitions ---------------------------------------------------------------------------------------------------
 
 function trackedFolder(s: State, folder: string): string {
-  return s.deps.folders.resolve(folder) ?? fail('unauthorized', `The folder ${folder} is not tracked by Dark Mechanicus.`)
+  return s.deps.folders.resolve(folder) ?? fail('folder_not_tracked', `The folder ${folder} is not tracked by Dark Mechanicus.`)
 }
 
 function petition(s: State, runId: string, input: PetitionInput, fromChatId?: string): CultPetitionView {
@@ -496,6 +550,9 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
     stop: (runId) => serialized(s, runId, () => beginShutdown(s, runId, 'stopped')),
     killNow: (runId) => abort(s, runId, 'killed'),
     addAcolyte: (runId, request) => serialized(s, runId, () => addAcolyte(s, runId, request)),
+    summonAcolyte: (runId, request) => serialized(s, runId, () => summonAcolyte(s, runId, request)),
+    memberOf: (chatId) => memberOf(s, chatId),
+    concludeRun: (runId) => serialized(s, runId, () => concludeRun(s, runId)),
     dismissAcolyte: (runId, chatId) => serialized(s, runId, () => dismissAcolyte(s, runId, chatId)),
     concludeMember: (runId, chatId) => serialized(s, runId, () => concludeMember(s, runId, chatId)),
     petition: (runId, input, fromChatId) => petition(s, runId, input, fromChatId),

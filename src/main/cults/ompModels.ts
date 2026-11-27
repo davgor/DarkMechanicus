@@ -38,7 +38,8 @@ export interface CultModelList {
   reason: string | null
 }
 
-const TIER_RANK: Readonly<Record<CultModelTier, number>> = { low: 0, normal: 1, high: 2, unpriced: 3 }
+/** Cheapest first: a model above the cheapest offered tier needs a reason (`cult_summon_acolyte`'s `tierReason`). */
+export const TIER_RANK: Readonly<Record<CultModelTier, number>> = { low: 0, normal: 1, high: 2, unpriced: 3 }
 
 /** `omp models --json` printed 7.8 kB in 0.61 s (docs/design/cults.md, section 4); the margin matches `omp usage`. */
 const MODELS_TIMEOUT_MS = 10_000
