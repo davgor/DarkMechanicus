@@ -23,7 +23,8 @@ process.on('disconnect', () => app.exit(1))
 // Display scaling (150% on the Windows host) rounds a hidden window's content to whole device pixels (800 CSS px
 // became 802); at scale 1 the page is exactly the requested size and the PNG the same on every host.
 app.commandLine.appendSwitch('force-device-scale-factor', '1')
-// The app's chat images scheme, registered as main registers it, so composer thumbnails load in the preview.
+// The app's chat images scheme, registered as main registers it, so composer and transcript thumbnails load in the
+// preview. An image id ending `zz` stands for one whose file is gone: it answers 404, so the page shows its placeholder.
 const CHAT_IMAGE_SCHEME = 'dm-chat-image'
 protocol.registerSchemesAsPrivileged([{ scheme: CHAT_IMAGE_SCHEME, privileges: { standard: true, secure: true } }])
 /** Thumbnail accents, picked by an image id's last character: brass, crimson, blue, green. */
@@ -95,7 +96,11 @@ async function captureState(state) {
 }
 
 app.whenReady().then(async () => {
-  protocol.handle(CHAT_IMAGE_SCHEME, (request) => new Response(fixtureImage(new URL(request.url).pathname), { headers: { 'content-type': 'image/png' } }))
+  protocol.handle(CHAT_IMAGE_SCHEME, (request) => {
+    const { pathname } = new URL(request.url)
+    if (pathname.endsWith('zz')) return new Response(null, { status: 404 })
+    return new Response(fixtureImage(pathname), { headers: { 'content-type': 'image/png' } })
+  })
   send({ type: 'started', electron: process.versions.electron })
   for (const state of config.states) send({ type: 'state', record: await captureState(state) })
   app.exit(0)
