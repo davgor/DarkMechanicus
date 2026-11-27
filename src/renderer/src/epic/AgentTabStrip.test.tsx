@@ -186,6 +186,27 @@ describe('AgentTabStrip: closing', () => {
   })
 })
 
+describe('AgentTabStrip: Ctrl+Tab under a dialog', () => {
+  it('does not cycle while the Stop confirmation or the picker is open, and does once it closes', async () => {
+    open(backendWith({ chat_orch: 'idle', chat_plan: 'idle' }), [magos, planner])
+    const stage = await agentStage()
+    const tabs = strip(stage)
+    fireEvent.click(await within(tabs).findByRole('button', { name: 'Stop Lexmechanic' }))
+    fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true })
+    expect(within(tabs).getByRole('tab', { name: /^Magos/ }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Stop the Lexmechanic?' })).getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(within(stage).getByRole('button', { name: 'Start or reopen an agent' }))
+    fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true, shiftKey: true })
+    expect(within(tabs).getByRole('tab', { name: /^Magos/ }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Start an agent' }), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true })
+    expect(await within(stage).findByRole('region', { name: 'Lexmechanic chat' })).toBeTruthy()
+  })
+})
+
 describe('AgentTabStrip: "+" and reopen', () => {
   it('opens the role picker with a Reopen list; Reopen selects the stopped chat and starts it in the GUI', async () => {
     const backend = backendWith({ chat_orch: 'idle', chat_plan: 'exited' })

@@ -150,13 +150,17 @@ function SignalFeeds({ folder, chats, report }: { folder: string; chats: readonl
     : <TerminalSignals key={chat.id} folder={folder} chatId={chat.id} report={report} />)}</>
 }
 
-/** Ctrl+Tab and Ctrl+Shift+Tab cycle the tabs anywhere on the Agent stage, as in a browser. */
+/**
+ * Ctrl+Tab and Ctrl+Shift+Tab cycle the tabs anywhere on the Agent stage, as in a browser; not while a modal dialog
+ * (the Stop confirmation, the picker, or any other) is open, so the chat behind it never changes.
+ */
 function useCtrlTab(tabs: readonly AgentTab[], selectedId: string | null, select: (chatId: string | null) => void): void {
   const current = useRef({ tabs, selectedId })
   current.current = { tabs, selectedId }
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== 'Tab' || event.defaultPrevented) return
+      if (document.querySelector('[role="dialog"][aria-modal="true"]') !== null) return
       event.preventDefault()
       select(cycleTab(current.current.tabs, current.current.selectedId, event.shiftKey ? -1 : 1))
     }
