@@ -84,11 +84,11 @@ afterEach(() => {
 })
 
 describe('openAppDatabase', () => {
-  it('creates app.sqlite at user_version 5 with the agent and cult tables', () => {
+  it('creates app.sqlite at user_version 6 with the agent and cult tables', () => {
     const dir = tempDir()
     const db = open(dir)
     expect(existsSync(join(dir, 'app.sqlite'))).toBe(true)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(5)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
     const tables = db
       .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name <> 'sqlite_sequence' ORDER BY name")
       .map((row) => row.name)
@@ -131,13 +131,13 @@ describe('openAppDatabase on a file already there', () => {
     open(dir).close()
     openDbs.length = 0
     const db = open(dir)
-    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 5, to: 5 })
+    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 6, to: 6 })
   })
 
   it('refuses a database at a newer user_version with incompatible_schema', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
-    raw.exec('PRAGMA user_version = 6')
+    raw.exec('PRAGMA user_version = 7')
     raw.close()
     const error = thrownBy(() => open(dir))
     expect(error).toBeInstanceOf(DomainError)
@@ -154,7 +154,7 @@ describe('openAppDatabase on a file already there', () => {
     )
     raw.close()
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(5)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
     expect(db.get('SELECT id, args_json, needs_review FROM agents')).toEqual({ id: 'cu_1', args_json: '["{folder}"]', needs_review: 1 })
   })
 })
@@ -162,7 +162,7 @@ describe('openAppDatabase on a file already there', () => {
 describe('upgrading an app.sqlite at today’s schema (v2): the protocol goes, ACP and Codex custom rows need review', () => {
   it('drops the protocol column, and the agent name the handshake reported', () => {
     const db = upgraded()
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(5)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
     expect(columnsOf(db, 'agents')).not.toContain('protocol')
     expect(columnsOf(db, 'agents')).not.toContain('reported_name')
     expect(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'agents'")?.sql).not.toMatch(/protocol|reported_name/)
@@ -231,7 +231,7 @@ describe('upgrading an app.sqlite at v3: omp becomes a kind', () => {
     const dir = tempDir()
     writeV3(dir)
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(5)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
     expect(columnsOf(db, 'agents')).toEqual(['id', 'kind', 'display_name', 'executable_path', 'args_json', 'version', 'connected_via', 'connected_at', 'last_probed', 'needs_review'])
     expect(db.all('SELECT * FROM agents ORDER BY rowid')).toEqual([
       { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', executable_path: '/bin/a8s', args_json: '[]', version: '0.79.0', connected_via: 'found', connected_at: 't1', last_probed: 't2', needs_review: 0 },
@@ -307,12 +307,25 @@ describe('upgrading an app.sqlite at v4: the cult tables arrive', () => {
     raw.run("INSERT INTO app_meta (key, value) VALUES ('k', 'v')")
     raw.close()
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(5)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
     expect(db.all('SELECT id, kind FROM agents')).toEqual([{ id: 'omp', kind: 'omp' }])
     expect(db.all('SELECT folder, agent_id FROM folder_agent_defaults')).toEqual([{ folder: '/repos/a', agent_id: 'omp' }])
     expect(db.all('SELECT key, value FROM app_meta')).toEqual([{ key: 'k', value: 'v' }])
     expect(db.all('SELECT id FROM cults')).toEqual([])
     const indexes = db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'cult_%' ORDER BY name")
     expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining(['cult_runs_one_active', 'cult_members_run', 'cult_members_name']))
+  })
+})
+
+describe('upgrading an app.sqlite at v5: cult events gain structured data', () => {
+  it('keeps every cult event, with no data, and accepts only JSON data', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 5))
+    expect(columnsOf(raw, 'cult_events')).not.toContain('data')
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
+    expect(columnsOf(db, 'cult_events')).toEqual(['run_id', 'seq', 'at', 'member_name', 'kind', 'summary', 'data'])
   })
 })

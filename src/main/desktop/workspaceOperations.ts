@@ -20,7 +20,7 @@ import { appendEvent } from '../../core/services/events'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
 import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, renameAgentMailEndpoint, suspendAgentMailEndpoint } from '../../core/services/agentMail'
-import { findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
+import { acceptMessage, findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { bindChatMailbox, deleteChatMailbox, hasMailbox, mailboxName, provisionAll, type MailboxChat } from '../agents/chatMailboxOperations'
 import {
@@ -93,6 +93,24 @@ function mailboxOperations(ctx: Context) {
         return row?.state === 'open' ? [{ chatId, endpointId: row.id }] : []
       })
     },
+    /**
+     * A cult Magos's `cult_order_all`: one message from its own open mailbox to each recipient's, in one transaction,
+     * through the same acceptance (size limits, quotas, wake) as `send_agent_message`. Each message's client id is
+     * `<orderId>:<n>`, so a retried order replays rather than sending twice. Returns the message ids in recipient order.
+     */
+    sendCultOrder(order: { senderChatId: string; recipientChatIds: readonly string[]; orderId: string; body: string }) {
+      const context = ctx()
+      const open = (chatId: string) => {
+        const row = findEndpointByChat(context, { machineId: context.machineId, chatId })
+        return row?.state === 'open' ? row.id : fail('not_found', 'A cult member has no open mailbox.')
+      }
+      return context.db.tx(() => {
+        const sender = open(order.senderChatId)
+        return order.recipientChatIds.map((chatId, index) =>
+          acceptMessage(context, { senderEndpointId: sender, to: open(chatId), clientMessageId: `${order.orderId}:${index + 1}`, body: order.body }).messageId
+        )
+      })
+    },
     provisionMailboxes(deleting: readonly string[], chats: readonly MailboxChat[]) {
       const context = ctx()
       for (const id of deleting) deleteChatMailbox(context, { id, agent: 'omp', title: 'Deleted world chat' })
@@ -144,7 +162,7 @@ function grantOperations(workspace: Workspace, ctx: Context) {
         return grant
       })
     },
-    verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | null) {
+    verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | 'cult.act' | null) {
       const context = ctx()
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)

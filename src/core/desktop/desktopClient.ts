@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
-import { NAMING_CONTROL, NamingControlError, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema, type NamingOperation, type NamingReply } from '../../shared/agents/chatNaming'
+import {
+  NamingControlError, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema, requestBound, responseBound,
+  NAMING_CONTROL, type NamingOperation, type NamingReply
+} from '../../shared/agents/chatNaming'
 import { createControlFrame } from './controlFrame'
 import { serializedCredentialWithinBound } from '../../../resources/skitarii/extension/controlLimits'
 
@@ -15,7 +18,7 @@ interface DesktopClientOptions {
 export interface DesktopClient {
   request(operation: NamingOperation, options?: { signal?: AbortSignal }): Promise<NamingReply>
 }
-interface Prepared { requestId: string; address: string; wire: string }
+interface Prepared { requestId: string; address: string; wire: string; op: string }
 
 function inheritedAuthority(options: DesktopClientOptions, requestId: string): { address: string; token: string } | { reply: NamingReply } {
   const env = options.env ?? process.env
@@ -36,9 +39,8 @@ function prepare(options: DesktopClientOptions, operation: NamingOperation): Pre
   const parsed = namingRequestSchema.safeParse({ version: 1, requestId, token: authority.token, ...parsedOperation.data })
   if (!parsed.success) return { reply: namingFailure(requestId, 'unauthorized') }
   const wire = JSON.stringify(parsed.data) + '\n'
-  const limit = operation.op === 'name_chat' ? NAMING_CONTROL.namingRequestBytes : NAMING_CONTROL.requestBytes
-  if (Buffer.byteLength(wire) > limit) return { reply: namingFailure(requestId, 'invalid_request') }
-  return { requestId, address: authority.address, wire }
+  if (Buffer.byteLength(wire) > requestBound(operation.op)) return { reply: namingFailure(requestId, 'invalid_request') }
+  return { requestId, address: authority.address, wire, op: operation.op }
 }
 
 function transport(options: DesktopClientOptions, prepared: Prepared, signal?: AbortSignal): Promise<NamingReply> {
@@ -47,7 +49,7 @@ function transport(options: DesktopClientOptions, prepared: Prepared, signal?: A
     let socket: Socket | null = null
     let settled = false
     let reply: NamingReply | null = null
-    const frame = createControlFrame(NAMING_CONTROL.responseBytes)
+    const frame = createControlFrame(responseBound(prepared.op))
     const after = options.after ?? ((callback: () => void, ms: number) => {
       const timer = setTimeout(callback, ms)
       return () => clearTimeout(timer)
@@ -76,7 +78,7 @@ function transport(options: DesktopClientOptions, prepared: Prepared, signal?: A
           if (text !== null) {
             const parsed = namingReplySchema.safeParse(JSON.parse(text) as unknown)
             if (!parsed.success || parsed.data.requestId !== requestId) { throw new NamingControlError('invalid_request') }
-            reply = parsed.data.ok ? parsed.data : namingFailure(requestId, parsed.data.error.code)
+            reply = parsed.data.ok ? parsed.data : namingFailure(requestId, parsed.data.error.code, parsed.data.error.details)
           }
         } catch { finish(namingFailure(requestId, 'invalid_request')) }
       })

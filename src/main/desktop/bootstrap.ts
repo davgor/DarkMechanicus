@@ -6,7 +6,10 @@
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
-import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
+import { createControlPipe, type ControlPipe, type NamingDispatcher } from '../naming/controlPipe'
+import { NamingControlError } from '../../shared/agents/chatNaming'
+import { isCultOperation } from '../../shared/cults/cultControl'
+import { createCultDispatcher } from '../cults/cultCommands'
 import { createNamingDispatcher } from '../naming/namingCommands'
 import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
 import { existsSync, realpathSync } from 'node:fs'
@@ -343,6 +346,8 @@ interface ChatProcesses {
   mail: AgentMailDesktop
   suspendChatMail(chat: ChatRecord): Promise<void>
   grants: ChatGrants
+  /** Serves the cult operations of the control pipe once the cult supervisor has started (`startCults`). */
+  setCultDispatcher(dispatch: NamingDispatcher): void
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
@@ -480,8 +485,14 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
     onNoticeError: error => logger.error('Tooling repair notice failed:', error),
   })
   const naming = createNamingDispatcher({ store, push })
+  let cults: NamingDispatcher | null = null
   namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
-    dispatch: (operation, context) => operation.op === 'name_chat' ? naming(operation, context) : recovery.dispatch(operation, context)
+    dispatch: (operation, context) => {
+      if (operation.op === 'name_chat') return naming(operation, context)
+      if (!isCultOperation(operation.op)) return recovery.dispatch(operation, context)
+      if (cults === null) throw new NamingControlError('operation_unavailable')
+      return cults(operation, context)
+    }
   }).then(pipe => { namingPipe = pipe })
   // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
@@ -489,6 +500,7 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
   const chats = endingTerminals(records, terminals)
   const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
+    setCultDispatcher: dispatch => { cults = dispatch },
     suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
@@ -950,7 +962,7 @@ interface CultServiceDeps {
   sanctums: SanctumRegistry
   agents: AgentRegistry
   pool: WorkspacePool
-  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants'>
+  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants' | 'setCultDispatcher'>
 }
 
 /**
@@ -980,6 +992,18 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     onError: (error) => logger.error('Cult supervision failed:', error)
   })
   void supervisor.reconcileOnStartup().catch((error: unknown) => logger.error('Cult startup recovery failed:', error))
+  deps.processes.setCultDispatcher(createCultDispatcher({
+    supervisor, cults,
+    models: async () => (await models.list()).options,
+    sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
+    targetRevision: async (run) => {
+      const target = cults.getCult(run.cultId)?.targetEpicId
+      if (target == null) return null
+      const epic = await desktopWorkspace(deps.gates, deps.pool, run.workDir).getEpic({ epicId: target })
+      return `saved ${epic.currentRevisionNumber ?? 0}, draft ${epic.draftRevision ?? 0}`
+    },
+    onError: (error) => logger.error('Cult member conclusion failed:', error)
+  }))
   return supervisor
 }
 
@@ -1152,7 +1176,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail, setCultDispatcher } = createChatProcesses({
     folders: gates, sanctums, agents, workspaces: pool, activity, sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
@@ -1175,7 +1199,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: gates, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
-  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants } })
+  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants, setCultDispatcher } })
   const stores = async (): Promise<void> => { await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

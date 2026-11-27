@@ -7,8 +7,9 @@ import { performance } from 'node:perf_hooks'
 import { createControlFrame } from '../../core/desktop/controlFrame'
 import {
   NAMING_CONTROL, NamingControlError, namingErrorCodeSchema, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema,
-  type NamingErrorCode, type NamingOperation
+  requestBound, responseBound, type NamingErrorCode, type NamingOperation
 } from '../../shared/agents/chatNaming'
+import { isCultOperation, type CultErrorDetails } from '../../shared/cults/cultControl'
 
 /** Created only by the live grant registry, never reconstructed from historical chat records. */
 export interface NamingControlBinding {
@@ -24,7 +25,8 @@ export interface NamingControlBinding {
   assertCurrent(): void
   /** Narrow repair authority, rechecked independently of naming (not granted to workers/reviewers). */
   assertRecovery?(): void
-  verifyAuthority?(capability: 'chat.name' | 'tooling.recover'): Promise<void>
+  /** `cult.act` is necessary for a cult operation, never sufficient: the dispatcher also resolves live membership. */
+  verifyAuthority?(capability: 'chat.name' | 'tooling.recover' | 'cult.act'): Promise<void>
 }
 export interface NamingOperationContext {
   readonly binding: NamingControlBinding
@@ -65,6 +67,10 @@ function errorCode(error: unknown): NamingErrorCode {
     if (parsed.success) { return parsed.data }
   }
   return 'internal_error'
+}
+/** Only a refused model carries data: the signed-in ids the caller may choose from. */
+function errorDetails(error: unknown): CultErrorDetails | undefined {
+  return error instanceof NamingControlError ? error.details : undefined
 }
 
 /** Drain unread Unix input after admission closes, avoiding a reset that discards the reply. */
@@ -145,9 +151,12 @@ class ControlServer implements ControlPipe {
 
 class ControlConnection {
   requestId = ''
+  /** The admitted operation, which bounds its reply. */
+  op = ''
   finished = false
   current: ControlOperation | null = null
-  private readonly frame = createControlFrame(NAMING_CONTROL.requestBytes)
+  // The largest request any operation may send; each operation's own bound is checked once the request parses.
+  private readonly frame = createControlFrame(NAMING_CONTROL.cultRequestBytes)
   private readonly cancelFrame: () => void
   constructor(readonly owner: ControlServer, readonly socket: Socket) {
     this.cancelFrame = owner.clock.after(() => this.finish(namingFailure(this.requestId, 'timeout')), NAMING_CONTROL.frameMs)
@@ -176,7 +185,8 @@ class ControlConnection {
     if (!parsed.success) { this.finish(namingFailure('', 'invalid_request')); return }
     const request = parsed.data
     this.requestId = request.requestId
-    if (request.op === 'name_chat' && Buffer.byteLength(text) + 1 > NAMING_CONTROL.namingRequestBytes) {
+    this.op = request.op
+    if (Buffer.byteLength(text) + 1 > requestBound(request.op)) {
       this.finish(namingFailure(this.requestId, 'invalid_request')); return
     }
     const deadline = this.owner.clock.now() + NAMING_CONTROL.serverMs
@@ -199,7 +209,7 @@ class ControlConnection {
     try {
       const parsed = namingReplySchema.safeParse(reply)
       wire = JSON.stringify(parsed.success ? parsed.data : namingFailure(this.requestId, 'internal_error')) + '\n'
-      if (Buffer.byteLength(wire) > NAMING_CONTROL.responseBytes) { wire = JSON.stringify(namingFailure(this.requestId, 'response_too_large')) + '\n' }
+      if (Buffer.byteLength(wire) > responseBound(this.op)) { wire = JSON.stringify(namingFailure(this.requestId, 'response_too_large')) + '\n' }
     } catch { wire = JSON.stringify(namingFailure(this.requestId, 'internal_error')) + '\n' }
     endReply(this.socket, wire)
   }
@@ -243,6 +253,7 @@ class ControlOperation {
     if (verify !== undefined) {
       await verify('chat.name')
       if (this.operation.op === 'recover_tooling') await verify('tooling.recover')
+      if (isCultOperation(this.operation.op)) await verify('cult.act')
     }
     this.assertActive()
   }
@@ -282,7 +293,7 @@ class ControlOperation {
       }
       await this.verifyActive()
       this.connection.finish({ version: 1, requestId: this.connection.requestId, ok: true, data })
-    } catch (error) { this.connection.finish(namingFailure(this.connection.requestId, errorCode(error))) } finally {
+    } catch (error) { this.connection.finish(namingFailure(this.connection.requestId, errorCode(error), errorDetails(error))) } finally {
       this.controller.abort()
       this.connection.owner.release(this)
     }

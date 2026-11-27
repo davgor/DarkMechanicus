@@ -6,6 +6,9 @@ import type { StandardizeProjectWorkInput, StandardizeProjectWorkResult } from '
 import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
+import type {
+  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultStatusResult, CultSummonArgs, CultSummonResult
+} from '../cults/cultControl'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
@@ -452,6 +455,26 @@ export interface CommandApi {
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
   recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
+  // Cult members (src/shared/cults/cultControl.ts), relayed to the desktop over the control pipe. The caller's run and
+  // role come only from its live bound grant: a chat that is not a live member of a run is refused with `unauthorized`.
+  /** Both roles: own name, the Magos, the run's state, time left (null: unlimited), cap and pending petitions. */
+  cultStatus(input?: Record<string, never>): Promise<CultStatusResult>
+  /** Magos: starts an acolyte, on the cheapest signed-in model unless another is named with a tierReason for a higher tier. */
+  cultSummonAcolyte(input: CultSummonArgs): Promise<CultSummonResult>
+  /** Magos: ends one of its run's acolytes gracefully. */
+  cultDismissAcolyte(input: { name: string }): Promise<{ dismissed: string }>
+  /** Magos: the run's acolytes with models, states, worker types and report states, and its missing required slots. */
+  cultListAcolytes(input?: Record<string, never>): Promise<CultAcolytesResult>
+  /** Magos: asks the person for more acolytes, Allow save, or access to a tracked folder. */
+  cultPetition(input: CultPetitionArgs): Promise<{ petitionId: string; kind: CultPetitionArgs['kind']; state: 'pending' }>
+  /** Magos: one mailbox message to every live acolyte of its run, under one order id. */
+  cultOrderAll(input: { body: string }): Promise<CultOrderAllResult>
+  /** Magos: stores the chronicle (at most 32 KiB) and starts the end of the run. */
+  cultConcludeRun(input: { chronicle: string }): Promise<{ concluding: 'run' }>
+  /** Acolyte: stores its final report (a slot holder's, as its specialist report) and ends its service. */
+  cultConcludeService(input: { report: string }): Promise<{ concluding: 'service'; reportStored: boolean }>
+  /** Magos: a worker type for this run only, which acolytes may then be summoned as. */
+  cultCreateWorkerType(input: { displayName: string; description: string; mission: string; rationale: string; requiredForConclusion: boolean }): Promise<{ workerTypeId: string; displayName: string; requiredForConclusion: boolean }>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>

@@ -49,6 +49,13 @@ describe('cult rules: the Magos', () => {
     expect(rules).not.toContain('Polish')
   })
 
+  it('orders every acolyte with cult_order_all and one acolyte with send_agent_message', () => {
+    const rules = magosRules(context())
+
+    expect(rules).toContain(`Use \`${CULT_TOOLS.orderAll}\` for an order every acolyte`)
+    expect(rules).toContain('Use `send_agent_message` for an order to one')
+  })
+
   it('says an unlimited run has no time limit', () => {
     expect(magosRules(context({ timeLimitMs: null }))).toContain('Time limit: none.')
   })

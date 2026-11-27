@@ -107,8 +107,9 @@ function magosAuthority(): string[] {
     '"allow_save" or "folder_access", with a reason). Never save a plan without an approved allow_save petition, and',
     'never work in a folder other than this one without an approved folder_access petition.',
     'Folder work: split it by file. Give each acolyte its own files, so no two acolytes edit the same file.',
-    `Coordination: talk to your acolytes over the Skitarii mailbox; \`${T.orderAll}\` sends one order to every`,
-    `acolyte at once, and \`${T.listAcolytes}\` and \`${T.status}\` show who serves and how much time is left.`
+    `Coordination: talk to your acolytes over the Skitarii mailbox. Use \`${T.orderAll}\` for an order every acolyte`,
+    'must follow: it sends one message to each live acolyte at once. Use `send_agent_message` for an order to one',
+    `acolyte. \`${T.listAcolytes}\` and \`${T.status}\` show who serves and how much time is left.`
   ]
 }
 
