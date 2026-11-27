@@ -5,7 +5,8 @@ const SCROLL_LINES = [[30, 22], [36, 18], [42, 24], [48, 16], [54, 22], [60, 20]
 /** Text lines on the data-slate's screen: [y, width]. */
 const SLATE_LINES = [[110, 30], [115, 38], [120, 24], [125, 34], [130, 20]] as const
 const QUILL_BARBS = 'M121 82 L127 79 M124 76 L131 72 M127 70 L134 65 M130 64 L137 58 M133 58 L139 51 M136 52 L141 45'
-const SERVO_ARM = 'M112 92 L146 80 L124 88'
+/** The quill-servo arm: from a shoulder mount on the robe, up to its elbow, then down to the quill's clamp. */
+const SERVO_ARM = 'M117 100 L145 84 L123 88'
 const LENSES = [76, 88]
 
 function HangingScroll(): JSX.Element {
@@ -22,15 +23,23 @@ function HangingScroll(): JSX.Element {
   )
 }
 
-function RobeAndServoArm({ robe }: { robe: string }): JSX.Element {
+function Robe({ robe }: { robe: string }): JSX.Element {
   return (
     <g>
       <path fill={`url(#${robe})`} d="M46 94 C38 112 34 134 32 156 L132 156 C130 134 126 112 118 94 Z" />
       <path className="ra-stroke-bone" strokeWidth="2.5" fill="none" strokeLinecap="round" d="M46 94 Q82 110 118 94" />
-      <path className="ra-stroke-steel" strokeWidth="7" fill="none" strokeLinecap="round" d={SERVO_ARM} />
-      <path className="ra-stroke-brass" strokeWidth="3" fill="none" strokeLinecap="round" d={SERVO_ARM} />
-      <circle className="ra-brass ra-stroke-void" cx="146" cy="80" r="4.5" strokeWidth="1.5" />
-      <circle className="ra-brass ra-stroke-void" cx="112" cy="92" r="4.5" strokeWidth="1.5" />
+    </g>
+  )
+}
+
+function ServoArm(): JSX.Element {
+  return (
+    <g>
+      <path className="ra-stroke-steel" strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" d={SERVO_ARM} />
+      <path className="ra-stroke-brass" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" d={SERVO_ARM} />
+      <circle className="ra-brass ra-stroke-void" cx="145" cy="84" r="4.5" strokeWidth="1.5" />
+      <circle className="ra-brass ra-stroke-void" cx="117" cy="100" r="6" strokeWidth="1.5" />
+      <circle className="ra-void" cx="117" cy="100" r="2" />
     </g>
   )
 }
@@ -115,9 +124,10 @@ export function LexmechanicArt({ size = 160 }: ArtProps): JSX.Element {
       aria-label="Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm">
       <ArtDefs ids={ids} blur={2} />
       <HangingScroll />
-      <RobeAndServoArm robe={ids.robe} />
+      <Robe robe={ids.robe} />
       <Hood hood={ids.hood} glow={ids.glow} />
       <DataSlate glow={ids.glow} />
+      <ServoArm />
       <Quill />
       <RolledScrolls />
     </svg>
