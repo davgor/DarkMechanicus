@@ -515,6 +515,26 @@ describe('native naming route isolation', () => {
   })
 })
 
+describe('native browser route isolation', () => {
+  it.each(['browser_status', 'browserStatus', 'browser_screenshot', 'browserNavigate'])('passes only the browser address to %s, never the desktop one', async command => {
+    const deps = realDeps(chatEnv({ DM_BROWSER_PIPE: 'browser-address' }))
+    const result = await createDmClient(deps).run(command, {})
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const echo = result.data as Echo
+    expect(echo.env['DM_BROWSER_PIPE']).toBe('browser-address')
+    expect(echo.env).not.toHaveProperty('DM_DESKTOP_PIPE')
+    expect(echo.env['DM_SESSION_TOKEN']).toBe('[redacted]')
+    expectAllGone(deps.children)
+  })
+
+  it.each(['name_chat', 'get_capabilities', 'browser_open', 'browserstatus'])('does not pass the browser address to %s', async command => {
+    const result = await createDmClient(realDeps(chatEnv({ DM_BROWSER_PIPE: 'browser-address' }))).run(command, {})
+    expect(result.ok).toBe(true)
+    if (result.ok) expect((result.data as Echo).env).not.toHaveProperty('DM_BROWSER_PIPE')
+  })
+})
+
 describe('the DM client run (dm_call): its bound', () => {
   afterEach(() => {
     vi.useRealTimers()
