@@ -3,12 +3,13 @@
  * grants in real workspaces, the members' control files on disk and the terminal session manager on the fake PTY host.
  * Run time is a fake clock (`FakeClock`), shared by the supervisor and the store; nothing waits on wall time.
  */
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { CultMemberView, CultRunView } from '../../shared/cults/cult'
 import { DEFAULT_ACOLYTE_GRACE_MS, DEFAULT_MAGOS_WINDOW_MS, remainingMs } from '../../shared/cults/runState'
 import { eventually, FakeClock, settle } from '../terminals/__mocks__/terminalSessionsRig'
+import { ompFilePaths } from '../terminals/ompSession'
 import { cultHarness, disposeCultHarness, folderCultInput, ptyOf, type CultHarness } from './__mocks__/cultRig'
 import { cultControlPath } from './cultControl'
 import { createCultLedger, type CultLedger, type LeftoverProcesses } from './cultLedger'
@@ -25,6 +26,8 @@ interface Fixture {
   /** Run time: what the supervisor's timers and the store's stamps read. */
   clock: FakeClock
   supervisorClock: SupervisorClock & { longest: number }
+  /** The member activity poll's own clock, apart from run time so run timers count alone. */
+  activityClock: FakeClock
   ledger: CultLedger
   supervisor: CultSupervisor
   errors: unknown[]
@@ -79,6 +82,7 @@ function supervisorOver(fixture: Omit<Fixture, 'supervisor' | 'snapshots'>): Cul
     leftovers: rigLeftovers(h, fixture.reaped),
     userData: h.rig.userData,
     clock: fixture.supervisorClock,
+    activityClock: { now: () => new Date(BASE + fixture.activityClock.now).toISOString(), after: (callback, ms) => fixture.activityClock.after(callback, ms) },
     onError: (error) => fixture.errors.push(error)
   })
 }
@@ -88,7 +92,7 @@ beforeEach(async () => {
   const supervisorClock = clockOver(clock)
   const h = await cultHarness({ now: supervisorClock.now, exitOnKill: true })
   const ledger = createCultLedger({ userData: h.rig.userData })
-  const base = { h, clock, supervisorClock, ledger, errors: [], reaped: [], hearing: { on: true } }
+  const base = { h, clock, supervisorClock, activityClock: new FakeClock(), ledger, errors: [], reaped: [], hearing: { on: true } }
   const supervisor = supervisorOver(base)
   const snapshots: CultRunSnapshot[] = []
   supervisor.on(CULT_CHANGED, (snapshot) => snapshots.push(snapshot))
@@ -486,5 +490,37 @@ describe('cult supervisor: quit and restart', () => {
     // A member chat resumed later finds no control file to re-apply.
     expect(existsSync(cultControlPath(f.h.rig.userData, magos.chatId))).toBe(false)
     expect(await restarted.reconcileOnStartup()).toEqual([])
+  })
+})
+
+describe('cult supervisor: member activity', () => {
+  it('publishes each live member\'s working flag and last tool in its snapshots, at most once per 2 s, until the run ends', async () => {
+    const { run, magos } = await startRun()
+    const { sessionDir } = ompFilePaths(f.h.rig.userData, magos.chatId)
+    const write = (path: string): void => {
+      mkdirSync(sessionDir, { recursive: true })
+      const entry = { type: 'message', message: { role: 'assistant', stopReason: 'toolUse', content: [{ type: 'toolCall', name: 'Edit', arguments: { path } }] } }
+      writeFileSync(join(sessionDir, '2026-11-26T09-00-00-000Z_01a2183e-671f-77a4-af4f-4626eb9fee75.jsonl'), JSON.stringify(entry) + '\n')
+    }
+    write('/repo/src/renderer/src/cults/CultPage.tsx')
+    const before = f.snapshots.length
+    f.activityClock.advance(2 * SECOND)
+    await settle()
+
+    const published = f.snapshots.slice(before)
+    expect(published).toHaveLength(1)
+    expect(published[0]!.members[0]!.activity).toMatchObject({ working: true, tool: { name: 'edit', target: 'cults/CultPage.tsx' } })
+    write('/repo/a/second.ts')
+    f.activityClock.advance(SECOND)
+    write('/repo/a/third.ts')
+    f.activityClock.advance(SECOND)
+    await settle()
+    expect(f.snapshots.slice(before)).toHaveLength(2)
+    expect(f.supervisor.snapshot(run.id).members[0]!.activity?.tool?.target).toBe('a/third.ts')
+
+    await f.supervisor.killNow(run.id)
+    await settle()
+    expect(f.supervisor.snapshot(run.id).members[0]!.activity).toBeNull()
+    expect(f.clock.pending).toBe(0)
   })
 })

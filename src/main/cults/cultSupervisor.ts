@@ -33,6 +33,7 @@ import {
   type PetitionInput,
   type RunStartInput
 } from '../../shared/cults/cult'
+import type { MemberActivity } from '../../shared/cults/cultApi'
 import { type AbortReason, backstopMs, isExpired, remainingMs, type ShutdownReason } from '../../shared/cults/runState'
 import { ompFilePaths } from '../terminals/ompSession'
 import type { TerminalSessions } from '../terminals/terminalSessions'
@@ -41,14 +42,15 @@ import type { CultControl, CultControlRequest } from './cultControl'
 import { type CultLedger, endLeftover, type LedgerGrant, type LeftoverProcesses } from './cultLedger'
 import type { CultStore } from './cultStore'
 import { grantAllowSave, grantFolderAccess, revokeLeftUpgrade, revokeUpgrade, type UpgradeDeps, type UpgradedMagos } from './cultUpgrades'
+import { createMemberActivity, type MemberActivityTracker } from './memberActivity'
 import { schedule, type SupervisorClock, systemClock } from './runTimer'
 
 export const CULT_CHANGED = 'cult_changed'
 
-/** What `cult_changed` carries: the run as it is now, with its members and petitions. */
+/** What `cult_changed` carries: the run as it is now, with its members (each with its live activity) and petitions. */
 export interface CultRunSnapshot {
   run: CultRunView
-  members: CultMemberView[]
+  members: (CultMemberView & { activity: MemberActivity | null })[]
   petitions: CultPetitionView[]
 }
 
@@ -71,6 +73,8 @@ interface CultSupervisorDeps {
   leftovers: LeftoverProcesses
   userData: string
   clock?: SupervisorClock
+  /** The member activity poll's clock; the supervisor's own by default. */
+  activityClock?: SupervisorClock
   onError?: (error: unknown) => void
 }
 
@@ -146,6 +150,8 @@ interface State {
   chatRuns: Map<string, string>
   events: EventEmitter
   wakeClosers: Set<WakeCloser>
+  /** Each live member's working flag and last tool call, polled while its run is supervised. */
+  activity: MemberActivityTracker
 }
 
 const isLive = (member: Pick<CultMemberView, 'state'>): boolean => LIVE_MEMBER_STATES.includes(member.state)
@@ -160,7 +166,8 @@ function supervised(s: State, runId: string): Supervised {
 }
 
 function snapshot(s: State, runId: string): CultRunSnapshot {
-  return { run: requireRun(s, runId), members: s.deps.cults.listMembers(runId), petitions: s.deps.cults.listPetitions(runId) }
+  const members = s.deps.cults.listMembers(runId).map((member) => ({ ...member, activity: isLive(member) ? s.activity.of(member.chatId) : null }))
+  return { run: requireRun(s, runId), members, petitions: s.deps.cults.listPetitions(runId) }
 }
 
 function emit(s: State, runId: string): CultRunSnapshot {
@@ -243,6 +250,7 @@ async function track(s: State, runId: string, launched: LaunchedMember): Promise
     fail('internal_error', `${launched.member.displayName} did not start: ${launched.start.message}`)
   }
   s.chatRuns.set(chatId, runId)
+  s.activity.track(runId, chatId)
   const member = s.deps.cults.updateMember(runId, chatId, { state: 'active' })
   const recording = s.deps.ledger.addProcess({ runId, chatId, pid: launched.start.pid })
   // It may have exited before it was watched.
@@ -366,6 +374,7 @@ function memberExited(s: State, chatId: string): void {
   const runId = s.chatRuns.get(chatId)
   if (runId === undefined) return
   s.chatRuns.delete(chatId)
+  s.activity.untrack(chatId)
   void s.deps.ledger.removeProcess(chatId).catch(s.onError)
   void s.deps.control.clear(chatId).catch(s.onError)
   const member = s.deps.cults.listMembers(runId).find((candidate) => candidate.chatId === chatId)
@@ -480,6 +489,7 @@ async function settle(s: State, runId: string): Promise<void> {
   const members = s.deps.cults.listMembers(runId)
   for (const member of members) s.chatRuns.delete(member.chatId)
   s.runs.delete(runId)
+  s.activity.endRun(runId)
   emit(s, runId)
   // Awaited, so a run has ended (and a quit finished) only once no file of its members is still being written.
   await Promise.all(members.flatMap((member) => [
@@ -624,6 +634,13 @@ function watchTerminals(s: State): void {
   s.deps.terminals.onLaunch?.((chatId) => memberLaunched(s, chatId))
 }
 
+/** A member's published activity changing is told as a change of its run while the run is supervised. */
+function watchActivity(s: State): void {
+  s.activity.onChange((runId) => {
+    if (s.runs.has(runId)) emit(s, runId)
+  })
+}
+
 export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
   const onError = deps.onError ?? (() => {})
   const upgrades: UpgradeDeps = {
@@ -631,8 +648,10 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
     revokeGrantIn: deps.revokeGrantIn, onError
   }
   const s: State = {
-    deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter(), wakeClosers: new Set()
+    deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter(), wakeClosers: new Set(),
+    activity: createMemberActivity({ userData: deps.userData, clock: deps.activityClock ?? deps.clock ?? systemClock })
   }
+  watchActivity(s)
   watchTerminals(s)
   return {
     start: (cultId, options = {}) => start(s, cultId, options),
@@ -657,6 +676,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
     reconcileOnStartup: () => reconcileOnStartup(s),
     dispose: async () => {
       await Promise.all([...s.runs.keys()].map((runId) => abort(s, runId, 'interrupted').catch(onError)))
+      s.activity.dispose()
     },
     busy: () => s.runs.size > 0,
     raiseCap: (runId, cap) => raiseCap(s, runId, cap),
