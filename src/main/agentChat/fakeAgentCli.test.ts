@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, beforeEach, expect, it } from 'vitest'
+import { contextReceipts } from '../../../resources/skitarii/extension/contextDelivery'
 import { removeScratch } from '../../test/removeScratch'
 import { claudeSessionExists } from '../terminals/claudeSession'
 
@@ -599,6 +600,70 @@ for (const protocol of protocols) {
     expect(harness.stderr).toBe('')
   })
 }
+
+/**
+ * Instructions whose `dm` line runs a Node stand-in for the dm CLI: it appends each call (command, arguments and
+ * whether the run's grant reached it) to `calls` and answers `list_agent_peers` (an orchestrator peer only),
+ * `send_agent_message` and `read_agent_inbox` (one message) as the CLI does.
+ */
+function mailInstructions(): { file: string; calls: string } {
+  const calls = join(scratch, 'dm-calls.jsonl')
+  const stub = join(scratch, 'dm-stub.mjs')
+  writeFileSync(stub, [
+    "import { appendFileSync } from 'node:fs'",
+    "const args = process.argv.slice(2), at = args.indexOf('call'), command = args[at + 1], input = JSON.parse(args[at + 2])",
+    `appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ command, input, grant: process.env.DM_SESSION_TOKEN !== undefined }) + '\\n')`,
+    'const answers = {',
+    "  list_agent_peers: () => ({ peers: input.role === 'orchestrator' ? [{ endpointId: 'ae_magos', name: 'Run', epicId: input.epicId, role: 'orchestrator' }] : [], nextAfterId: null, hasMore: false }),",
+    "  send_agent_message: () => ({ messageId: 'am_1', to: input.to, clientMessageId: input.clientMessageId, inReplyTo: null, acceptedAt: 't', duplicate: false }),",
+    "  read_agent_inbox: () => ({ messages: [{ id: 'am_7', seq: 3, body: 'Revision 2 saved.', from: { endpointId: 'ae_lex', name: 'Plan', deleted: false } }], nextCursor: 3, snapshotHighWater: 3, hasMore: false })",
+    '}',
+    'process.stdout.write(JSON.stringify({ ok: true, data: answers[command]() }))',
+    ''
+  ].join('\n'))
+  const line = `ELECTRON_RUN_AS_NODE=1 '${process.execPath}' '${stub}' --repo ${scratch.replaceAll('\\', '/')}`
+  const file = join(scratch, 'instructions.md')
+  writeFileSync(file, ['```sh', `${line} call get_capabilities '{}'  # run a command`, '```'].join('\n'))
+  return { file, calls }
+}
+
+const dmCalls = (file: string): { command: string; input: Record<string, unknown>; grant: boolean }[] =>
+  existsSync(file) ? lines(readFileSync(file, 'utf8')).map((line) => JSON.parse(line)) : []
+
+it('OMP [mail] acknowledges the prompt, finds the role\'s peer in the epic and mails it with its own grant, then replies', async () => {
+  const { file, calls } = mailInstructions()
+  const harness = await initialize('omp', ['--append-system-prompt', file], cli, { DM_SESSION_TOKEN: grant })
+  harness.send(prompt('omp', '[mail] orchestrator ep_1'))
+  await harness.until(() => completed('omp', harness.stdout))
+  expect(JSON.parse(lines(harness.stdout)[0])).toEqual({ type: 'response', command: 'prompt', id: 'req_T1_prompt', success: true })
+  expect(replyText('omp', harness.stdout)).toBe('mailed the orchestrator at ae_magos')
+  const [list, send, ...rest] = dmCalls(calls)
+  expect(list).toEqual({ command: 'list_agent_peers', input: { epicId: 'ep_1', role: 'orchestrator' }, grant: true })
+  expect(send).toMatchObject({ command: 'send_agent_message', input: { to: 'ae_magos', body: 'Fake coordination mail for the orchestrator.' }, grant: true })
+  expect(rest).toEqual([])
+  harness.stdout = ''
+  harness.send(prompt('omp', '[mail] planner ep_1', 2))
+  await harness.until(() => completed('omp', harness.stdout))
+  expect(replyText('omp', harness.stdout)).toBe('mail failed: no planner peer in ep_1')
+  expect(dmCalls(calls)).toHaveLength(3)
+  expect(await finish(harness)).toBe(0)
+  expect(harness.stderr).toBe('')
+})
+
+it('OMP with FAKE_AGENT_DELIVER_MAIL delivers its inbox into its session file at startup, as the app\'s receipts read it', async () => {
+  const { file, calls } = mailInstructions()
+  const sessions = join(scratch, 'sessions')
+  const harness = launch(['--mode', 'rpc-ui', '--append-system-prompt', file, '--session-dir', sessions, '--session-id', sessionId], {
+    DM_SESSION_TOKEN: grant, FAKE_AGENT_SESSION_FILES: '1', FAKE_AGENT_DELIVER_MAIL: '1'
+  })
+  const session = join(sessions, `2026-01-01T00-00-00Z_${sessionId}.jsonl`)
+  while (!existsSync(session) || !readFileSync(session, 'utf8').includes('dm-inbox-delivery')) await delay(20)
+  expect(dmCalls(calls)).toEqual([{ command: 'read_agent_inbox', input: {}, grant: true }])
+  const receipts = contextReceipts(readFileSync(session, 'utf8'))
+  expect([...receipts.peers.values()]).toEqual([expect.objectContaining({ id: 'am_7', seq: 3, body: 'Revision 2 saved.' })])
+  expect(await finish(harness)).toBe(0)
+  expect(harness.stderr).toBe('')
+})
 
 it('OMP accepts chunked input and renumbers decoded chunk ids on later turns', async () => {
   const harness = await initialize('omp')
