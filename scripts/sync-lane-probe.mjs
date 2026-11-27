@@ -188,7 +188,7 @@ function isolatedEnv() {
     PI_CODING_AGENT_DIR: join(home, '.omp', 'agent'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'),
     DARKMECHANICUS_HOME: dmHome, DISABLE_AUTO_UPDATE: '1'
   }
-  for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
+  for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
   return env
 }
 

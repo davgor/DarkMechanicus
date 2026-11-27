@@ -6,6 +6,7 @@ import type { StandardizeProjectWorkInput, StandardizeProjectWorkResult } from '
 import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
+import type { BrowserActionResult, BrowserArgs, BrowserReadResult, BrowserStatusResult } from '../browser/browserControl'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
@@ -480,6 +481,16 @@ export interface CommandApi {
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
   recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
+  // The chat's in-app browser, over the desktop's browser pipe (`browser.drive`; workers and orchestrators only)
+  browserStatus(input: BrowserArgs<'browser_status'>): Promise<BrowserStatusResult>
+  browserNavigate(input: BrowserArgs<'browser_navigate'>): Promise<BrowserActionResult>
+  browserClick(input: BrowserArgs<'browser_click'>): Promise<BrowserActionResult>
+  browserType(input: BrowserArgs<'browser_type'>): Promise<BrowserActionResult>
+  browserPress(input: BrowserArgs<'browser_press'>): Promise<BrowserActionResult>
+  /** Page-authored text or AX projection, marked `untrusted`; never a password field's value or its length. */
+  browserRead(input: BrowserArgs<'browser_read'>): Promise<BrowserReadResult>
+  /** Captures the shown view and stages it as an evidence attachment (also needs `attachment.write`). */
+  browserScreenshot(input: BrowserArgs<'browser_screenshot'>): Promise<AttachmentView>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>
