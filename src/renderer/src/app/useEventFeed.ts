@@ -28,6 +28,10 @@ interface FeedPoller {
 /**
  * Asks main to notify each new checkpoint-ready or run-failed event once per key. The poller only delivers events after
  * its baseline, so history never notifies; `notified` outlives a re-created poller so a refetch cannot repeat one.
+ * Across a restart the rule is deliberate: `notified` and main's notifier dedupe live in memory only, so revisions
+ * submitted before the restart are history and stay silent, while the first new report revision of an already-notified
+ * sprint submitted after it notifies once more, since that checkpoint waits on the person again in a session that has
+ * not told them; later revisions in the same session stay silent.
  * A failed raise is dropped without a toast: main logs it.
  */
 function raiseNotifications(events: EventView[], folder: string, notified: Set<string>): void {

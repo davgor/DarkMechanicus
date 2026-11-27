@@ -22,6 +22,7 @@ import { createChatRecords } from '../agents/chatRecords'
 import type { ChatRef } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
+import { createNotifier, type NotificationEvent } from '../notify/notifier'
 import { disposeBeforeQuit } from '../quitDisposal'
 import { gate, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { agentChatRig } from './__mocks__/agentChatRig'
@@ -105,6 +106,9 @@ function magosChat(state: ReturnType<typeof app>): ChatRef {
   return state.gui.store.createChat({ folder: state.gui.repo, agent: 'claude', role: 'orchestrator', runId: RUN, allowSave: false, model: null, surface: 'gui', firstPrompt: '[worker_approval]' })
 }
 
+/** A prompt's notification dedupe key: scoped to its chat ref as well as its id. */
+const promptKey = (chat: ChatRef, promptId: string): string => `prompt:${JSON.stringify([chat.folder, chat.id, promptId])}`
+
 /** The folder's workspace reads: the run's epic with a Standards section, and the worker attempt's saved ticket. */
 function projectReads() {
   return {
@@ -167,7 +171,7 @@ describe('agent chat wiring: the Magos arbiter', () => {
     const state = open(undefined, { settings: () => withArbitration({ enabled: false }), startArbiter: runner.start }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
-    expect(state.notify.mock.calls[0][0]).toMatchObject({ kind: 'approval_needed', key: 'prompt:req_T1_worker_approval', target: { kind: 'chat', folder: chat.folder, chatId: chat.id } })
+    expect(state.notify.mock.calls[0][0]).toMatchObject({ kind: 'approval_needed', key: promptKey(chat, 'req_T1_worker_approval'), target: { kind: 'chat', folder: chat.folder, chatId: chat.id } })
     expect(runner.start).not.toHaveBeenCalled()
   })
 })
@@ -239,7 +243,7 @@ describe('agent chat wiring: attention reaches the OS notifier', () => {
     const prompt = state.wiring.agentChats.snapshot(chat).pending!
     expect(prompt).toMatchObject({ id: 'req_T1_worker_approval', threadId: WORKER_THREAD, arbitration: { state: 'escalated' } })
     expect(state.notify).toHaveBeenCalledExactlyOnceWith({
-      kind: 'approval_needed', key: 'prompt:req_T1_worker_approval', title: 'Acolyte:DM-442 needs you', body: `wants to run: ${prompt.title}`,
+      kind: 'approval_needed', key: promptKey(chat, 'req_T1_worker_approval'), title: 'Acolyte:DM-442 needs you', body: `wants to run: ${prompt.title}`,
       target: { kind: 'chat', folder: state.gui.repo, chatId: chat.id, threadId: WORKER_THREAD, promptId: 'req_T1_worker_approval' }
     })
     // Never the prompt's detail or tool input.
@@ -270,7 +274,7 @@ describe('agent chat wiring: attention reaches the OS notifier', () => {
     const prompt = state.wiring.agentChats.snapshot(chat).pending!
     expect(prompt).toMatchObject({ kind: 'question', threadId: null, callsign: { role: 'Magos' } })
     expect(state.notify).toHaveBeenCalledExactlyOnceWith({
-      kind: 'question', key: `prompt:${prompt.id}`, title: 'Magos needs you', body: `has a question: ${prompt.title}`,
+      kind: 'question', key: promptKey(chat, prompt.id), title: 'Magos needs you', body: `has a question: ${prompt.title}`,
       target: { kind: 'chat', folder: state.gui.repo, chatId: chat.id, promptId: prompt.id }
     })
   })
@@ -280,6 +284,33 @@ describe('agent chat wiring: attention reaches the OS notifier', () => {
     const state = open(undefined, {}, { notify: () => { throw failure } })
     expect(() => state.owned().onAttention({ kind: 'run_stalled', ref: { folder: state.gui.repo, id: 'gone' }, silentMs: 300_000 })).not.toThrow()
     expect(state.onError).toHaveBeenCalledExactlyOnceWith(failure)
+  })
+})
+
+describe('agent chat wiring: the prompt dedupe key is scoped to the chat', () => {
+  it('the same prompt id waiting in two chats shows two OS notifications: the dedupe key is scoped to the chat', async () => {
+    const shown: { title: string; body: string }[] = []
+    class ShownNotification {
+      static isSupported(): boolean { return true }
+      constructor(readonly options: { title: string; body: string; silent: boolean }) {}
+      on(): this { return this }
+      show(): void { shown.push({ title: this.options.title, body: this.options.body }) }
+    }
+    const notifier = createNotifier({
+      Notification: ShownNotification, windows: () => [], settings: () => DEFAULT_NOTIFICATION_SETTINGS,
+      push: vi.fn(), logger: { info: vi.fn() }, now: () => 1_000_000
+    })
+    const notify = vi.fn((event: NotificationEvent) => notifier.notify(event))
+    const state = open(undefined, { settings: () => withArbitration({ enabled: false }) }, { notify })
+    const first = magosChat(state), second = magosChat(state)
+    await Promise.all([state.wiring.agentChats.start(first), state.wiring.agentChats.start(second)])
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2), { timeout: 5_000 })
+    // Both chats' fake CLIs raise the same prompt id; each reaches the person.
+    expect(notify.mock.calls.map(([event]) => event.key).sort()).toEqual([promptKey(first, 'req_T1_worker_approval'), promptKey(second, 'req_T1_worker_approval')].sort())
+    expect(shown).toHaveLength(2)
+    // The same prompt of the same chat still shows once.
+    notifier.notify(notify.mock.calls[0][0])
+    expect(shown).toHaveLength(2)
   })
 })
 
