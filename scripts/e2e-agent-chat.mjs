@@ -1657,6 +1657,16 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
+/** The steps to run: `--steps`, else every step (only OMP_STEPS for `--agent omp`); unknown or Claude-only ones are refused. */
+function stepKeys(requested, agent) {
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS))
+  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
+  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+  const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
+  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${OMP_STEPS.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
+  return keys
+}
+
 export function parseArgs(argv) {
   const value = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined)
   const out = value('--out')
@@ -1666,13 +1676,8 @@ export function parseArgs(argv) {
   if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
   const agent = argv.includes('--agent') ? value('--agent') : 'claude'
   if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
-  const keys = value('--steps')?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS))
-  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
-  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
-  const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
-  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${OMP_STEPS.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
   const exe = value('--exe')
-  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys }
+  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys: stepKeys(value('--steps'), agent) }
 }
 
 async function main(argv) {

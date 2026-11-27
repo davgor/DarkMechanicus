@@ -192,7 +192,9 @@ describe('writeShim', () => {
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('{"loggedIn":true}')
   })
+})
 
+describe('writeShim: fake-omp', () => {
   it('writes a fake-omp .cmd and .js beside fake-claude; the .js names the OMP persona before loading the fake', () => {
     const directory = temp()
     const claude = writeShim(directory, FIXTURE, 'win32')

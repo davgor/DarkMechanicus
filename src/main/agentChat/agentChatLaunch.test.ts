@@ -141,7 +141,9 @@ describe('Windows GUI programs', () => {
     input.shimFs = { readFile: () => '"%dp0%\\cli.js"', isFile: () => false }
     expect(() => agentChatLaunch(input)).toThrow(/node\.exe/)
   })
+})
 
+describe('the e2e fake-omp shim', () => {
   it.runIf(process.platform === 'win32')('runs the e2e fake-omp npm-style shim on disk through node, and its first turn streams', async () => {
     const fixtures = resolve('src/main/agentChat/__fixtures__')
     const shimDir = join(root, 'shim')

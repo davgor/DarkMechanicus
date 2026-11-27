@@ -53,9 +53,11 @@ describe('resolveAgentExecutable', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+})
 
+describe('resolveAgentExecutable: OMP and hand-written shims', () => {
   it('follows an OMP npm shim to its script the same way', () => {
-    const shim = NPM_SHIM.replace('@anthropic-ai\\claude-code\\cli.js', '@oh-my-pi\\pi-coding-agent\\dist\\cli.js')
+    const shim = 'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@oh-my-pi\\pi-coding-agent\\dist\\cli.js" %*'
 
     expect(resolveAgentExecutable('C:\\npm\\omp.cmd', 'win32', () => shim)).toBe('C:\\npm\\node_modules\\@oh-my-pi\\pi-coding-agent\\dist\\cli.js')
   })
