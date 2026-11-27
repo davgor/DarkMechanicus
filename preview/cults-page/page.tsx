@@ -11,7 +11,7 @@ import { FakeExpansion } from '../../src/renderer/src/__mocks__/fakeExpansion'
 import { FakeTerminals } from '../../src/renderer/src/__mocks__/fakeTerminals'
 import { agentView, chatRecord, folderView } from '../../src/renderer/src/__mocks__/fixtures'
 import { Sidebar } from '../../src/renderer/src/sidebar/Sidebar'
-import type { CultMemberDetail, CultRunDetail } from '../../src/shared/cults/cultApi'
+import type { CultMemberDetail, CultPipelineEntry, CultRunDetail, PipelineMember } from '../../src/shared/cults/cultApi'
 import type { CultPetitionView } from '../../src/shared/cults/cult'
 
 /**
@@ -42,7 +42,11 @@ function members(at: string): CultMemberDetail[] {
   const activity = (index: number): CultMemberDetail['activity'] => index === 0
     ? { working: true, tool: { name: 'edit', target: 'cults/CultPage.tsx' }, at }
     : index === 2 ? { working: true, tool: { name: 'bash', target: 'npm run typecheck' }, at } : { working: false, tool: { name: 'read', target: 'docs/design/cults.md' }, at }
-  return [memberDetail({ joinedAt: at, activity: { working: false, tool: null, at } }), ...acolytes.map((member, index) => ({ ...member, activity: activity(index) }))]
+  const departed = state.startsWith('pipeline') ? [memberDetail({
+    chatId: 'a5', role: 'acolyte', displayName: 'Acolyte Rubric-9', model: 'anthropic/claude-haiku', tier: 'low', state: 'dismissed',
+    joinedAt: new Date(Date.parse(at) + 5 * 60_000).toISOString(), leftAt: minutesAgo(4)
+  })] : []
+  return [memberDetail({ joinedAt: at, activity: { working: false, tool: null, at } }), ...acolytes.map((member, index) => ({ ...member, activity: activity(index) })), ...departed]
 }
 
 function petition(patch: Partial<CultPetitionView>): CultPetitionView {
@@ -93,6 +97,29 @@ const SCREEN = (name: string): string => [
   '\x1b[38;5;179m❯\x1b[0m '
 ].join('\r\n')
 
+/** The `pipeline` state's timeline: the Magos and acolytes talking, an order to all, a pause and a petition, a departed member. */
+function pipelineEntries(): CultPipelineEntry[] {
+  const who = (chatId: string, displayName: string): PipelineMember => ({ chatId, displayName, role: chatId === 'chat_magos' ? 'magos' : 'acolyte' })
+  const magos = who('chat_magos', 'Magos Vettius')
+  const [ferrum, cogitas, vox, aurum] = ACOLYTES.map(([name], index) => who(`a${index + 1}`, name))
+  const rubric = who('a5', 'Acolyte Rubric-9')
+  const base = { eventKind: null, orderId: null, messageIds: [], inReplyTo: null, truncated: false }
+  const rows: Omit<CultPipelineEntry, 'seq' | 'at'>[] = [
+    { ...base, kind: 'event', eventKind: 'summoned', sender: rubric, recipients: [], text: 'Acolyte Rubric-9 was summoned.' },
+    { ...base, kind: 'message', sender: magos, recipients: [ferrum!], messageIds: ['m1'], text: 'Draft the shrine layout: a hero image, the plan summary and the ticket list.' },
+    { ...base, kind: 'message', sender: ferrum!, recipients: [magos], messageIds: ['m2'], inReplyTo: 'm1', text: 'Layout drafted in gerry/index.html. <b>Not bold</b> and **not markdown**: shown as typed.' },
+    { ...base, kind: 'message', sender: vox!, recipients: [ferrum!], messageIds: ['m3'], text: 'Your IPC call needs a zod schema before it reaches main.' },
+    { ...base, kind: 'message', sender: rubric, recipients: [magos], messageIds: ['m4'], text: 'My audit notes are in notes/rubric.md. Leaving the run now.' },
+    { ...base, kind: 'event', eventKind: 'dismissed', sender: rubric, recipients: [], text: 'Acolyte Rubric-9 was dismissed.' },
+    { ...base, kind: 'event', eventKind: 'petition_created', sender: magos, recipients: [], text: 'Petition (acolytes): The schema review needs two more reviewers.' },
+    { ...base, kind: 'event', eventKind: 'paused', sender: null, recipients: [], text: 'The run was paused.' },
+    { ...base, kind: 'event', eventKind: 'resumed', sender: null, recipients: [], text: 'The run was resumed.' },
+    { ...base, kind: 'order_all', eventKind: 'order_all', sender: magos, recipients: [ferrum!, cogitas!, vox!, aurum!], orderId: 'co_01m8', messageIds: ['o1', 'o2', 'o3', 'o4'], text: 'Conclude your reports within three minutes; send me your findings.' },
+    { ...base, kind: 'message', sender: cogitas!, recipients: [magos], messageIds: ['m5'], text: 'Quality report submitted: two flaky tests fixed, none skipped.' }
+  ]
+  return rows.map((row, index) => ({ ...row, seq: index + 1, at: minutesAgo(11 - index) }))
+}
+
 const dm = new FakeDm()
 const cults = new FakeCults()
 const terminals = new FakeTerminals()
@@ -102,6 +129,7 @@ dm.folders = [alpha]
 window.dm = dm
 cults.cults = [cultView({ name: 'Shrine Builders', archetype: 'research_creative', charter: 'Build the Gerry Shrine: a plan, its tickets and the review of each, before the window closes.' })]
 cults.runsByCult = { cult_1: state === 'idle' ? pastRuns() : [activeRun(), ...pastRuns()] }
+cults.pipelines = { run_1: pipelineEntries() }
 const names = ['Magos Vettius', ...ACOLYTES.map(([name]) => name)]
 dm.chats.chats = ['chat_magos', 'a1', 'a2', 'a3', 'a4'].map((id, index) => chatRecord({ id, folder: WORK, agent: 'omp', role: index === 0 ? 'orchestrator' : 'worker', title: names[index], cultRunId: 'run_1', cultRole: index === 0 ? 'magos' : 'acolyte' }))
 for (const [index, id] of ['chat_magos', 'a1', 'a2', 'a3', 'a4'].entries()) terminals.screens[id] = SCREEN(names[index])
@@ -129,7 +157,21 @@ async function drive(): Promise<void> {
     await tick(500)
     click(byLabel('Close inspector'))
   }
-  if (state === 'past') click(buttonNamed('Past runs'))
+  if (state === 'past' || state === 'pipeline-past') click(buttonNamed('Past runs'))
+  if (state === 'pipeline-past') {
+    await tick()
+    click(document.querySelector('.cult-past-pipeline-toggle > summary'))
+  }
+  if (state === 'pipeline' || state === 'pipeline-top') {
+    click(buttonNamed('Pipeline'))
+    await tick(500)
+    click(document.querySelector('.cult-pipe-recipients > summary'))
+    await tick()
+  }
+  // The person scrolls down to the newest entry, or up, where the timeline stops following and offers Jump to newest.
+  const list = document.querySelector('.cult-pipeline-list')
+  if (state === 'pipeline') list?.scrollTo({ top: list.scrollHeight })
+  if (state === 'pipeline-top') list?.scrollTo({ top: 0 })
   if (state === 'shrine-enlarged') click(document.querySelector('.cc-viewscreen-window .shrine-enlarge'))
   await document.fonts.ready
   // The chamber's join beams fade before the capture.
