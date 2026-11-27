@@ -4,7 +4,7 @@
  */
 import { ARCHETYPE_INFO } from '../../../shared/cults/archetypes'
 import type { CultDefinitionInput, CultMemberDetail, CultModelsView, CultPushEvent, CultRunDetail, CultsApi } from '../../../shared/cults/cultApi'
-import type { CultRunView, CultView } from '../../../shared/cults/cult'
+import type { CultMemberView, CultPetitionView, CultRunView, CultView } from '../../../shared/cults/cult'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { idleCults } from './idleCults'
 
@@ -134,14 +134,34 @@ export class FakeCults implements CultsApi {
     return ok(this.modelsView)
   }
   archetypes = this.idle.archetypes
-  start = this.idle.start
-  pause = this.idle.pause
-  resume = this.idle.resume
-  stop = this.idle.stop
-  killNow = this.idle.killNow
-  raiseCap = this.idle.raiseCap
-  decidePetition = this.idle.decidePetition
-  dismissAcolyte = this.idle.dismissAcolyte
+  /** Every run control the page sent, as `[method, ...arguments]`, oldest first. */
+  controls: unknown[][] = []
+  /** Answers a run control with the run's snapshot unchanged (main pushes the real change). */
+  private control(method: string, runId: string, ...rest: unknown[]): Promise<CommandResult<CultRunDetail>> {
+    this.controls.push([method, runId, ...rest])
+    const run = Object.values(this.runsByCult).flat().find((candidate) => candidate.run.id === runId)
+    return run ? ok(run) : Promise.resolve({ ok: false, error: { code: 'not_found', message: `No run ${runId}.` } })
+  }
+  start = (cultId: string, overrides: Parameters<CultsApi['start']>[1]) => {
+    this.controls.push(['start', cultId, overrides])
+    return ok(runDetail({ cultId, state: 'starting' }))
+  }
+  pause = (runId: string) => this.control('pause', runId)
+  resume = (runId: string) => this.control('resume', runId)
+  stop = (runId: string) => this.control('stop', runId)
+  killNow = (runId: string) => this.control('killNow', runId)
+  raiseCap = (runId: string, cap: number) => this.control('raiseCap', runId, cap)
+  decidePetition = (petitionId: string, approve: boolean, granted?: number) => {
+    this.controls.push(['decidePetition', petitionId, approve, granted])
+    const petition = Object.values(this.runsByCult).flat().flatMap((run) => run.petitions).find((candidate) => candidate.id === petitionId)
+    if (petition === undefined) return Promise.resolve<CommandResult<CultPetitionView>>({ ok: false, error: { code: 'not_found', message: `No petition ${petitionId}.` } })
+    return ok({ ...petition, state: approve ? 'approved' as const : 'denied' as const, granted: approve && petition.kind === 'acolytes' ? (granted ?? petition.additional) : null })
+  }
+  dismissAcolyte = (runId: string, chatId: string) => {
+    this.controls.push(['dismissAcolyte', runId, chatId])
+    const member = Object.values(this.runsByCult).flat().flatMap((run) => run.members).find((candidate) => candidate.chatId === chatId)
+    return member ? ok<CultMemberView>(member) : Promise.resolve<CommandResult<CultMemberView>>({ ok: false, error: { code: 'not_found', message: `No member ${chatId}.` } })
+  }
   pipeline = this.idle.pipeline
   runs = (cultId: string) => ok(this.runsByCult[cultId] ?? [])
   onEvent = (listener: (event: CultPushEvent) => void) => {

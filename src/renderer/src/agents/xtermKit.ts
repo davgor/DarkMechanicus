@@ -174,11 +174,13 @@ export function createXtermKit(parts: XtermParts): TerminalKit {
     }
   }
   return {
-    create: (host, { theme, fontFamily }) => {
+    create: (host, { theme, fontFamily, watchOnly = false }) => {
       const terminal = new parts.Terminal({
         theme,
         fontFamily,
         fontSize: FONT_SIZE,
+        // A watch-only terminal takes no keystroke or paste, so nothing it shows can be answered from here.
+        disableStdin: watchOnly,
         // The grapheme addon's Unicode version is proposed API.
         allowProposedApi: true,
         // OSC 8 hyperlinks; http, https and mailto only.

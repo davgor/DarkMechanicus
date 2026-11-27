@@ -119,8 +119,8 @@ export interface ShellActions {
   openSettings(): void
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
-  /** Opens a cult's page in place of the folder or epic view. */
-  openCult(cultId: string): void
+  /** Opens a cult's page in place of the folder or epic view; with a member, its comms pane shows that member's terminal. */
+  openCult(cultId: string, memberChatId?: string): void
   changed(path: string): void
   track(mode?: 'forge-world'): Promise<void>
   /** A clone finished and main tracks the new folder: reloads the folders and selects it. */
@@ -221,9 +221,9 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.land(null)
       deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'settings' } })
     },
-    openCult: (cultId) => {
+    openCult: (cultId, memberChatId) => {
       deps.land(null)
-      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'cult', cultId } })
+      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'cult', cultId, ...(memberChatId === undefined ? {} : { memberChatId }) } })
     },
     changed: (path) => deps.refresh(path)
   }

@@ -102,7 +102,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       agentStatuses={{}} expansion={new FakeExpansion({ collapsedFolders: [alpha.path, beta.path] })} footer={null}
       chats={{ lists: {}, onNew: noop, onOpen: noop, onRename: async () => true, onDelete: async () => true }}
       agentChats={{ list: { status: 'ready', chats: [] }, onOpen: noop, onRename: async () => true, onDelete: async () => true, onSummon: noop }}
-      onTrack={noop} onClone={noop} onAddAgent={noop} onSelectAgent={noop} onSelectCult={noop} onOpenCultChat={noop} onAgentStatus={noop}
+      onTrack={noop} onClone={noop} onAddAgent={noop} onSelectAgent={noop} onSelectCult={noop} onOpenCultMember={noop} onAgentStatus={noop}
       onSelectFolder={noop} onSelectEpic={noop} kanbanCounts={{}} onSelectKanban={noop} onRequestUntrack={noop} />
     <main className="app-main" />
   </div>

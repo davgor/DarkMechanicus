@@ -27,8 +27,12 @@ interface CultsSectionProps {
   /** The cult whose page is open in the main area. */
   selectedCultId: string | null
   onSelectCult(cultId: string): void
-  /** Opens a member's terminal (the Magos's chat), which lives in its run's work folder. */
-  onOpenChat(folder: string, chatId: string): void
+  /**
+   * Opens a member's terminal on its cult's page: the Magos's interactive one, or an acolyte's watch-only one. Member
+   * chats are left out of folder chat lists, and a project-less cult's work folder is no tracked folder, so the page
+   * (not the folder's chat view) opens them.
+   */
+  onOpenMember(cultId: string, chatId: string): void
 }
 
 type Pending = { kind: 'found' } | { kind: 'edit'; cult: CultView } | { kind: 'delete'; entry: CultEntry }
@@ -63,22 +67,24 @@ function workerTypeOf(member: Member, run: CultRunDetail): string | null {
   return run.workerTypes.find((type) => type.id === member.runWorkerTypeId)?.displayName ?? null
 }
 
-function AcolyteRow({ member, run }: { member: Member; run: CultRunDetail }): JSX.Element {
+function AcolyteRow({ member, run, onOpen }: { member: Member; run: CultRunDetail; onOpen(): void }): JSX.Element {
   const reasonId = useId()
   const working = member.activity?.working === true
   const type = workerTypeOf(member, run)
   return (
-    <li className="cult-member" aria-describedby={member.tierReason === null ? undefined : reasonId}>
-      <span className="cult-member-head">
-        <span className="cult-member-name" title={member.displayName}>{member.displayName}</span>
-        <span className="badge cult-watch" title="Its terminal is watch-only">watch only</span>
-      </span>
-      <span className="cult-member-meta">
-        <span className={classNames('cult-activity', working && 'is-working')}>{working ? 'working' : 'idle'}</span>
-        {type === null ? null : <span>{type}</span>}
-        {member.model === null ? null : <span className="mono">{member.model}</span>}
-        {member.tier === null ? null : <span className="badge cult-tier">{member.tier}</span>}
-      </span>
+    <li>
+      <button type="button" className="cult-member" aria-describedby={member.tierReason === null ? undefined : reasonId} onClick={onOpen}>
+        <span className="cult-member-head">
+          <span className="cult-member-name" title={member.displayName}>{member.displayName}</span>
+          <span className="badge cult-watch" title="Its terminal is watch-only">watch only</span>
+        </span>
+        <span className="cult-member-meta">
+          <span className={classNames('cult-activity', working && 'is-working')}>{working ? 'working' : 'idle'}</span>
+          {type === null ? null : <span>{type}</span>}
+          {member.model === null ? null : <span className="mono">{member.model}</span>}
+          {member.tier === null ? null : <span className="badge cult-tier">{member.tier}</span>}
+        </span>
+      </button>
       {member.tierReason === null ? null : <span id={reasonId} className="sr-only">{`Tier reason: ${member.tierReason}`}</span>}
     </li>
   )
@@ -107,7 +113,7 @@ function PastRuns({ runs }: { runs: CultRunDetail[] }): JSX.Element | null {
   )
 }
 
-function RunMembers({ run, onOpenChat }: { run: CultRunDetail; onOpenChat(folder: string, chatId: string): void }): JSX.Element {
+function RunMembers({ run, onOpenMember }: { run: CultRunDetail; onOpenMember(chatId: string): void }): JSX.Element {
   const live = (run.members as Member[]).filter((member) => member.leftAt === null)
   const magos = live.find((member) => member.role === 'magos')
   const acolytes = live.filter((member) => member.role === 'acolyte')
@@ -115,7 +121,7 @@ function RunMembers({ run, onOpenChat }: { run: CultRunDetail; onOpenChat(folder
     <ul className="cult-members" aria-label="Members">
       {magos === undefined ? null : (
         <li>
-          <button type="button" className="cult-member cult-magos" onClick={() => onOpenChat(run.run.workDir, magos.chatId)}>
+          <button type="button" className="cult-member cult-magos" onClick={() => onOpenMember(magos.chatId)}>
             <span className="cult-member-name">{magos.displayName}</span>
             <span className="cult-member-meta">
               <span>Magos</span>
@@ -124,7 +130,7 @@ function RunMembers({ run, onOpenChat }: { run: CultRunDetail; onOpenChat(folder
           </button>
         </li>
       )}
-      {acolytes.map((member) => <AcolyteRow key={member.chatId} member={member} run={run} />)}
+      {acolytes.map((member) => <AcolyteRow key={member.chatId} member={member} run={run} onOpen={() => onOpenMember(member.chatId)} />)}
       {acolytes.length === 0 ? <li className="sidebar-note">No acolytes yet.</li> : null}
     </ul>
   )
@@ -134,11 +140,11 @@ interface CultRowProps {
   entry: CultEntry
   selected: boolean
   onSelect(): void
-  onOpenChat(folder: string, chatId: string): void
+  onOpenMember(chatId: string): void
   onAsk(pending: Pending): void
 }
 
-function CultRow({ entry, selected, onSelect, onOpenChat, onAsk }: CultRowProps): JSX.Element {
+function CultRow({ entry, selected, onSelect, onOpenMember, onAsk }: CultRowProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const { cult } = entry
@@ -171,7 +177,7 @@ function CultRow({ entry, selected, onSelect, onOpenChat, onAsk }: CultRowProps)
       </div>
       {expanded ? (
         <div className="cult-expanded">
-          {run === null ? <p className="sidebar-note">No active run.</p> : <RunMembers run={run} onOpenChat={onOpenChat} />}
+          {run === null ? <p className="sidebar-note">No active run.</p> : <RunMembers run={run} onOpenMember={onOpenMember} />}
           <PastRuns runs={entry.runs.filter((candidate) => candidate.run.state === 'ended')} />
         </div>
       ) : null}
@@ -222,7 +228,7 @@ function CultList({ model, props, onAsk }: { model: CultsModel; props: CultsSect
     <ul className="agent-list cult-list">
       {state.cults.map((entry) => (
         <CultRow key={entry.cult.id} entry={entry} selected={props.selectedCultId === entry.cult.id}
-          onSelect={() => props.onSelectCult(entry.cult.id)} onOpenChat={props.onOpenChat} onAsk={onAsk} />
+          onSelect={() => props.onSelectCult(entry.cult.id)} onOpenMember={(chatId) => props.onOpenMember(entry.cult.id, chatId)} onAsk={onAsk} />
       ))}
     </ul>
   )

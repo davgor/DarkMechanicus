@@ -262,9 +262,3 @@ button.cult-member:hover {
 .cult-advanced .field + .field {
   margin-top: 10px;
 }
-
-/* The cult page until it is built: a placeholder in the main area. */
-.cult-placeholder {
-  padding: 32px;
-  color: var(--muted);
-}

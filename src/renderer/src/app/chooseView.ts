@@ -31,8 +31,8 @@ export type MainView =
   | { kind: 'projectless-chat'; chat: ChatRecord }
   /** The app Settings screen, opened from the sidebar footer. */
   | { kind: 'settings' }
-  /** A cult's page, opened from its CULTS row. */
-  | { kind: 'cult'; cultId: string }
+  /** A cult's page, opened from its CULTS row, or from one of its members' rows to show that member's terminal. */
+  | { kind: 'cult'; cultId: string; memberChatId: string | null }
 
 interface ViewInput {
   loaded: boolean
@@ -72,8 +72,13 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
     return { kind: 'settings' }
   }
   if (pane.kind === 'cult') {
-    return { kind: 'cult', cultId: pane.cultId }
+    return { kind: 'cult', cultId: pane.cultId, memberChatId: pane.memberChatId ?? null }
   }
+  return chooseLiveView(pane, agents, projectless)
+}
+
+/** A project-less chat or an agent's page, while what it shows has loaded and still exists. */
+function chooseLiveView(pane: Extract<AgentPane, { kind: 'chat' | 'agent' }>, agents: readonly AgentView[] | null, projectless: readonly ChatRecord[] | null): MainView | null {
   if (pane.kind === 'chat') {
     if (projectless === null) {
       return { kind: 'loading', what: 'chat' }
