@@ -569,3 +569,27 @@ it('shares one push subscription between every view of a chat and ends it when t
   other.unmount()
   expect(api.subscribers()).toBe(0)
 })
+
+it('restarts an exited chat when a start-capable view rejoins while a read-only view keeps the subscription', async () => {
+  const api = new FakeAgentChat()
+  const scheduler = new ManualScheduler()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'exited' }) }
+  const reader = renderHook(() => useAgentChat({ ...ref, api, scheduler }, { autoStart: false }))
+  await settle()
+  const selected = renderHook(() => useAgentChat({ ...ref, api, scheduler }))
+  await settle()
+  expect(api.callsOf('start')).toEqual([[ref]])
+  // The session exits while selected; the selection moves away, the read-only view keeping the subscription alive.
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'exited' }) }
+  act(() => api.emit({ ...ref, type: 'status', status: 'exited' }))
+  selected.unmount()
+  expect(api.subscribers()).toBe(1)
+  expect(reader.result.current.state.status).toBe('exited')
+  // Reselecting the chat starts it again.
+  const reselected = renderHook(() => useAgentChat({ ...ref, api, scheduler }))
+  await settle()
+  expect(api.callsOf('start')).toEqual([[ref], [ref]])
+  expect(reselected.result.current.state.status).toBe('idle')
+  expect(reader.result.current.state.status).toBe('idle')
+  expect(api.subscribers()).toBe(1)
+})

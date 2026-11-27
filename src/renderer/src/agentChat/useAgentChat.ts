@@ -38,7 +38,8 @@ class ChatSubscription {
   private cancelRender?: () => void
   private unsubscribe?: () => void
   private views = new Set<(state: AgentChatState) => void>()
-  private autoStart = false
+  /** Joined views that may start the chat; a start-capable view joining while none is joined starts a stopped chat. */
+  private autoStartViews = 0
 
   constructor(
     private identity: ChatRef,
@@ -48,22 +49,24 @@ class ChatSubscription {
   ) {}
 
   /**
-   * Adds a view and hands it the current state; returns its leave. The first view subscribes and reads. The first
-   * view that may start the chat reads it again and starts it when no session runs; read-only views never start it.
+   * Adds a view and hands it the current state; returns its leave. The first view subscribes and reads. A view that may
+   * start the chat, joining while no other such view is joined, reads it again and starts it when no session runs;
+   * read-only views never start it.
    */
   join(onChange: (state: AgentChatState) => void, autoStart: boolean): () => void {
     const first = this.views.size === 0
     this.views.add(onChange)
     onChange(this.state)
     if (first) this.unsubscribe = this.api.onEvent((event) => this.receive(event))
-    if (autoStart && !this.autoStart) {
-      this.autoStart = true
+    if (autoStart && this.autoStartViews++ === 0) {
       this.startWhenStopped()
     } else if (first) {
       void this.load(() => this.api.snapshot(this.identity)).catch(() => { /* load already exposed the failure. */ })
     }
     return () => {
-      if (!this.views.delete(onChange) || this.views.size > 0) return
+      if (!this.views.delete(onChange)) return
+      if (autoStart) this.autoStartViews--
+      if (this.views.size > 0) return
       this.active = false
       this.unsubscribe?.()
       this.cancelRender?.()
