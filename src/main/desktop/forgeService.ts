@@ -173,10 +173,18 @@ class ForgeService {
     this.provisioningWorlds.add(root)
     const key = this.rootKey(root)
     try {
-      await Promise.allSettled([this.active.get(root), this.pending.get(root), this.checking.get(root)])
+      await this.worldGitSettled(root)
       this.assertSyncTarget(root, key)
       return await change()
     } finally { this.provisioningWorlds.delete(root) }
+  }
+  /**
+   * Settles the world's running sync, its queued follow-up and its check. Their git children read forge-world.json
+   * and rewrite it, and Windows refuses to rename over a file another process holds open, so a manifest writer awaits
+   * this and writes in the same turn, before another sync or check can start.
+   */
+  private async worldGitSettled(root: string): Promise<void> {
+    while (this.isSyncing(root)) await Promise.allSettled([this.active.get(root), this.pending.get(root), this.checking.get(root)])
   }
   private async relatedMutation<T>(root: string, change: () => Promise<T>): Promise<T> {
     this.assertNotProvisioning(root)
@@ -424,6 +432,7 @@ class ForgeService {
     if (!existsSync(member)) mkdirSync(member)
     else throw new Error('The project folder already exists in this Forge World.')
     await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
+    await this.worldGitSettled(root)
     updateForge(root, w => w.projects.push({ folder, repository: url }), this.deps.onRenameRetry)
     return member
   }
@@ -524,6 +533,7 @@ class ForgeService {
       if (realpathSync.native(move.member) !== move.member || dirname(move.member) !== move.root) throw new Error('The reserved export folder moved; the source was kept.')
       rmSync(move.member, { recursive: true })
     }
+    await this.worldGitSettled(move.root)
     updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) }, this.deps.onRenameRetry)
   }
 
@@ -672,10 +682,16 @@ class ForgeService {
       if (picked) await this.convert(root, this.deps.registry.track(picked).folder.path)
     })
     ipc.handle('forge:add', (_e, folder, repository, name) => this.add(this.rootOf(folder), repository, name))
-    ipc.handle('forge:interval', (_e, folder, minutes) => { const root = this.rootOf(folder); this.assertNotProvisioning(root); updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onRenameRetry); this.next.set(root, Date.now() + minutes * 60_000) })
+    ipc.handle('forge:interval', (_e, folder, minutes) => this.changeInterval(this.rootOf(folder), minutes))
     ipc.handle('forge:sync', (_e, folder) => this.sync(this.rootOf(folder)))
     ipc.handle('forge:memberStatus', (_e, folder, member: unknown) => this.memberStatus(folder, member))
     ipc.handle('forge:status', (_e, folder) => { const root = this.rootOf(folder); return { last: this.last.get(root) ?? null, error: this.errors.get(root) ?? null } })
+  }
+  private async changeInterval(root: string, minutes: number): Promise<void> {
+    await this.worldGitSettled(root)
+    this.assertNotProvisioning(root)
+    updateForge(root, world => { world.syncMinutes = minutes }, this.deps.onRenameRetry)
+    this.next.set(root, Date.now() + minutes * 60_000)
   }
   private memberStatus(folder: unknown, member: unknown): ForgeMemberStatus {
     const root = this.memberRoot(folder)
@@ -875,6 +891,7 @@ class ForgeService {
       beforeVerify?.()
       await original.call('verifyForge', member, false)
     }
+    await this.worldGitSettled(root)
     if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }), this.deps.onRenameRetry)
   }
   private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
@@ -918,6 +935,7 @@ class ForgeService {
     mkdirSync(dirname(archive), { recursive: true })
     if (existsSync(join(member, '.darkmechanicus'))) renameSync(join(member, '.darkmechanicus'), archive)
     if (existsSync(member) && readdirSync(member).length === 0) rmdirSync(member)
+    await this.worldGitSettled(root)
     updateForge(root, w => { w.projects = w.projects.filter(p => p.folder !== basename(member)) }, this.deps.onRenameRetry)
   }
 }

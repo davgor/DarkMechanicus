@@ -105,12 +105,16 @@ function fixturePool(home: string, gits: GitExits, trace: ForgeFixtureTiming): T
   return pool
 }
 
-/** Local git runs for real and is tracked until it exits; network git is simulated, with an injectable failure. */
-function fixtureRunner(gits: GitExits, trace: ForgeFixtureTiming, probes: string[], failing: () => NetworkFailure): GitRunner {
+/**
+ * Local git runs for real and is tracked until it exits, starting only once `held` (when given) settles; network git is
+ * simulated, with an injectable failure.
+ */
+function fixtureRunner(gits: GitExits, trace: ForgeFixtureTiming, probes: string[], { failing, held }: { failing: () => NetworkFailure; held?: Promise<void> }): GitRunner {
   const real = createGitRunner()
   return { run: async req => {
     if (req.args.includes('push')) probes.push(req.cwd)
     if (req.kind !== 'network') {
+      await held
       // The runner reports when git is gone: for a cancelled or timed-out git, after its run has settled.
       // The ES2022 lib has no Promise.withResolvers.
       let exited = (): void => undefined
@@ -133,7 +137,7 @@ function fixtureRunner(gits: GitExits, trace: ForgeFixtureTiming, probes: string
   } }
 }
 
-function fixture(seed?: { source: string; world: string }) {
+function fixture(seed?: { source: string; world: string }, options: { holdGit?: Promise<void> } = {}) {
   const scratch = scratchDir('forge-convert-')
   const trace = new ForgeFixtureTiming(scratch.path, { slowMs: 8_000 })
   const home = join(scratch.path, 'home')
@@ -157,15 +161,19 @@ function fixture(seed?: { source: string; world: string }) {
   const syncReceipts: Array<() => void> = []
   let picked: string | null = source
   let failingNetwork: NetworkFailure = null
+  // Every busy forge-file rename that was asked again, by the service or by a test's own manifest edit, is marked in the
+  // timing report that a failed or slow test prints.
+  const noteRenameRetry = (code: string, file: string): void => trace.mark(`rename:retry ${code} ${basename(file)}`)
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
-    runner: fixtureRunner(gits, trace, probes, () => failingNetwork)
+    onRenameRetry: noteRenameRetry,
+    runner: fixtureRunner(gits, trace, probes, { failing: () => failingNetwork, held: options.holdGit })
   })
   const { openProject } = forge
   forge.openProject = path => trace.observe('ipc:openProject', () => openProject(path))
-  return { pool, source, world, home, registry, call, forge, published, probes, trace, pick(path: string | null) { picked = path },
+  return { pool, source, world, home, registry, call, forge, published, probes, noteRenameRetry, trace, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: NetworkFailure) { failingNetwork = command },
     async close() {
@@ -505,6 +513,25 @@ it('syncs only worlds at the configured interval and stops when the bridge close
   } finally { await close(); vi.useRealTimers() }
 })
 
+it('writes the world manifest only after the world check whose git is still running settles', async () => {
+  // The startup check of the tracked world runs git on it; held here, so it is still running when the interval changes.
+  let release = (): void => undefined
+  const held = new Promise<void>(resolve => { release = resolve })
+  const { world, call, close } = fixture(emptyWorldSeed, { holdGit: held })
+  try {
+    const manifest = () => JSON.parse(readFileSync(join(world, 'forge-world.json'), 'utf8')) as { syncMinutes?: number }
+    const before = manifest().syncMinutes
+    let written = false
+    const changed = call('interval', world, 7).then(() => { written = true })
+    for (let turn = 0; turn < 3; turn++) await new Promise(resolve => setImmediate(resolve))
+    expect(written).toBe(false)
+    expect(manifest().syncMinutes).toBe(before)
+    release()
+    await changed
+    expect(manifest().syncMinutes).toBe(7)
+  } finally { release(); await close() }
+})
+
 it('publishes under the signed-in owner, reuses the checkout and resolves a tracked remote on open', async () => {
   const { source, home, registry, call, forge, published, pick, close } = fixture()
   try {
@@ -567,7 +594,7 @@ async function seedLinkedTicket(f: ReturnType<typeof fixture>, title: string) {
   await tickets.initializeRepository({ name: folder, mode: 'repo' })
   const card = await tickets.createKanbanCard({ title })
   const worldRepository = 'https://github.com/example/tickets.git'
-  updateForge(f.world, world => world.projects.push({ folder, repository: 'https://github.com/example/software.git' }))
+  updateForge(f.world, world => world.projects.push({ folder, repository: 'https://github.com/example/software.git' }), f.noteRenameRetry)
   const note = `# Ticket source control\n\nForge World: ${worldRepository}\nProject folder: ${folder}\n`
   writeFileSync(join(f.source, 'FORGE-WORLD.md'), note)
   ensureForgeConfig(f.source, { version: 1, worldRepository, projectFolder: folder })
@@ -600,7 +627,7 @@ it('resumes a restore from the source pointer after the final publication was in
 })
 
 it('reports preparing until the local member owner reconciles and does no remote Git work for readiness', async () => {
-  const { world, home, call, pool, probes, close } = fixture()
+  const { world, home, call, pool, probes, noteRenameRetry, close } = fixture()
   let release = () => {}
   const blocked = new Promise<void>(resolve => { release = resolve })
   const reconcile = pool.reconcile
@@ -615,7 +642,7 @@ it('reports preparing until the local member owner reconciles and does no remote
     // Never imported on this machine: only the portable records exist, no local database.
     await pool.close(member)
     renameSync(join(member, '.darkmechanicus', 'local'), join(home, 'other-machine-local'))
-    updateForge(world, manifest => manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' }))
+    updateForge(world, manifest => manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' }), noteRenameRetry)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     // The owner answered that no validated import exists yet: the member keeps the cold gate.
@@ -634,7 +661,7 @@ it('reports preparing until the local member owner reconciles and does no remote
 })
 
 it('after a restart shows a member with a validated local import as ready and syncing until its reconcile resolves', async () => {
-  const { world, call, pool, registry, forge, close } = fixture()
+  const { world, call, pool, registry, forge, noteRenameRetry, close } = fixture()
   const reconcile = pool.reconcile
   let release = () => {}
   let held: ReturnType<typeof reconcile> | undefined
@@ -645,7 +672,7 @@ it('after a restart shows a member with a validated local import as ready and sy
     mkdirSync(member)
     await pool.get(member).initializeRepository({ name: 'Warm tickets' })
     await pool.get(member).createKanbanCard({ title: 'Already imported here' })
-    updateForge(world, manifest => manifest.projects.push({ folder: 'Warm', repository: 'https://github.com/example/code.git' }))
+    updateForge(world, manifest => manifest.projects.push({ folder: 'Warm', repository: 'https://github.com/example/code.git' }), noteRenameRetry)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
     await intercept.mock.results[0]!.value
     // The preparation chain after the owner reply is microtasks only; setImmediate runs after all of them.
@@ -676,7 +703,7 @@ it('after a restart shows a member with a validated local import as ready and sy
 })
 
 it('keeps old member preparation errors out of a retracked root generation', async () => {
-  const { world, call, pool, registry, forge, close } = fixture()
+  const { world, call, pool, registry, forge, noteRenameRetry, close } = fixture()
   let lose: (reason: Error) => void = () => undefined
   const previous = new Promise<never>((_resolve, reject) => { lose = reject })
   const reconcile = pool.reconcile
@@ -686,7 +713,7 @@ it('keeps old member preparation errors out of a retracked root generation', asy
     const member = join(world, 'Returning')
     mkdirSync(member)
     await pool.get(member).initializeRepository({ name: 'Returning tickets' })
-    updateForge(world, manifest => manifest.projects.push({ folder: 'Returning', repository: 'https://github.com/example/code.git' }))
+    updateForge(world, manifest => manifest.projects.push({ folder: 'Returning', repository: 'https://github.com/example/code.git' }), noteRenameRetry)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
     registry.untrack(world)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'removed' })
@@ -709,7 +736,7 @@ it.each([
   { cached: true, readiness: 'ready' },
   { cached: false, readiness: 'preparing' }
 ] as const)('uses previously validated cached data after a real rejected import ($cached)', async ({ cached, readiness }) => {
-  const { world, home, call, pool, close, registry, forge } = fixture()
+  const { world, home, call, pool, close, registry, forge, noteRenameRetry } = fixture()
   const reconcile = pool.reconcile
   let attempted: ReturnType<typeof reconcile> | undefined
   const read = vi.spyOn(pool, 'reconcile').mockImplementation(path => (attempted = reconcile(path)))
@@ -722,7 +749,7 @@ it.each([
     await pool.close(member)
     if (!cached) renameSync(join(member, '.darkmechanicus', 'local'), join(home, 'isolated-before-first-import'))
     writeFileSync(ownedPaths(resolveLayout(member)).kanbanCardFile(card.id), '{')
-    updateForge(world, manifest => manifest.projects.push({ folder: 'CachedMember', repository: 'https://github.com/example/code.git' }))
+    updateForge(world, manifest => manifest.projects.push({ folder: 'CachedMember', repository: 'https://github.com/example/code.git' }), noteRenameRetry)
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect((await attempted)?.result.rejected.length).toBeGreaterThan(0)
     await Promise.resolve()
