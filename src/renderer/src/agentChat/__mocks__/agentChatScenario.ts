@@ -31,6 +31,17 @@ const treeItems: ChatItem[] = [
   { id: 'look-glob', at, kind: 'tool_call', threadId: 'th-look', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }
 ]
 
+/** A live helper stored before callsigns existed, then one main stamped Servitor-1 counting only stamped threads. */
+const legacyItems: ChatItem[] = [
+  ...conversation,
+  { id: 'spawn-old', at, kind: 'tool_call', name: 'Task', input: { description: 'Explore the repo' }, status: 'running', resultSummary: null },
+  { id: 'th-old', at, kind: 'thread', parentItemId: 'spawn-old', label: 'Explore the repo', state: 'running' },
+  { id: 'old-grep', at, kind: 'tool_call', threadId: 'th-old', name: 'Grep', input: { pattern: 'callsign' }, status: 'running', resultSummary: null },
+  { id: 'spawn-new', at, kind: 'tool_call', name: 'Task', input: { description: 'look around' }, status: 'running', resultSummary: null },
+  { id: 'th-new', at, kind: 'thread', parentItemId: 'spawn-new', label: 'look around', state: 'running', callsign: stamp('Servitor', null, 1) },
+  { id: 'new-glob', at, kind: 'tool_call', threadId: 'th-new', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }
+]
+
 /** A worker thread edited one file twice and wrote another; the orchestrator itself edited a file outside the folder. */
 const changesItems: ChatItem[] = [
   ...conversation,
@@ -56,9 +67,10 @@ const todoPhases: AgentTodoPhase[] = [
   ] }
 ]
 /** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree' | 'changes', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
+export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree' | 'legacy' | 'changes', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
   empty: { snapshot: empty, events: [], commit: [] },
   tree: { snapshot: { ...empty, status: 'busy', items: treeItems }, events: [], commit: [] },
+  legacy: { snapshot: { ...empty, status: 'busy', items: legacyItems }, events: [], commit: [] },
   changes: { snapshot: { ...empty, status: 'exited', items: changesItems }, events: [], commit: [] },
   stalled: {
     snapshot: { ...empty, status: 'busy', items: conversation },

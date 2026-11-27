@@ -337,6 +337,16 @@ const STATES: Record<string, StateDef> = {
       await until(() => treeItem('Inquisitor:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Inquisitor:DM-2 node')
     }
   },
+  'chat-rail-legacy': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.legacy.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await until(() => treeItem('Servitor-1') && treeItem('Servitor-2'), 'both Servitors in the agent tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Thread: Servitor-2"]') && $('[aria-label="Thread: Servitor-1"]'), 'both Servitor thread blocks in the transcript')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }

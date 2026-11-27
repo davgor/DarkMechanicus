@@ -21,12 +21,12 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 export const STATES = Object.freeze([
   'graph', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree', 'rail-collapsed',
   'chat-rail', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named',
-  'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+  'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 17 states at up to 15 s each, plus the Vite and Electron start. */
+/** A declared bound: 18 states at up to 15 s each, plus the Vite and Electron start. */
 export const OVERALL_LIMIT_MS = 300_000
 export const MIN_PNG_BYTES = 10 * 1024
 
@@ -68,7 +68,8 @@ const BASE_FIELDS = [
   'needsYouHeader', 'badgedRows', 'settingsControls', 'errors'
 ]
 const VIEW_BUTTONS = ['Graph', 'List', 'Agent', 'Scorecard']
-const EPIC_STATES = new Set(STATES.filter((state) => state !== 'chat-rail' && state !== 'settings-notifications'))
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-legacy', 'settings-notifications'])
+const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => state !== 'graph'))
 
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
@@ -91,6 +92,12 @@ const STATE_CHECKS = {
   'chat-rail': [
     ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
     ['Inquisitor:DM-2 is selected', (o) => rowNamed(o, 'Inquisitor:DM-2')?.selected === true]
+  ],
+  'chat-rail-legacy': [
+    ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
+    ['the legacy and stamped helpers are Servitor-2 (selected) and Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'agent-todos': [
     ['a To-dos header', (o) => matches(o.todosHeader, /To-dos/)],
