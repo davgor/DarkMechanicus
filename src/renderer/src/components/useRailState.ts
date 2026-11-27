@@ -25,10 +25,13 @@ function isRailState(value: unknown): value is RailState {
     && Object.values(state.cards).every((open) => typeof open === 'boolean')
 }
 
-/** The caller owns the storage namespace; RightRail remounts this hook when that key changes. */
-export function useRailState(storageKey: string): RailStateHandle {
+/**
+ * The caller owns the storage namespace; RightRail remounts this hook when that key changes. With nothing stored
+ * the rail starts collapsed per `collapsedByDefault`, or on a narrow window when that is omitted.
+ */
+export function useRailState(storageKey: string, collapsedByDefault?: boolean): RailStateHandle {
   const [state, setState] = usePersistentState<RailState>(storageKey, {
-    collapsed: window.matchMedia?.('(max-width: 1099px)').matches ?? false,
+    collapsed: collapsedByDefault ?? window.matchMedia?.('(max-width: 1099px)').matches ?? false,
     tab: 'agents',
     cards: {}
   }, isRailState)

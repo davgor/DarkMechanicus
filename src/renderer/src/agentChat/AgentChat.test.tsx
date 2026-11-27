@@ -331,3 +331,26 @@ describe('Agents rail selection and memory', () => {
     expect(screen.getByRole('button', { name: /^Agents/ }).getAttribute('aria-pressed')).toBe('false')
   })
 })
+
+describe('Agents toggle and rail chevron', () => {
+  beforeEach(() => window.localStorage.clear())
+
+  it('shares one state between the Agents toggle and the rail chevron', async () => {
+    const first = await mountTree('toggle')
+    const toggle = () => screen.getByRole('button', { name: /^Agents/ })
+    fireEvent.click(toggle())
+    expect(toggle().getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Chat agents' }))
+    expect(toggle().getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('complementary', { name: 'Chat agents' })).toBe(null)
+    expect(JSON.parse(window.localStorage.getItem('dm.chatRail.v1:fixture-chat')!).collapsed).toBe(true)
+    first.unmount()
+
+    await mountTree('toggle')
+    expect(toggle().getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(toggle())
+    expect(screen.getByRole('complementary', { name: 'Chat agents' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Collapse Chat agents' }).getAttribute('aria-expanded')).toBe('true')
+  })
+})

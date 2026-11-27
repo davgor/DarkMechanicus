@@ -16,7 +16,7 @@ const BASE = {
   viewButtons: ['Graph', 'List', 'Agent', 'Scorecard'], agentFontWeight: '700', planGraph: false, planList: false, scorecard: false,
   agentChatRegion: true, railWidth: 280, railRightOfStage: true, treeRows: [], todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
-  needsYouHeader: null, badgedRows: 0, settingsControls: [], errors: []
+  needsYouHeader: null, badgedRows: 0, settingsControls: [], agentsPressed: null, errors: []
 }
 const row = (name, selected = false) => ({ name, level: 1, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -36,6 +36,9 @@ function passing() {
     'agent-tree': ready('agent-tree', { treeRows: TREE }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
     'chat-rail': ready('chat-rail', { viewButtons: [], agentFontWeight: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)] }),
+    'chat-rail-collapsed': ready('chat-rail-collapsed', {
+      viewButtons: [], agentFontWeight: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, agentsPressed: 'false'
+    }),
     'agent-todos': ready('agent-todos', {
       todosHeader: 'To-dos 3/7', todoRows: 7, todoListScrolls: true, activeRowVisible: true, activityLine: 'Working 0s · Bash'
     }),
@@ -87,17 +90,17 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 17 states once each, in capture order', () => {
+  it('lists the 18 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree', 'rail-collapsed',
-      'chat-rail', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named',
-      'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+      'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
+      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(17)
+    expect(new Set(STATES).size).toBe(18)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 300 s overall bound that covers all 17', () => {
+  it('declares 15 s per state within a 300 s overall bound that covers all 18', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
     expect(OVERALL_LIMIT_MS).toBe(300_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
