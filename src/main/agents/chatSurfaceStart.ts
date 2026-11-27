@@ -19,7 +19,7 @@ interface ChatStarters {
 }
 
 /** How a launch went: running, refused because the agent is signed out (another agent may be tried), or failed. */
-export type ChatLaunch = { state: 'running' } | { state: 'signed_out' | 'failed'; message: string }
+type ChatLaunch = { state: 'running' } | { state: 'signed_out' | 'failed'; message: string }
 
 const SIGNED_OUT = 'The agent is signed out. Sign in from Agents, then start the chat again.'
 
