@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { usePersistentState } from '../app/usePersistentState'
 
 export const RAIL_TAB_ORDER = ['agents', 'browser', 'files'] as const
@@ -27,7 +28,8 @@ function isRailState(value: unknown): value is RailState {
 
 /**
  * The caller owns the storage namespace; RightRail remounts this hook when that key changes. With nothing stored
- * the rail starts collapsed per `collapsedByDefault`, or on a narrow window when that is omitted.
+ * the rail starts collapsed per `collapsedByDefault`, or on a narrow window when that is omitted. The setters keep
+ * their identity across renders, so an effect that calls them (a reveal) runs only when its own request changes.
  */
 export function useRailState(storageKey: string, collapsedByDefault?: boolean): RailStateHandle {
   const [state, setState] = usePersistentState<RailState>(storageKey, {
@@ -35,10 +37,10 @@ export function useRailState(storageKey: string, collapsedByDefault?: boolean): 
     tab: 'agents',
     cards: {}
   }, isRailState)
-  return {
-    state,
+  const setters = useMemo((): Omit<RailStateHandle, 'state'> => ({
     setCollapsed: (collapsed) => setState((previous) => ({ ...previous, collapsed })),
     setTab: (tab) => setState((previous) => ({ ...previous, tab })),
     setCard: (id, open) => setState((previous) => ({ ...previous, cards: { ...previous.cards, [id]: open } }))
-  }
+  }), [setState])
+  return { state, ...setters }
 }

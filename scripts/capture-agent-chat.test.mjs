@@ -22,7 +22,7 @@ const BASE = {
   planGraph: false, planList: false, scorecard: false, agentChatRegion: true, railWidth: 280, railRightOfStage: true,
   treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
-  needsYouHeader: null, badgedRows: 0, settingsControls: [], agentsPressed: null, errors: []
+  needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -32,9 +32,22 @@ const ready = (state, patch = {}) => ({
 const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servitor-1', 2], ['Finished 1', 2], ['Acolyte:DM-1', 3]]
   .map(([name, level]) => row(name, false, level))
 
+/** Passing records for the rail states: the tree, the collapsed rail, and the landings that expand it on their own. */
+function passingRailStates() {
+  return {
+    'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
+    'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
+    'landing-notification': ready('landing-notification', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
+    'landing-activity': ready('landing-activity', {
+      treeRows: TREE.map((entry) => entry.name === 'Acolyte:DM-1' ? { ...entry, selected: true } : entry)
+    })
+  }
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
+    ...passingRailStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -48,8 +61,6 @@ function passing() {
     'agent-legacy-thread': ready('agent-legacy-thread', {
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
-    'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
-    'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
     'chat-rail': ready('chat-rail', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)]
     }),
@@ -115,20 +126,20 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 22 states once each, in capture order', () => {
+  it('lists the 24 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
-      'agent-tree', 'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled',
-      'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'agent-planners', 'chat-rail-legacy',
-      'settings-notifications'
+      'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
+      'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
+      'agent-planners', 'chat-rail-legacy', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(22)
+    expect(new Set(STATES).size).toBe(24)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 345 s overall bound that covers all 22', () => {
+  it('declares 15 s per state within a 375 s overall bound that covers all 24', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(345_000)
+    expect(OVERALL_LIMIT_MS).toBe(375_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
   })
 })
@@ -201,6 +212,21 @@ describe('capture-agent-chat: agent-tree levels', () => {
       expect(validateObservations('agent-tree', ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart })))
         .toEqual(['agent-tree: expected the Finished 1 group is collapsed by default'])
     }
+  })
+})
+
+describe('capture-agent-chat: landing observations', () => {
+  it('fails a landing whose rail stayed collapsed, whose ticket panel stayed open or whose agent is not shown', () => {
+    const records = passing()
+    expect(validateObservations('landing-notification', { ...records['landing-notification'],
+      observations: { ...records['landing-notification'].observations, railWidth: 40, treeRows: [] } }))
+      .toEqual(['landing-notification: expected railWidth is 280±1 with no Expand click', 'landing-notification: expected Acolyte:DM-2 is selected'])
+    const activity = records['landing-activity'].observations
+    expect(validateObservations('landing-activity', { ...records['landing-activity'], observations: { ...activity, ticketPanel: true } }))
+      .toEqual(['landing-activity: expected no ticket panel over the rail'])
+    const hidden = TREE.filter((entry) => entry.name !== 'Acolyte:DM-1')
+    expect(validateObservations('landing-activity', { ...records['landing-activity'], observations: { ...activity, treeRows: hidden } }))
+      .toEqual(['landing-activity: expected Acolyte:DM-1 is selected inside the opened Finished 1 group; got no such row'])
   })
 })
 

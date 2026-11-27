@@ -17,7 +17,7 @@ import { buildAgentTree, type AgentTreeNode, type AgentTreeNodeInput } from '../
 import { ChatTranscript } from '../agents/ChatTranscript'
 import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
-import { RightRail, type RailTab } from '../components/RightRail'
+import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
 import {
   activeOrchestratorId, defaultAgentChatId, epicAgentNodes, epicChats, owningChatId, relayMessage, threadTranscript,
   type EpicAgentNodesInput, type LoadedTranscript
@@ -298,6 +298,17 @@ function rowTodos(folder: string, chats: readonly ChatRecord[], nodes: readonly 
   }
 }
 
+/**
+ * The rail's reveal request while an agent link or landing is pending: it expands the rail, which starts collapsed on
+ * a narrow window and would hide the selected agent's row, then clears the request.
+ */
+function useRailReveal(ws: WorkspaceHandle): RailReveal | null {
+  const { dispatch } = ws
+  const pending = ws.state.agentReveal
+  return useMemo<RailReveal | null>(() => pending ? { tab: 'agents', onRevealed: () => dispatch({ type: 'agent_revealed' }) } : null,
+    [pending, dispatch])
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -311,6 +322,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const { nodes, counts } = useNeedsYouNodes(folder, {
     chats, run, epicId: ws.epicId, transcripts: watched, savedTickets: ws.data.savedTickets
   })
+  const reveal = useRailReveal(ws)
   if (chat === undefined) {
     return <section aria-label="Agent chat" className="eap"><NoAgents ws={ws} /></section>
   }
@@ -336,7 +348,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       <div className="eap-centre">
         <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
       </div>
-      <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
+      <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}
         tabs={railTabs(nodes, {
           selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress,
           changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}

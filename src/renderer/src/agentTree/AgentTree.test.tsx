@@ -68,6 +68,33 @@ describe('AgentTree rows and disclosure', () => {
   })
 })
 
+describe('AgentTree reveal of the selected node', () => {
+  it('opens the rows hiding a node selected from outside and scrolls it into view, once per selection', () => {
+    const inputs = [...chain(), node('old', { name: 'Acolyte:DM-1', parentId: 'root', status: 'done' })]
+    const scrolled: string[] = []
+    // jsdom has no scrollIntoView; record which row asked for it.
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) { scrolled.push(this.getAttribute('aria-label') ?? '') }
+    })
+    const view = show(inputs, 'root')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Magos' }))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="old" onSelect={view.onSelect} now={now} />)
+    expect(row('Magos').getAttribute('aria-expanded')).toBe('true')
+    expect(row('Finished 1').getAttribute('aria-expanded')).toBe('true')
+    expect(row('Acolyte:DM-1').getAttribute('aria-selected')).toBe('true')
+    expect(scrolled.at(-1)).toBe('Acolyte:DM-1')
+    fireEvent.click(screen.getByText('Finished 1'))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="old" onSelect={view.onSelect} now={now} />)
+    expect(screen.queryByText('Acolyte:DM-1')).toBeNull()
+    const count = scrolled.length
+    fireEvent.click(screen.getByText('Acolyte:DM-2'))
+    view.rerender(<AgentTree tree={buildAgentTree(inputs)} selectedId="worker" onSelect={view.onSelect} now={now} />)
+    expect(scrolled).toHaveLength(count)
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  })
+})
+
 describe('AgentTree keyboard navigation', () => {
   it('moves, expands, collapses and selects with one roving tab stop', () => {
     const { onSelect } = show()
