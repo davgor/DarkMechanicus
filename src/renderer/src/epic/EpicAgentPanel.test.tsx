@@ -466,3 +466,28 @@ describe('EpicAgentPanel: needs you header and pushes', () => {
     expect(header(rail)).toMatch(/^1 needs you/)
   })
 })
+
+describe('EpicAgentPanel: one push subscription per GUI chat', () => {
+  const planners = Array.from({ length: 9 }, (_, index) => chatRecord({
+    id: `chat_plan_${index + 1}`, folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',
+    createdAt: `2026-02-0${index + 1}T10:00:00.000Z`
+  }))
+
+  it('holds one subscription per chat for 10 GUI chats with a lead and a selected one, naming each planner apart', async () => {
+    const backend = backendWith()
+    openAgent(backend, [orchestrator, ...planners])
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    const names = ['Magos', 'Lexmechanic', ...planners.slice(1).map((_, index) => `Lexmechanic-${index + 2}`)]
+    for (const name of names) expect(await within(rail).findByRole('treeitem', { name })).toBeTruthy()
+    const selected = within(rail).getByRole('treeitem', { name: 'Lexmechanic-2' })
+    fireEvent.click(within(ownRow(selected)).getByText('Lexmechanic-2'))
+    await waitFor(() => expect(selected.getAttribute('aria-selected')).toBe('true'))
+    expect(within(stage).getByRole('region', { name: 'Lexmechanic-2 chat' })).toBeTruthy()
+    // The lead and the selected chat appear in several views (feed, centre chat, changes card, row progress) and
+    // every other row in one; each chat still holds one subscription, beside the folder's one attention listener.
+    await waitFor(() => expect(backend.agentChat.subscribers()).toBe(planners.length + 1 + 1))
+    const reads = (backend.agentChat.callsOf('snapshot') as [{ chatId: string }][]).map(([request]) => request.chatId)
+    expect(new Set(reads)).toEqual(new Set(['chat_orch', ...planners.map((chat) => chat.id)]))
+  })
+})

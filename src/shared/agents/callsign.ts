@@ -117,9 +117,9 @@ export function nextServitorOrdinal(ordinals: ReadonlyMap<string, number>): numb
   return highest + 1
 }
 
-/** Labels are display-only; main resolves identity and verification separately. */
+/** Labels are display-only; main resolves identity and verification separately. A numbered root shows its ordinal. */
 export function formatCallsign(c: Callsign): string {
-  if (c.role === 'Magos' || c.role === 'Lexmechanic') return c.role
+  if (c.role === 'Magos' || c.role === 'Lexmechanic') return c.ordinal === null ? c.role : `${c.role}-${c.ordinal}`
   if (c.ticketKey !== null) return `${c.role}:${c.ticketKey}`
   if (c.role === 'Servitor' && c.ordinal !== null) return `Servitor-${c.ordinal}`
   return c.role
