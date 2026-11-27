@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { AgentModels } from '../../../shared/agents/models'
+import { chatModelOptions, type AgentModels } from '../../../shared/agents/models'
+import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
+import type { FakeAgentChat } from '../__mocks__/fakeAgentChat'
+import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
+import { settle } from '../__mocks__/settle'
 import { AgentChoice, ModelChoice } from './NewChatFields'
+import { startModel, useAgentModelChoice, type AgentModelChoice } from './useAgentModelChoice'
 
 afterEach(cleanup)
 
@@ -91,8 +96,23 @@ describe('AgentChoice', () => {
 
 function model(models: AgentModels, value = '', valid = true): string[] {
   const changes: string[] = []
-  render(<ModelChoice models={models} value={value} valid={valid} onChange={(next) => changes.push(next)} />)
+  const choice: AgentModelChoice = {
+    agent: 'claude', models, value, model: value === '' ? null : value, thinking: null, valid,
+    chooseAgent: () => undefined, chooseModel: (next) => { changes.push(next) }
+  }
+  render(<ModelChoice choice={choice} folder={null} />)
   return changes
+}
+
+/** An OMP agent's model choice as Start run uses it (`useAgentModelChoice`), with what a start request would carry. */
+function SkitariiChoice(): JSX.Element {
+  const choice = useAgentModelChoice([agentView({ kind: 'omp' })], { omp: signedIn })
+  return (
+    <>
+      <ModelChoice choice={choice} folder="C:/Repo" />
+      <output aria-label="Request">{JSON.stringify(startModel(choice))}</output>
+    </>
+  )
 }
 
 describe('ModelChoice', () => {
@@ -133,5 +153,39 @@ describe('ModelChoice', () => {
     expect(screen.getByRole('combobox', { name: 'Model' }).textContent).toBe('CLI default')
     expect(screen.getByText('The CLI picks its own model.')).toBeTruthy()
     expect(screen.queryByRole('textbox')).toBeNull()
+  })
+})
+
+describe('ModelChoice: a Skitarii agent', () => {
+  it('offers an OMP agent its catalog, featured then More, and yields provider/id and the effort chosen, or nothing for Default', async () => {
+    const dm = new FakeDm()
+    const api = dm.agentChat as FakeAgentChat
+    api.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    window.dm = dm
+    render(<SkitariiChoice />)
+    await settle()
+    const request = (): string | null => screen.getByRole('status', { name: 'Request' }).textContent
+    const menu = (): HTMLElement => screen.getByRole('menu', { name: 'Model and effort' })
+    const item = (name: string): HTMLElement =>
+      within(menu()).getAllByRole('menuitemradio').find((entry) => entry.querySelector('.model-picker-name')?.textContent === name)!
+
+    expect(api.callsOf('models')).toEqual([[{ folder: 'C:/Repo', agentId: 'omp' }]])
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(request()).toBe('{"model":null}')
+    fireEvent.click(screen.getByRole('button', { name: 'Model: Default' }))
+    expect(item('Default').getAttribute('aria-checked')).toBe('true')
+    expect(within(within(menu()).getByRole('group', { name: 'Claude' })).getAllByRole('menuitemradio').map((entry) => entry.querySelector('.model-picker-name')?.textContent))
+      .toEqual(['Fable 5.2', 'Haiku 5.5', 'Mythos 5.2', 'Opus 5.5', 'Sonnet 5.5'])
+    expect(within(menu()).getByRole('menuitem', { name: 'More models' })).toBeTruthy()
+    fireEvent.click(item('Sonnet 5.5'))
+    fireEvent.click(within(within(menu()).getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'Low' }))
+    await settle()
+    expect(request()).toBe('{"model":"anthropic/claude-sonnet-5-5","thinking":"low"}')
+    expect(screen.getByRole('button', { name: 'Model: Sonnet 5.5 · Low' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model: Sonnet 5.5 · Low' }))
+    fireEvent.click(item('Default'))
+    await settle()
+    expect(request()).toBe('{"model":null}')
   })
 })

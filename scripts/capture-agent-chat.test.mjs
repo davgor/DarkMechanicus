@@ -228,6 +228,28 @@ function epicModelPickerRecord(patch = {}) {
   return ready('model-picker-epic', { modelPicker: { ...MODEL_PICKER_EPIC, ...patch } })
 }
 
+/** A start surface's Model field with `model` at `effort` chosen and the chip opened again over the host's catalog. */
+function startModel({ label = 'Model', dialog, model, effort, patch = {} }) {
+  return {
+    modelChoice: { label, dialog, hint: 'Default starts on the model and effort set in OMP.' },
+    modelPicker: {
+      ...MODEL_PICKER, chip: `${model} · ${effort}`, beforeSend: false, checked: [model],
+      groups: [{ label: 'Default', models: ['Default'] }, ...MODEL_PICKER.groups],
+      efforts: MODEL_PICKER.efforts.map((entry) => ({ ...entry, checked: entry.label === effort })), ...patch
+    }
+  }
+}
+const newChatModelRecord = (patch = {}) => ready('new-chat-model', {
+  ...STANDALONE, ...picked(ROLE_CARDS), ...startModel({ dialog: 'Start a new chat', model: 'Sonnet 5.5', effort: 'Low', patch })
+})
+const startRunModelRecord = (patch = {}) => ready('start-run-model', {
+  railWidth: null, railRightOfStage: null, ...startModel({ dialog: 'Start run', model: 'GPT-6 Astra', effort: 'High', patch })
+})
+const lexmechanicModelRecord = (patch = {}) => ready('lexmechanic-model', {
+  railWidth: null, railRightOfStage: null,
+  ...startModel({ label: 'Lexmechanic model', dialog: null, model: 'Opus 5.5', effort: 'Max', patch })
+})
+
 /** The epic-agent-tabs strip: the selected Magos without ✕, then a Lexmechanic with two unread messages. */
 const AGENT_TABS = {
   tabs: [
@@ -282,7 +304,10 @@ function passing() {
     'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
     'epic-agent-tabs-1024': ready('epic-agent-tabs-1024', { agentTabs: AGENT_TABS }),
     'epic-agent-tabs-1440': ready('epic-agent-tabs-1440', { agentTabs: AGENT_TABS }),
-    'model-picker-epic': epicModelPickerRecord()
+    'model-picker-epic': epicModelPickerRecord(),
+    'new-chat-model': newChatModelRecord(),
+    'start-run-model': startRunModelRecord(),
+    'lexmechanic-model': lexmechanicModelRecord()
   }
 }
 
@@ -317,7 +342,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 46 states once each, in capture order', () => {
+  it('lists the 49 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -325,10 +350,10 @@ describe('capture-agent-chat: state list and bounds', () => {
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
       'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
       'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
-      'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'settings-notifications', 'delivery-editor', 'delivery-pending',
-      'delivery-checkpoint'
+      'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(46)
+    expect(new Set(STATES).size).toBe(49)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
@@ -349,9 +374,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 705 s overall bound: 46 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 750 s overall bound: 49 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(705_000)
+    expect(OVERALL_LIMIT_MS).toBe(750_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -372,6 +397,28 @@ describe('capture-agent-chat: model-picker', () => {
     expect(validateObservations('model-picker', modelPickerRecord({ efforts: MODEL_PICKER.efforts.map((entry) => ({ ...entry, checked: false })) })))
       .toEqual([expect.stringMatching(/^model-picker: expected the Effort control lists Low to Max with High checked; got /)])
     expect(validateObservations('model-picker', ready('model-picker', STANDALONE))).toHaveLength(6)
+  })
+})
+
+describe('capture-agent-chat: the start surfaces\' model choice', () => {
+  it('passes New chat, Start run and the Lexmechanic card with their choice checked under Default and the latest groups', () => {
+    expect(validateObservations('new-chat-model', newChatModelRecord())).toEqual([])
+    expect(validateObservations('start-run-model', startRunModelRecord())).toEqual([])
+    expect(validateObservations('lexmechanic-model', lexmechanicModelRecord())).toEqual([])
+  })
+
+  it('fails a chip on another choice, a missing Default, a wrong effort, a clipped menu and a field outside its surface', () => {
+    expect(validateObservations('new-chat-model', newChatModelRecord({ chip: 'Default' })))
+      .toEqual([expect.stringMatching(/^new-chat-model: expected the Model field in the Start a new chat dialog reads Sonnet 5.5 · Low; got /)])
+    expect(validateObservations('start-run-model', startRunModelRecord({ groups: MODEL_PICKER.groups })))
+      .toEqual([expect.stringMatching(/^start-run-model: expected Default leads the latest Claude and Codex groups; got /)])
+    expect(validateObservations('lexmechanic-model', lexmechanicModelRecord({ efforts: MODEL_PICKER.efforts })))
+      .toEqual([expect.stringMatching(/^lexmechanic-model: expected Opus 5.5 is checked, with Effort Max of Low to Max; got /)])
+    expect(validateObservations('lexmechanic-model', lexmechanicModelRecord({ unclipped: false }))).toEqual([
+      'lexmechanic-model: expected the menu opens upward from the chip, inside the window and below the top of whatever clips it; got [true,true,false]'
+    ])
+    expect(validateObservations('start-run-model', ready('start-run-model', startModel({ dialog: null, model: 'GPT-6 Astra', effort: 'High' }))))
+      .toEqual([expect.stringMatching(/^start-run-model: expected the Model field in the Start run dialog reads GPT-6 Astra · High; got /)])
   })
 })
 

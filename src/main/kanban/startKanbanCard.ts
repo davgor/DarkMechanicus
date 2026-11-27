@@ -106,6 +106,7 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
       agent,
       role: 'orchestrator',
       model: request.model ?? null,
+      ...(request.thinking == null ? {} : { thinking: request.thinking }),
       allowSave: true,
       title: kanbanTitle(card.key, card.title),
       cardId: card.id,

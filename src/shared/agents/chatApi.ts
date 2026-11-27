@@ -8,7 +8,7 @@ import type { AgentId, CommandResult } from '../desktop/api'
 import type { AgentInboxPage } from '../domain/agentMail'
 import type { KanbanCardView } from '../domain/kanban'
 import type { RunView } from '../domain/views'
-import type { ChatItem, ChatRecord, ChatRole } from './chat'
+import type { ChatItem, ChatRecord, ChatRole, ThinkingLevel } from './chat'
 
 /** Main pushes every `ChatPushEvent` to the window on this channel. */
 export const CHAT_EVENT_CHANNEL = 'chats:event'
@@ -31,6 +31,8 @@ export interface CreateChatRequest {
   role: ChatRole
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level (`--thinking`), with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** Lets the chat save plans (`--allow-save`); on unless turned off. */
   allowSave?: boolean
   title?: string
@@ -59,6 +61,8 @@ export interface StartOrchestratorRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii Magos's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** The person's additional instructions from the Start run dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
   instructions?: string
 }
@@ -79,6 +83,8 @@ export interface StartTransferChatRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
 }
 
 /** What starting a transfer chat left behind. The transfer stays authorized either way; the chat exists only when its agent was started. */
@@ -89,10 +95,17 @@ export interface StartTransferChatResult {
   problem: string | null
 }
 
-/** Starts a planner chat bound to an epic; the agent (`pickChatAgent`), role, Allow save, title and kickoff are decided in main. */
+/**
+ * Starts a planner chat bound to an epic; the agent (`pickChatAgent`), role, Allow save, title and kickoff are decided in
+ * main. A model (and a Skitarii planner's thinking level) may be named; left out, the agent uses its default.
+ */
 export interface StartPlannerRequest {
   folder: string
   epicId: string
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+  /** A Skitarii planner's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
 }
 
 /** What starting a planner left behind; the chat exists only when its agent was started. */
@@ -110,6 +123,8 @@ export interface StartKanbanCardRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** The person's additional instructions from the Play dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
   instructions?: string
 }

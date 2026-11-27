@@ -854,6 +854,8 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     agentChats,
     plannerAgents: plannerAgents(agents),
     workerCatalog: createWorkerCatalog({ userData: app.getPath('userData'), models: ompModels, agentFor: id => agents.get(id) }),
+    // New chats' Skitarii models are checked against the same catalog (and cache) as agentChat:models.
+    models: ompModels,
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),

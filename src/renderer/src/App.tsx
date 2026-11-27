@@ -514,18 +514,27 @@ interface FirstPromptRequest {
   agent: string
 }
 
-/** The first-prompt popup; Start creates the chat (in its folder, as the chosen role, or project-less) and opens it. */
+/**
+ * The first-prompt popup; Start creates the chat (in its folder, as the chosen role, or project-less) and opens it. A
+ * Skitarii agent's folder chat also asks for its model and effort from the OMP catalog.
+ */
 function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; request: FirstPromptRequest; onClose(): void }): JSX.Element {
   const { actions } = shell
   const { folder, agent } = request
+  const catalog = folder !== null && shell.agents.agents.some((candidate) => candidate.id === agent && candidate.kind === 'omp')
+    ? { folder: folder.path, agent }
+    : undefined
   return (
     <FirstPromptDialog
       roles={folder !== null}
+      {...(catalog === undefined ? {} : { catalog })}
       onClose={onClose}
-      onSubmit={async (prompt, role = 'orchestrator') =>
+      onSubmit={async (prompt, role = 'orchestrator', chosen = { model: null, thinking: null }) =>
         (folder === null
           ? await actions.summonChat(agent, prompt)
-          : await actions.createChat(folder, { agent, model: null, role, allowSave: true, firstPrompt: prompt })) !== null
+          : await actions.createChat(folder, {
+            agent, model: chosen.model, ...(chosen.thinking === null ? {} : { thinking: chosen.thinking }), role, allowSave: true, firstPrompt: prompt
+          })) !== null
       }
     />
   )

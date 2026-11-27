@@ -3,7 +3,7 @@ import { epicBranchName } from '../../../shared/domain/branchName'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
-import { useAgentModelChoice } from '../agents/useAgentModelChoice'
+import { startModel, useAgentModelChoice } from '../agents/useAgentModelChoice'
 import type { AgentModelChoice } from '../agents/useAgentModelChoice'
 import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
@@ -98,6 +98,8 @@ function EpicBranchSection(props: {
 interface RunWithAgentSectionProps {
   /** What starting the agent here does, under the section heading. */
   hint: string
+  /** The tracked folder the agent starts in; the Skitarii model catalog is asked with it. */
+  folderPath: string
   agents: readonly AgentView[]
   statuses: AgentStatuses
   choice: AgentModelChoice
@@ -134,7 +136,7 @@ export function RunWithAgentSection(props: RunWithAgentSectionProps): JSX.Elemen
         onAgentStatus={props.onAgentStatus}
         emptyText="No agent is connected and signed in."
       />
-      {agent === null ? null : <ModelChoice models={choice.models} value={choice.value} valid={choice.valid} onChange={choice.chooseModel} />}
+      {agent === null ? null : <ModelChoice choice={choice} folder={props.folderPath} />}
       <Field
         label="Additional instructions"
         value={props.instructions}
@@ -209,7 +211,7 @@ export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
             disabled={!canRun}
             busy={props.busy}
             onClick={() => {
-              if (agent !== null) void start(() => props.onRunWithAgent({ agent, model: choice.model, ...instructionsOf(instructions) }))
+              if (agent !== null) void start(() => props.onRunWithAgent({ agent, ...startModel(choice), ...instructionsOf(instructions) }))
             }}
           >
             Run with agent

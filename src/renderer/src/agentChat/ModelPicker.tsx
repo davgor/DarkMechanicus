@@ -12,6 +12,8 @@ const EFFORT_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'XHigh', max: 'Max'
 }
 const BUSY_HINT = 'Applies to next response'
+/** The chip and the menu item of no model chosen (`onDefault`): OMP starts on the person's configured default. */
+const DEFAULT_LABEL = 'Default'
 /** The menu's height bounds, and the gap it keeps between its top and the edge of whatever clips it. */
 const MENU_MIN_PX = 160
 const MENU_MAX_PX = 600
@@ -24,6 +26,11 @@ interface ModelPickerProps {
   load(): Promise<CommandResult<ChatModelOption[]>>
   /** Switches the chat's model and effort (`agentChat:setModel`) once. */
   choose(choice: AgentChatModelChoice): Promise<CommandResult<unknown>>
+  /**
+   * Offers Default first, for a chat not created yet (New chat, Start run, the Lexmechanic card): no model and no
+   * effort, so OMP starts on the person's configured default. The chip reads Default while no model is chosen.
+   */
+  onDefault?(): void
 }
 
 type Catalog = { status: 'loading' } | { status: 'ready'; options: ChatModelOption[] } | { status: 'failed'; message: string }
@@ -56,10 +63,13 @@ function startingEffort(option: ChatModelOption, thinking: ThinkingLevel | null)
   return efforts.includes('medium') ? 'medium' : efforts[0] ?? null
 }
 
-/** What the chip reads: the switch in flight, else the chat's model by its catalog name (its id before the catalog arrives). */
-function chipText(current: ChatModelOption | null, model: string | null, thinking: ThinkingLevel | null, pending: Choice | null): string {
+/**
+ * What the chip reads: the switch in flight, else the chat's model by its catalog name (its id before the catalog
+ * arrives); with no model, Default where the picker offers it (`onDefault`).
+ */
+function chipText(current: ChatModelOption | null, { model, thinking }: { model: string | null; thinking: ThinkingLevel | null }, pending: Choice | null, offersDefault: boolean): string {
   const known = current === null ? null : shortName(current)
-  const name = pending === null ? known ?? model?.slice(model.indexOf('/') + 1) ?? 'Model' : shortName(pending.option)
+  const name = pending === null ? known ?? model?.slice(model.indexOf('/') + 1) ?? (offersDefault ? DEFAULT_LABEL : 'Model') : shortName(pending.option)
   const effort = pending === null ? thinking : pending.effort
   return effort === null ? name : `${name} · ${EFFORT_LABELS[effort]}`
 }
@@ -133,7 +143,7 @@ function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, close: (focus
  * Choosing a model and effort switches the chat once; the chip spins while it runs and reverts with an inline error
  * when it fails. While the agent works, the switch applies to its next response, and the chip says it is queued.
  */
-export function ModelPicker({ state, load, choose }: ModelPickerProps): JSX.Element {
+export function ModelPicker({ state, load, choose, onDefault }: ModelPickerProps): JSX.Element {
   const busy = state.status === 'busy'
   const thinking = state.thinking ?? null
   const { catalog, retry } = useCatalog(load)
@@ -156,13 +166,13 @@ export function ModelPicker({ state, load, choose }: ModelPickerProps): JSX.Elem
   return (
     <div className="model-picker" ref={anchor}>
       {change.error !== null && <span className="model-picker-error" role="alert">{change.error}</span>}
-      <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, state.model ?? null, thinking, change.pending)}
+      <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, { model: state.model ?? null, thinking }, change.pending, onDefault !== undefined)}
         spinning={change.pending !== null} queued={change.queued} busy={busy} toggle={toggle} close={close} />
       {open && <ModelMenu id={menuId} anchor={anchor} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={change.queued}
         retry={retry} close={close} apply={(option, effort) => {
           close(true)
           void change.apply(option, effort)
-        }} />}
+        }} {...(onDefault === undefined ? {} : { fallback: { checked: state.model == null, choose: () => { close(true); onDefault() } } })} />}
     </div>
   )
 }
@@ -213,6 +223,8 @@ interface MenuProps {
   retry(): void
   apply: Apply
   close(focusChip: boolean): void
+  /** The Default item (`onDefault`): whether it is the choice, and choosing it. */
+  fallback?: Fallback
 }
 
 /**
@@ -285,7 +297,7 @@ function visibleModels({ featured, more }: { featured: ChatModelOption[]; more: 
 }
 
 /** The open menu: models by provider, More models, Effort; arrows move, typing filters by name, Escape closes. */
-function ModelMenu({ id, anchor, catalog, current, thinking, busy, queued, retry, apply, close }: MenuProps): JSX.Element {
+function ModelMenu({ id, anchor, catalog, current, thinking, busy, queued, retry, apply, close, fallback }: MenuProps): JSX.Element {
   const groups = useMemo(() => featuredModels(catalog.status === 'ready' ? catalog.options : []), [catalog])
   const [draft, setDraft] = useState(current)
   const [query, setQuery] = useState('')
@@ -321,6 +333,7 @@ function ModelMenu({ id, anchor, catalog, current, thinking, busy, queued, retry
     <div id={id} ref={menu} className="model-picker-menu glass-strong" role="menu" aria-label="Model and effort" onKeyDown={onKeyDown}>
       <MenuStatus catalog={catalog} busy={busy} queued={queued} query={query} empty={shown.featured.length + shown.more.length === 0} retry={retry} />
       <div className="model-picker-list">
+        <DefaultItem fallback={fallback} query={query} draft={draft} />
         {shown.featured.map((group) => <ModelGroup key={group.provider} group={group} name={group.label} checked={checked} pick={pick} />)}
         {query === '' && groups.more.length > 0 && (
           <button type="button" role="menuitem" className="model-picker-more" aria-expanded={showMore} data-menu-item tabIndex={-1}
@@ -351,6 +364,24 @@ function MenuStatus({ catalog, busy, queued, query, empty, retry }: {
       {catalog.status === 'ready' && empty
         && <p className="model-picker-hint">{query === '' ? 'No models are available.' : `No model matches “${query}”.`}</p>}
     </>
+  )
+}
+
+type Fallback = { checked: boolean; choose(): void }
+
+/** Default, above the models while nothing filters them: no model and no effort, so the agent starts on its configured default. */
+function DefaultItem({ fallback, query, draft }: { fallback: Fallback | undefined; query: string; draft: ChatModelOption | null }): JSX.Element | null {
+  if (fallback === undefined || query !== '') return null
+  const checked = fallback.checked && draft === null
+  return (
+    <div role="group" aria-label={DEFAULT_LABEL} className="model-picker-group">
+      <button type="button" role="menuitemradio" aria-checked={checked} className="model-picker-item" data-menu-item data-model tabIndex={-1}
+        onClick={fallback.choose}>
+        <span className="model-picker-check" aria-hidden="true">{checked && <Icon name="check" size={14} strokeWidth={2} />}</span>
+        <span className="model-picker-name">{DEFAULT_LABEL}</span>
+        <span className="model-picker-context">OMP’s own choice</span>
+      </button>
+    </div>
   )
 }
 

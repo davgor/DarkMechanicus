@@ -26,6 +26,7 @@ export const STATES = Object.freeze([
   'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
   'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'image-result', 'agent-image-viewer',
   'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
+  'new-chat-model', 'start-run-model', 'lexmechanic-model',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
@@ -38,8 +39,8 @@ export const S3_STATES = Object.freeze([
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 46 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 705_000
+/** A declared bound: 49 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 750_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -100,7 +101,8 @@ const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
   'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'chat-images', 'agent-transcript', 'agent-worked-for',
-  'image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker'
+  'image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker',
+  'new-chat-model'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(baseState(state))))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -216,6 +218,28 @@ const LATEST_MODELS = [
   { label: 'Claude', models: ['Fable 5.2', 'Haiku 5.5', 'Mythos 5.2', 'Opus 5.5', 'Sonnet 5.5'] },
   { label: 'Codex', models: ['GPT-6 Astra', 'GPT-6 Luna', 'GPT-6.1 Sol', 'GPT-6.1 Terra'] }
 ]
+const EFFORTS = ['Low', 'Medium', 'High', 'XHigh', 'Max']
+
+/**
+ * A start surface's Model field (New chat, Start run, the Lexmechanic card) after `model` at `effort` was chosen and the
+ * chip opened again: the field and chip, an upward glass menu nothing clips, Default above the latest of each line,
+ * and the choice checked.
+ */
+function startModelChecks(label, dialog, model, effort) {
+  const chip = `${model} · ${effort}`
+  return [
+    [`the ${label} field ${dialog === null ? 'under the role cards' : `in the ${dialog} dialog`} reads ${chip}`,
+      (o) => o.modelChoice?.label === label && o.modelChoice.dialog === dialog && o.modelPicker?.chip === chip,
+      (o) => JSON.stringify([o.modelChoice, o.modelPicker?.chip])],
+    MODEL_PICKER_CHECKS[1],
+    MODEL_PICKER_CHECKS[3],
+    ['Default leads the latest Claude and Codex groups', (o) => JSON.stringify(o.modelPicker?.groups?.slice(0, 3))
+      === JSON.stringify([{ label: 'Default', models: ['Default'] }, ...LATEST_MODELS]), (o) => JSON.stringify(o.modelPicker?.groups)],
+    [`${model} is checked, with Effort ${effort} of Low to Max`, (o) => JSON.stringify(o.modelPicker?.checked) === JSON.stringify([model])
+      && JSON.stringify(o.modelPicker?.efforts) === JSON.stringify(EFFORTS.map((level) => ({ label: level, checked: level === effort }))),
+    (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.efforts])]
+  ]
+}
 
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
@@ -371,6 +395,9 @@ const STATE_CHECKS = {
     ['Opus 5.5 is checked and More models is expanded', (o) => JSON.stringify(o.modelPicker?.checked) === '["Opus 5.5"]'
       && o.modelPicker?.more?.expanded === 'true', (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.more])]
   ],
+  'new-chat-model': [...startModelChecks('Model', 'Start a new chat', 'Sonnet 5.5', 'Low'), ...ROLE_PICKER_CHECKS],
+  'start-run-model': startModelChecks('Model', 'Start run', 'GPT-6 Astra', 'High'),
+  'lexmechanic-model': startModelChecks('Lexmechanic model', null, 'Opus 5.5', 'Max'),
   'epic-agent-tabs': [
     ['the tab strip reads Magos (selected, no ✕) then Lexmechanic (unread dot, ✕), above the chat', (o) => JSON.stringify(o.agentTabs?.tabs)
       === '[{"name":"Magos","selected":true,"unread":false,"closable":false},{"name":"Lexmechanic, 2 unread messages","selected":false,"unread":true,"closable":true}]'

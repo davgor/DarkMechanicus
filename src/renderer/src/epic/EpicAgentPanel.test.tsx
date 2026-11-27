@@ -9,8 +9,10 @@ import { FakeChats } from '../__mocks__/fakeChats'
 import { FakeChatMail, mailEntry } from '../__mocks__/fakeChatMail'
 import { createAgentMailStore } from '../agents/useAgentMail'
 import { installDomShims } from './__mocks__/domShims'
+import { chatModelOptions } from '../../../shared/agents/models'
+import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
-import { fakeOrchestration } from './__mocks__/fakeOrchestration'
+import { fakeOrchestration, readyAgent } from './__mocks__/fakeOrchestration'
 import { epicDetail, folder, runView, transferView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { AgentPickerDialog } from './AgentPickerDialog'
@@ -368,6 +370,28 @@ describe('AgentPickerDialog', () => {
     await waitFor(() => expect(closed.count).toBe(1))
     expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
     expect(dispatched).toEqual([{ type: 'select_agent', chatId: 'chat_new_1' }])
+  })
+})
+
+describe('AgentPickerDialog: a Skitarii Lexmechanic', () => {
+  it('starts a Skitarii Lexmechanic on the catalog model and effort chosen under the cards', async () => {
+    const backend = noRunBackend()
+    backend.agentChat.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    const { ws } = pickerWorkspace({ epic: epicDetail(), run: null }, backend)
+    const { agent, status } = readyAgent('omp')
+    Object.assign(ws, { orchestration: fakeOrchestration({ agents: [agent], statuses: { omp: status } }) })
+    render(<AgentPickerDialog ws={ws} onClose={() => undefined} />)
+    const dialog = within(screen.getByRole('dialog'))
+    await waitFor(() => expect(backend.agentChat.callsOf('models')).toEqual([[{ folder: FOLDER, agentId: 'omp' }]]))
+    expect(dialog.getByRole('group', { name: 'Lexmechanic model' })).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Model: Default' }))
+    const menu = within(dialog.getByRole('menu', { name: 'Model and effort' }))
+    fireEvent.click(menu.getAllByRole('menuitemradio').find((entry) => entry.querySelector('.model-picker-name')?.textContent === 'Opus 5.5')!)
+    fireEvent.click(within(menu.getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'Max' }))
+    await waitFor(() => expect(dialog.getByRole('button', { name: 'Model: Opus 5.5 · Max' })).toBeTruthy())
+    fireEvent.click(roleCard(screen.getByRole('dialog'), 'Lexmechanic'))
+    await waitFor(() => expect((backend.chats as FakeChats).callsOf('startPlanner')).toHaveLength(1))
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1', model: 'anthropic/claude-opus-5-5', thinking: 'max' }]])
   })
 })
 
