@@ -133,12 +133,23 @@ function modelCatalog(sessionless) {
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
 /**
- * The `--model provider/id` this run started on, as `get_state` reports a model; undefined (the golden's own value)
- * without one, or for a bare alias, which only the real OMP resolves.
+ * The `--model provider/id` this run started on, as `get_state` reports a model; else FAKE_AGENT_OMP_START_MODEL, the
+ * person's configured default an e2e gives the fake; undefined (the golden's own value) without either, or for a bare
+ * alias, which only the real OMP resolves.
  */
 function launchModel() {
-  const selector = argv.includes('--model') ? option('--model') : '', slash = selector.indexOf('/')
+  const selector = argv.includes('--model') ? option('--model') : process.env.FAKE_AGENT_OMP_START_MODEL ?? '', slash = selector.indexOf('/')
   return slash > 0 ? { provider: selector.slice(0, slash), id: selector.slice(slash + 1) } : undefined
+}
+
+/**
+ * With FAKE_AGENT_CONTROL_LOG, one line per session control an OMP run receives (`set_model`, `set_thinking_level`,
+ * `abort`), apart from the launch log: its pid, when, the control's values, and whether a turn was running.
+ */
+function logControl(message, busy) {
+  if (!process.env.FAKE_AGENT_CONTROL_LOG || mode !== 'omp' || !['set_model', 'set_thinking_level', 'abort'].includes(message.type)) return
+  const { type, provider, modelId, level } = message
+  appendFileSync(process.env.FAKE_AGENT_CONTROL_LOG, `${JSON.stringify({ pid: process.pid, at: Date.now(), type, provider, modelId, level, busy })}\n`)
 }
 
 function renumber(lines, number) {
@@ -424,7 +435,7 @@ class ProtocolReplay {
   named = false
   /** The session's model and thinking level as OMP's `get_state` reports them: from `--model`/`--thinking`, then `set_model`/`set_thinking_level`. */
   model = launchModel()
-  thinking = argv.includes('--thinking') ? option('--thinking') : undefined
+  thinking = argv.includes('--thinking') ? option('--thinking') : process.env.FAKE_AGENT_OMP_START_THINKING
 
   constructor(input, stop) {
     this.stop = stop
@@ -627,6 +638,7 @@ class ProtocolReplay {
   }
 
   command(message) {
+    logControl(message, this.active !== null)
     if (this.initialize(message)) return true
     if (message.type === 'abort' || message.request?.subtype === 'interrupt') { this.interrupt(message); return true }
     if (mode === 'omp' && this.query(message)) return true

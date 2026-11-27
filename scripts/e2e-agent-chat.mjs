@@ -8,11 +8,12 @@
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
- * coord step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`: the app
- * prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios. So
- * `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord steps.
+ * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
+ * the app prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios.
+ * So `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord and model steps.
  *
  * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
  * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
@@ -28,7 +29,13 @@
  * fake find the Magos by epic and role and mail it with the real `dm` CLI, `coord-wake` stops the Lexmechanic and has
  * the Magos mail it awake in the GUI, and `coord-close` stops it for good from its tab.
  *
- * Without `--steps` every step but the polish, image and coord ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `model-*` steps (a Skitarii chat's composer model picker) also run only when named, on the omp fake (`--agent
+ * omp` implied), which starts on Opus 5.5 at High as the person's configured default: `model-pick` opens a new folder
+ * chat and switches it to a Codex model at Medium, `model-busy` switches it to a Claude model at High during a `[slow]`
+ * turn, and `model-restart` relaunches the app and checks the chat starts again on that model and effort. The fake
+ * logs each session control it receives to `<out>/fake-controls.jsonl`.
+ *
+ * Without `--steps` every step but the polish, image, coord and model ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -363,13 +370,19 @@ function createSession(out, exe, agent = 'claude', keys = []) {
   writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
   const env = withNodeFirst(isolatedEnv(process.env, root))
   if (keys.some((key) => STEPS[key].coord)) env.FAKE_AGENT_DELIVER_MAIL = '1'
+  if (keys.some((key) => STEPS[key].model)) {
+    Object.assign(env, {
+      FAKE_AGENT_OMP_START_MODEL: MODEL_START.model, FAKE_AGENT_OMP_START_THINKING: MODEL_START.thinking,
+      FAKE_AGENT_CONTROL_LOG: join(root, 'fake-controls.jsonl'), FAKE_AGENT_SLOW_MS: String(MODEL_SLOW_MS)
+    })
+  }
   return {
     out, root, exe, agent, env,
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null, console: [], coord: null
+    store: null, restart: null, console: [], coord: null, model: null
   }
 }
 
@@ -773,6 +786,10 @@ function installHelpers(_h) {
     rect(element) {
       const { left, top, right, bottom, width, height } = element.getBoundingClientRect()
       return { left, top, right, bottom, width, height }
+    },
+    /** The GUI chat's section, found by its composer; null while it is not shown. */
+    chatSection(chatId) {
+      return document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat') ?? null
     },
     /** The top-level bubbles of a chat transcript: who wrote each and its text. */
     messages(root) {
@@ -2440,6 +2457,281 @@ async function coordClose(session, signal) {
   }
 }
 
+/**
+ * The model and effort the omp fake's sessions start on without `--model` (FAKE_AGENT_OMP_START_*), as the person's
+ * configured default, and the chip they read as (`ModelPicker.tsx`: the catalog name without its provider, then the effort).
+ */
+const MODEL_START = { model: 'anthropic/claude-opus-5-5', thinking: 'high', chip: 'Opus 5.5 · High' }
+/** The `[slow]` turn's pause between lines in a model run: about 4 s for its 10 lines, room to switch models during it. */
+const MODEL_SLOW_MS = 400
+const MODEL_CHAT_PROMPT = 'model switch'
+/** The chip's title while the agent works (`ModelPicker.tsx`, BUSY_HINT), also the open menu's first note. */
+const MODEL_BUSY_HINT = 'Applies to next response'
+
+/** The controls the fake's run `pid` logged (FAKE_AGENT_CONTROL_LOG) at or after `from` (epoch ms), in order. */
+export function fakeControls(logText, pid, from = 0) {
+  return logText.split(/\r?\n/).filter((line) => line.trim() !== '').map((line) => JSON.parse(line))
+    .filter((entry) => entry.pid === pid && entry.at >= from)
+}
+
+/** The `--model` and `--thinking` values a launch's argv carries; null for a flag it lacks. */
+export function launchModelFlags(argv) {
+  const flag = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] ?? null : null)
+  return { model: flag('--model'), thinking: flag('--thinking') }
+}
+
+/** The two controls one switch to `model` (`provider/id`) at `effort` sends, in order, as the fake logs them. */
+export function switchControls(model, effort) {
+  const slash = model.indexOf('/')
+  return [
+    { type: 'set_model', provider: model.slice(0, slash), modelId: model.slice(slash + 1) },
+    { type: 'set_thinking_level', level: effort }
+  ]
+}
+
+function controlsOf(session, pid, from) {
+  const file = session.env.FAKE_AGENT_CONTROL_LOG
+  return fakeControls(existsSync(file) ? readFileSync(file, 'utf8') : '', pid, from)
+}
+
+/** Whether `controls` are exactly `expected` (each a subset of the logged control's fields). */
+function sameControls(controls, expected) {
+  return controls.length === expected.length && expected.every((want, index) => Object.entries(want).every(([key, value]) => controls[index][key] === value))
+}
+
+/** The chat's composer model chip: what it reads, its title (the busy hint while the agent works), queued and open. */
+function modelChip(h, chatId) {
+  const chip = h.chatSection(chatId)?.querySelector('.model-picker button.model-picker-chip') ?? null
+  if (!chip) return { ok: false, chip: false }
+  return {
+    ok: true, label: chip.querySelector('.model-picker-label')?.textContent ?? null, ariaLabel: chip.getAttribute('aria-label'), title: chip.title,
+    queued: chip.querySelector('.model-picker-queued') !== null, open: chip.getAttribute('aria-expanded') === 'true', spinning: chip.getAttribute('aria-busy') === 'true'
+  }
+}
+
+/** Polls the chat's model chip until `test` accepts it, which it returns. */
+function chipWhere(session, signal, chatId, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const chip = await page(session, modelChip, chatId)
+    session.lastProbe = chip
+    return chip.ok && test(chip) && chip
+  }, signal)
+}
+
+/** Opens the chat's model menu: a click on its chip while it is closed; ok once the menu shows. */
+function openModelMenu(h, chatId) {
+  const picker = h.chatSection(chatId)?.querySelector('.model-picker')
+  if (!picker) return { ok: false, picker: false }
+  if (picker.querySelector('[role="menu"]')) return { ok: true }
+  picker.querySelector('button.model-picker-chip[aria-expanded="false"]')?.click()
+  return { ok: false, menu: false }
+}
+
+/**
+ * Clicks the first featured model under the open menu's `heading` group (Claude or Codex); ok with the name it shows
+ * and the menu's notes (the busy hint) as it was clicked.
+ */
+function pickModel(h, chatId, heading) {
+  const menu = h.chatSection(chatId)?.querySelector('.model-picker [role="menu"]')
+  if (!menu) return { ok: false, menu: false }
+  const hints = [...menu.querySelectorAll('.model-picker-hint')].map((hint) => hint.textContent)
+  const item = menu.querySelector(`[role="group"][aria-label="${heading}"] [role="menuitemradio"]`)
+  if (!item) return { ok: false, hints }
+  item.click()
+  return { ok: true, name: item.querySelector('.model-picker-name')?.textContent ?? null, hints }
+}
+
+/** The open menu's Effort control for the picked model; ok with its label and efforts once it shows them. */
+function effortControl(h, chatId) {
+  const control = h.chatSection(chatId)?.querySelector('.model-picker [role="menu"] .model-picker-effort')
+  if (!control) return { ok: false, control: false }
+  const label = control.querySelector('.model-picker-effort-label')?.textContent ?? ''
+  return { ok: label.startsWith('Effort for '), label, efforts: [...control.querySelectorAll('[data-effort]')].map((segment) => segment.textContent) }
+}
+
+/** Clicks the open menu's `effort` segment (Medium, High, …), which switches the chat. */
+function pickEffort(h, chatId, effort) {
+  const segments = h.chatSection(chatId)?.querySelectorAll('.model-picker [role="menu"] .model-picker-effort [data-effort]') ?? []
+  const segment = [...segments].find((button) => button.textContent === effort)
+  segment?.click()
+  return { ok: !!segment, segments: segments.length }
+}
+
+/** The chat's catalog (`agentChat:models`), each model's provider, id, name and efforts. */
+async function chatCatalog(_h, folder, chatId) {
+  const result = await window.dm.agentChat.models({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  return { ok: true, options: result.data.map(({ provider, id, name, efforts }) => ({ provider, id, name, efforts })) }
+}
+
+/** The chat's live model, effort and status (its snapshot), and its newest `model_change` item. */
+async function chatModel(_h, folder, chatId) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { model, thinking, status, items } = result.data
+  const change = items.findLast((item) => item.kind === 'model_change') ?? null
+  return { ok: true, model: model ?? null, thinking: thinking ?? null, status, change: change && { from: change.from, to: change.to } }
+}
+
+/** The chat's transcript shows the notice `text` (a model change). */
+function noticeShown(h, chatId, text) {
+  const notices = [...(h.chatSection(chatId)?.querySelectorAll('.chat-transcript li.chat-notice') ?? [])].map((notice) => notice.textContent.trim())
+  return { ok: notices.includes(text), notices }
+}
+
+/** The catalog model the menu showed as `name` under the provider of `heading` (`Opus 5.5` is `Claude Opus 5.5`): `provider/id`. */
+async function pickedModel(session, signal, { chatId, heading, name }) {
+  const { options } = await until(session, signal, chatCatalog, session.folderPath, chatId)
+  const provider = { Claude: 'anthropic', Codex: 'openai-codex' }[heading]
+  const option = options.find((entry) => entry.provider === provider && (entry.name === name || entry.name === `${heading} ${name}`))
+  if (!option) throw new Error(`The catalog has no ${heading} model named ${name}.`)
+  return `${option.provider}/${option.id}`
+}
+
+/** Polls the chat's snapshot until `test` accepts its model state, which it returns. */
+function modelWhere(session, signal, chatId, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = await page(session, chatModel, session.folderPath, chatId)
+    session.lastProbe = state
+    return state.ok && test(state) && state
+  }, signal)
+}
+
+/**
+ * One switch from the open chip: the first featured `heading` model, a menu capture `menuShot` while its Effort control
+ * shows, then `effort`. Resolves once the chip reads the switched model and effort and the fake logged exactly the
+ * switch's two controls since `from`.
+ */
+async function switchModel(session, signal, { chatId, pid, heading, effort, menuShot, from, chipTest = () => true }) {
+  await until(session, signal, openModelMenu, chatId)
+  const picked = await until(session, signal, pickModel, chatId, heading)
+  const control = await until(session, signal, effortControl, chatId)
+  const menu = await capture(session, menuShot, WINDOW)
+  await until(session, signal, pickEffort, chatId, effort)
+  const model = await pickedModel(session, signal, { chatId, heading, name: picked.name })
+  const chip = await chipWhere(session, signal, chatId, (state) => !state.spinning && state.label === `${picked.name} · ${effort}` && chipTest(state))
+  const expected = switchControls(model, effort.toLowerCase())
+  const controls = await waitFor(() => {
+    const logged = controlsOf(session, pid, from)
+    session.lastProbe = { controls: logged, expected }
+    return logged.length >= expected.length && logged
+  }, signal)
+  if (!sameControls(controls, expected)) throw new Error(`The fake got ${JSON.stringify(controls)}, not ${JSON.stringify(expected)}.`)
+  return { picked, effortControl: control, model, chip, controls, menuScreenshot: menu }
+}
+
+function modelChat(session) {
+  if (session.model === null) throw new Error('The model steps after model-pick drive its chat: run model-pick first.')
+  return session.model
+}
+
+/**
+ * Model 1: a new Skitarii folder chat's chip reads the fake's `get_state` model and effort (Opus 5.5 at High). The
+ * first featured Codex model at Medium makes the fake log `set_model` and `set_thinking_level` with exactly those, the
+ * chip reads it, and the transcript shows the `model_change` notice.
+ */
+async function modelPick(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', MODEL_CHAT_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: MODEL_CHAT_PROMPT })
+  if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: MODEL_CHAT_PROMPT })
+  const live = liveGuiLaunch(session, chat.id)
+  if (live === null) throw new Error(`The chat has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), chat.id))}`)
+  const { pid } = live.launch
+  const started = await modelWhere(session, signal, chat.id, (state) => state.model === MODEL_START.model && state.thinking === MODEL_START.thinking)
+  const startChip = await chipWhere(session, signal, chat.id, (state) => state.label === MODEL_START.chip)
+  const from = Date.now()
+  const switched = await switchModel(session, signal, { chatId: chat.id, pid, heading: 'Codex', effort: 'Medium', menuShot: 'e2e-model-pick-menu.png', from })
+  const state = await modelWhere(session, signal, chat.id, (snapshot) => snapshot.model === switched.model && snapshot.thinking === 'medium'
+    && snapshot.change?.from === MODEL_START.model && snapshot.change.to === switched.model)
+  const notice = await until(session, signal, noticeShown, chat.id, `Model changed from ${MODEL_START.model} to ${switched.model}.`)
+  session.model = { chatId: chat.id, pid, codex: switched.model }
+  return {
+    chat, pid, startModel: { model: started.model, thinking: started.thinking }, startChip: startChip.label, ...switched,
+    snapshot: { model: state.model, thinking: state.thinking, change: state.change }, notice: notice.notices,
+    screenshot: await capture(session, 'e2e-model-pick.png', WINDOW)
+  }
+}
+
+/**
+ * Model 2: during a `[slow]` turn the chip carries the busy hint; the first featured Claude model at High goes to the
+ * fake (at once, while the turn runs, or after it) and the chip says queued. The turn is never interrupted: the same
+ * fake process ends it with its whole reply, no abort reaches it and no turn_stopped is stored.
+ */
+async function modelBusy(session, signal) {
+  const { chatId, pid, codex } = modelChat(session)
+  const from = Date.now()
+  await until(session, signal, composeAndSend, chatId, '[slow]')
+  const busyChip = await chipWhere(session, signal, chatId, (state) => state.title === MODEL_BUSY_HINT)
+  const switched = await switchModel(session, signal, {
+    chatId, pid, heading: 'Claude', effort: 'High', menuShot: 'e2e-model-busy-menu.png', from, chipTest: (state) => state.queued
+  })
+  if (!switched.picked.hints.includes(MODEL_BUSY_HINT)) throw new Error(`The menu did not show the busy hint: ${JSON.stringify(switched.picked.hints)}`)
+  const queuedShot = await capture(session, 'e2e-model-busy-queued.png', WINDOW)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[slow]' })
+  const turn = await until(session, signal, turnItems, session.folderPath, chatId, '[slow]')
+  if (turn.reply !== 'Hello world' || turn.kinds.includes('turn_stopped')) throw new Error(`The [slow] turn did not end whole: ${JSON.stringify(turn)}`)
+  const controls = controlsOf(session, pid, from)
+  if (!sameControls(controls, switchControls(switched.model, 'high'))) throw new Error(`The fake got more than the switch: ${JSON.stringify(controls)}`)
+  if (!isAlive(pid)) throw new Error(`The chat's fake (pid ${pid}) is gone.`)
+  const after = await chipWhere(session, signal, chatId, (state) => !state.queued && state.label === switched.chip.label)
+  const state = await modelWhere(session, signal, chatId, (snapshot) => snapshot.model === switched.model && snapshot.thinking === 'high' && snapshot.change?.to === switched.model)
+  if (state.change.from !== codex) throw new Error(`The model change is from ${state.change.from}, not ${codex}.`)
+  session.model = { ...session.model, claude: switched.model }
+  return {
+    busyChip, ...switched, receivedWhileBusy: controls.map((control) => control.busy), turn, samePid: pid, chipAfter: after.label,
+    snapshot: { model: state.model, thinking: state.thinking, change: state.change },
+    screenshots: [switched.menuScreenshot, queuedShot, await capture(session, 'e2e-model-busy.png', WINDOW)]
+  }
+}
+
+/** Model 3, phase 1: the chat's record keeps the Claude model and High; a plain quit ends the app and its fakes. */
+async function modelRestartQuit(session, signal) {
+  const { chatId, claude } = modelChat(session)
+  if (!claude) throw new Error('model-restart checks the model model-busy switched to: run model-busy first.')
+  const record = chatStore(session).getChat({ folder: session.folderPath, id: chatId })
+  if (record?.model !== claude || record.thinking !== 'high') throw new Error(`The chat record keeps ${record?.model} at ${record?.thinking}, not ${claude} at high.`)
+  const exited = await quit(session, signal)
+  const fakes = await fakeProcessesExited(session, signal)
+  session.model = { ...session.model, quitAt: Date.now() }
+  return { record: { model: record.model, thinking: record.thinking }, ...exited, ...fakes }
+}
+
+/** Shows the chat: its composer, else a click on its sidebar row (by `title`). */
+function showChat(_h, chatId, title) {
+  if (document.getElementById(`agent-message-${chatId}`)) return { ok: true }
+  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')].find((button) => button.querySelector('.chat-row-title')?.textContent === title)
+  row?.click()
+  return { ok: false, row: !!row }
+}
+
+/**
+ * Model 3, phase 3: the chat, shown and sent a message, starts one new GUI fake whose argv carries `--model` and
+ * `--thinking` with the Claude model and High; its chip reads them back from `get_state`.
+ */
+async function modelRestartResumed(session, signal) {
+  const { chatId, claude, quitAt } = modelChat(session)
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { id: chatId })
+  await until(session, signal, showChat, chatId, chat.title)
+  await until(session, signal, composeAndSend, chatId, 'after restart')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: 'after restart' })
+  const launches = coordLaunches(readLog(session), chatId).filter((launch) => launch.at >= quitAt)
+  if (launches.length !== 1 || launches[0].mode !== 'omp') throw new Error(`Expected one GUI launch after the restart: ${JSON.stringify(launches)}`)
+  const entry = fakeAgentLog(readLog(session)).find((logged) => logged.pid === launches[0].pid && logged.at === launches[0].at)
+  const flags = launchModelFlags(entry.argv)
+  if (flags.model !== claude || flags.thinking !== 'high') throw new Error(`The relaunch carries --model ${flags.model} --thinking ${flags.thinking}, not ${claude} high.`)
+  const state = await modelWhere(session, signal, chatId, (snapshot) => snapshot.model === claude && snapshot.thinking === 'high')
+  const chip = await chipWhere(session, signal, chatId, (shown) => shown.label.endsWith(' · High') && !shown.queued)
+  return {
+    launch: { pid: entry.pid, argv: entry.argv }, flags, snapshot: { model: state.model, thinking: state.thinking }, chip: chip.label,
+    screenshot: await capture(session, 'e2e-model-restart.png', WINDOW)
+  }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -2469,10 +2761,20 @@ const STEPS = {
   'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true },
   'image-send': { name: 'image-send', run: imageSend, image: true },
   'image-result': { name: 'image-result', run: imageResult, image: true },
-  'coord-tabs': { name: 'coord-tabs', run: coordTabs, coord: true },
-  'coord-mail': { name: 'coord-mail', run: coordMail, coord: true },
-  'coord-wake': { name: 'coord-wake', run: coordWake, coord: true },
-  'coord-close': { name: 'coord-close', run: coordClose, coord: true }
+  'coord-tabs': { name: 'coord-tabs', run: coordTabs, coord: true, skitarii: true },
+  'coord-mail': { name: 'coord-mail', run: coordMail, coord: true, skitarii: true },
+  'coord-wake': { name: 'coord-wake', run: coordWake, coord: true, skitarii: true },
+  'coord-close': { name: 'coord-close', run: coordClose, coord: true, skitarii: true },
+  'model-pick': { name: 'model-pick', run: modelPick, model: true, skitarii: true },
+  'model-busy': { name: 'model-busy', run: modelBusy, model: true, skitarii: true },
+  'model-restart': {
+    model: true, skitarii: true,
+    phases: [
+      { name: 'model-restart quit', run: modelRestartQuit },
+      { name: 'model-restart launch', run: appReady },
+      { name: 'model-restart resumed', run: modelRestartResumed }
+    ]
+  }
 }
 
 async function captureFailure(session, step) {
@@ -2513,6 +2815,8 @@ function preserveLogs(session) {
   writeFileSync(join(session.out, 'electron-main.log'), `${session.stdout}\n--- stderr ---\n${session.stderr}`)
   const log = session.env.FAKE_AGENT_LOG
   if (existsSync(log)) copyFileSync(log, join(session.out, 'fake-agent.jsonl'))
+  const controls = session.env.FAKE_AGENT_CONTROL_LOG
+  if (controls && existsSync(controls)) copyFileSync(controls, join(session.out, 'fake-controls.jsonl'))
 }
 
 function removeIsolatedState(session) {
@@ -2521,32 +2825,32 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
-/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, coord ones with the claude fake. */
+/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude fake. */
 function refuseOtherKind(keys, agent) {
-  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].coord)]
+  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii)]
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
   if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
-  const coord = agent === 'claude' ? keys.filter((key) => STEPS[key].coord) : []
-  if (coord.length > 0) throw new Error(`${coord.join(', ')} drive the omp fake: leave out --agent claude.`)
+  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii) : []
+  if (skitarii.length > 0) throw new Error(`${skitarii.join(', ')} drive the omp fake: leave out --agent claude.`)
 }
 
 /**
- * The steps to run: `--steps`, else every step but the polish, image and coord ones (only OMP_STEPS for `--agent
+ * The steps to run: `--steps`, else every step but the polish, image, coord and model ones (only OMP_STEPS for `--agent
  * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
  * nor names `ready` gets `ready` first.
  */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].coord))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
   refuseOtherKind(keys, agent)
   return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
 }
 
-/** `--agent`, else `omp` when a coord step is named (the coord steps run Skitarii chats), else `claude`. */
+/** `--agent`, else `omp` when a coord or model step is named (they run Skitarii chats), else `claude`. */
 function agentOf(argv, requested) {
-  const coord = requested?.split(',').some((key) => STEPS[key]?.coord) ?? false
-  const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : coord ? 'omp' : 'claude'
+  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii) ?? false
+  const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : skitarii ? 'omp' : 'claude'
   if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
   return agent
 }
