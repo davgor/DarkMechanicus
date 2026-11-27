@@ -20,6 +20,7 @@ import { agentName } from '../agents/agentText'
 import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
+import { EpicRolePicker } from './AgentPickerDialog'
 import {
   activeOrchestratorId, defaultAgentChatId, epicAgentNodes, epicChats, owningChatId, relayMessage, threadTranscript,
   type EpicAgentNodesInput, type LoadedTranscript
@@ -67,36 +68,12 @@ function AgentRowTodos({ folder, chatId }: { folder: string; chatId: string }): 
   return <TodoProgress phases={state.todos.get('') ?? []} />
 }
 
-/** No chat is bound to the epic yet: start its planner. */
+/** No chat is bound to the epic yet: start its Lexmechanic or Magos from the role cards. */
 function NoAgents({ ws }: { ws: WorkspaceHandle }): JSX.Element {
-  const [starting, setStarting] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-  async function startPlanner(): Promise<void> {
-    setStarting(true)
-    setProblem(null)
-    try {
-      const result = await window.dm.chats.startPlanner({ folder: ws.folder.path, epicId: ws.epicId })
-      if (!result.ok) {
-        // A `no_agent` refusal carries main's sign-in prompt text.
-        setProblem(result.error.message)
-        return
-      }
-      setProblem(result.data.problem)
-      if (result.data.chat !== null) {
-        ws.dispatch({ type: 'select_agent', chatId: result.data.chat.id })
-        await ws.orchestration.onChatsChanged()
-      }
-    } catch (error) {
-      setProblem(errorMessage(error))
-    } finally {
-      setStarting(false)
-    }
-  }
   return (
     <div className="eap-empty">
       <p className="ew-empty">No agents yet</p>
-      <button className="btn btn-primary" type="button" disabled={starting} onClick={() => void startPlanner()}>Start planner</button>
-      {problem !== null && <p role="alert" className="ew-notice-error">{problem}</p>}
+      <EpicRolePicker ws={ws} />
     </div>
   )
 }
