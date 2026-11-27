@@ -80,7 +80,7 @@ function describe(event: RunEvent): string {
 }
 
 /** Running time so far, including the current span. */
-function runningMs(run: RunClock, now: string): number {
+export function runningMs(run: RunClock, now: string): number {
   const span = run.state === 'running' && run.runningSince ? Date.parse(now) - Date.parse(run.runningSince) : 0
   return run.accumulatedRunningMs + Math.max(0, span)
 }

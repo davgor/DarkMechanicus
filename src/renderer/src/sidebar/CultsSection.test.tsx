@@ -33,7 +33,7 @@ async function renderSection(selectedCultId: string | null = null): Promise<Call
   render(
     <ClockContext.Provider value={CLOCK}>
       <CultsSection folders={[folderView()]} selectedCultId={selectedCultId}
-        onSelectCult={(id) => calls.selected.push(id)} onOpenChat={(folder, id) => calls.opened.push(`${folder}:${id}`)} />
+        onSelectCult={(id) => calls.selected.push(id)} onOpenMember={(cultId, id) => calls.opened.push(`${cultId}:${id}`)} />
     </ClockContext.Provider>
   )
   await settle()
@@ -97,15 +97,18 @@ describe('CultsSection expansion', () => {
 
     const members = within(screen.getByRole('list', { name: 'Members' }))
     fireEvent.click(members.getByRole('button', { name: /^Magos Vettius/ }))
-    expect(calls.opened).toEqual(['/home/u/code/alpha:chat_magos'])
+    // A member opens on its cult's page, whose work folder may be a project-less sanctum that is no tracked folder.
+    expect(calls.opened).toEqual(['cult_1:chat_magos'])
 
-    const ferrum = members.getByText('Acolyte Ferrum-3').closest('li') as HTMLElement
-    expect(ferrum.textContent).toBe('Acolyte Ferrum-3watch onlyworkingUI/UXanthropic/claude-sonnetnormalTier reason: Needs deeper layout reasoning.')
+    const ferrum = members.getByText('Acolyte Ferrum-3').closest('button') as HTMLElement
+    expect(ferrum.closest('li')?.textContent).toBe('Acolyte Ferrum-3watch onlyworkingUI/UXanthropic/claude-sonnetnormalTier reason: Needs deeper layout reasoning.')
     expect(within(ferrum).getByText('normal').className).toContain('badge')
     const reasonId = ferrum.getAttribute('aria-describedby') as string
     expect(document.getElementById(reasonId)?.textContent).toBe('Tier reason: Needs deeper layout reasoning.')
+    fireEvent.click(ferrum)
+    expect(calls.opened).toEqual(['cult_1:chat_magos', 'cult_1:chat_a'])
 
-    const vox = members.getByText('Acolyte Vox-4').closest('li') as HTMLElement
+    const vox = members.getByText('Acolyte Vox-4').closest('button') as HTMLElement
     expect(vox.textContent).toBe('Acolyte Vox-4watch onlyidleLore keeperanthropic/claude-haikulow')
     expect(vox.getAttribute('aria-describedby')).toBeNull()
     expect(members.queryByText('Acolyte Gone-1')).toBeNull()

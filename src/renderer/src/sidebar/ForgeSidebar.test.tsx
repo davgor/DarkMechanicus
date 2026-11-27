@@ -29,7 +29,7 @@ function setup(selection: SidebarProps['selection'] = { folderPath: null, epicId
       chats={{ lists: { [world.path]: { status: 'ready', chats: [rootChat] }, [project.path]: { status: 'ready', chats: [memberChat] }, [elsewhere.path]: { status: 'ready', chats: [otherChat] } }, onNew: path => created.push(path), onOpen: (path, id) => opened.push(`${path}:${id}`), onRename: async () => true, onDelete: async () => true }}
       agentChats={{ list: { status: 'ready', chats: [rootChat, memberChat, otherChat] }, onOpen: chat => opened.push(`global:${chat.id}`), onSummon: () => undefined, onRename: async () => true, onDelete: async () => true }}
       onTrack={() => undefined} onClone={() => undefined} onAddAgent={() => undefined} onSelectAgent={() => undefined} onAgentStatus={() => undefined}
-      onSelectCult={() => undefined} onOpenCultChat={() => undefined}
+      onSelectCult={() => undefined} onOpenCultMember={() => undefined}
       onSelectFolder={() => undefined} onSelectEpic={() => undefined} onRequestUntrack={() => undefined}
       kanbanCounts={{ [project.path]: 1 }} onSelectKanban={(path, id) => cards.push(`${path}:${id ?? 'board'}`)} />
   }

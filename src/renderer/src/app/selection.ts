@@ -4,14 +4,15 @@ import type { AgentId, AgentView, TrackedFolderView } from '../../../shared/desk
 
 /**
  * The agents screens that take over the main area: the add-agent pane, one agent's page by its id, a project-less
- * chat (summoned from an agent's row, tied to no folder) by its id, the app Settings screen, or a cult's page by its id.
+ * chat (summoned from an agent's row, tied to no folder) by its id, the app Settings screen, or a cult's page by its id
+ * (with the member whose terminal its comms pane shows, when one was opened from the sidebar).
  */
 export type AgentPane =
   | { kind: 'add' }
   | { kind: 'agent'; agent: AgentId }
   | { kind: 'chat'; chatId: string }
   | { kind: 'settings' }
-  | { kind: 'cult'; cultId: string }
+  | { kind: 'cult'; cultId: string; memberChatId?: string }
 
 /** What the main area shows: a tracked folder and, optionally, one of its epics or an agents screen. */
 export interface Selection {
@@ -38,18 +39,24 @@ export const EMPTY_SELECTION: Selection = { folderPath: null, epicId: null }
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string'
 
-/** A stored cult pane names its cult by a non-empty id; whether the cult still exists is the cult page's to say. */
-const isCultId = (value: unknown): boolean => typeof value === 'string' && value !== ''
+/**
+ * A stored cult pane names its cult by a non-empty id (whether the cult still exists is the cult page's to say) and,
+ * optionally, the member chat whose terminal the page shows.
+ */
+function isCultPane(candidate: { cultId?: unknown; memberChatId?: unknown }): boolean {
+  const cultId = typeof candidate.cultId === 'string' && candidate.cultId !== ''
+  return cultId && (candidate.memberChatId === undefined || chatIdSchema.safeParse(candidate.memberChatId).success)
+}
 
 function isAgentPane(value: unknown): value is AgentPane {
   if (typeof value !== 'object' || value === null) {
     return false
   }
-  const candidate = value as { kind?: unknown; agent?: unknown; chatId?: unknown; cultId?: unknown }
+  const candidate = value as { kind?: unknown; agent?: unknown; chatId?: unknown; cultId?: unknown; memberChatId?: unknown }
   return (
     candidate.kind === 'add' ||
     candidate.kind === 'settings' ||
-    (candidate.kind === 'cult' && isCultId(candidate.cultId)) ||
+    (candidate.kind === 'cult' && isCultPane(candidate)) ||
     (candidate.kind === 'agent' && agentIdSchema.safeParse(candidate.agent).success) ||
     (candidate.kind === 'chat' && chatIdSchema.safeParse(candidate.chatId).success)
   )

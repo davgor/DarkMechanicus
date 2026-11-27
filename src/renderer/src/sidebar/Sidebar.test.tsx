@@ -75,7 +75,7 @@ function renderSidebar(
       }}
       onSelectAgent={(kind) => calls.agents.push(kind)}
       onSelectCult={() => undefined}
-      onOpenCultChat={() => undefined}
+      onOpenCultMember={() => undefined}
       onAgentStatus={() => undefined}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
@@ -262,7 +262,7 @@ describe('Sidebar agents pane', () => {
         onAddAgent={() => undefined}
         onSelectAgent={() => undefined}
         onSelectCult={() => undefined}
-        onOpenCultChat={() => undefined}
+        onOpenCultMember={() => undefined}
         onAgentStatus={() => undefined}
         onSelectFolder={() => undefined}
         onSelectEpic={() => undefined}

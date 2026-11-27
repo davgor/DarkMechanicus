@@ -57,8 +57,8 @@ export interface SidebarProps {
   onSelectAgent(id: AgentId): void
   /** Opens a cult's page from its CULTS row. */
   onSelectCult(cultId: string): void
-  /** Opens a cult member's chat (the Magos's terminal) in its run's work folder. */
-  onOpenCultChat(folder: string, chatId: string): void
+  /** Opens a cult member's terminal on its cult's page (the Magos's interactive one, an acolyte's watch-only one). */
+  onOpenCultMember(cultId: string, chatId: string): void
   /** A sign-in prompt in the Agents list asked an agent's state itself. */
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onSelectFolder(path: string): void
@@ -175,7 +175,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         folders={props.folders}
         selectedCultId={agentPane?.kind === 'cult' ? agentPane.cultId : null}
         onSelectCult={props.onSelectCult}
-        onOpenChat={props.onOpenCultChat}
+        onOpenMember={props.onOpenCultMember}
       />
       <nav className="sidebar-tree" aria-label="Folders and epics">
         <SidebarSection title="Forge Worlds" disclosure={sectionDisclosure(props, 'forge')} action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} onCreateForgeWorld={props.onCreateForgeWorld} />}>
