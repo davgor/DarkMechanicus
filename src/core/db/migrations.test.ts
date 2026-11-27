@@ -1450,11 +1450,8 @@ describe('v23 elevation storage compatibility', () => {
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 22))
     db.run("INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, created_at, expires_at) VALUES ('gr1', 'worker', 0, 'Existing worker', 'old-hash', 'mc1', '2026-01-01', '2027-01-01')")
     insertAttachment(db, 'old-image', { kind: 'kanban_message', id: 'ke1' })
-    const grants = db.all('SELECT * FROM grants')
-    const images = db.all('SELECT * FROM attachments')
-    expect(migrate(db)).toEqual({ from: 22, to: SCHEMA_VERSION })
-    expect(db.all('SELECT * FROM grants')).toEqual(grants)
-    expect(db.all('SELECT * FROM attachments')).toEqual(images)
+    // Named columns: later migrations add grant columns (v37 run_save), which a cached SELECT * may or may not return.
+    expectAdditiveUpgrade(db, 22, { grants: { run_save: 1 }, attachments: {} })
     expect(db.all('SELECT * FROM yolo_elevations')).toEqual([])
     expect(db.all('SELECT * FROM yolo_chat_bindings')).toEqual([])
   })
@@ -1554,7 +1551,7 @@ function rowsOf(db: Db, table: string, columns: string[]): unknown[] {
  * and gained exactly the named columns, each at its documented default in every existing row. Columns are always named:
  * a cached `SELECT *` statement returns the pre-upgrade column list on some SQLite builds and the new one on others.
  */
-function expectAdditiveUpgrade(db: Db, from: number, added: Record<string, Record<string, string | null>>): void {
+function expectAdditiveUpgrade(db: Db, from: number, added: Record<string, Record<string, string | number | null>>): void {
   const tables = Object.entries(added).map(([name, defaults]) => {
     const columns = columnsOf(db, name)
     return { name, defaults, columns, rows: rowsOf(db, name, columns) }
