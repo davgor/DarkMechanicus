@@ -69,6 +69,8 @@ interface OpenOptions {
   autoReconcile?: boolean
   /** Opens the restricted mailbox-poll mode, as the CLI does for status and wake polls. */
   mailPoll?: boolean
+  /** What the session reports about its own build; defaults to an unpackaged test server. */
+  serverInfo?: OpenWorkspaceOptions['serverInfo']
 }
 
 interface HarnessEnv {
@@ -134,7 +136,7 @@ export function createHarness(): Harness {
     clock,
     git,
     open(role, options = {}) {
-      const workspace = openWorkspace(openOptions(env, role, options))
+      const workspace = openWorkspace({ ...openOptions(env, role, options), ...(options.serverInfo && { serverInfo: options.serverInfo }) })
       workspaces.push(workspace)
       return workspace
     },
