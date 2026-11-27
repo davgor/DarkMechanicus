@@ -616,6 +616,13 @@ describe('terminalLaunchSpec: OMP first start and kickoff', () => {
     expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), KICKOFF])
   })
 
+  it("passes a switched Skitarii chat's thinking level after its model", () => {
+    const input = ompInput('darwin', 'new', { kickoff: null })
+    const spec = terminalLaunchSpec({ ...input, chat: { ...input.chat, model: 'openai-codex/gpt-6-sol', thinking: 'medium' } })
+
+    expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), '--model', 'openai-codex/gpt-6-sol', '--thinking', 'medium'])
+  })
+
   it('starts a chat with no kickoff (a plain chat) with no positional prompt', () => {
     const spec = terminalLaunchSpec(ompInput('darwin', 'new', { kickoff: null }))
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { EpicDetailView } from '../../../shared/domain/views'
 import { epicDetail, runView } from './__mocks__/fixtures'
-import { confirmCopy, headerView, nextRevisionNumber, READ_ONLY_MESSAGE, SAVE_UNAVAILABLE_MESSAGE, type HeaderView } from './headerView'
+import {
+  confirmCopy, headerView, nextRevisionNumber, READ_ONLY_MESSAGE, SAVE_UNAVAILABLE_MESSAGE, startRunBlocker, type HeaderView,
+  type StartRunBlocker
+} from './headerView'
 
 interface Situation {
   folderName?: string
@@ -172,5 +175,24 @@ describe('confirmation copy', () => {
       confirm: 'Cancel transfer',
       keep: 'Keep transferring'
     })
+  })
+})
+
+describe('startRunBlocker', () => {
+  it.each<[StartRunBlocker | null, EpicDetailView, Situation]>([
+    ['completed', epicDetail({ status: 'completed' }), {}],
+    ['no_plan', epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), {}],
+    ['draft_view', epicDetail({ hasDraft: true }), { view: 'draft' }],
+    ['active_run', epicDetail(), { hasActiveRun: true }],
+    ['open_transfer', epicDetail(), { hasOpenTransfer: true }],
+    [null, epicDetail(), {}]
+  ])('answers %s exactly when the header withholds Start run', (blocker, epic, situation) => {
+    const input = { view: 'saved' as const, hasActiveRun: false, hasOpenTransfer: false, ...situation, epic }
+    expect(startRunBlocker(input)).toBe(blocker)
+    expect(header(epic, situation).actions.startRun).toBe(blocker === null)
+  })
+
+  it('names a completed epic before its other locks', () => {
+    expect(startRunBlocker({ epic: epicDetail({ status: 'completed' }), view: 'draft', hasActiveRun: true, hasOpenTransfer: true })).toBe('completed')
   })
 })

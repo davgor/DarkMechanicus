@@ -2,7 +2,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { chatModelOptions } from '../../../shared/agents/models'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
+import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
+import type { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
@@ -242,6 +245,40 @@ describe('StartRunDialog: the model choice', () => {
     fireEvent.click(runWithAgent())
 
     expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
+  })
+})
+
+describe('StartRunDialog: a Skitarii agent picks from its OMP catalog', () => {
+  const skitarii = agentView({ kind: 'omp', executablePath: '/bin/omp' })
+  const openSkitarii = async (): Promise<Calls> => {
+    (dm.agentChat as FakeAgentChat).modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    return open({ agents: [skitarii], statuses: { omp: SIGNED_IN } })
+  }
+  const menu = (): ReturnType<typeof within> => within(dialog().getByRole('menu', { name: 'Model and effort' }))
+  const item = (name: string): HTMLElement =>
+    menu().getAllByRole('menuitemradio').find((entry: HTMLElement) => entry.querySelector('.model-picker-name')?.textContent === name)!
+
+  it('starts on Default with neither model nor thinking, as before', async () => {
+    const calls = await openSkitarii()
+    expect((dm.agentChat as FakeAgentChat).callsOf('models')).toEqual([[{ folder: '/a', agentId: 'omp' }]])
+    expect(dialog().queryByRole('textbox', { name: 'Model' })).toBeNull()
+    expect(dialog().getByRole('button', { name: 'Model: Default' })).toBeTruthy()
+    fireEvent.click(runWithAgent())
+    expect(calls.agent).toEqual([{ agent: 'omp', model: null }])
+  })
+
+  it('carries the catalog model as provider/id and the effort chosen: GPT-6 Astra, High', async () => {
+    const calls = await openSkitarii()
+    fireEvent.click(dialog().getByRole('button', { name: 'Model: Default' }))
+    expect(menu().getByRole('group', { name: 'Codex' })).toBeTruthy()
+    fireEvent.click(item('GPT-6 Astra'))
+    fireEvent.click(within(menu().getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'High' }))
+    await settle()
+    expect(dialog().getByRole('button', { name: 'Model: GPT-6 Astra · High' })).toBeTruthy()
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'omp', model: 'openai-codex/gpt-6-astra', thinking: 'high' }])
   })
 })
 

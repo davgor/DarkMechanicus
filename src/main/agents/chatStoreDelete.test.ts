@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -6,6 +6,9 @@ import { DomainError } from '../../core/errors'
 import type { ChatItem } from '../../shared/agents/chat'
 import { memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { createChatStore, type ChatRef, type NewChat } from './chatStore'
+import { pngBytes } from '../../test/images'
+import { createChatImages } from '../agentChat/chatImages'
+import { folderStoreId } from '../agentChat/folderStoreId'
 
 const NEW_CHAT: NewChat = { folder: REPO, agent: 'claude', model: 'opus', role: 'planner', allowSave: true }
 const AT = '2026-02-01T00:00:00.000Z'
@@ -131,6 +134,28 @@ describe('chat store: deleting on the real filesystem', () => {
       expect(readdirSync(join(root, key)).sort()).toEqual(['index.jsonl'])
       expect(readFileSync(join(root, key, 'index.jsonl'), 'utf8')).not.toContain('Doomed')
       expect(createChatStore({ root }).listChats(folder).map((chat) => chat.id)).toEqual([kept.id])
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
+  })
+
+  it("removes the chat's images with its transcript, and keeps the other chat's", async () => {
+    const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-chats-delete-images-')))
+    try {
+      const folder = join(base, 'repo')
+      mkdirSync(folder)
+      const images = createChatImages({ root: join(base, 'agents', 'chat-images') })
+      const store = createChatStore({ root: join(base, 'agents', 'chats'), images })
+      const doomed = store.createChat({ ...NEW_CHAT, folder, title: 'Doomed' })
+      const kept = store.createChat({ ...NEW_CHAT, folder, title: 'Kept' })
+      const doomedImage = await images.put({ folder: doomed.folder, chatId: doomed.id }, pngBytes(4, 4))
+      const keptImage = await images.put({ folder: kept.folder, chatId: kept.id }, pngBytes(4, 4))
+
+      store.deleteChat(doomed)
+
+      await expect(images.read({ folder: doomed.folder, chatId: doomed.id }, doomedImage.id)).resolves.toBeNull()
+      expect(existsSync(join(base, 'agents', 'chat-images', folderStoreId(folder), doomed.id))).toBe(false)
+      await expect(images.read({ folder: kept.folder, chatId: kept.id }, keptImage.id)).resolves.not.toBeNull()
     } finally {
       rmSync(base, { recursive: true, force: true })
     }

@@ -14,6 +14,7 @@ import { findEndpointByChat, getBinding, type MailEndpoint } from '../../core/se
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { ChatRecord } from '../../shared/agents/chat'
+import { createSavedEpic, insertRun } from '../../test/authoring'
 import { createSequentialIds, createTestClock } from '../../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
@@ -21,6 +22,7 @@ import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool 
 import { builtInAgent, connectedAgents, folderOf } from './__mocks__/chatFixtures'
 import { createChatGrants, type ChatGrants, type GrantChat } from './chatGrants'
 import { createChatMailboxes, type ChatMailboxes } from './chatMailboxes'
+import { mailboxChat } from './chatMailboxOperations'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import { createChatStore, nodeChatStoreFs, type ChatStore, type ChatStoreFs } from './chatStore'
 
@@ -166,8 +168,8 @@ function endpointIn(pool: WorkspacePool, chat: ChatRecord): MailEndpoint | null 
 }
 
 async function issueFor(grants: ChatGrants, chat: ChatRecord, kind: string): Promise<{ grantId: string; token: string; endpointId: string | null }> {
-  const identity: GrantChat = { id: chat.id, agent: chat.agent, title: chat.title, kind }
-  const issued = await grants.issueChatCli(folderOf(chat), { role: 'worker', allowSave: false, label: chat.title }, identity)
+  const identity: GrantChat = { ...mailboxChat(chat), kind }
+  const issued = await grants.issueChatCli(folderOf(chat), { role: chat.role, allowSave: false, label: chat.title }, identity)
   return { grantId: issued.grantId, token: issued.cli.env['DM_SESSION_TOKEN'] ?? '', endpointId: issued.endpointId }
 }
 
@@ -395,7 +397,7 @@ describe('chat mailboxes: stable and discoverable', () => {
     const issued = await state.issue(sender)
     expect(issued.endpointId).toBe(sender.endpointId)
     const agent = state.agent(repoA, issued.token)
-    expect((await agent.listAgentPeers({})).peers).toEqual([{ endpointId, name: 'Scout' }])
+    expect((await agent.listAgentPeers({})).peers).toEqual([{ endpointId, name: 'Scout', epicId: null, role: 'worker' }])
     await agent.sendAgentMessage({ to: endpointId ?? '', clientMessageId: 'm1', body: 'Ready for review.' })
     expect(messagesTo(state, repoA, endpointId ?? '')).toBe(1)
 
@@ -419,6 +421,60 @@ describe('chat mailboxes: stable and discoverable', () => {
     const ctx = state.pool.get(repoA).ctx()
     expect([...results.map((result) => result.grantId), external.grantId].map((grantId) => getBinding(ctx, grantId))).toEqual([null, null, null, null])
     expect([state.endpoint(claude), state.endpoint(custom)]).toEqual([null, null])
+  })
+})
+
+describe('chat mailboxes: trusted epic and role from the chat record', () => {
+  async function epicChat(state: Rig, title: string, request: Partial<Pick<ChatRecord, 'role' | 'epicId' | 'runId' | 'transferEpicId' | 'conversation'>>): Promise<ChatRecord> {
+    return await state.records.createChat({ folder: repoA, agent: 'omp', role: 'worker', title, ...request })
+  }
+
+  it('provisions each chat with its record’s epic and role, so its Magos finds exactly the epic’s Lexmechanic', async () => {
+    const state = await rig()
+    const E = createSavedEpic(state.pool.get(repoA).ctx(), { title: 'E' }).epicId
+    const lexmechanic = await epicChat(state, 'Lexmechanic', { role: 'planner', epicId: E })
+    const magos = await epicChat(state, 'Magos', { role: 'orchestrator', epicId: E })
+    const loose = await epicChat(state, 'Loose planner', { role: 'planner' })
+    expect(state.endpoint(lexmechanic)).toMatchObject({ epicId: E, chatRole: 'planner' })
+    expect(state.endpoint(magos)).toMatchObject({ epicId: E, chatRole: 'orchestrator' })
+    expect(state.endpoint(loose)).toMatchObject({ epicId: null, chatRole: 'planner' })
+
+    const issued = await state.issue(magos)
+    const agent = state.agent(repoA, issued.token)
+    expect(await agent.listAgentPeers({ epicId: E, role: 'planner' })).toEqual({
+      peers: [{ endpointId: lexmechanic.endpointId, name: 'Lexmechanic', epicId: E, role: 'planner' }],
+      nextAfterId: lexmechanic.endpointId,
+      hasMore: false
+    })
+  })
+
+  it('resolves the legacy bindings main stored before epicId: a transfer, a board conversation and an orchestrated run', async () => {
+    const state = await rig()
+    const ctx = state.pool.get(repoA).ctx()
+    const saved = createSavedEpic(ctx, { title: 'Legacy' })
+    const runId = insertRun(ctx, { epicId: saved.epicId, revisionId: saved.revisionId, state: 'running' })
+    const transfer = await epicChat(state, 'Transfer', { transferEpicId: saved.epicId })
+    const conversation = await epicChat(state, 'Talk', { conversation: { epicId: saved.epicId } })
+    const orchestrator = await epicChat(state, 'Orchestrator', { role: 'orchestrator', runId })
+    const card = await epicChat(state, 'Card talk', { conversation: { cardId: 'kc_card' } })
+    const missingRun = await epicChat(state, 'Missing run', { role: 'orchestrator', runId: 'rn_missing' })
+    expect([transfer, conversation, orchestrator].map((chat) => state.endpoint(chat)?.epicId)).toEqual([saved.epicId, saved.epicId, saved.epicId])
+    expect([card, missingRun].map((chat) => state.endpoint(chat)?.epicId)).toEqual([null, null])
+    expect(state.endpoint(orchestrator)?.chatRole).toBe('orchestrator')
+  })
+
+  it('keeps them through a rename and refreshes them from the record on the next binding', async () => {
+    const state = await rig()
+    const E = createSavedEpic(state.pool.get(repoA).ctx(), { title: 'E' }).epicId
+    const chat = await epicChat(state, 'Lexmechanic', { role: 'planner', epicId: E })
+    const renamed = await state.records.renameChat(chat, 'Lexmechanic, renamed')
+    expect(state.endpoint(chat)).toMatchObject({ name: 'Lexmechanic, renamed', epicId: E, chatRole: 'planner' })
+
+    // Whatever the row holds, a start binds the chat's grant from the record main owns.
+    state.pool.get(repoA).ctx().db.run('UPDATE agent_mail_endpoints SET epic_id = NULL, chat_role = NULL WHERE id = ?', chat.endpointId ?? '')
+    const issued = await state.issue(renamed)
+    expect(issued.endpointId).toBe(chat.endpointId)
+    expect(state.endpoint(chat)).toMatchObject({ epicId: E, chatRole: 'planner' })
   })
 })
 

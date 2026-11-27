@@ -75,7 +75,7 @@ function RailContents({ label, tabs, rail, reveal }: {
   }, [reveal, setTab, setCollapsed])
   return (
     <RailContext.Provider value={rail}>
-      <aside aria-label={label} className="rr" data-collapsed={state.collapsed}>
+      <aside aria-label={label} className="rr glass" data-collapsed={state.collapsed}>
         {state.collapsed ? (
           <>
             <button type="button" className="rr-toggle" aria-label={`Expand ${label}`} aria-expanded="false" onClick={() => setCollapsed(false)}>

@@ -3,7 +3,7 @@ import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/deskto
 import { LINEAR_SETUP_LINES } from '../../../shared/domain/linearSetup'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
-import { useAgentModelChoice } from '../agents/useAgentModelChoice'
+import { startModel, useAgentModelChoice } from '../agents/useAgentModelChoice'
 import type { AgentModelChoice } from '../agents/useAgentModelChoice'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
@@ -85,7 +85,7 @@ function AgentSection({ props, choice }: { props: TransferDialogProps; choice: A
         onAgentStatus={props.onAgentStatus}
         emptyText="No agent is connected and signed in."
       />
-      {agent === null ? null : <ModelChoice models={choice.models} value={choice.value} valid={choice.valid} onChange={choice.chooseModel} />}
+      {agent === null ? null : <ModelChoice choice={choice} folder={null} />}
     </section>
   )
 }
@@ -126,7 +126,7 @@ export function TransferDialog(props: TransferDialogProps): JSX.Element {
             disabled={!canTransfer}
             busy={waiting}
             onClick={() => {
-              if (agent !== null) once(() => props.onTransferWithAgent({ agent, model: choice.model }))
+              if (agent !== null) once(() => props.onTransferWithAgent({ agent, ...startModel(choice) }))
             }}
           >
             {copy.agentButton}

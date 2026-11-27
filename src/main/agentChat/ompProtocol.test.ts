@@ -1,11 +1,13 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { agentChatEventSchema } from '../../shared/agents/agentChat'
+import { agentChatEventSchema, type AgentChatAnswer } from '../../shared/agents/agentChat'
 import type { ChatItem } from '../../shared/agents/chat'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpCommand, type OmpEvent } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
-import type { ThreadClaimEvent } from './translatorEvents'
+import { webpBytes } from '../../test/images'
+import type { ToolResultBlob } from './toolResultImages'
+import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
 const root = join(import.meta.dirname, '__fixtures__', 'omp')
@@ -17,15 +19,18 @@ function lines(name: string, direction: 'in' | 'out'): string[] {
 function harness(idNamespace = '') {
   let state = createOmpState(idNamespace)
   const events: OmpEvent[] = []
-  const internalEvents: ThreadClaimEvent[] = []
+  const internalEvents: (ThreadClaimEvent | CommandResultEvent)[] = []
+  const blobs: ToolResultBlob[] = []
   return {
     get state() { return state },
     events,
     internalEvents,
+    blobs,
     feed(frame: unknown) {
       const result = translateOmpLine(typeof frame === 'string' ? frame : JSON.stringify(frame), state, at)
       state = result.state; events.push(...result.events)
       internalEvents.push(...result.internalEvents)
+      blobs.push(...result.blobs)
       return result.events
     },
     send(command: OmpCommand, framing?: { chunkId: string; chunkBytes?: number }) {
@@ -69,6 +74,10 @@ const scenarios: Record<string, ChatItem[]> = {
     { kind: 'approval_decision', id: 'omp:decision:ui_T1_question', at, requestId: 'ui_T1_question', decision: 'allow_once', decidedBy: 'person' },
     textItem('SQLite')
   ],
+  question_multi: ['', ':1'].flatMap((suffix, index) => [
+    { kind: 'approval_request', id: `omp:approval:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, category: 'other', tool: 'ask', summary: ['Which databases?', 'Which region?'][index] } as ChatItem,
+    { kind: 'approval_decision', id: `omp:decision:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, decision: 'allow_once', decidedBy: 'person' } as ChatItem
+  ]).concat(textItem('answers: [{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]')),
   error: [{ kind: 'error', id: 'omp:error:1', at, message: 'Fixture provider failure' }],
   interrupt: [textItem('Partial'), { kind: 'turn_stopped', id: 'omp:stopped:1', at }],
   queued: [textItem('Hello world')],
@@ -91,6 +100,11 @@ function encodeFixtureResponse(h: { send(command: OmpCommand): string[] }, next?
   if (next?.type === 'follow_up') return h.send({ type: 'send', id: String(next.id), text: String(next.message) })
   return []
 }
+/** The person's answers to a golden's prompt: the multi golden answers two questions, the first with several options. */
+function fixtureAnswers(name: string, promptId: string): AgentChatAnswer[] {
+  if (name === 'question_multi') return [{ promptId, optionIds: ['option_0', 'option_1'] }, { promptId: `${promptId}:1`, optionId: 'option_0' }]
+  return [{ promptId, optionId: name === 'approval' ? 'allow_once' : name === 'approval_chat' ? 'allow_chat' : 'option_0' }]
+}
 function replayGolden(name: string) {
   const h = initialized()
   const input = lines(name, 'in')
@@ -101,11 +115,7 @@ function replayGolden(name: string) {
     const frame = JSON.parse(line) as Record<string, unknown>
     if (frame.type === 'response') encoded.push(...encodeFixtureResponse(h, remaining.find(value => value.id === frame.id)))
     h.feed(line)
-    if (frame.type === 'extension_ui_request') {
-      const pending = h.state.pending[0].prompt
-      const optionId = name === 'approval' ? 'allow_once' : name === 'approval_chat' ? 'allow_chat' : 'option_0'
-      encoded.push(...h.send({ type: 'answer', id: pending.id, promptId: pending.id, optionId }))
-    }
+    if (frame.type === 'extension_ui_request') for (const answer of fixtureAnswers(name, h.state.pending[0].prompt.id)) encoded.push(...h.send({ type: 'answer', id: answer.promptId, ...answer }))
   }
   return { h, input, first, encoded }
 }
@@ -117,7 +127,7 @@ function expectCommittedDeltas(events: OmpEvent[]): void {
 
 describe('OMP golden protocol', () => {
   it('enumerates every golden pair, including both startup variants', () => {
-    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim'].sort())
+    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim', 'image_in', 'image_result'].sort())
   })
   for (const name of ['init', 'init_resume']) it(`bootstraps ${name} once with exact commands and todos`, () => {
     const h = harness(); const output = lines(name, 'out')
@@ -132,9 +142,10 @@ describe('OMP golden protocol', () => {
     const { h, input, first, encoded } = replayGolden(name)
     expect(encoded).toEqual(input)
     expect(h.items().filter(item => item.kind !== 'user_message')).toEqual(expected)
-    if (name === 'question') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
+    if (name === 'question' || name === 'question_multi') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
       { kind: 'user_message', id: first.id, at, text: first.message },
-      { kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }
+      ...(name === 'question' ? [{ kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }]
+        : [{ kind: 'user_message', id: 'omp:answer:ui_T1_question_multi', at, text: 'SQLite, Postgres' }, { kind: 'user_message', id: 'omp:answer:ui_T1_question_multi:1', at, text: 'EU' }])
     ])
     else expect(h.items().filter(item => item.kind === 'user_message')).toEqual([{ kind: 'user_message', id: first.id, at, text: first.message }, ...(name === 'queued' ? [{ kind: 'user_message', id: 'req_T1_followup', at, text: 'Second turn' }] : [])])
     expect(h.state.skipped).toBe(0)
@@ -230,10 +241,10 @@ describe('OMP security boundary', () => {
 })
 
 describe('OMP framing and streaming invariants', () => {
-  it('reassembles bounded UTF-8 chunks and splits outbound at advertised frame size', () => {
+  it('reassembles bounded UTF-8 chunks and splits explicitly framed outbound commands at advertised frame size', () => {
     const h = initialized()
     h.feed({ type: 'ready', maxFrameBytes: 200, maxReassembledFrameBytes: 10000 })
-    const encoded = h.send({ type: 'send', id: 'prompt', text: '🙂'.repeat(100) })
+    const encoded = h.send({ type: 'send', id: 'prompt', text: '🙂'.repeat(100) }, { chunkId: 'chunk' })
     expect(encoded.length).toBeGreaterThan(1)
     expect(encoded.every(line => Buffer.byteLength(line) <= 200)).toBe(true)
     expect(JSON.parse(Buffer.concat(encoded.map(line => Buffer.from((JSON.parse(line) as { data: string }).data, 'base64'))).toString())).toEqual({ type: 'prompt', id: 'prompt', message: '🙂'.repeat(100) })
@@ -287,13 +298,29 @@ describe('OMP amended edge contracts', () => {
       { kind: 'choice', name: 'letters', question: 'Letters?', multi: true, options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C', disabled: true }] }
     ] }] } })
     expect(h.send({ type: 'answer', id: 'one', promptId: 'form', optionId: 'text', text: '3' })).toEqual([])
-    expect(h.state.pending[0].prompt.options).toEqual([{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }, { id: 'text', label: 'Other' }])
-    expect(h.send({ type: 'answer', id: 'two', promptId: 'form:1', optionId: 'text', text: '["a","b"]' })).toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b"]}}'])
+    expect(h.state.pending[0].prompt).toMatchObject({ options: [{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }, { id: 'text', label: 'Other' }], multi: true, progress: { index: 2, total: 2 } })
+    expect(h.send({ type: 'answer', id: 'two', promptId: 'form:1', optionIds: ['option_1', 'option_0', 'text'], text: 'z' })).toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b","z"]}}'])
   })
-  it('collects multiple ask selections without flattening them into custom text', () => {
+  it('answers a multi ask with selectedOptions in option order and refuses unknown, repeated or text-less ids', () => {
     const h = initialized()
-    h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [{ id: 'q', question: 'Choose', multi: true, options: [{ label: 'A' }, { label: 'B' }] }] })
-    expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionId: 'text', text: '["A","B"]' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","B"]}]}'])
+    h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [
+      { id: 'q', question: 'Choose', multi: true, options: ['A', 'B', 'C', 'D'].map(label => ({ label, description: `Letter ${label}` })) },
+      { id: 'r', question: 'One', options: [{ label: 'X' }, { label: 'Y' }] }
+    ] })
+    expect(h.state.pending[0].prompt).toMatchObject({ multi: true, progress: { index: 1, total: 2 }, options: [{ id: 'option_0', label: 'A', description: 'Letter A' }, { id: 'option_1' }, { id: 'option_2' }, { id: 'option_3' }, { id: 'text' }] })
+    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0'], ['option_0', 'text']]) {
+      expect(h.send({ type: 'answer', id: 'bad', promptId: 'ask', optionIds })).toEqual([])
+      expect(h.state.pending[0].prompt.id).toBe('ask')
+    }
+    // A JSON list typed as free text is free text now, never a hidden selection.
+    const typed = encodeOmpCommand({ type: 'answer', id: 't', promptId: 'ask', optionId: 'text', text: '["A","B"]' }, h.state, at).state
+    expect(typed.pending[0].answers).toEqual([{ id: 'q', selectedOptions: [], customInput: '["A","B"]' }])
+    expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionIds: ['option_2', 'option_0'] })).toEqual([])
+    expect(h.items().filter(item => item.kind === 'user_message').at(-1)).toMatchObject({ text: 'A, C' })
+    expect(h.state.pending[0].prompt).toMatchObject({ id: 'ask:1', multi: false, progress: { index: 2, total: 2 } })
+    expect(h.send({ type: 'answer', id: 'b', promptId: 'ask:1', optionIds: ['option_0', 'option_1'] })).toEqual([])
+    expect(h.state.pending[0].prompt.id).toBe('ask:1')
+    expect(h.send({ type: 'answer', id: 'c', promptId: 'ask:1', optionId: 'option_1' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","C"]},{"id":"r","selectedOptions":["Y"]}]}'])
   })
   it('scopes successful todo execution through observed tail correlation and retains prior todos on invalid replacements', () => {
     const h = initialized()
@@ -312,14 +339,15 @@ describe('OMP lifecycle edge contracts', () => {
     expect(h.feed({ type: 'response', command: 'get_subagent_messages', id: 'unknown', success: true, data: { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'wrong thread' }] }] } })).toEqual([])
     expect(h.feed({ type: 'response', command: 'get_state', id: 'unknown', success: true, data: { todoPhases: phases } })).toEqual([])
   })
-  it('requires ready initialization, keeps v1 compatible, and rejects oversized v1 sends', () => {
+  it('requires ready initialization, keeps v1 compatible, and sends an oversized v1 turn as one line', () => {
     const h = harness()
     expect(h.init({ type: 'other' })).toEqual([])
     expect(() => h.send({ type: 'send', id: 'prompt', text: 'early' })).toThrow('initialization')
     const ready = { type: 'ready', protocolVersion: 1, supportedProtocolVersions: [1], maxFrameBytes: 100 }
     h.feed(ready)
     expect(h.init(ready).map(line => JSON.parse(line).type)).toEqual(['set_ask_dialog', 'set_subagent_subscription', 'set_event_filter', 'get_state'])
-    expect(() => h.send({ type: 'send', id: 'prompt', text: 'x'.repeat(300) })).toThrow('protocol v2')
+    expect(h.send({ type: 'send', id: 'prompt', text: 'x'.repeat(300) })).toEqual([JSON.stringify({ type: 'prompt', id: 'prompt', message: 'x'.repeat(300) })])
+    expect(() => h.send({ type: 'send', id: 'framed', text: 'x'.repeat(300) }, { chunkId: 'chunk' })).toThrow('protocol v2')
     expect(() => h.send({ type: 'interrupt', id: '' })).toThrow('requires an id')
   })
   it('settles main tools and pending prompts on abort without settling background workers', () => {
@@ -593,4 +621,115 @@ it('namespaces synthesized ids and their streams without changing provider tool 
   const toolIds = (events: OmpEvent[]) => events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' ? [event.item.id] : [])
   expect(toolIds(first.events)).toEqual(toolIds(second.events))
   expect(toolIds(first.events)).toContain('call_T1_read')
+})
+
+describe('main-issued get_available_models', () => {
+  it('writes the request and hands its reply only to main, never to the transcript', () => {
+    const h = initialized()
+    expect(h.send({ type: 'get_available_models', id: 'models_1' }).map(line => JSON.parse(line))).toEqual([{ type: 'get_available_models', id: 'models_1' }])
+    const data = { models: [{ provider: 'anthropic', id: 'claude-opus-5-5' }] }
+    expect(h.feed({ id: 'models_1', type: 'response', command: 'get_available_models', success: true, data })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'models_1', ok: true, data }])
+    expect(h.state.commands.has('models_1')).toBe(false)
+  })
+
+  it('reports a refused request to main without an error item', () => {
+    const h = initialized()
+    h.send({ type: 'get_available_models', id: 'models_2' })
+    expect(h.feed({ id: 'models_2', type: 'response', command: 'get_available_models', success: false, error: 'nope' })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'models_2', ok: false, data: undefined }])
+  })
+
+  it('ignores a reply to an id main never asked', () => {
+    const h = initialized()
+    h.feed({ id: 'models_3', type: 'response', command: 'get_available_models', success: true, data: { models: [] } })
+    expect(h.internalEvents).toEqual([])
+  })
+})
+
+describe('model switching', () => {
+  it('writes set_model and set_thinking_level exactly as omp 18.20.2 takes them, and hands their replies only to main', () => {
+    const h = initialized()
+    expect(h.send({ type: 'set_model', id: 'model_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }))
+      .toEqual(['{"type":"set_model","id":"model_1","provider":"openai-codex","modelId":"gpt-6-sol"}'])
+    expect(h.send({ type: 'set_thinking_level', id: 'thinking_1', level: 'medium' })).toEqual(['{"type":"set_thinking_level","id":"thinking_1","level":"medium"}'])
+    expect(h.feed({ id: 'model_1', type: 'response', command: 'set_model', success: true })).toEqual([])
+    expect(h.feed({ id: 'thinking_1', type: 'response', command: 'set_thinking_level', success: false, error: 'Invalid level' })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'model_1', ok: true, data: undefined }, { type: 'command_result', id: 'thinking_1', ok: false, data: undefined }])
+    expect(h.state.commands.size).toBe(0)
+  })
+
+  it("decodes get_state's model and thinking level, at start and on main's own get_state", () => {
+    const h = initialized()
+    expect([h.state.model, h.state.thinking]).toEqual([null, 'off'])
+    expect(h.send({ type: 'get_state', id: 'state_1' })).toEqual(['{"type":"get_state","id":"state_1"}'])
+    const data = { model: { provider: 'openai-codex', id: 'gpt-6-sol', name: 'GPT-6 Sol' }, thinkingLevel: 'medium', sessionId: 'session_T1', sessionFile: 'C:/fixture/repo/session_T1.jsonl' }
+    expect(h.feed({ id: 'state_1', type: 'response', command: 'get_state', success: true, data })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'state_1', ok: true, data }])
+    expect([h.state.model, h.state.thinking, h.state.sessionId]).toEqual(['openai-codex/gpt-6-sol', 'medium', 'session_T1'])
+    h.send({ type: 'get_state', id: 'state_2' })
+    h.feed({ id: 'state_2', type: 'response', command: 'get_state', success: true, data: { model: { provider: 'anthropic' }, thinkingLevel: 'auto' } })
+    expect([h.state.model, h.state.thinking]).toEqual([null, null])
+  })
+})
+
+const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))
+const swatchBase64 = swatch.toString('base64')
+
+describe('OMP image turns', () => {
+  it('encodes image_in byte for byte, and follow_up carries the same images', () => {
+    const h = initialized()
+    const images = [{ mime: 'image/png' as const, base64: swatchBase64 }]
+    expect(h.send({ type: 'send', id: 'req_T1_image_in', text: 'what colour', images })).toEqual(lines('image_in', 'in'))
+    expect(JSON.parse(h.send({ type: 'send', id: 'req_T1_image_follow', text: '', images })[0])).toEqual({ type: 'follow_up', id: 'req_T1_image_follow', message: '',
+      images: [{ type: 'image', mimeType: 'image/png', data: swatchBase64 }] })
+    expect(h.items()).toEqual([{ kind: 'user_message', id: 'req_T1_image_in', at, text: 'what colour' }, { kind: 'user_message', id: 'req_T1_image_follow', at, text: '' }])
+    lines('image_in', 'out').forEach(line => h.feed(line))
+    expect(h.blobs).toEqual([])
+    expect(JSON.stringify(h.events)).not.toContain(swatchBase64.slice(0, 32))
+  })
+  it('writes an image over maxFrameBytes as one unsplit line and refuses one over maxReassembledFrameBytes', () => {
+    const h = initialized()
+    expect(h.state.protocolVersion).toBe(2)
+    const big = [{ mime: 'image/png' as const, base64: 'A'.repeat(h.state.maxFrameBytes + 4) }]
+    const sent = h.send({ type: 'send', id: 'req_T1_big', text: 'big', images: big })
+    expect(sent).toHaveLength(1)
+    expect(Buffer.byteLength(sent[0])).toBeGreaterThan(h.state.maxFrameBytes)
+    expect(JSON.parse(sent[0])).toEqual({ type: 'prompt', id: 'req_T1_big', message: 'big', images: [{ type: 'image', mimeType: 'image/png', data: big[0].base64 }] })
+    const limited = initialized()
+    limited.feed({ type: 'ready', maxFrameBytes: 1_048_576, maxReassembledFrameBytes: 2_097_152 })
+    let error: unknown
+    try { limited.send({ type: 'send', id: 'req_T1_huge', text: '', images: [{ mime: 'image/png', base64: 'A'.repeat(2_097_152) }] }) } catch (caught) { error = caught }
+    expect(error).toMatchObject({ code: 'image_too_large' })
+    expect(limited.state.inFlight).toBe(false)
+    expect(limited.items()).toEqual([])
+  })
+})
+
+describe('OMP tool-result images', () => {
+  it('lifts image_result into exactly one blob equal to swatch.png and no event', () => {
+    const { h, input, encoded } = replayGolden('image_result')
+    expect(encoded).toEqual(input)
+    expect(h.blobs).toEqual([{ itemId: 'call_T1_read_image', mime: 'image/png', base64: swatchBase64 }])
+    expect(Buffer.from(h.blobs[0].base64, 'base64').equals(swatch)).toBe(true)
+    expect(JSON.stringify(h.events)).not.toContain(swatchBase64.slice(0, 32))
+    expect(h.items().filter(item => item.kind !== 'user_message')).toEqual([toolItem('call_T1_read_image', 'read', { path: 'swatch.png' }, 'Read image file [image/png]'),
+      { kind: 'assistant_text', id: 'omp:main:message:3:0', at, text: 'Red' }])
+    expect(h.state.skipped).toBe(0)
+    for (const event of h.events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
+  })
+  it('notes unsupported images as not shown, lifts WebP, and keeps one summary across duplicate copies', () => {
+    const h = initialized(), webp = webpBytes(64, 64).toString('base64'), gif = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1').toString('base64')
+    const content = [{ type: 'text', text: 'Read' }, { type: 'image', mimeType: 'image/gif', data: gif }, { type: 'image', data: webp, mimeType: 'image/webp' },
+      { type: 'image', mimeType: 'image/jpeg', data: swatchBase64 }]
+    h.feed({ type: 'tool_execution_start', toolCallId: 'call_T1_images', toolName: 'read', args: { path: 'a' } })
+    h.feed({ type: 'tool_execution_end', toolCallId: 'call_T1_images', toolName: 'read', result: { content }, isError: false })
+    h.feed({ type: 'message_end', message: { role: 'toolResult', toolCallId: 'call_T1_images', toolName: 'read', content, isError: false } })
+    h.feed({ type: 'turn_end', message: { role: 'assistant', content: [] }, toolResults: [{ role: 'toolResult', toolCallId: 'call_T1_images', toolName: 'read', content, isError: false }] })
+    expect(h.blobs).toEqual([{ itemId: 'call_T1_images', mime: 'image/webp', base64: webp }])
+    const summaries = h.events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' && event.item.status === 'completed' ? [event.item.resultSummary] : [])
+    expect(summaries.length).toBeGreaterThan(1)
+    for (const summary of summaries) expect(summary).toBe('Read\n1 image (image/gif, not shown)\n1 image (image/jpeg, not shown)')
+    for (const prefix of [webp, gif, swatchBase64]) expect(JSON.stringify(h.events)).not.toContain(prefix.slice(0, 32))
+  })
 })

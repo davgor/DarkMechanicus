@@ -9,15 +9,20 @@ import type { AgentTodoPhase } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { AgentChangesCard } from '../agentChat/AgentChangesCard'
 import { AgentChat } from '../agentChat/AgentChat'
+import type { ChatEpic } from '../agentChat/ChatImages'
+import { ChatComposer } from '../agentChat/ChatComposer'
 import { todoProgress, todoProgressLabel, withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
 import { useNeedsYou } from '../agentChat/useNeedsYou'
 import { AgentTree, type NeedsYouControls } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentTreeNode, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { ChatTranscript } from '../agents/ChatTranscript'
+import { agentName } from '../agents/agentText'
 import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
+import { EpicRolePicker } from './AgentPickerDialog'
+import { AgentTabStrip } from './AgentTabStrip'
 import {
   activeOrchestratorId, defaultAgentChatId, epicAgentNodes, epicChats, owningChatId, relayMessage, threadTranscript,
   type EpicAgentNodesInput, type LoadedTranscript
@@ -65,36 +70,12 @@ function AgentRowTodos({ folder, chatId }: { folder: string; chatId: string }): 
   return <TodoProgress phases={state.todos.get('') ?? []} />
 }
 
-/** No chat is bound to the epic yet: start its planner. */
+/** No chat is bound to the epic yet: start its Lexmechanic or Magos from the role cards. */
 function NoAgents({ ws }: { ws: WorkspaceHandle }): JSX.Element {
-  const [starting, setStarting] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-  async function startPlanner(): Promise<void> {
-    setStarting(true)
-    setProblem(null)
-    try {
-      const result = await window.dm.chats.startPlanner({ folder: ws.folder.path, epicId: ws.epicId })
-      if (!result.ok) {
-        // A `no_agent` refusal carries main's sign-in prompt text.
-        setProblem(result.error.message)
-        return
-      }
-      setProblem(result.data.problem)
-      if (result.data.chat !== null) {
-        ws.dispatch({ type: 'select_agent', chatId: result.data.chat.id })
-        await ws.orchestration.onChatsChanged()
-      }
-    } catch (error) {
-      setProblem(errorMessage(error))
-    } finally {
-      setStarting(false)
-    }
-  }
   return (
     <div className="eap-empty">
       <p className="ew-empty">No agents yet</p>
-      <button className="btn btn-primary" type="button" disabled={starting} onClick={() => void startPlanner()}>Start planner</button>
-      {problem !== null && <p role="alert" className="ew-notice-error">{problem}</p>}
+      <EpicRolePicker ws={ws} />
     </div>
   )
 }
@@ -158,12 +139,13 @@ function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
   return (
     <section className="agent-chat" aria-label={`${name} thread`}>
       <header className="agent-chat-header"><h2>{name}</h2></header>
-      <div className="agent-chat-scroll">
+      <div className="agent-chat-scroll glass-strong">
         {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
         <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />
       </div>
       {owner.surface === 'gui'
-        ? <RelayComposer folder={ws.folder.path} ownerId={owner.id} ownerName={ownerName} threadId={threadId} name={name} />
+        ? <RelayComposer folder={ws.folder.path} context={ws.data.epic.title} ownerId={owner.id} ownerName={ownerName} threadId={threadId}
+          name={name} />
         : <div className="eap-terminal">
           <p className="ew-empty">{ownerName} runs in a terminal. Message this worker there, or switch {ownerName} to the GUI.</p>
           <SurfaceActions ws={ws} chat={owner} />
@@ -173,48 +155,34 @@ function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
 }
 
 /** Sends the person's text to the owning chat inside the fixed relay marker; the thread's label is never part of it. */
-function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
+function RelayComposer({ folder, context, ownerId, ownerName, threadId, name }: {
   folder: string
+  context: string
   ownerId: string
   ownerName: string
   threadId: string
   name: string
 }): JSX.Element {
-  const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  async function send(): Promise<void> {
-    if (sending || !text.trim()) return
-    const sent = text
+  async function send(text: string): Promise<boolean> {
     setSending(true)
     setProblem(null)
     try {
-      const result = await window.dm.agentChat.send({ folder, chatId: ownerId, text: relayMessage(threadId, sent) })
-      if (result.ok) setText((current) => (current === sent ? '' : current))
-      else setProblem(result.error.message)
+      const result = await window.dm.agentChat.send({ folder, chatId: ownerId, text: relayMessage(threadId, text) })
+      if (!result.ok) setProblem(result.error.message)
+      return result.ok
     } catch (error) {
       setProblem(errorMessage(error))
+      return false
     } finally {
       setSending(false)
     }
   }
-  const inputId = `eap-relay-${threadId}`
   return (
-    <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
-      {problem !== null && <p className="agent-chat-command-error" role="alert">{problem}</p>}
-      <label className="agent-chat-label" htmlFor={inputId}>Message {name}</label>
-      <textarea className="input" id={inputId} value={text} maxLength={18_000} rows={3} placeholder="Send a message…"
-        onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault()
-            void send()
-          }
-        }} />
-      <div className="agent-chat-actions">
-        <span className="agent-chat-hint">Your message goes through {ownerName}, which passes it to this worker.</span>
-        <button className="btn btn-primary" type="submit" disabled={sending || !text.trim()}>Send</button>
-      </div>
-    </form>
+    <ChatComposer id={`eap-relay-${threadId}`} label={`Message ${name}`} placeholder={`Message ${name} (through ${ownerName})…`}
+      note={`Your message goes through ${ownerName}, which passes it to this worker.`} agent={name} context={context} queued={0}
+      maxLength={18_000} disabled={false} acting={sending} busy={false} error={problem} send={send} />
   )
 }
 
@@ -252,12 +220,21 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   nodes: readonly AgentTreeNodeInput[]
   items: readonly ChatItem[]
 }): JSX.Element {
+  const { dispatch, epicId } = ws
+  const savedTickets = ws.data.savedTickets
+  // A chat's images go to the epic or, from a thread bound to one, its ticket; the toast confirms where.
+  const epic = useMemo<ChatEpic>(() => ({ epicId, tickets: savedTickets, confirm: (text) => dispatch({ type: 'toast', text }) }),
+    [epicId, savedTickets, dispatch])
   const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
   const name = named(chat.id) ?? chat.title
   if (threadId !== null) {
     return <ThreadView ws={ws} owner={chat} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'} items={items} />
   }
-  if (chat.surface === 'gui') return <AgentChat folder={ws.folder.path} chatId={chat.id} agentLabel={name} />
+  if (chat.surface === 'gui') {
+    return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
+      agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} epic={epic}
+      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} />
+  }
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }
 
@@ -309,6 +286,17 @@ function useRailReveal(ws: WorkspaceHandle): RailReveal | null {
     [pending, dispatch])
 }
 
+/** The tab strip's inputs from the tree: each root's name, and the roots with a prompt of their own or a worker's waiting. */
+function tabInputs(nodes: readonly AgentTreeNodeInput[], counts: ReadonlyMap<string, NeedsYouCount>): {
+  names: ReadonlyMap<string, string>
+  waiting: ReadonlySet<string>
+} {
+  return {
+    names: new Map(nodes.filter((node) => node.parentId === null).map((node) => [node.id, node.name])),
+    waiting: new Set([...counts].filter(([, count]) => count.own + count.descendants > 0).map(([id]) => id))
+  }
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -341,11 +329,13 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     }
   }
   const progress = rowTodos(folder, chats, nodes, watched)
+  const { names, waiting } = tabInputs(nodes, counts)
   return (
     <section aria-label="Agent chat" className="eap">
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}
       {chat.id !== lead && <TranscriptFeed folder={folder} chatId={chat.id} onLoaded={onLoaded} />}
       <div className="eap-centre">
+        <AgentTabStrip ws={ws} chats={chats} run={run} selectedId={chat.id} names={names} needsYou={waiting} />
         <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}

@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
+import { inspectImageBytes } from '../../core/attachments/intake'
+import { GUI_PROTOCOL_KINDS, type AgentChatAnswer, type AgentChatEvent, type AgentChatModelChoice, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
-import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ApprovalRequestItem, ChatImageRef, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ChatModelOption } from '../../shared/agents/models'
 import type { AgentId, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { ActivityBinding, ActivityBindings } from '../agents/activityBindings'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
+import { mailboxChat } from '../agents/chatMailboxOperations'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
@@ -19,10 +22,12 @@ import type { TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
 import { claudeInitLines, claudeInputClipped, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
-import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
+import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpRequest, type OmpState } from './ompProtocol'
 import { PendingPrompts, type ArbitrationGate, type AttentionEvent } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
-import type { ThreadClaimEvent } from './translatorEvents'
+import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
+import type { ChatImages, ChatImagesRef } from './chatImages'
+import type { ToolResultBlob, TurnImage } from './toolResultImages'
 
 export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'agentFor' | 'folders' | 'checkAuth' | 'cliFor' | 'runs' | 'issueChatCli' | 'issueReachCli' |
@@ -57,6 +62,8 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
    * `STALL_NOTIFY_MS`: told once per silent span, with no chat content. Omitted, nothing is told.
    */
   onAttention?(event: Extract<AttentionEvent, { kind: 'run_stalled' }>): void
+  /** The chats' images (`chatImages`): images the person staged, read back by id for a turn, and tool-result images kept. */
+  chatImages: Pick<ChatImages, 'put' | 'putToolImage' | 'read'>
 }
 
 type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
@@ -64,9 +71,15 @@ type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
 export type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
 export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
-  send(ref: ChatRef, input: { text: string }): Promise<void>
+  /**
+   * A user turn, with the ids of images staged for this chat (`stageImage`). An id this chat does not hold refuses
+   * `invalid_input` before anything is written or stored; the turn's item names the images, never their bytes.
+   */
+  send(ref: ChatRef, input: { text: string; imageIds?: readonly string[] }): Promise<void>
+  /** Keeps an image the person staged for the chat (PNG or JPEG); an unknown chat is `not_found`. */
+  stageImage(ref: ChatRef, bytes: Uint8Array): Promise<ChatImageRef>
   interrupt(ref: ChatRef): Promise<void>
-  answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
+  answer(ref: ChatRef, input: AgentChatAnswer): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
   /** Every queued prompt of the folder's live GUI chats (null: project-less chats), head first per chat; never tool input. */
   attention(folder: string | null): AttentionItem[]
@@ -76,6 +89,19 @@ export interface AgentChatSessions {
    */
   setSurface(ref: ChatRef, surface: 'gui' | 'terminal', confirmTerminalStop?: ConfirmTerminalStop): Promise<AgentChatSnapshot>
   stop(ref: ChatRef): Promise<void>
+  /**
+   * Asks the chat's live OMP process `type` over its RPC stdin and resolves with the reply's `data` (rejecting on a
+   * failed reply, exit, stop or `OMP_REQUEST_TIMEOUT_MS`). Null when the chat has no live, initialized OMP process.
+   */
+  ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null
+  /**
+   * Switches a Skitarii chat to `choice`, checked against `catalog` (the chat's current one, `OmpModels.chatModels`, asked
+   * only once the chat is known to be a Skitarii chat): a live session gets `set_model`, then `set_thinking_level` with
+   * an effort, then `get_state`; a stopped one only its record. A busy session takes the switch at once and uses it
+   * from its next model request (omp 18.20.2 accepts `set_model` mid-turn); the turn is never interrupted. The record
+   * keeps the model and thinking level for every later launch, and a changed model appends a `model_change` item.
+   */
+  setModel(ref: ChatRef, choice: AgentChatModelChoice, catalog: () => Promise<readonly ChatModelOption[]>): Promise<AgentChatSnapshot>
   /** Stops the GUI process (refusing new starts meanwhile), then runs `remove`, which deletes the record. */
   deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
   /**
@@ -108,6 +134,8 @@ interface Entry {
   protocol: 'claude' | 'omp'
   claude: ClaudeProtocolState
   omp: OmpState
+  /** Main's own OMP requests awaiting their reply, by command id (`ompRequest`). */
+  requests: Map<string, { resolve(data: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>
   grantIds: string[]
   release?: () => void
   cancelled: boolean
@@ -126,6 +154,30 @@ interface Entry {
   stopResult?: Promise<void>
   starting?: Promise<StartResult>
   ending?: Promise<void>
+  /** The latest copy of each tool_call item, so a tool image stored later upserts the item as last shown. */
+  toolCalls: Map<string, ToolCallItem>
+  /** Tool images kept per tool_call item, and whether one was dropped; applied to every later copy of the item. */
+  toolImages: Map<string, HeldToolImages>
+  /** Tool images being stored, in arrival order. */
+  imageWork?: Promise<void>
+}
+type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
+interface HeldToolImages { images: NonNullable<ToolCallItem['images']>; invalid: boolean }
+/** Transcript items hold at most 8 images (`chat.ts`). */
+const IMAGES_PER_ITEM = 8
+const INVALID_IMAGE_NOTE = 'image not shown (invalid)'
+const imagesRef = (chat: ChatRecord): ChatImagesRef => ({ folder: chat.folder, chatId: chat.id })
+/** The item with the tool images kept for it, and the invalid-image note once (`withToolImages` is idempotent). */
+function withToolImages(item: ToolCallItem, held: HeldToolImages | undefined): ToolCallItem {
+  if (!held) return item
+  const summary = held.invalid && !(item.resultSummary ?? '').includes(INVALID_IMAGE_NOTE)
+    ? [item.resultSummary, INVALID_IMAGE_NOTE].filter(Boolean).join('\n') : item.resultSummary
+  return { ...item, ...(held.images.length ? { images: [...held.images] } : {}), resultSummary: summary }
+}
+/** A turn's user_message naming the images it carried; never their bytes. */
+function withSentImages(event: OmpEvent, refs: ChatImageRef[]): OmpEvent {
+  if (!refs.length || event.type !== 'item' || event.item.kind !== 'user_message') return event
+  return { ...event, item: { ...event.item, images: refs } }
 }
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 /** A chat's thread identities: seeded once from its stored thread items and attempt bindings, so a restart keeps them. */
@@ -158,6 +210,18 @@ const repeat = (callback: () => void, ms: number): (() => void) => {
   return () => clearInterval(timer)
 }
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error)
+/** How long main waits for a live OMP process to answer one of its own requests (`ompRequest`). */
+const OMP_REQUEST_TIMEOUT_MS = 15_000
+
+/** The catalog's entry for `choice` (`to` is its `provider/id`); refused when the catalog lacks the model or the model the effort. */
+function catalogChoice(catalog: readonly ChatModelOption[], choice: AgentChatModelChoice, to: string): ChatModelOption {
+  const option = catalog.find(model => model.provider === choice.provider && model.id === choice.modelId)
+  if (!option) throw new DomainError('invalid_input', `${to} is not in this chat's model catalog.`)
+  if (choice.effort !== undefined && !option.efforts.includes(choice.effort)) {
+    throw new DomainError('invalid_input', `${to} does not take the ${choice.effort} thinking level.`)
+  }
+  return option
+}
 
 function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   // The repository's ES library predates Promise.withResolvers.
@@ -168,8 +232,10 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   const closed = new Promise<void>((resolve, reject) => { completeClose = resolve; rejectClose = reject })
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
   return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude', attention: '[]',
-    claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), grantIds: [], cancelled: false,
-    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose }
+    claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), requests: new Map(), grantIds: [], cancelled: false,
+    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose, toolCalls: new Map(), toolImages: new Map(),
+    // A restarted chat still waits for (and chains after) the old process's tool images, so deleteChat sees them land.
+    imageWork: previous?.imageWork }
 }
 
 /** A missing close is a failure, not proof that the process or its authority was cleaned up. */
@@ -195,6 +261,8 @@ class SessionManager {
   private readonly confirming = new Set<string>()
   /** Folders being untracked (`releaseFolder`): no GUI chat of theirs may start until the untrack has finished. */
   private readonly releasing = new Set<string>()
+  /** Chats with a model switch in flight (`setModel`): a second one is refused until it settles. */
+  private readonly modelSwitches = new Set<string>()
   private closing = false
   private disposing?: Promise<void>
 
@@ -212,9 +280,15 @@ class SessionManager {
     entry.chat = this.deps.store.updateChat(entry.chat, mask(patch))
     this.deps.onChatChanged?.(entry.chat)
   }
+  /** A tool_call item as last shown, with the tool images kept for it; any other event unchanged. */
+  private withHeldImages(entry: Entry, event: OmpEvent): OmpEvent {
+    if (event.type !== 'item' || event.item.kind !== 'tool_call') return event
+    entry.toolCalls.set(event.item.id, event.item)
+    return { ...event, item: withToolImages(event.item, entry.toolImages.get(event.item.id)) }
+  }
   private emit(entry: Entry, event: OmpEvent): void {
     if (event.type === 'pending') return // The registry publishes only the FIFO head.
-    const safe = mask(this.stamped(entry, event))
+    const safe = mask(this.stamped(entry, this.withHeldImages(entry, event)))
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
     if (safe.type === 'status') {
       entry.status = safe.status
@@ -236,7 +310,12 @@ class SessionManager {
     const chat = this.chatFor(ref), entry = this.entries.get(chat.id)
     return mask({ items: this.deps.store.readTranscript(chat)?.items ?? [], status: entry?.status ?? 'exited',
       pending: entry?.prompts ? entry.prompts.snapshot() : null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
-      todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [] })
+      todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [], ...this.modelOf(chat, entry) })
+  }
+  /** The chat's model and thinking level: as its live OMP session's last `get_state` reported them, else as its record keeps them. */
+  private modelOf(chat: ChatRecord, entry: Entry | undefined): Required<Pick<AgentChatSnapshot, 'model' | 'thinking'>> {
+    const live = entry?.process && entry.protocol === 'omp' ? entry.omp : null
+    return { model: live?.model ?? chat.model, thinking: live?.thinking ?? chat.thinking ?? null }
   }
   attention(folder: string | null): AttentionItem[] {
     return [...this.entries.values()].filter(entry => entry.chat.folder === folder).flatMap(entry => this.attentionOf(entry))
@@ -367,6 +446,98 @@ class SessionManager {
     entry.omp.pending = []
     entry.prompts?.clear()
   }
+  /** Fails every request still awaiting its reply: the process that would answer is exiting or stopped. */
+  private failRequests(entry: Entry): void {
+    for (const request of entry.requests.values()) {
+      clearTimeout(request.timer)
+      request.reject(new DomainError('cancelled', 'The agent stopped before it answered.'))
+    }
+    entry.requests.clear()
+  }
+  private settleRequest(entry: Entry, result: CommandResultEvent): void {
+    const request = entry.requests.get(result.id)
+    if (!request) return
+    entry.requests.delete(result.id)
+    clearTimeout(request.timer)
+    if (result.ok) request.resolve(result.data)
+    else request.reject(new DomainError('operation_unavailable', 'The agent refused the request.'))
+  }
+  /** A live OMP session that has finished initializing and is neither stopping nor ending. */
+  private ompLive(entry: Entry | undefined): entry is Entry {
+    return entry?.process !== undefined && entry.protocol === 'omp' && entry.omp.initialized && !entry.cancelled && !entry.ending
+  }
+  ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null {
+    const entry = this.entries.get(this.chatFor(ref).id)
+    return this.ompLive(entry) ? this.request(entry, { type, id: randomUUID() }) : null
+  }
+  /** Writes main's own request to the live session and resolves with its reply's `data`; see `ompRequest`. */
+  private request(entry: Entry, command: OmpRequest): Promise<unknown> {
+    const encoded = encodeOmpCommand(command, entry.omp, this.now())
+    this.write(entry, encoded.lines)
+    entry.omp = encoded.state
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        entry.requests.delete(command.id)
+        reject(new DomainError('timeout', `The agent did not answer within ${OMP_REQUEST_TIMEOUT_MS / 1000} seconds.`))
+      }, OMP_REQUEST_TIMEOUT_MS)
+      timer.unref()
+      entry.requests.set(command.id, { resolve, reject, timer })
+    })
+  }
+  async setModel(ref: ChatRef, choice: AgentChatModelChoice, catalog: () => Promise<readonly ChatModelOption[]>): Promise<AgentChatSnapshot> {
+    const chat = this.chatFor(ref)
+    if (this.deps.agentFor(chat.agent)?.kind !== 'omp') throw new DomainError('unsupported_agent', 'Only a Skitarii chat can switch its model.')
+    if (this.modelSwitches.has(chat.id)) throw new DomainError('busy', 'The chat is already switching its model.')
+    this.modelSwitches.add(chat.id)
+    try {
+      const to = `${choice.provider}/${choice.modelId}`, option = catalogChoice(await catalog(), choice, to)
+      this.assertOpen(chat)
+      if (this.deps.terminalLive(chat)) throw new DomainError('busy_elsewhere', 'The chat is running in its terminal.')
+      const entry = this.entries.get(chat.id)
+      if (entry?.process === undefined && !this.startingEntries.has(chat.id)) this.switchStored(this.chatFor(ref), choice, option, to)
+      else if (this.ompLive(entry)) await this.switchLive(entry, choice, to)
+      else throw new DomainError('busy', 'The chat is starting or stopping.')
+      return this.snapshot(ref)
+    } finally {
+      this.modelSwitches.delete(chat.id)
+    }
+  }
+  /**
+   * `set_model`, then `set_thinking_level` with an effort, each awaited; a refused model changes nothing. `get_state`
+   * then reads the session back; the model the reply confirmed stands if it cannot. A refused effort keeps the switched
+   * model and is reported after it is recorded.
+   */
+  private async switchLive(entry: Entry, choice: AgentChatModelChoice, to: string): Promise<void> {
+    const from = entry.omp.model ?? entry.chat.model
+    await this.request(entry, { type: 'set_model', id: randomUUID(), provider: choice.provider, modelId: choice.modelId })
+    entry.omp.model = to
+    let refused: unknown
+    if (choice.effort !== undefined) {
+      try {
+        await this.request(entry, { type: 'set_thinking_level', id: randomUUID(), level: choice.effort })
+        entry.omp.thinking = choice.effort
+      } catch (error) { refused = error }
+    }
+    if (this.ompLive(entry)) await this.request(entry, { type: 'get_state', id: randomUUID() }).catch(() => undefined)
+    this.update(entry, { model: to, thinking: entry.omp.thinking })
+    if (from !== to) this.emit(entry, { type: 'item', item: this.modelChange(from, to) })
+    if (refused !== undefined) throw refused
+  }
+  /** A chat without a live session: only its record, read by its next launch; a kept level the new model lacks is dropped. */
+  private switchStored(chat: ChatRecord, choice: AgentChatModelChoice, option: ChatModelOption, to: string): void {
+    const kept = chat.thinking && option.efforts.includes(chat.thinking) ? chat.thinking : null
+    const updated = this.deps.store.updateChat(chat, { model: to, thinking: choice.effort ?? kept })
+    const entry = this.entries.get(chat.id)
+    if (entry) entry.chat = updated
+    this.deps.onChatChanged?.(updated)
+    if (chat.model === to) return
+    const item = this.modelChange(chat.model, to)
+    this.deps.store.appendItems(updated, [item])
+    this.deps.push(mask({ type: 'item', folder: updated.folder, chatId: updated.id, item }))
+  }
+  private modelChange(from: string | null, to: string): Extract<ChatItem, { kind: 'model_change' }> {
+    return { kind: 'model_change', id: `model:${randomUUID()}`, at: this.now(), from, to }
+  }
   private tracked<T>(work: Promise<T>): Promise<T> {
     this.cleanup.add(work)
     void work.then(() => this.cleanup.delete(work), () => this.cleanup.delete(work))
@@ -433,6 +604,7 @@ class SessionManager {
     if (entry.ending) return entry.ending
     this.clearInterrupt(entry)
     this.clearPrompts(entry)
+    this.failRequests(entry)
     this.resetStall(entry)
     entry.release?.()
     entry.release = undefined
@@ -457,6 +629,7 @@ class SessionManager {
     entry.cancelled = true
     entry.cancel()
     this.clearPrompts(entry)
+    this.failRequests(entry)
     entry.release?.()
     entry.release = undefined
     return this.awaitCleanup(entry)
@@ -469,13 +642,18 @@ class SessionManager {
     entry.omp = result.state
     for (const event of result.events) this.emit(entry, event)
     entry.prompts?.update(this.stampedPrompts(entry))
-    for (const claim of result.internalEvents) this.claim(entry, claim)
+    for (const event of result.internalEvents) {
+      if (event.type === 'thread_claim') this.claim(entry, event)
+      else this.settleRequest(entry, event)
+    }
+    this.storeToolImages(entry, result.blobs)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)
     entry.omp = init.state
     this.write(entry, init.lines)
-    if (entry.omp.initialized) entry.admit()
+    // Admitted once the start's own get_state has answered, so the start's snapshot carries the session's model.
+    if (entry.omp.initialized && ![...entry.omp.commands.values()].some(command => command.type === 'get_state' && !command.awaited)) entry.admit()
   }
   private consumeClaudeQueue(entry: Entry, events: OmpEvent[], mainStarted: boolean): void {
     if (entry.turnActive || entry.queued === 0) return
@@ -496,10 +674,35 @@ class SessionManager {
     for (const event of result.events) this.emit(entry, event)
     entry.prompts?.update(this.stampedPrompts(entry))
     for (const claim of result.internalEvents) this.claim(entry, claim)
+    this.storeToolImages(entry, result.blobs)
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {
       entry.rejectReady(new Error('The agent rejected protocol initialization.'))
     }
+  }
+  /**
+   * Keeps each tool-result image in the chat's image store, in arrival order, then upserts its tool_call item (as last
+   * shown) with the image. A blob the store refuses is dropped, and the item notes it.
+   */
+  private storeToolImages(entry: Entry, blobs: readonly ToolResultBlob[]): void {
+    if (!blobs.length) return
+    const ref = imagesRef(entry.chat)
+    entry.imageWork = this.tracked((entry.imageWork ?? Promise.resolve()).then(async () => {
+      const touched = new Set<string>()
+      for (const blob of blobs) {
+        const held = entry.toolImages.get(blob.itemId) ?? { images: [], invalid: false }
+        entry.toolImages.set(blob.itemId, held)
+        touched.add(blob.itemId)
+        if (held.images.length >= IMAGES_PER_ITEM) continue
+        try { held.images.push(await this.deps.chatImages.putToolImage(ref, Buffer.from(blob.base64, 'base64'))) }
+        catch { held.invalid = true }
+      }
+      if (this.deleting.has(entry.chat.id) || this.deps.store.getChat(entry.chat) === null) return
+      for (const id of touched) {
+        const item = entry.toolCalls.get(id)
+        if (item) this.emit(entry, { type: 'item', item })
+      }
+    }).catch(() => undefined))
   }
   private line(entry: Entry, raw: string): void {
     if (entry.cancelled || entry.ending) return
@@ -570,12 +773,12 @@ class SessionManager {
     if (entry.protocol === 'claude') return { ...paths, claudeSettings: await this.step(entry, writeClaudeSettings({
       userData: deps.userData, chatId: chat.id, platform: deps.platform, folder: cwd, cli, home: homedir(), tmp: tmpdir(),
       ...(reach === undefined ? {} : { projectless: true as const }) })) }
-    return { ...paths, omp: { ...await this.step(entry, writeOmpFiles(deps.userData, chat.id, false)), extension: deps.ompExtension } }
+    return { ...paths, omp: { ...await this.step(entry, writeOmpFiles(deps.userData, chat.id, { fresh: false, role: chat.role })), extension: deps.ompExtension } }
   }
   private async issue(entry: Entry, agent: AgentView, cwd: string, reach: ReachTarget[] | undefined) {
     const { chat } = entry, { deps } = this
     const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120) }
-    const identity = { id: chat.id, agent: chat.agent, title: chat.title, kind: agent.kind }
+    const identity = { ...mailboxChat(chat), kind: agent.kind }
     const issuing = reach === undefined
       ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId] }))
       : reach.length ? deps.issueReachCli(reach, grant) : Promise.resolve({ cli: deps.cliFor(null), grantIds: [] })
@@ -619,17 +822,21 @@ class SessionManager {
     this.writeTurn(entry, text)
     this.update(entry, { kickoffSent: true, ...(chat.firstPrompt === undefined ? {} : { firstPromptDelivery: 'submitted' }) })
   }
-  private writeTurn(entry: Entry, text: string): void {
+  private encodeTurn(entry: Entry, text: string, turn: readonly TurnImage[]) {
+    const sent = turn.length ? { images: [...turn] } : {}
+    return entry.protocol === 'claude'
+      ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID(), ...sent }, entry.claude, this.now())
+      : encodeOmpCommand({ type: 'send', text, id: randomUUID(), ...sent }, entry.omp, this.now())
+  }
+  private writeTurn(entry: Entry, text: string, images: { refs: ChatImageRef[]; turn: TurnImage[] } = { refs: [], turn: [] }): void {
     const queued = entry.turnActive || entry.queued > 0
-    const encoded = entry.protocol === 'claude'
-      ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID() }, entry.claude, this.now())
-      : encodeOmpCommand({ type: 'send', text, id: randomUUID() }, entry.omp, this.now())
+    const encoded = this.encodeTurn(entry, text, images.turn)
     if (!encoded.lines.length) throw new Error('The agent did not initialize its input protocol.')
     this.write(entry, encoded.lines)
     if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
     else entry.omp = encoded.state as OmpState
     if (!queued) entry.turnActive = true
-    for (const event of encoded.events) this.emit(entry, event)
+    for (const event of encoded.events) this.emit(entry, withSentImages(event, images.refs))
     if (entry.protocol === 'claude' && queued) this.emit(entry, { type: 'queued', count: entry.queued + 1 })
     if (entry.status !== 'busy') this.emit(entry, { type: 'status', status: 'busy' })
   }
@@ -711,21 +918,38 @@ class SessionManager {
       return { ...this.snapshot(entry.chat), status: 'failed' }
     }
   }
-  async send(ref: ChatRef, input: { text: string }): Promise<void> {
+  /** The staged images of this chat that `imageIds` name, measured and base64-encoded; any other id is `invalid_input`. */
+  private async turnImages(chat: ChatRecord, imageIds: readonly string[]): Promise<{ refs: ChatImageRef[]; turn: TurnImage[] }> {
+    const refs: ChatImageRef[] = [], turn: TurnImage[] = []
+    for (const id of imageIds) {
+      const stored = await this.deps.chatImages.read(imagesRef(chat), id)
+      if (stored === null || stored.mime === 'image/webp') throw new DomainError('invalid_input', 'An image is not staged for this chat.')
+      const measured = inspectImageBytes(stored.bytes)
+      refs.push({ id, mime: measured.mime, width: measured.width, height: measured.height, bytes: stored.bytes.byteLength })
+      turn.push({ mime: measured.mime, base64: Buffer.from(stored.bytes.buffer, stored.bytes.byteOffset, stored.bytes.byteLength).toString('base64') })
+    }
+    return { refs, turn }
+  }
+  async send(ref: ChatRef, input: { text: string; imageIds?: readonly string[] }): Promise<void> {
+    // Checked before the chat starts: a refused id writes nothing to the agent and stores nothing.
+    const images = await this.turnImages(this.chatFor(ref), input.imageIds ?? [])
     const result = await this.start(ref)
     if ('code' in result) throw new Error('The chat is running in a terminal.')
     const entry = this.entries.get(this.chatFor(ref).id)
     if (!entry?.process || entry.ending || entry.cancelled) throw new Error('The agent is not running.')
     this.assertCurrent(entry)
-    this.writeTurn(entry, input.text)
+    this.writeTurn(entry, input.text, images)
   }
-  async answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void> {
+  async stageImage(ref: ChatRef, bytes: Uint8Array): Promise<ChatImageRef> {
+    return this.deps.chatImages.put(imagesRef(this.chatFor(ref)), bytes)
+  }
+  async answer(ref: ChatRef, input: AgentChatAnswer): Promise<void> {
     const entry = this.entries.get(this.chatFor(ref).id)
     if (!entry) throw new DomainError('stale_prompt', 'This prompt is no longer pending.')
     // Renderer callers cannot supply decision provenance.
     this.answerEntry(entry, input, { decidedBy: 'person' })
   }
-  private answerEntry(entry: Entry, input: { promptId: string; optionId: string; text?: string },
+  private answerEntry(entry: Entry, input: AgentChatAnswer,
     provenance: { decidedBy: 'person' } | { decidedBy: 'magos'; reason: string }): void {
     if (!entry.process || entry.cancelled || entry.ending || !entry.prompts || this.entries.get(entry.chat.id) !== entry)
       throw new DomainError('stale_prompt', 'This prompt is no longer pending.')
@@ -861,7 +1085,12 @@ class SessionManager {
     const chat = this.deps.store.getChat(ref)
     if (chat === null) return remove()
     this.deleting.add(chat.id)
-    try { await this.stop(chat); await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id) }
+    try {
+      await this.stop(chat)
+      // A tool image still being kept lands before the chat's images are removed with it.
+      await this.entries.get(chat.id)?.imageWork
+      await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id)
+    }
     finally { this.deleting.delete(chat.id) }
   }
   /** Stops the processes and starts of the chats `selects` picks, and waits for their close and revocation. */
@@ -909,9 +1138,11 @@ class SessionManager {
 export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatSessions {
   const manager = new SessionManager(deps)
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
-    send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
+    send: (ref, input) => manager.send(ref, input), stageImage: (ref, bytes) => manager.stageImage(ref, bytes),
+    interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
     releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
-    busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder) }
+    busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder),
+    ompRequest: (ref, type) => manager.ompRequest(ref, type), setModel: (ref, choice, catalog) => manager.setModel(ref, choice, catalog) }
 }

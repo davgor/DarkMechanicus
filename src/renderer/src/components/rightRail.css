@@ -4,10 +4,14 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--line);
-  background: var(--panel);
   color: var(--ink);
   overflow: hidden;
+}
+
+/* The docked rail keeps only its stage-side glass edge. */
+.rr.glass {
+  border-width: 0 0 0 1px;
+  border-radius: 0;
 }
 
 .rr[data-collapsed="true"] {

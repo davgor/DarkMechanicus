@@ -1,11 +1,15 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createActivityBindings } from '../agents/activityBindings'
 import { createChatStore, type ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
 import { createAgentChatSessions, type AgentChatSessionsDeps } from './agentChatSessions'
+import { folderStoreId } from './folderStoreId'
+import { DomainError } from '../../core/errors'
 import type { ArbiterOutcome, AttentionEvent } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
 import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
@@ -14,9 +18,10 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notification
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
-import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentChatSnapshot, PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
 import type { ChatItem } from '../../shared/agents/chat'
+import { chatModelOptions } from '../../shared/agents/models'
 import { removeScratch } from '../../test/removeScratch'
 
 /** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
@@ -70,6 +75,27 @@ function injector(r: ReturnType<typeof rig>) {
     lines.receive(JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool.name, input: tool.input } }))
 }
 
+/** The latest non-empty list per thread that `events` pushed, as a snapshot carries them. */
+function latestTodos(events: readonly AgentChatEvent[]): AgentChatSnapshot['todos'] {
+  const latest = new Map<string | null, AgentChatSnapshot['todos'][number]['phases']>()
+  for (const event of events) if (event.type === 'todos') {
+    if (event.phases.length) latest.set(event.threadId, event.phases)
+    else latest.delete(event.threadId)
+  }
+  return [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+}
+/**
+ * A restart drops the old process's to-do lists. A resumed OMP session reports its own (its start's `get_state`, here
+ * the `init_resume` golden's) before the start returns; Claude reports none.
+ */
+async function expectRestartTodos(r: Rig, chat: ChatRef, kind: 'claude' | 'omp') {
+  const before = r.pushes.length
+  await r.sessions.start(chat)
+  const todos = r.sessions.snapshot(chat).todos
+  expect(todos).toEqual(latestTodos(r.pushes.slice(before)))
+  expect(todos.length > 0).toBe(kind === 'omp')
+}
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI lifecycle`, () => {
   it('persists and pushes a text turn in order and submits the kickoff only once', async () => {
     const r = rig(kind), chat = r.newChat('[text]')
@@ -86,9 +112,8 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI life
     await r.sessions.start(chat)
     expect(r.children).toHaveLength(1)
     await r.sessions.stop(chat)
-    await r.sessions.start(chat)
+    await expectRestartTodos(r, chat, kind)
     expect(r.writes.filter(line => JSON.parse(line).type === (kind === 'claude' ? 'user' : 'prompt'))).toHaveLength(1)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
   })
 
   it('prefers the routing firstMessage over the saved first prompt', async () => {
@@ -477,6 +502,32 @@ for (const kind of ['claude', 'omp'] as const) {
       expect(r.writes).toEqual(after)
     })
   }
+
+  it(`${kind} keeps a multi question pending on an unknown or repeated id, then writes the golden multiselect answer`, async () => {
+    const r = rig(kind), chat = r.newChat('[multiselect]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const pending = r.sessions.snapshot(chat).pending!
+    expect(pending).toMatchObject({ kind: 'question', multi: true, progress: { index: 1, total: 2 } })
+    const before = [...r.writes]
+    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0']]) {
+      await expect(r.sessions.answer(chat, { promptId: pending.id, optionIds })).rejects.toMatchObject({ code: 'invalid_input' })
+      expect(r.sessions.snapshot(chat).pending).toEqual(pending)
+    }
+    expect(r.writes).toEqual(before)
+    await r.sessions.answer(chat, { promptId: pending.id, optionIds: kind === 'claude' ? ['option_2', 'option_0'] : ['option_1', 'option_0'] })
+    const second = r.sessions.snapshot(chat).pending!
+    expect(second).toMatchObject({ multi: false, progress: { index: 2, total: 2 } })
+    expect(r.writes).toEqual(before)
+    await r.sessions.answer(chat, { promptId: second.id, optionId: 'option_0' })
+    const golden = readFileSync(join(import.meta.dirname, '__fixtures__', kind, 'question_multi.in.jsonl'), 'utf8').trim().split(/\r?\n/)[1]
+    expect(r.writes.at(-1)).toBe(golden)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const items = r.store.readTranscript(chat)!.items
+    expect(items.filter(item => item.kind === 'user_message').map(item => item.text))
+      .toEqual(['[multiselect]', kind === 'claude' ? 'A, C' : 'SQLite, Postgres', kind === 'claude' ? 'SQLite' : 'EU'])
+    expect(items.filter(item => item.kind === 'assistant_text').at(-1)?.text).toMatch(/^answers: /)
+  })
 
   it(`${kind} writes the allow_chat golden line but never answers a subsequent approval itself`, async () => {
     const r = rig(kind), chat = r.newChat('[approval_chat]')
@@ -1046,12 +1097,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     await r.sessions.start(chat)
     await eventually(() => r.pushes.some(event => event.type === 'todos' && event.phases.length > 0))
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
-    const latest = new Map()
-    for (const event of r.pushes) if (event.type === 'todos') {
-      if (event.phases.length) latest.set(event.threadId, event.phases)
-      else latest.delete(event.threadId)
-    }
-    const todos = [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+    const todos = latestTodos(r.pushes)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
     for (const file of filesUnder(r.userData)) {
       expect(file).not.toContain('"type":"todos"')
@@ -1059,8 +1105,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     }
     await r.sessions.stop(chat)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
-    await r.sessions.start(chat)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
+    await expectRestartTodos(r, chat, kind)
   })
 
   it('deletes only after the process is dead and its grant is revoked', async () => {
@@ -1079,27 +1124,38 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI untrack and agent removal`, () => {
   it('untracking the folder stops its GUI process, revokes its grant and refuses starts until the untrack is done', async () => {
-    const r = rig(kind), chat = r.newChat(), other = r.newChat(undefined, null)
+    const r = rig(kind), chat = r.newChat(), elsewhere = join(r.root, 'other folder')
+    mkdirSync(elsewhere)
+    const sibling = r.newChat(undefined, elsewhere), other = r.newChat(undefined, null)
     await r.sessions.start(chat)
+    await r.sessions.start(sibling)
     await r.sessions.start(other)
-    const pid = r.children[0].pid!
+    const pid = r.children[0].pid!, siblingPid = r.children[1].pid!
     const seen: unknown[] = []
+    // The rig's folder check runs only on `tick`, which this test never calls: the release alone stops the chat.
     await r.sessions.releaseFolder(r.repo, async () => {
       seen.push(alive(pid), [...r.revoked], r.sessions.isLive(chat))
       await r.sessions.start(chat).then(() => seen.push('started'), (error: Error) => seen.push(error.message))
     })
     expect(seen).toEqual([false, ['grant-1'], false, "The chat's folder is being untracked."])
-    expect(r.children).toHaveLength(2)
-    expect(r.sessions.isLive(other)).toBe(true)
+    expect(r.children).toHaveLength(3)
+    expect([alive(siblingPid), r.sessions.isLive(sibling), r.sessions.isLive(other)]).toEqual([true, true, true])
+    expect(r.revoked).toEqual(['grant-1'])
   })
 
-  it('removing the agent stops the GUI processes of its chats and revokes their grants', async () => {
-    const r = rig(kind), chat = r.newChat()
+  it('removing the agent stops only the GUI processes of its chats and revokes only their grants', async () => {
+    const r = rig(kind), otherAgent = kind === 'claude' ? 'omp' : 'claude'
+    r.deps.agentFor = id => builtInAgent(id as typeof kind, { executablePath: r.executable })
+    const chat = r.newChat()
+    const kept = r.store.createChat({ folder: r.repo, agent: otherAgent, model: null, role: 'worker', allowSave: false, surface: 'gui' })
     await r.sessions.start(chat)
-    const pid = r.children[0].pid!
+    await r.sessions.start(kept)
+    const pid = r.children[0].pid!, keptPid = r.children[1].pid!
     await r.sessions.endAgent(kind)
     expect([alive(pid), r.revoked, r.sessions.isLive(chat)]).toEqual([false, ['grant-1'], false])
+    expect([alive(keptPid), r.sessions.isLive(kept)]).toEqual([true, true])
     await r.sessions.endAgent('codex')
+    expect(r.sessions.isLive(kept)).toBe(true)
   })
 })
 
@@ -1524,5 +1580,216 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} run-stalled att
   for (const [name, fires, run] of stallCases) it(name, async () => {
     const { fired, event } = await run(kind)
     expect(fired).toEqual(Array.from({ length: fires }, () => event))
+  })
+})
+
+/** The fake omp's catalog (the redacted host catalog), normalized as `agentChat:models` serves it. */
+const ompCatalog = chatModelOptions(JSON.parse(readFileSync(join(import.meta.dirname, '__fixtures__', 'omp', 'models.json'), 'utf8')))
+const SOL = { provider: 'openai-codex', modelId: 'gpt-6-sol', effort: 'medium' } as const
+
+const sentSince = (r: Rig, from: number) => r.writes.slice(from).map(line => JSON.parse(line) as Record<string, unknown>)
+
+describe('Skitarii model switching (agentChat:setModel): idle chats and relaunch', () => {
+  it('switches an idle chat: set_model then set_thinking_level, both answered, then get_state; the record keeps both and the transcript says so', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    expect(await r.sessions.start(chat)).toMatchObject({ model: null, thinking: 'off' })
+    const before = r.writes.length
+    const snapshot = await r.sessions.setModel(chat, SOL, async () => ompCatalog)
+    expect(sentSince(r, before)).toEqual([
+      { type: 'set_model', id: expect.any(String), provider: 'openai-codex', modelId: 'gpt-6-sol' },
+      { type: 'set_thinking_level', id: expect.any(String), level: 'medium' },
+      { type: 'get_state', id: expect.any(String) }
+    ])
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+    expect(snapshot).toMatchObject({ status: 'idle', model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+    const change = { kind: 'model_change', id: expect.stringMatching(/^model:/), at: expect.any(String), from: null, to: 'openai-codex/gpt-6-sol' }
+    expect(snapshot.items.at(-1)).toEqual(change)
+    expect(r.pushes).toContainEqual({ type: 'item', folder: chat.folder, chatId: chat.id, item: change })
+  })
+
+  it('relaunches a switched chat with --model and --thinking, and the new session confirms both with get_state', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    await r.sessions.setModel(chat, SOL, async () => ompCatalog)
+    await r.sessions.stop(chat)
+    await r.sessions.start(chat)
+    const launch = readFileSync(r.env.FAKE_AGENT_LOG!, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line)).filter(row => row.mode === 'omp').at(-1)
+    const argv = launch.argv as string[]
+    expect(argv.slice(argv.indexOf('--model'), argv.indexOf('--model') + 4)).toEqual(['--model', 'openai-codex/gpt-6-sol', '--thinking', 'medium'])
+    // The live session's own report wins over the record: a diverging record does not change what the snapshot says.
+    r.store.updateChat(chat, { thinking: 'high' })
+    expect(r.sessions.snapshot(chat)).toMatchObject({ model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+  })
+})
+
+describe('Skitarii model switching (agentChat:setModel): busy chats and refusals', () => {
+  it('sends a busy chat the switch at once without interrupting its turn, which then finishes', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    await r.sessions.send(chat, { text: '[slow]' })
+    expect(r.sessions.snapshot(chat).status).toBe('busy')
+    const before = r.writes.length
+    const snapshot = await r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-sonnet-5-5' }, async () => ompCatalog)
+    expect(snapshot).toMatchObject({ status: 'busy', model: 'anthropic/claude-sonnet-5-5' })
+    expect(sentSince(r, before).map(frame => frame.type)).toEqual(['set_model', 'get_state'])
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const items = r.sessions.snapshot(chat).items
+    expect(items.some(item => item.kind === 'turn_stopped')).toBe(false)
+    expect(items.some(item => item.kind === 'assistant_text')).toBe(true)
+    expect(r.writes.some(line => JSON.parse(line).type === 'abort')).toBe(false)
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'anthropic/claude-sonnet-5-5', thinking: 'off' })
+  })
+
+  it('refuses a model or effort the catalog does not list with nothing sent and nothing recorded', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const before = r.writes.length, record = r.store.getChat(chat)
+    await expect(r.sessions.setModel(chat, { provider: 'openai-codex', modelId: 'gpt-9' }, async () => ompCatalog)).rejects.toMatchObject({ code: 'invalid_input' })
+    await expect(r.sessions.setModel(chat, { ...SOL, effort: 'minimal' }, async () => ompCatalog)).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(r.writes.length).toBe(before)
+    expect(r.store.getChat(chat)).toEqual(record)
+    expect(r.sessions.snapshot(chat).items.some(item => item.kind === 'model_change')).toBe(false)
+  })
+
+  it('keeps the record when the live session refuses the model', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const record = r.store.getChat(chat)
+    const unknownToSession = [...ompCatalog, { ...ompCatalog[0], id: 'claude-retired' }]
+    await expect(r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-retired' }, async () => unknownToSession)).rejects.toMatchObject({ code: 'operation_unavailable' })
+    expect(r.store.getChat(chat)).toEqual(record)
+    expect(r.sessions.snapshot(chat)).toMatchObject({ model: null, thinking: 'off' })
+  })
+})
+
+describe('Skitarii model switching (agentChat:setModel): other chats', () => {
+  it('refuses a Claude chat with unsupported_agent before asking for a catalog or sending anything', async () => {
+    const r = rig('claude'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const before = r.writes.length, catalog = vi.fn(async () => ompCatalog)
+    await expect(r.sessions.setModel(chat, SOL, catalog)).rejects.toMatchObject({ code: 'unsupported_agent' })
+    expect(catalog).not.toHaveBeenCalled()
+    expect(r.writes.length).toBe(before)
+    expect(r.store.getChat(chat)?.model).toBeNull()
+  })
+
+  it('records a stopped chat\'s switch for its next launch without starting it, dropping a kept level the new model lacks', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    r.store.updateChat(chat, { model: 'anthropic/claude-haiku-4-5', thinking: 'minimal' })
+    const snapshot = await r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-opus-5-5' }, async () => ompCatalog)
+    expect(r.children).toEqual([])
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'anthropic/claude-opus-5-5', thinking: null })
+    expect(snapshot).toMatchObject({ status: 'exited', model: 'anthropic/claude-opus-5-5', thinking: null })
+    expect(snapshot.items).toEqual([{ kind: 'model_change', id: expect.any(String), at: expect.any(String), from: 'anthropic/claude-haiku-4-5', to: 'anthropic/claude-opus-5-5' }])
+  })
+})
+
+const SWATCH = readFileSync(fileURLToPath(new URL('./__fixtures__/images/swatch.png', import.meta.url)))
+/** The fake CLI's echo of one received image: its type, decoded length and SHA-256 prefix. */
+const SWATCH_ECHO = `received image image/png ${SWATCH.length} ${createHash('sha256').update(SWATCH).digest('hex').slice(0, 12)}`
+const inputFrames = (writes: readonly string[]) => writes.map(line => JSON.parse(line)).filter(frame => ['user', 'prompt', 'follow_up'].includes(frame.type))
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images`, () => {
+  it('sends a staged image by id: the agent receives its bytes and the transcript names only its ref', async () => {
+    const r = rig(kind), chat = r.newChat()
+    const image = await r.sessions.stageImage(chat, SWATCH)
+    expect(image).toMatchObject({ mime: 'image/png', bytes: SWATCH.length })
+    await r.sessions.send(chat, { text: '[tool] look', imageIds: [image.id] })
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle'
+      && r.sessions.snapshot(chat).items.some(item => item.kind === 'assistant_text' && item.text.includes(SWATCH_ECHO)))
+    const items = r.store.readTranscript(chat)!.items
+    expect(items.filter(item => item.kind === 'user_message')).toEqual([expect.objectContaining({ text: '[tool] look', images: [image] })])
+    expect(r.pushes.find(event => event.type === 'item' && event.item.kind === 'user_message')).toMatchObject({ item: { images: [image] } })
+    expect(inputFrames(r.writes).filter(frame => JSON.stringify(frame).includes(SWATCH.toString('base64')))).toHaveLength(1)
+    const transcript = filesUnder(join(r.userData, 'agents', 'chats')).join('\n')
+    expect(transcript).toContain(image.id)
+    expect(transcript).not.toContain(SWATCH.toString('base64'))
+    expect(JSON.stringify(r.pushes)).not.toContain(SWATCH.toString('base64'))
+  })
+
+  it('refuses an unknown id or one staged for another chat, writing nothing to the agent and storing nothing', async () => {
+    const r = rig(kind), chat = r.newChat(), other = r.newChat()
+    const foreign = await r.sessions.stageImage(other, SWATCH)
+    const unknown = `ci_${'0'.repeat(26)}`
+    // Refused before the chat starts: no process is spawned for it.
+    await expect(r.sessions.send(chat, { text: 'look', imageIds: [foreign.id] })).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(r.children).toHaveLength(0)
+    await r.sessions.start(chat)
+    const before = [...r.writes]
+    for (const id of [foreign.id, unknown]) {
+      await expect(r.sessions.send(chat, { text: 'look', imageIds: [id] })).rejects.toMatchObject({ code: 'invalid_input' })
+    }
+    expect(r.writes).toEqual(before)
+    expect(inputFrames(r.writes)).toEqual([])
+    expect(r.store.readTranscript(chat)!.items).toEqual([])
+    expect(r.pushes.filter(event => event.type === 'item')).toEqual([])
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images, queued and from tools`, () => {
+  it('keeps a queued send’s images', async () => {
+    const r = rig(kind), chat = r.newChat()
+    const image = await r.sessions.stageImage(chat, SWATCH)
+    await r.sessions.send(chat, { text: '[slow]' })
+    await r.sessions.send(chat, { text: '', imageIds: [image.id] })
+    const frames = inputFrames(r.writes)
+    expect(frames.map(frame => frame.type)).toEqual(kind === 'claude' ? ['user', 'user'] : ['prompt', 'follow_up'])
+    expect(JSON.stringify(frames[1])).toContain(SWATCH.toString('base64'))
+    expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'user_message').map(item => item.images)).toEqual([undefined, [image]])
+  })
+
+  it('keeps an [image] tool result under the chat’s image directory and stores its tool_call with the one ref', async () => {
+    const r = rig(kind), chat = r.newChat()
+    await r.sessions.send(chat, { text: '[image]' })
+    const withImage = () => r.store.readTranscript(chat)!.items.filter((item): item is Extract<ChatItem, { kind: 'tool_call' }> => item.kind === 'tool_call')
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && withImage().some(item => (item.images?.length ?? 0) > 0))
+    const calls = withImage()
+    expect(calls).toHaveLength(1)
+    expect(calls[0].images).toHaveLength(1)
+    const [image] = calls[0].images!
+    expect(image).toMatchObject({ mime: 'image/png' })
+    const dir = join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id)
+    expect(readdirSync(dir)).toEqual([`${image.id}.png`])
+    const stored = await r.chatImages.read({ folder: chat.folder, chatId: chat.id }, image.id)
+    expect(stored?.bytes.byteLength).toBe(image.bytes)
+    expect(r.pushes.some(event => event.type === 'item' && event.item.kind === 'tool_call' && event.item.images?.[0]?.id === image.id)).toBe(true)
+    expect(filesUnder(join(r.userData, 'agents', 'chats')).join('\n')).not.toContain(Buffer.from(stored!.bytes).toString('base64'))
+  })
+
+  it('drops a tool image the store refuses and notes it on the item', async () => {
+    const r = rig(kind), chat = r.newChat()
+    r.deps.chatImages = { ...r.chatImages, putToolImage: async () => { throw new DomainError('invalid_input', 'Refused image.') } }
+    await r.sessions.send(chat, { text: '[image]' })
+    const call = () => r.store.readTranscript(chat)!.items.find((item): item is Extract<ChatItem, { kind: 'tool_call' }> => item.kind === 'tool_call')
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && (call()?.resultSummary ?? '').includes('image not shown (invalid)'))
+    expect(call()!.images).toBeUndefined()
+    expect(existsSync(join(r.userData, 'agents', 'chat-images'))).toBe(false)
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images across a restart`, () => {
+  it('deletes a restarted chat only after the old process’s tool image has landed, leaving no image directory', async () => {
+    const r = rig(kind), chat = r.newChat()
+    let release = (): void => undefined, storing = false
+    const landed = new Promise<void>(resolve => { release = resolve })
+    // A failing assertion still lets the held image land before the rig's dispose waits for it.
+    cleanups.unshift(async () => release())
+    const images = r.chatImages
+    r.deps.chatImages = { ...images, putToolImage: async (ref, bytes) => { storing = true; await landed; return images.putToolImage(ref, bytes) } }
+    await r.sessions.send(chat, { text: '[image]' })
+    await eventually(() => storing)
+    await r.sessions.stop(chat)
+    await r.sessions.start(chat)
+    const steps: string[] = []
+    const deleting = r.sessions.deleteChat(chat, async () => { steps.push('remove'); r.store.deleteChat(chat) })
+    // The restarted process has fully stopped; a macrotask turn flushes the deletion's remaining microtasks, so only the
+    // old tool image can still hold it.
+    await eventually(() => steps.length > 0 || !r.sessions.isLive(chat))
+    await new Promise(resolve => setImmediate(resolve))
+    expect(steps).toEqual([])
+    release()
+    await deleting
+    expect(steps).toEqual(['remove'])
+    expect(existsSync(join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id))).toBe(false)
   })
 })

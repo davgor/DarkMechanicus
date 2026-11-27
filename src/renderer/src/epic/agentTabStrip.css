@@ -1,0 +1,250 @@
+/* The epic's top-level agents as browser tabs: rounded tops, the active tab joined to the chat header below it. */
+.ats {
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.ats-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ats-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 180px;
+  /* An explicit width, so the list's own size counts each tab at full width before it shrinks. */
+  width: 180px;
+  min-width: 96px;
+  height: 32px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--muted);
+}
+
+.ats-tab:hover {
+  background: var(--panel-2);
+  color: var(--ink-2);
+}
+
+/* The active tab takes the chat header's surface and covers the strip's line, so the two read as one. */
+.ats-tab.is-active {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.ats-tab.is-active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  background: var(--panel);
+}
+
+/* A separator between two inactive tabs, as in a browser. */
+.ats-tab:not(.is-active) + .ats-tab:not(.is-active)::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -2px;
+  width: 1px;
+  background: var(--line);
+}
+
+.ats-tab.is-stopped .ats-name {
+  font-style: italic;
+}
+
+.ats-select {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 10px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ats-select:focus-visible,
+.ats-close:focus-visible,
+.ats-new:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.ats-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.ats-tab:not(.is-active) .ats-icon {
+  opacity: 0.7;
+}
+
+.ats-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.ats-spinner {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--line);
+  border-top-color: var(--st-running);
+  border-radius: 50%;
+  animation: ats-spin 0.9s linear infinite;
+}
+
+@keyframes ats-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ats-spinner {
+    animation: none;
+  }
+}
+
+.ats-needs-you {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--attention);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ats-unread {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.ats-close,
+.ats-new {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ats-close {
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+}
+
+.ats-new {
+  width: 26px;
+  height: 26px;
+  margin-bottom: 3px;
+}
+
+.ats-close:hover,
+.ats-new:hover {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+
+.ats-reopen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.ats-reopen h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.ats-reopen ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ats-reopen-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ats-reopen-row:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+
+.ats-reopen-name {
+  flex: none;
+  font-weight: 600;
+}
+
+.ats-reopen-meta {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 12px;
+}

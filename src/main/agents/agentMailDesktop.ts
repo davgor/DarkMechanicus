@@ -8,8 +8,9 @@
  * and not be deleted. Everything runs as the person through the folder's held desktop workspace (`mail.manage`,
  * human-only: no grant carries it) and the desktop service functions; never as, or on behalf of, an agent session.
  *
- * **Seen is not acknowledged.** Reading a page neither acknowledges for the agent nor marks it seen. The seen cursor
- * moves forward only, and only up to the highest sequence an inbox page actually served to the window, so a message
+ * **Seen is not acknowledged.** Reading a page or a chat's conversation (its GUI transcript's mail cards, received
+ * and sent, bodies masked) neither acknowledges for the agent nor marks it seen. The seen cursor moves forward only,
+ * and only up to the highest sequence an inbox page or conversation actually served to the window, so a message
  * that arrived after the window rendered stays unseen.
  *
  * **Automatic delivery.** Every eligible tracked folder is monitored without opening Inbox. Exact host-body receipts,
@@ -27,10 +28,12 @@ import { DomainError, fail } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
 import { AGENT_MAIL_LIMITS } from '../../core/services/agentMailStore'
 import { chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
-import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
+import { formatCallsign, rootCallsignOf } from '../../shared/agents/callsign'
+import type { ChatMailConversation, ChatMailPage, ChatMailParty, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { AgentMailMessageView } from '../../shared/domain/agentMail'
 import type { FolderRegistry } from '../desktop/folderRegistry'
+import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import { answer, chatFolder, folderSchema } from './chatHandlers'
 import { hasMailbox } from './chatMailboxes'
 import type { ChatStore } from './chatStore'
@@ -51,6 +54,7 @@ const readSchema = z.strictObject({
   unacknowledgedOnly: z.boolean().optional()
 })
 const seenSchema = z.strictObject({ ...refShape, throughSeq: seq.min(1) })
+const conversationSchema = z.strictObject({ ...refShape, limit: z.number().int().min(1).max(AGENT_MAIL_LIMITS.conversationSize).optional() })
 
 export interface AgentMailDesktopDeps {
   registry: Pick<FolderRegistry, 'resolve'>
@@ -83,6 +87,7 @@ export interface ChatMailHandlers {
   snapshot(folder: unknown): Promise<CommandResult<ChatMailSnapshot>>
   state(request: unknown): Promise<CommandResult<ChatMailState>>
   read(request: unknown): Promise<CommandResult<ChatMailPage>>
+  conversation(request: unknown): Promise<CommandResult<ChatMailConversation>>
   markSeen(request: unknown): Promise<CommandResult<ChatMailState>>
 }
 
@@ -119,6 +124,16 @@ function eligible(chats: readonly ChatRecord[]): ChatRecord[] {
 function fingerprint(state: ChatMailState): string {
   const { version: _version, ...rest } = state
   return JSON.stringify(rest)
+}
+
+/**
+ * How a mail card names a side: the callsign the chat record gives (Magos, Lexmechanic) when the chat is one of this
+ * folder's and not bound to another epic than `self`; otherwise the mailbox's stored name, labelled as a name.
+ */
+function mailParty(self: ChatRecord, chat: ChatRecord | undefined, name: string): ChatMailParty {
+  const otherEpic = chat?.epicId !== undefined && self.epicId !== undefined && chat.epicId !== self.epicId
+  const callsign = chat === undefined || otherEpic ? null : rootCallsignOf(chat)
+  return callsign === null ? { label: name, kind: 'name' } : { label: formatCallsign(callsign), kind: 'callsign' }
 }
 
 /** The service and its monitors: one watch per monitored folder, and per folder what inbox pages served. */
@@ -290,13 +305,23 @@ class ChatMailDesk {
     const chat = await this.chatAt(folder, state.chatId, true)
     if (chat === null) return true
     if (this.watches.get(folder) !== watch) return false
-    const problem = await delivery.resume(chat)
+    const problem = await this.wake(delivery, chat)
     if (this.watches.get(folder) !== watch) return false
     const key = `${folder}\0${chat.id}`
     if (problem === null) this.deliveryProblems.delete(key)
     else this.deliveryProblems.set(key, problem)
     state.delivery.problem = problem
     return true
+  }
+
+  /** The activation's answer, or its refusal (a GUI start or terminal attach the chat's state forbids) as the blocker. */
+  private async wake(delivery: NonNullable<AgentMailDesktopDeps['delivery']>, chat: ChatRecord): Promise<string | null> {
+    try {
+      return await delivery.resume(chat)
+    } catch (error) {
+      if (!(error instanceof DomainError)) this.deps.onUnexpectedError?.(error)
+      return error instanceof Error ? error.message : String(error)
+    }
   }
 
   private publishSweep(folder: string, states: ChatMailState[], watch: FolderWatch): void {
@@ -346,11 +371,33 @@ class ChatMailDesk {
     const box = await this.mailbox({ folder, chatId })
     const page = await box.workspace.call('mailRead', box.chat, window)
     if (this.deps.registry.resolve(box.folder) !== box.folder || !box.workspace.current) fail('unauthorized', 'This mailbox folder was closed.')
-    const highest = page.messages.reduce((max, message) => Math.max(max, message.seq), 0)
+    this.serve(box, page.messages.reduce((max, message) => Math.max(max, message.seq), 0))
+    return page
+  }
+
+  /** Records the highest sequence served to the window: the bound `markSeen` checks. */
+  private serve(box: ChatMailbox, highest: number): void {
     const folderServed = this.served.get(box.folder) ?? new Map<string, number>()
     folderServed.set(box.endpointId, Math.max(folderServed.get(box.endpointId) ?? 0, highest))
     this.served.set(box.folder, folderServed)
-    return page
+  }
+
+  /** The chat's received and sent mail as transcript cards: callsigns from the chat records, bodies and names masked. */
+  async conversation(input: unknown): Promise<ChatMailConversation> {
+    const { folder, chatId, limit } = parseInput(conversationSchema, input, 'chat mail conversation')
+    const box = await this.mailbox({ folder, chatId })
+    const view = await box.workspace.call('mailConversation', box.chat, limit)
+    if (this.deps.registry.resolve(box.folder) !== box.folder || !box.workspace.current) fail('unauthorized', 'This mailbox folder was closed.')
+    const chats = [...this.deps.store.listChats(box.folder), ...(await this.deps.routedChats?.(box.folder) ?? [])]
+    const byEndpoint = new Map(chats.flatMap((chat) => (chat.endpointId === undefined ? [] : [[chat.endpointId, chat] as const])))
+    const own = mailParty(box.chat, box.chat, box.chat.title)
+    const entries = view.messages.map(({ id, direction, seq: messageSeq, peer, inReplyTo, acceptedAt, body }) => {
+      const other = mailParty(box.chat, peer.deleted ? undefined : byEndpoint.get(peer.endpointId), peer.name)
+      const [from, to] = direction === 'received' ? [other, own] : [own, other]
+      return { id, direction, seq: messageSeq, from, to, inReplyTo, acceptedAt, body }
+    })
+    this.serve(box, entries.reduce((max, entry) => Math.max(max, entry.seq ?? 0), 0))
+    return maskAgentChatSecretsDeep({ entries, hasEarlier: view.hasEarlier })
   }
 
   async markSeen(input: unknown): Promise<ChatMailState> {
@@ -375,6 +422,7 @@ export function createAgentMailDesktop(deps: AgentMailDesktopDeps): AgentMailDes
       state: (input) =>
         answer(deps, async () => desk.stateOf(await desk.mailbox(parseInput(refSchema, input, 'chat mail request')))),
       read: (input) => answer(deps, () => desk.read(input)),
+      conversation: (input) => answer(deps, () => desk.conversation(input)),
       markSeen: (input) => answer(deps, () => desk.markSeen(input))
     },
     stopFolder: (folder) => desk.stopFolder(folder),

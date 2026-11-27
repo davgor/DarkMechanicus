@@ -1,10 +1,11 @@
 import { z } from 'zod'
-import type { ChatItem } from '../../shared/agents/chat'
+import { thinkingLevelSchema, type ChatItem } from '../../shared/agents/chat'
 import type { OmpCommand, OmpEvent, OmpState } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { ompTodoPhases } from './todoLists'
 import { ompAnswerPrompt, ompHoldPrompt } from './ompPrompts'
-import { threadClaim, type ThreadClaimEvent } from './translatorEvents'
+import { liftToolImages, type ToolResultBlob } from './toolResultImages'
+import { threadClaim, type CommandResultEvent, type ThreadClaimEvent } from './translatorEvents'
 
 type ObjectValue = Record<string, unknown>
 type ToolItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -15,9 +16,14 @@ const string = (value: unknown): string => typeof value === 'string' ? value : '
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 const inputSchema = z.record(z.string(), z.json())
 const quietFrames: Record<string, true> = { turn_start: true, agent_end: true, compaction_end: true, auto_retry_end: true, session_info_update: true, available_commands_update: true, command_output: true, config_update: true }
+/** A tool result's image blocks; `liftToolImages` decides which become blobs and which a "not shown" note. */
+function imageBlocks(value: unknown): { mime: unknown; data: unknown }[] {
+  return array(value).map(object).filter(block => block.type === 'image').map(block => ({ mime: block.mimeType, data: block.data }))
+}
 function contentText(value: unknown): string {
   if (typeof value === 'string') return maskAgentChatSecretsDeep(value)
-  return maskAgentChatSecretsDeep(array(value).map(object).filter(block => block.type === 'text').map(block => string(block.text)).join('\n'))
+  const text = array(value).map(object).filter(block => block.type === 'text').map(block => string(block.text)).join('\n')
+  return maskAgentChatSecretsDeep([text, ...liftToolImages('', imageBlocks(value)).notes].filter(Boolean).join('\n'))
 }
 function input(value: unknown): ToolItem['input'] {
   const result = inputSchema.parse(maskAgentChatSecretsDeep(object(value)))
@@ -36,7 +42,8 @@ function threadStatus(value: unknown): 'done' | 'failed' | 'running' {
 /** One reduction transaction; never retained by the session or exposed over IPC. */
 export class OmpReducer {
   readonly events: OmpEvent[] = []
-  readonly internalEvents: ThreadClaimEvent[] = []
+  readonly internalEvents: (ThreadClaimEvent | CommandResultEvent)[] = []
+  readonly blobs: ToolResultBlob[] = []
   constructor(readonly state: OmpState, readonly at: string) {}
 
   emit(event: OmpEvent): void { this.events.push(maskAgentChatSecretsDeep(event)) }
@@ -185,7 +192,12 @@ export class OmpReducer {
     const id = string(frame.toolCallId)
     const status = end ? frame.isError === true ? 'failed' : 'completed' : 'running'
     this.tool({ id, name: string(frame.toolName), args: frame.args, status, result: result.content })
+    if (end) this.liftImages(id, string(frame.toolName), result.content)
     if (end && frame.toolName === 'todo' && frame.isError === false) this.todos(object(result.details).phases, this.state.tools.get(id)?.threadId ?? null)
+  }
+  /** Blobs come from `tool_execution_end` only: toolResult messages, `turn_end` and `agent_end` repeat its images. */
+  liftImages(id: string, name: string, content: unknown): void {
+    if (id && name) this.blobs.push(...liftToolImages(maskAgentChatSecretsDeep(id), imageBlocks(content)).blobs)
   }
   clearTodos(): void { this.emit({ type: 'todos', threadId: null, phases: [] }) }
   thread(frame: ObjectValue): void {
@@ -227,6 +239,10 @@ export class OmpReducer {
   stateResponse(data: ObjectValue): void {
     this.state.sessionId = maskAgentChatSecretsDeep(string(data.sessionId)) || null
     this.state.sessionFile = maskAgentChatSecretsDeep(string(data.sessionFile)) || null
+    const model = object(data.model), provider = string(model.provider), id = string(model.id)
+    this.state.model = provider && id ? maskAgentChatSecretsDeep(`${provider}/${id}`) : null
+    const thinking = thinkingLevelSchema.safeParse(data.thinkingLevel)
+    this.state.thinking = thinking.success ? thinking.data : null
     if (data.todoPhases !== undefined) this.todos(data.todoPhases, null)
   }
   tail(data: ObjectValue, threadId: string): void {
@@ -238,13 +254,25 @@ export class OmpReducer {
     const id = string(frame.id)
     const command = this.state.commands.get(id)
     this.state.commands.delete(id)
+    if (command?.awaited) { this.commandResult(id, command.type, frame); return }
     if (frame.success === false) { this.commandError(frame, command?.type); return }
     if (frame.success !== true) { this.state.skipped++; return }
     if (!command || frame.command !== command.type) return
-    const data = object(frame.data)
+    this.commandData(command, object(frame.data))
+  }
+  commandData(command: { type: string; threadId?: string }, data: ObjectValue): void {
     if (command.type === 'negotiate_protocol') this.state.protocolVersion = 2
     if (command.type === 'get_state') this.stateResponse(data)
     if (command.type === 'get_subagent_messages' && command.threadId) this.tail(data, command.threadId)
+  }
+  /**
+   * Main's own request: its reply (or failure) goes only to the caller awaiting it, never into the transcript. A
+   * `get_state` reply also updates the session's model, thinking level and session ids as the start's does.
+   */
+  commandResult(id: string, type: string, frame: ObjectValue): void {
+    const ok = frame.success === true && frame.command === type
+    if (ok && type === 'get_state') this.stateResponse(object(frame.data))
+    this.internalEvents.push({ type: 'command_result', id, ok, data: ok ? frame.data : undefined })
   }
   commandError(frame: ObjectValue, type?: string): void {
     this.error(string(frame.error) || string(object(frame.error).message) || 'OMP command failed')
@@ -275,19 +303,20 @@ export class OmpReducer {
     else this.state.skipped++
   }
   recordAnswer(held: OmpState['pending'][number], command: Extract<OmpCommand, { type: 'answer' }>): void {
+    const ids = 'optionIds' in command ? command.optionIds : [command.optionId]
     this.emit({ type: 'item', item: { kind: 'approval_decision', id: `omp:decision:${held.prompt.id}`, at: this.at,
       ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), requestId: held.prompt.id,
-      decision: held.prompt.kind === 'question' ? 'allow_once' : command.optionId as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' } })
+      decision: held.prompt.kind === 'question' ? 'allow_once' : ids[0] as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' } })
     if (held.prompt.kind === 'question' && !held.secret) this.emit({ type: 'item', item: {
       kind: 'user_message', id: `omp:answer:${held.prompt.id}`, at: this.at,
       ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}),
-      text: command.optionId === 'text' ? command.text! : held.prompt.options.find(option => option.id === command.optionId)!.label
+      text: held.prompt.options.filter(option => ids.includes(option.id)).map(option => option.id === 'text' ? command.text! : option.label).join(', ')
     } })
   }
   answer(command: Extract<OmpCommand, { type: 'answer' }>): ObjectValue | null {
     const held = this.state.pending[0]
     if (!held || held.prompt.id !== command.promptId) return null
-    const answer = ompAnswerPrompt(held, command.optionId, command.text)
+    const answer = ompAnswerPrompt(held, 'optionIds' in command ? command.optionIds : command.optionId, command.text)
     if (!answer || (!answer.next && !answer.frame)) return null
     this.recordAnswer(held, command)
     if (answer.next) { this.state.pending[0] = answer.next; this.recordPrompt(answer.next); this.pending(); return null }
@@ -297,17 +326,22 @@ export class OmpReducer {
   }
   command(command: OmpCommand): ObjectValue | null {
     switch (command.type) {
-      case 'send': {
-        if (!this.state.initialized) throw new Error('OMP initialization must precede the first prompt')
-        const frame = { type: this.state.inFlight ? 'follow_up' : 'prompt', id: command.id, message: command.text }
-        this.state.inFlight = true
-        this.emit({ type: 'item', item: { kind: 'user_message', id: command.id, at: this.at, text: command.text } })
-        return frame
-      }
+      case 'send': return this.send(command)
       case 'interrupt': return { type: 'abort', id: command.id }
       case 'get_subagent_messages': return { type: command.type, id: command.id, subagentId: command.subagentId, fromByte: command.fromByte }
+      case 'get_available_models': case 'get_state': return { type: command.type, id: command.id }
+      case 'set_model': return { type: command.type, id: command.id, provider: command.provider, modelId: command.modelId }
+      case 'set_thinking_level': return { type: command.type, id: command.id, level: command.level }
       case 'answer': return this.answer(command)
     }
+  }
+  send(command: Extract<OmpCommand, { type: 'send' }>): ObjectValue {
+    if (!this.state.initialized) throw new Error('OMP initialization must precede the first prompt')
+    const images = command.images?.length ? { images: command.images.map(image => ({ type: 'image', mimeType: image.mime, data: image.base64 })) } : {}
+    const frame = { type: this.state.inFlight ? 'follow_up' : 'prompt', id: command.id, message: command.text, ...images }
+    this.state.inFlight = true
+    this.emit({ type: 'item', item: { kind: 'user_message', id: command.id, at: this.at, text: command.text } })
+    return frame
   }
 }
 const handlers = {

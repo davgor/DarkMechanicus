@@ -73,7 +73,9 @@ function app(
   const handlers = createAgentChatHandlers({
     registry: { resolve: path => path === gui.repo ? path : null },
     sessions: wiring.agentChats,
-    confirmTerminalStop: nativeTerminalStopConfirmation<unknown, unknown>({ windowFor: sender => sender === SENDER ? WINDOW : null, showMessageBox })
+    confirmTerminalStop: nativeTerminalStopConfirmation<unknown, unknown>({ windowFor: sender => sender === SENDER ? WINDOW : null, showMessageBox }),
+    models: { chatModels: async () => [], catalogModels: async () => [] },
+    evidence: { chats: gui.store, chatImages: gui.chatImages, workspace: () => { throw new Error('No evidence is attached in these tests.') } }
   })
   registerAgentChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: APP_URL }), handlers, event => event.sender)
   const invoke = async <T>(channel: string, request: unknown, event = TRUSTED) => (await listeners.get(channel)!(event, request)) as CommandResult<T>

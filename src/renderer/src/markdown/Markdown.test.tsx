@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
+import { ManualScheduler } from '../__mocks__/manualScheduler'
+import { CopyContext } from '../agentChat/CopyButton'
 import { InlineMarkdown, Markdown } from './Markdown'
 
 let opened: string[] = []
@@ -92,6 +94,42 @@ describe('Markdown structure', () => {
   it('keeps a list item that starts with a non-paragraph block', () => {
     const { container } = render(<Markdown source={'- # heading item'} />)
     expect(container.querySelector('li h3')?.textContent).toBe('heading item')
+  })
+})
+
+describe('Markdown code blocks', () => {
+  function renderCopyable(source: string): { container: HTMLElement; written: string[] } {
+    const written: string[] = []
+    const writeText = (text: string): Promise<void> => {
+      written.push(text)
+      return Promise.resolve()
+    }
+    const { container } = render(
+      <CopyContext.Provider value={{ writeText, scheduler: new ManualScheduler() }}>
+        <Markdown source={source} />
+      </CopyContext.Provider>
+    )
+    return { container, written }
+  }
+
+  it("copies a fenced block's code alone: no fences, no language tag, no surrounding prose", async () => {
+    const source = 'Add this:\n\n```ts\nconst a = 1\n  return a\n```\n\nThen run `npm test`.'
+    const { container, written } = renderCopyable(source)
+    const block = container.querySelector('.md-code-block') as HTMLElement
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Copy' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(written).toEqual(['const a = 1\n  return a'])
+    expect(within(block).getByRole('button').textContent).toBe('Copied')
+  })
+
+  it('gives each code block its own Copy and inline code none', () => {
+    const { container } = renderCopyable('`inline`\n\n```\none\n```\n\n```\ntwo\n```')
+
+    expect([...container.querySelectorAll('.md-code-block')].map((block) => [block.querySelector('pre code')?.textContent, block.querySelectorAll('button').length]))
+      .toEqual([['one', 1], ['two', 1]])
+    expect(container.querySelectorAll('button').length).toBe(2)
   })
 })
 

@@ -15,6 +15,8 @@ import { canonicalJson, contentHash } from '../canonical'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import type { IdGenerator } from '../ids'
+import type { AgentMailConversationMessageView, AgentMailConversationView } from '../../shared/domain/agentMail'
+import { CHAT_ROLES, type ChatRole } from '../../shared/agents/chat'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -23,6 +25,8 @@ export const AGENT_MAIL_LIMITS = {
   bodyBytes: 16 * 1024,
   /** Messages per inbox or status page. */
   pageSize: 50,
+  /** Messages, received and sent together, in one conversation view (the GUI transcript's mail cards). */
+  conversationSize: 200,
   /** Message ids per acknowledgement. */
   ackBatch: 100,
   /** Unacknowledged messages one recipient may hold. */
@@ -64,6 +68,10 @@ export interface MailEndpoint {
   /** Trusted desktop metadata, shown as plain text and never interpreted. */
   name: string
   state: MailEndpointState
+  /** Trusted desktop metadata (v38): the epic the chat is bound to, from main's chat record; null when it has none. */
+  epicId: string | null
+  /** Trusted desktop metadata (v38): the chat's Dark Mechanicus role, from main's chat record; null when unknown. */
+  chatRole: ChatRole | null
   /** The highest recipient sequence ever handed out; never reused, even after every message is gone. */
   lastSeq: number
   /** The person's own read cursor, independent of agent acknowledgement. */
@@ -146,6 +154,8 @@ interface EndpointRow {
   chat_id: string
   name: string
   state: MailEndpointState
+  epic_id: string | null
+  chat_role: ChatRole | null
   last_seq: number
   human_seen_seq: number
   created_at: string
@@ -184,7 +194,7 @@ interface ReceiptRow {
 }
 
 const ENDPOINT_COLUMNS =
-  'id, machine_id, chat_id, name, state, last_seq, human_seen_seq, created_at, updated_at, deleting_at, deleted_at'
+  'id, machine_id, chat_id, name, state, epic_id, chat_role, last_seq, human_seen_seq, created_at, updated_at, deleting_at, deleted_at'
 const BINDING_COLUMNS = 'grant_id, endpoint_id, machine_id, canonical_folder, bound_at, closed_at, close_reason'
 /** A message is retained while unacknowledged (no expiry) or until its expiry passes. */
 const RETAINED = '(m.expires_at IS NULL OR m.expires_at > ?)'
@@ -255,6 +265,8 @@ function endpointView(row: EndpointRow): MailEndpoint {
     chatId: row.chat_id,
     name: row.name,
     state: row.state,
+    epicId: row.epic_id,
+    chatRole: row.chat_role,
     lastSeq: row.last_seq,
     humanSeenSeq: row.human_seen_seq,
     createdAt: row.created_at,
@@ -322,15 +334,35 @@ function closeOpenBindings(db: Db, endpointId: string, at: string, reason: MailB
 
 // --- endpoints -----------------------------------------------------------------------------------------------------
 
+/** The trusted chat metadata main records on an endpoint from its own chat record; null for unknown. */
+export interface MailEndpointChatMeta {
+  epicId: string | null
+  chatRole: ChatRole | null
+}
+
+function requireChatMeta(input: Partial<MailEndpointChatMeta>): MailEndpointChatMeta {
+  const epicId = input.epicId === undefined || input.epicId === null ? null : requireText(input.epicId, 'epicId', AGENT_MAIL_LIMITS.chatIdChars)
+  const chatRole = input.chatRole ?? null
+  if (chatRole !== null && !CHAT_ROLES.includes(chatRole)) {
+    fail('invalid_input', 'chatRole must be planner, orchestrator, worker or reviewer.', { field: 'chatRole' })
+  }
+  return { epicId, chatRole }
+}
+
 /**
  * The endpoint for (machine, trusted chat id) in this project's database, created on first use. The same pair always
- * yields the same opaque id; a later call only refreshes the display name. A deleting or deleted endpoint is never
- * reopened: a deleted chat's identity stays a tombstone.
+ * yields the same opaque id; a later call only refreshes the display name and the trusted chat metadata (epic and
+ * role), where an omitted value records null. A deleting or deleted endpoint is never reopened: a deleted chat's
+ * identity stays a tombstone.
  */
-export function provisionEndpoint(deps: AgentMailDeps, input: { machineId: string; chatId: string; name: string }): MailEndpoint {
+export function provisionEndpoint(
+  deps: AgentMailDeps,
+  input: { machineId: string; chatId: string; name: string } & Partial<MailEndpointChatMeta>
+): MailEndpoint {
   const machineId = requireText(input.machineId, 'machineId', AGENT_MAIL_LIMITS.chatIdChars)
   const chatId = requireText(input.chatId, 'chatId', AGENT_MAIL_LIMITS.chatIdChars)
   const name = requireText(input.name.trim(), 'name', AGENT_MAIL_LIMITS.nameChars)
+  const { epicId, chatRole } = requireChatMeta(input)
   return deps.db.tx(() => {
     const at = now(deps).iso
     const existing = deps.db.get<EndpointRow>(
@@ -342,19 +374,28 @@ export function provisionEndpoint(deps: AgentMailDeps, input: { machineId: strin
       if (existing.state === 'deleting' || existing.state === 'deleted') {
         fail('invalid_state', 'This chat’s mailbox was deleted and cannot be reopened.', { endpointId: existing.id, state: existing.state })
       }
-      if (existing.name !== name) {
-        deps.db.run('UPDATE agent_mail_endpoints SET name = ?, updated_at = ? WHERE id = ?', name, at, existing.id)
+      if (existing.name !== name || existing.epic_id !== epicId || existing.chat_role !== chatRole) {
+        deps.db.run(
+          'UPDATE agent_mail_endpoints SET name = ?, epic_id = ?, chat_role = ?, updated_at = ? WHERE id = ?',
+          name,
+          epicId,
+          chatRole,
+          at,
+          existing.id
+        )
       }
       return endpointView(requireEndpoint(deps.db, existing.id))
     }
     const id = deps.ids.next('mailEndpoint')
     deps.db.run(
-      `INSERT INTO agent_mail_endpoints (id, machine_id, chat_id, name, state, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'open', ?, ?)`,
+      `INSERT INTO agent_mail_endpoints (id, machine_id, chat_id, name, state, epic_id, chat_role, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
       id,
       machineId,
       chatId,
       name,
+      epicId,
+      chatRole,
       at,
       at
     )
@@ -760,6 +801,69 @@ export function readInbox(deps: AgentMailDeps, input: WindowInput & { unacknowle
     )
     const page = pageOf(rows.map((message) => ({ ...metaView(message), body: message.body })), bounds.limit, bounds.afterSeq, bounds.throughSeq)
     return { messages: page.items, throughSeq: page.throughSeq, nextCursor: page.nextCursor, hasMore: page.hasMore }
+  })
+}
+
+interface SentRow {
+  id: string
+  recipient_endpoint_id: string
+  recipient_name: string
+  recipient_state: MailEndpointState
+  in_reply_to: string | null
+  accepted_at: string
+  body: string
+}
+
+/**
+ * The newest `limit` retained messages the mailbox received or sent, merged oldest first by acceptance. A sent message
+ * is one whose sender is this endpoint, in whichever mailbox received it, kept under the same retention as received
+ * mail (until seven days after its recipient acknowledged it). Another endpoint's mail is never read. Reading
+ * acknowledges nothing and marks nothing seen.
+ */
+export function readConversation(deps: AgentMailDeps, input: { endpointId: string; limit?: number }): AgentMailConversationView {
+  return deps.db.tx(() => {
+    const row = requireEndpoint(deps.db, input.endpointId)
+    const limit = pageLimit(input.limit, AGENT_MAIL_LIMITS.conversationSize)
+    const at = now(deps).iso
+    const received = deps.db.all<MessageRow & { body: string }>(
+      `SELECT ${MESSAGE_META_COLUMNS}, m.body
+       FROM agent_mail_messages m JOIN agent_mail_endpoints s ON s.id = m.sender_endpoint_id
+       WHERE m.recipient_endpoint_id = ? AND ${RETAINED}
+       ORDER BY m.recipient_seq DESC LIMIT ?`,
+      row.id,
+      at,
+      limit + 1
+    )
+    const sent = deps.db.all<SentRow>(
+      `SELECT m.id, m.recipient_endpoint_id, r.name AS recipient_name, r.state AS recipient_state, m.in_reply_to, m.accepted_at, m.body
+       FROM agent_mail_messages m JOIN agent_mail_endpoints r ON r.id = m.recipient_endpoint_id
+       WHERE m.sender_endpoint_id = ? AND ${RETAINED}
+       ORDER BY m.accepted_at DESC, m.id DESC LIMIT ?`,
+      row.id,
+      at,
+      limit + 1
+    )
+    const messages: AgentMailConversationMessageView[] = [
+      ...received.slice(0, limit).map((message) => {
+        const { id, seq, from, inReplyTo, acceptedAt } = metaView(message)
+        return { id, direction: 'received' as const, seq, peer: from, inReplyTo, acceptedAt, body: message.body }
+      }),
+      ...sent.slice(0, limit).map((message) => ({
+        id: message.id,
+        direction: 'sent' as const,
+        seq: null,
+        peer: {
+          endpointId: message.recipient_endpoint_id,
+          name: message.recipient_name,
+          deleted: message.recipient_state === 'deleted' || message.recipient_state === 'deleting'
+        },
+        inReplyTo: message.in_reply_to,
+        acceptedAt: message.accepted_at,
+        body: message.body
+      }))
+    ].sort((a, b) => (a.acceptedAt === b.acceptedAt ? (a.id < b.id ? -1 : 1) : a.acceptedAt < b.acceptedAt ? -1 : 1))
+    const hasEarlier = received.length > limit || sent.length > limit || messages.length > limit
+    return { messages: messages.slice(-limit), hasEarlier }
   })
 }
 

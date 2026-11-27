@@ -1,6 +1,5 @@
 import { DomainError } from '../../core/errors'
 import type { AgentView } from '../../shared/desktop/api'
-import { SHIM_HELP } from '../terminals/claudeExecutable'
 import { arbiterEnv } from '../terminals/terminalEnv'
 import { windowsAgentProgram, type TerminalLaunchInput } from '../terminals/terminalLaunchSpec'
 
@@ -36,7 +35,6 @@ export function arbiterLaunch(input: ArbiterLaunchInput): ArbiterLaunchSpec {
   if (protocol === 'omp' && !ompConfig) throw new DomainError('invalid_input', 'An OMP arbiter candidate requires a config overlay; OMP arbitration remains unsupported_kind.')
   const env = arbiterEnv(input.baseEnv, protocol)
   const program = windowsAgentProgram(agent, env, platform, input.shimFs)
-  if (program.viaShim) throw new Error(SHIM_HELP)
   const args = protocol === 'claude'
     ? ['-p', '--output-format', 'json', '--no-session-persistence', '--tools', '', '--strict-mcp-config', '--safe-mode', '--system-prompt', systemPrompt]
     : ['-p', '--mode', 'text', '--no-session', '--no-tools', '--no-lsp', '--no-extensions', '--no-skills', '--no-rules', '--no-context-files', '--no-title', '--max-time', '60', '--system-prompt', systemPrompt, '--cwd', tempDir, ...(ompConfig ? ['--config', ompConfig] : [])]

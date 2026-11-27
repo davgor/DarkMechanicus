@@ -1,0 +1,2 @@
+{"type":"prompt","id":"req_T1_prompt","message":"Ask which databases and region"}
+{"type":"extension_ui_response","id":"ui_T1_question_multi","answers":[{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]}

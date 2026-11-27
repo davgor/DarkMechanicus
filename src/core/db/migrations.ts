@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 37
+export const SCHEMA_VERSION = 38
 
 export interface Migration {
   version: number
@@ -1305,6 +1305,18 @@ CREATE INDEX delivery_checks_run ON delivery_checks(run_id, sprint_id);
 `
 // ─── End DM-835 ───
 
+// ─── DM-1047: trusted epic and role of agent mail endpoints ─────────────────────────────────────────
+/**
+ * v38 records, on each agent mail endpoint, the epic its chat is bound to and the chat's Dark Mechanicus role. Only
+ * main writes them, from its own chat record (never from an agent), so peers can trust them, unlike the display
+ * `name`. Both are nullable: rows that existed before this version, and chats with no epic binding, have none.
+ */
+const V38 = `
+ALTER TABLE agent_mail_endpoints ADD COLUMN epic_id TEXT;
+ALTER TABLE agent_mail_endpoints ADD COLUMN chat_role TEXT CHECK (chat_role IN ('planner','orchestrator','worker','reviewer'));
+`
+// ─── End DM-1047 ───
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -1355,7 +1367,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 34, sql: V34 },
   { version: 35, sql: V35 },
   { version: 36, sql: V36 },
-  { version: 37, sql: V37 }
+  { version: 37, sql: V37 },
+  { version: 38, sql: V38 }
 ]
 
 export function readSchemaVersion(db: Db): number {

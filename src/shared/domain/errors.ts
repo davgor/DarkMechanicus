@@ -12,9 +12,13 @@ export const DOMAIN_ERROR_CODES = [
   'busy_elsewhere',
   /** The selected agent kind has no protocol for the requested surface. */
   'unsupported',
+  /** The request needs another agent kind: switching a chat's model is for Skitarii (OMP) chats only. */
+  'unsupported_agent',
   /** No connected agent is signed in to start the chat with. */
   'no_agent',
   'response_too_large',
+  /** An agent-chat turn's encoded images exceed what the agent CLI reassembles in one line. */
+  'image_too_large',
   'operation_unavailable',
   'internal_error',
   'not_found',
