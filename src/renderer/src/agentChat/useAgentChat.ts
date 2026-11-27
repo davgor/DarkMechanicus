@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import type { AgentChatAnswer, AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
 import { useClock, type Clock } from '../epic/clock'
@@ -186,8 +186,7 @@ export function useAgentChat(
   const start = useCallback(() => load(() => api.start(identity)), [api, identity, load])
   const send = useCallback((text: string) => api.send({ ...identity, text }), [api, identity])
   const interrupt = useCallback(() => api.interrupt(identity), [api, identity])
-  const answer = useCallback((promptId: string, optionId: string, text?: string) =>
-    api.answer({ ...identity, promptId, optionId, ...(text === undefined ? {} : { text }) }), [api, identity])
+  const answer = useCallback((request: AgentChatAnswer) => api.answer({ ...identity, ...request }), [api, identity])
   const setSurface = useCallback((surface: AgentChatSnapshot['surface']) =>
     load(() => api.setSurface({ ...identity, surface }), true), [api, identity, load])
 

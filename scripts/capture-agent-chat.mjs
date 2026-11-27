@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-role-picker', 'question-multi',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 30 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 465_000
+/** A declared bound: 31 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 480_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -236,6 +236,14 @@ const STATE_CHECKS = {
     ['the idle draft grew to two lines and the empty busy composer holds one', (o) => composersOf(o)[0]?.lines === 2
       && composersOf(o)[1]?.lines === 1, (o) => JSON.stringify(composersOf(o).map((card) => card.lines))],
     ['both placeholders reply to the Magos', (o) => composersOf(o).every((card) => card.placeholder === 'Reply to Magos…')]
+  ],
+  'question-multi': [
+    ['a docked multi-select question headed Question 1 of 2 with its legend', (o) => o.questionCard?.progress === 'Question 1 of 2'
+      && matches(o.questionCard?.legend, /\S/), (o) => JSON.stringify(o.questionCard)],
+    ['Lint and Unit tests checked among the checkboxes, reading 2 selected', (o) => o.questionCard?.checkboxes >= 2
+      && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
+    (o) => JSON.stringify(o.questionCard)],
+    ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
