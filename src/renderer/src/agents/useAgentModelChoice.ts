@@ -48,6 +48,7 @@ function modelFor(picked: string | null, models: AgentModels): Model {
     case 'list':
       return listed(picked, models.models)
     case 'free':
+    case 'catalog':
       return typed(picked)
     case 'cli':
       return { value: '', model: null, valid: true }

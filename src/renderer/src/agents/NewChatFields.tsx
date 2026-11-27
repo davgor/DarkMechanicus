@@ -125,8 +125,8 @@ interface ModelChoiceProps {
 
 /**
  * Step two: the chosen agent's model as the app knows it without asking the agent (`agentModels`). Claude Code
- * picks from its curated aliases; Autonomous takes a typed id (empty for its default); the rest start on the
- * model their CLI picks. The CLI's own `/model` changes it once the chat runs.
+ * picks from its curated aliases; Autonomous and OMP take a typed id (empty for its default; OMP's catalog is served
+ * on `agentChat:models`); the rest start on the model their CLI picks. The CLI's own `/model` changes it once the chat runs.
  */
 export function ModelChoice({ models, value, valid, onChange }: ModelChoiceProps): JSX.Element {
   const id = useId()
@@ -144,7 +144,7 @@ export function ModelChoice({ models, value, valid, onChange }: ModelChoiceProps
           ))}
         </select>
       ) : null}
-      {models.kind === 'free' ? (
+      {models.kind === 'free' || models.kind === 'catalog' ? (
         <>
           <input
             id={id}
