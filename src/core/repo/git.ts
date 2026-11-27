@@ -435,6 +435,16 @@ export function createGitAdapter(
       const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
       return text === null ? null : parseCommitLine(text)
     },
+    mergeBase: async (a, b) => {
+      // Exit status 1 means the commits share no history; anything else that is not one commit id is a failure too.
+      const base = (await output(['merge-base', safeArg(a), safeArg(b)]))?.trim() ?? ''
+      return SHA_PATTERN.test(base) ? base : null
+    },
+    changedPaths: async (from, to) => {
+      // `-z` prints each path verbatim, NUL-terminated: no quoting of spaces or non-ASCII names.
+      const text = await output(['diff', '--name-only', '--no-renames', '-z', safeArg(from), safeArg(to), '--'])
+      return text === null ? null : text.split('\0').filter((path) => path !== '')
+    },
     ...recordPathQueries(root, fs, runSync),
     branchCommit: (name) => readBranchCommit(fs, root, runSync, name)
   }

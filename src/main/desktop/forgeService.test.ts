@@ -74,7 +74,9 @@ function gitExits(trace: ForgeFixtureTiming): GitExits {
         listFiles: (ref, pathspec) => timed('listFiles', () => git.listFiles(ref, pathspec)),
         showFile: (ref, path) => timed('showFile', () => git.showFile(ref, path)),
         isAncestor: (ancestor, descendant) => timed('isAncestor', () => git.isAncestor(ancestor, descendant)),
-        commitParents: ref => timed('commitParents', () => git.commitParents(ref))
+        commitParents: ref => timed('commitParents', () => git.commitParents(ref)),
+        mergeBase: (a, b) => timed('mergeBase', () => git.mergeBase(a, b)),
+        changedPaths: (from, to) => timed('changedPaths', () => git.changedPaths(from, to))
       }
     },
     async settled(): Promise<void> {
