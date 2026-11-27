@@ -195,3 +195,99 @@ The transcript has exactly 3 user_message items (lines 1, 152,652 and 152,680), 
 **Not repeated here.** The S2 packaged journey was run before the checkpoint, in the extracted v0.88.0 Portable with an isolated profile: 17 steps, recorded in the S2 report's deployment verification. This check did not launch a second instance of the person's installed app, which stays read-only. It confirms only that the installed asar carries the S2 code (5c).
 
 Nothing was restarted, installed, rerun or dispatched by this check.
+
+## S3 → S4 (2026-11-27)
+
+- **Ticket:** DM-881. Run `rn_01m8dkxc4sq5042d6k76q2r5x3` (run 2, plan revision 16 `rv_01m8drz8d8qqz934xa0c2vjy63`), attempt `at_01m8fey8ee1jmsg3csbmzbmebq`, claimed 2026-11-27T21:35:17.967Z (event 3976 `attempt.claimed`).
+- **Host:** Windows 10.0.26200 x64, Central Standard Time (UTC-6). The checks ran in worktree `C:\Users\davgo\dmwork\dm2-881` on branch `work2/dm-881`, based on `sprint/agent-gui-s4` @ `113a8588`.
+- **S3 increment (I):** `243d2407a7a9971aadb699deefc6dc66ce29dc29` on `epic-agent-gui-chat`, "Sprint 3: agent chat polish, images, role cards, tabs, Skitarii mail and model switching". Its tree `1e075f67c387f71623dfb28b0e2c35b452be1ab3` equals the tree of the acceptance-tested head `f3b28e9013a0740b912b32c5ccbaacfe70134032` (DM-767).
+- **Merge commit (M):** `5bd08ef09cd857762804a701c773ebebe54783c9`. It is PR #105, squash-merged.
+- **Release:** `v0.89.0`. The release commit R is `0c87dc387cec3a8f36ec3e9b17287d808113fd69`. CI on M failed, so Deploy skipped M; the release came from the next main commit, fix PR #106 (`95dc3ff2`), and contains M.
+
+### Checks
+
+| # | Check | Exact command | Output excerpt | Verdict |
+|---|---|---|---|---|
+| 1a | Fetch | `git fetch origin --tags --prune` | exit 0. `origin/main` = `0c87dc38…` = R, `origin/epic-agent-gui-chat` = `113a8588…` (merge of main v0.89.0 into the epic; its first-parent history holds I). | pass |
+| 2a | PR into main that holds I | `gh pr list --repo davgor/DarkMechanicus --state merged --head epic-agent-gui-chat --json number,mergeCommit,mergedAt,baseRefName` | First entry: `{"baseRefName":"main","mergeCommit":{"oid":"5bd08ef09cd857762804a701c773ebebe54783c9"},"mergedAt":"2026-11-27T20:05:28Z","number":105}` (then #102 from S2 and #98 from S1) | pass |
+| 2b | PR #105 head (cross-check) | `gh pr view 105 --repo davgor/DarkMechanicus --json number,title,headRefName,headRefOid,baseRefName,mergeCommit,mergedAt,state,url` | `"headRefName":"epic-agent-gui-chat","headRefOid":"243d2407a7a9971aadb699deefc6dc66ce29dc29","baseRefName":"main","state":"MERGED","url":"https://github.com/davgor/DarkMechanicus/pull/105"`. The PR head is exactly I. | pass |
+| 2c | M is on main | `git merge-base --is-ancestor 5bd08ef0… origin/main` (`origin/main` = `0c87dc38…`) | exit 0 | pass |
+| 3a | M carries I (ancestry) | `git merge-base --is-ancestor 243d2407… 5bd08ef0…`; `git merge-base --is-ancestor 243d2407… origin/main` | exit 1 and exit 1: squash merge. M has the single parent `20bcc083ea1c047830191aee35db31de9c0fb39a` (the v0.88.0 release commit). | squash, so 3b applies |
+| 3b | Squash rule (Fix 32) | `T = M^1 = 20bcc083…`; `B = git merge-base I M^1` = `20bcc083…`. For each `p` in `git diff --name-only --no-renames I^ I`: pass if `git diff --quiet I M -- p`; otherwise pass as "merged with target changes" if `! git diff --quiet B T -- p`; otherwise fail. | `I^..I`: 258 paths, identical=258, merged-with-target=0, fail=0. Over the whole sprint (`B..I`): 258 paths, identical=258, merged-with-target=0, fail=0. `git rev-parse I^{tree} M^{tree}` gives `1e075f67c387f71623dfb28b0e2c35b452be1ab3` for both, and `git diff --quiet I M` exits 0, so the trees are identical. (`git cherry M I` prints `- 243d2407…`, recorded only; it is not the proof.) | pass |
+| 4a | CI and Deploy for M | `gh run list --repo davgor/DarkMechanicus --commit 5bd08ef0… --json databaseId,workflowName,conclusion,status,event,createdAt`; `gh run view 46061210966 --json jobs`; `gh run view 46062217309 --json jobs` | CI Checks https://github.com/davgor/DarkMechanicus/actions/runs/46061210966 (push) **failure**: job `test-shards (app, 10/16)` failed, `src/main/agentChat/restartResume.wiring.test.ts > restart resume over the claude GUI session manager > switches a legacy terminal Magos to the GUI and resumes its same session once with the fixed text`, "Test timed out in 15000ms". Deploy https://github.com/davgor/DarkMechanicus/actions/runs/46062217309 (`workflow_run`) **skipped**: should_deploy, prepare, package-windows, package-mac and release all skipped. Dead Code Check 46061210834 success. **M itself was not released.** | M: CI failed, Deploy skipped (recorded, not a delivery) |
+| 4b | Fix and CI/Deploy that released M | `gh pr view 106 --json number,title,mergeCommit,mergedAt,state,url`; `gh run list --commit 95dc3ff2… --json databaseId,workflowName,conclusion,event`; `gh run view 46067040682 --json jobs` | PR #106 "Fix slow agent stop/launch on Windows that timed out restart-resume CI", MERGED 2026-11-27T20:53:02Z, mergeCommit `95dc3ff2583b08c729225e9027720baec6e4c847` (parent M). CI Checks https://github.com/davgor/DarkMechanicus/actions/runs/46066616601 (push) success. Dead Code Check 46066616566 success. Deploy https://github.com/davgor/DarkMechanicus/actions/runs/46067040682 (`workflow_run`, headSha `95dc3ff2…`) success, created 2026-11-27T20:57:01Z; jobs should_deploy, prepare, package-windows, package-mac and release all success. No dispatch or forced bump was used. | pass |
+| 4c | First release after M | `git log origin/main --ancestry-path 5bd08ef0..origin/main --grep "^chore: release v" --reverse --format="%H %s %cI"` | Only line: `0c87dc387cec3a8f36ec3e9b17287d808113fd69 chore: release v0.89.0 [skip ci] 2026-11-27T20:57:39Z`, so vX = **v0.89.0**. | pass |
+| 4d | Tag contains M; version matches | `git tag --contains 5bd08ef0…`; `git merge-base --is-ancestor 5bd08ef0… v0.89.0`; `git log -1 --format='%H %P %s %cI' 'v0.89.0^{commit}'`; `git show v0.89.0:package.json` | `v0.89.0` (the only tag). Ancestry exit 0. The tag commit `0c87dc38…` has parent `95dc3ff2…` (whose parent is M) and the message `chore: release v0.89.0 [skip ci]`. `"version": "0.89.0"` (line 3). The published `latest.yml` says `version: 0.89.0`, `path: DarkMechanicus-Setup-0.89.0.exe`, size 139028634, `releaseDate: '2026-11-27T21:01:44.526Z'`. | pass |
+| 4e | Release published | `gh release list --repo davgor/DarkMechanicus --limit 3 --json tagName,publishedAt,isDraft,isLatest` | `{"isDraft":false,"isLatest":true,"publishedAt":"2026-11-27T21:03:54Z","tagName":"v0.89.0"}` | pass |
+| 4f | Release assets | `gh release view v0.89.0 --repo davgor/DarkMechanicus --json tagName,isDraft,isPrerelease,publishedAt,url,assets`; `gh release download v0.89.0 -p latest.yml -O -` | `isDraft:false, isPrerelease:false`. Assets: `DarkMechanicus-Setup-0.89.0.exe` (139028634 bytes), `DarkMechanicus-Setup-0.89.0.exe.blockmap` (145037), `latest.yml` (360), `latest-mac.yml` (518), `DarkMechanicus-0.89.0-Portable.exe` (124748662), `DarkMechanicus-0.89.0-x64.dmg` and `-arm64.dmg` with blockmaps, and `builder-debug.yml`. URL: https://github.com/davgor/DarkMechanicus/releases/tag/v0.89.0 | pass |
+| 5a | Server version (informational only, Fix 33) | None | Not used. The verdict rests on 5(b) to 5(f). | informational |
+| 5b | Registry DisplayVersion | `powershell -NoProfile -Command "Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* \| Where-Object DisplayName -like 'DarkMechanicus*' \| Select-Object PSChildName,DisplayName,DisplayVersion,InstallLocation,UninstallString,Publisher \| ConvertTo-Json"` | `"PSChildName":"f8f71462-fd74-5b21-bb31-533505104320","DisplayName":"DarkMechanicus 0.89.0","DisplayVersion":"0.89.0","InstallLocation":null,"UninstallString":"\"C:\\Users\\davgo\\AppData\\Local\\Programs\\dark-mechanicus\\Uninstall DarkMechanicus.exe\" /currentuser","Publisher":"davgor"`. HKLM (incl. WOW6432Node): 0 matches. 0.89.0 ≥ 0.89.0. | pass |
+| 5c | Installed exe ProductVersion | `(Get-Item 'C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\DarkMechanicus.exe').VersionInfo`; asar read with the installed exe under `ELECTRON_RUN_AS_NODE` | Install folder `…\Programs\dark-mechanicus\`, per the `UninstallString`. `ProductVersion 0.89.0.0`, `FileVersion 0.89.0`, `ProductName DarkMechanicus`. Exe and `resources\app.asar` LastWriteTimeUtc 2026-11-27T20:59:24Z (build time). The asar `package.json` gives `0.89.0`. The asar (sha256 `61E6DFBF9AC8FB33EFC3A6796A0B381AB4CD8AA18622F4FB94E85DC5873A63B4`) contains the S3 IPC channels `agentChat:attachEvidence`, `agentChat:stageImage` and `chatMail:conversation` (2 each) and the "Worked for" label (1); `git grep -l` finds none of the four in `v0.88.0:src` and 3, 2, 3 and 8 files in `v0.89.0:src`. | pass |
+| 5d | Install / process provenance | `Get-CimInstance Win32_Process -Filter "Name='DarkMechanicus.exe'"` (main process: no `--type=`); `Get-Process DarkMechanicus \| Where-Object MainWindowTitle \| Select-Object Id,Path,StartTime,MainWindowTitle` | One main process: PID 13760 (parent 7672) runs `"C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\DarkMechanicus.exe" --updated`, created 2026-11-27T21:22:11.046Z, main window title "Dark Mechanicus". No isolated proof instance was running. The path is inside the install folder from 5(b). It started 18 min after `publishedAt` 21:03:54Z. | pass |
+| 5e | Installed header | Window capture of PID 13760 (`PrintWindow`), cropped to the sidebar header | The header reads `DARK MECHANICUS … v0.89.0`. Screenshots attached as attempt evidence (`dm881-header.png`, and `dm881-magos-live.png` for check 6). | pass |
+| 5f | Update restart was person-controlled | `%APPDATA%\dark-mechanicus\logs\main.log` | Local UTC-6: `15:21:52.378 Found version 0.89.0`, then block maps old `v0.88.0/DarkMechanicus-Setup-0.88.0.exe.blockmap` → new v0.89.0 (so the outgoing build was **v0.88.0**). Then `15:21:57.076 New version 0.89.0 has been downloaded`, `15:21:58.882 Restart resume marker written for 1 orchestrator chat(s).`, `15:21:58.883 Install on explicit quitAndInstall`, `Executing …DarkMechanicus-Setup-0.89.0.exe with args: --updated,/S,--force-run`, and `15:22:21.829 Restart resume sent chat chat_5c20535d-0320-4e28-8410-04e775097d19 the restart message.` In UTC: quitAndInstall 21:21:58.883Z, after publication at 21:03:54Z. | pass |
+| 6 | Magos continuity across the restart | See [check 6](#check-6-magos-continuity-s3--s4) | Same chat, same sessionId, same transcript and session file. The fixed restart message arrived as a user item, and the Magos continued the run and is live. | pass |
+| 7 | Claim order (Fix 64) | `list_events {runId, sinceSeq: 3800}` | PR #105 merged 20:05:28Z, fix PR #106 merged 20:53:02Z, Deploy published v0.89.0 21:03:54Z and the S3 report `rp_01m8fdrbv962kyb8v413kx1et5` was submitted 21:14:37Z (seq 3968), all before the checkpoint. Restart now (quitAndInstall) 21:21:58.883Z, then the restart message 21:22:21.623Z, then `checkpoint.approved` 21:34:06.251Z (seq 3970, `approvalId ap_01m8few2dafw8ss2b4mvq5scwb`, report `rp_01m8fdrbv962…`), then `checkpoint.advanced` 21:34:06.271Z (seq 3971, `policy: human`), then this ticket's `attempt.claimed` 21:35:17.967Z (seq 3976). The claim came after all three conditions. | pass |
+| 8 | s1-resume handles a legacy terminal Magos (Fix 60) | `npx vitest run src/main/agentChat/restartResume.test.ts src/main/agentChat/restartResume.wiring.test.ts` (in this worktree, `113a8588`; `git diff --stat v0.89.0 HEAD` on the three restartResume files is empty) | `Test Files 2 passed (2)`, `Tests 46 passed (46)`. With `-t "legacy terminal" --reporter=verbose`: 4 passed, including `switches a legacy terminal Magos with a run to the GUI before resuming it once` and `switches a legacy terminal Magos to the GUI and resumes its same session once with the fixed text` (claude and omp). `v0.89.0:src/main/agentChat/restartResume.ts:160` switches with `setSurface(ref, 'gui')` when `chat.surface !== 'gui'`. This is the test that timed out in CI 46061210966 on M; PR #106 fixed the slow launch and CI 46066616601 passed. The chat checked here was a GUI chat, so this restart did not use the switch. | pass |
+| 9 | Pre-restart record line (Fix 73) | `git log --all --since=2026-11-27T20:00Z -S'pre-restart: chatId=' --format='%h %cI %s'`; `get_sprint_report {runId, sprintId: sp_01m7x2qsm2r0kreb3bm8rt92hx}`; transcript search for `pre-restart` in assistant items before the restart | No output from the `git log`; the saved S3 report (`contentHash sha256:933efdfd5de505ed3a1819bd7fd7488c17a43f461b9d188006271ec0dceb5c19`, created 21:14:36.265Z) and the transcript before line 414,501 contain no `pre-restart:` line, `chat_5c…` or `01a21b3e…`. **The Magos did not append a `pre-restart: chatId=… sessionId=… lastItemId=…` line before this restart.** Check 6 compares against the pre-restart records that do exist (below). | fail (Fix 73 step not performed) |
+
+### Check 6: Magos continuity (S3 → S4)
+
+**Pre-restart record.** No Fix 73 line exists for this restart (check 9). The pre-restart identity is taken from records written before quitAndInstall at 21:21:58.883Z:
+
+- The S2 → S3 section of this file, on `origin/epic-agent-gui-chat` in I (committed 2026-11-27T19:36:37Z), names chatId `chat_5c20535d-0320-4e28-8410-04e775097d19` and sessionId `01a21b3e-b51c-77d1-b89d-0b423dd491b7`.
+- `index.jsonl` line 11 (below), written 11:09:37Z.
+- `~/.omp/logs/omp.2026-11-27.296.log`, the pre-restart OMP process.
+
+**Chat record.** In `%APPDATA%\dark-mechanicus\agents\chats\2533781e6011d5e1db813969\index.jsonl` (17 lines), `chat_5c20535d…` has records on lines 9 to 12:
+
+- Line 11, the last before this restart: `sessionId "01a21b3e-b51c-77d1-b89d-0b423dd491b7"`, `runId rn_01m8dkxc4sq5042d6k76q2r5x3`, `role orchestrator`, `surface "gui"`, `updatedAt 2026-11-27T11:09:37.040Z`, `grantIds ["gr_01m8eb4j6g3rq9dy2efr0v3vea"]`, `sessionStarted true`.
+- Line 12, written by the restart resume: the same `sessionId "01a21b3e-b51c-77d1-b89d-0b423dd491b7"`, run, role and `surface "gui"`, with `updatedAt 2026-11-27T21:22:18.199Z` and the fresh grant `grantIds ["gr_01m8fe6bra2jv5v7y87v87sq0d"]`.
+
+**Transcript.** `chat_5c20535d-0320-4e28-8410-04e775097d19.jsonl` survives. When read at about 21:40Z it had 415,669 items, all valid JSON.
+
+| Line | Kind | id | at (UTC) | Content |
+|---|---|---|---|---|
+| 1 | user_message | `3b27d4ff-301c-4598-b0e0-5681638c50fd` | 2026-11-27T04:23:44.582Z | Kickoff: "Run this Dark Mechanicus epic as its orchestrator…" |
+| 152,652 | user_message | `53949094-590a-44f9-b293-6c92bbbcea4f` | 2026-11-27T11:09:39.108Z | The previous restart message, v0.87.0 → v0.88.0 (still present) |
+| 414,500 | assistant_text | `omp:215f9e44-6f97-44b0-a0d4-de797c4bea72:main:message:591:0` | 2026-11-27T21:16:34.636Z | "Sprint 4 can't start yet: the server hasn't recorded your approval…". This is the last item before the restart and the latest `at` among lines 1 to 414,500. |
+| 414,501 | user_message | `d0d3ddce-4769-48c6-b8fb-53abfd53163b` | 2026-11-27T21:22:21.623Z | `[App restarted after an update from v0.88.0 to v0.89.0: resume your run from get_run]` |
+| 414,502 | tool_call | `toolu_01GtJiEb2R7hKBj9FGw7mYGw` | 2026-11-27T21:22:27.171Z | The resumed Magos's first action, 6 s after the message |
+| 414,556 | user_message | `59353ea3-951e-4bb5-a2b5-e06aaa52beeb` | 2026-11-27T21:34:15.825Z | The person's first message after the restart |
+
+Before the restart the transcript has exactly 3 user_message items (lines 1, 152,652 and 152,680), so nothing was typed into the chat between the last pre-restart item and the restart message.
+
+**Session.** The OMP session file is `%APPDATA%\dark-mechanicus\agents\omp\chat_5c20535d…\sessions\2026-11-27T04-23-44-156Z_01a21b3e-b51c-77d1-b89d-0b423dd491b7.jsonl` (19,269,169 bytes when read), and it is still the only session file.
+
+- `~/.omp/logs/omp.2026-11-27.296.log` (pid 296, the pre-restart process) carries sessionId `01a21b3e…` from 05:09:42 local and logs `Session exit recorded`, `sessionId 01a21b3e-b51c-77d1-b89d-0b423dd491b7` at 15:21:59.565 local (21:21:59.565Z), the moment of quitAndInstall.
+- `~/.omp/logs/omp.2026-11-27.18256.log` (pid 18256, `omp.exe`, created 21:22:18.723Z) carries the **same sessionId `01a21b3e-b51c-77d1-b89d-0b423dd491b7`** from 15:22:22 local (21:22:22Z), and was still logging for it at 21:37:07Z.
+
+**Live.** PID 18256 is running. The installed window capture (`dm881-magos-live.png`, taken 21:38:36Z) shows the epic "Agent chats in the epic" with `RUNNING`, "Run #2 · pinned to rev 16 · Sprint 4 of 5", and the Magos tab with status `working`.
+
+**Result.**
+
+| Item | Finding |
+|---|---|
+| Same chatId as the pre-restart record | Yes: `chat_5c20535d-0320-4e28-8410-04e775097d19` |
+| Same sessionId before and after | Yes: `01a21b3e-b51c-77d1-b89d-0b423dd491b7`, in index lines 11 and 12, the session file name and both OMP logs |
+| Surface | `gui` before and after |
+| Live | Yes: OMP pid 18256 runs the session; the GUI shows the Magos `working` |
+| Prior transcript survives | Yes: lines 1 to 414,500 are intact, and the last pre-restart item is at 21:16:34.636Z |
+| Fixed restart message delivered by restart-resume | Yes: line 414,501 at 21:22:21.623Z, matching `main.log` `Restart resume sent chat chat_5c20535d… the restart message.` at 21:22:21.829Z |
+| The Magos continued its run | Yes: tool call at 21:22:27Z, then the S4 claim of this ticket at 21:35:17Z |
+
+### Verdict: **GO**, with one recorded deviation
+
+- I is on `origin/main` through squash PR #105 (M = `5bd08ef0`). M's tree is identical to I's, and all 258 paths pass the Fix 32 rule.
+- CI failed on M and Deploy 46062217309 **skipped** M, so M was not released by its own run. Fix PR #106 then passed CI (46066616601) and Deploy 46067040682 succeeded. The first release after M is **v0.89.0** (R = `0c87dc38`), published 2026-11-27T21:03:54Z, not a draft and not a prerelease, with `DarkMechanicus-Setup-0.89.0.exe` and `latest.yml`. R contains M.
+- The installed header, the registry `DisplayVersion`, the exe `ProductVersion` and the asar version all read 0.89.0, and the asar carries S3-only code. The running app is PID 13760 from the registry's install folder, started 21:22:11Z with `--updated`, after publication and after the person's Restart now.
+- The Magos kept its chatId, sessionId, surface and transcript across the v0.88.0 → v0.89.0 restart, received the fixed restart message and is live.
+- **Deviation (Fix 73):** no `pre-restart:` line was appended before this restart. Continuity was proved against the records written before the restart (S2 → S3 section, index line 11, OMP pid 296 log) instead.
+
+```json
+{"gate":"S3->S4","increment":"243d2407a7a9971aadb699deefc6dc66ce29dc29","mainCommit":"5bd08ef09cd857762804a701c773ebebe54783c9","mainCommitDeploy":"skipped","releaseCommit":"0c87dc387cec3a8f36ec3e9b17287d808113fd69","release":"v0.89.0","installedVersion":"0.89.0","processStart":"2026-11-27T21:22:11.046Z","magosChatId":"chat_5c20535d-0320-4e28-8410-04e775097d19","magosSessionId":"01a21b3e-b51c-77d1-b89d-0b423dd491b7","verdict":"GO","deviations":["fix73-no-pre-restart-line"]}
+```
+
+**Not repeated here.** The S3 packaged journey was run before the checkpoint, in the published v0.89.0 Portable with an isolated profile, and is recorded in the S3 report's deployment verification. This check did not launch a second instance of the person's installed app, which stays read-only. It confirms only that the installed asar carries the S3 code (5c).
+
+Nothing was restarted, installed, rerun or dispatched by this check.
