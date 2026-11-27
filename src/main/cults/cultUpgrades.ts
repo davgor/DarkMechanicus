@@ -70,7 +70,7 @@ export async function grantAllowSave(deps: UpgradeDeps, run: CultRunView, magos:
 export async function grantFolderAccess(deps: UpgradeDeps, run: CultRunView, magos: UpgradedMagos, folder: string): Promise<LedgerGrant> {
   const [target] = reachTargets(ensureScratchFolder(deps.userData, magos.chatId), [folder])
   const label = `${magos.displayName} · Cult folder access`
-  const issued = await deps.grants.issueReachCli([target!], { role: 'orchestrator', allowSave: false, label }, run.workDir)
+  const issued = await deps.grants.issueReachCli([target!], { role: 'orchestrator', allowSave: false, runSave: false, label }, run.workDir)
   const grantId = issued.grantIds[0]!
   const entry: LedgerGrant = { runId: run.id, chatId: magos.chatId, kind: 'folder_access', folder, grantId, tokenFile: target!.tokenFile }
   await deps.ledger.addGrant(entry)

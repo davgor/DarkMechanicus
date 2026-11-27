@@ -37,6 +37,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   cultConcludeRun: 'cult.act',
   cultConcludeService: 'cult.act',
   cultCreateWorkerType: 'cult.act',
+  cultRecordSynthesis: 'cult.act',
   getCapabilities: 'read',
   getProject: 'read',
   standardizeProjectWork: 'project.definition_of_done',

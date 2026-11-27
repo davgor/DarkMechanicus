@@ -191,15 +191,19 @@ export const eventPageSchema = z.object({
 })
 export type CultEventPageRequest = z.input<typeof eventPageSchema>
 
-export const reportInputSchema = z.object({
-  memberChatId: z.string().min(1),
-  slotId: z.string().min(1),
-  text: z
-    .string()
-    .min(1)
-    .refine((value) => new TextEncoder().encode(value).length <= MAX_REPORT_BYTES, 'A report is at most 32 KiB.'),
-  targetRevision: z.string().min(1).nullable().default(null)
-})
+/** A specialist report: of a roster slot or of a run worker type the member holds, never both. */
+export const reportInputSchema = z
+  .object({
+    memberChatId: z.string().min(1),
+    slotId: z.string().min(1).nullable().default(null),
+    runWorkerTypeId: z.string().min(1).nullable().default(null),
+    text: z
+      .string()
+      .min(1)
+      .refine((value) => new TextEncoder().encode(value).length <= MAX_REPORT_BYTES, 'A report is at most 32 KiB.'),
+    targetRevision: z.string().min(1).nullable().default(null)
+  })
+  .refine((report) => (report.slotId === null) !== (report.runWorkerTypeId === null), 'A report is of one slot or one run worker type.')
 export type SpecialistReportInput = z.input<typeof reportInputSchema>
 
 export interface CultView {
@@ -303,7 +307,10 @@ export interface SpecialistReportView {
   id: number
   runId: string
   memberChatId: string
-  slotId: string
+  /** The roster slot reported on; null for a run worker type's report. */
+  slotId: string | null
+  /** The run worker type (a Magos-created specialist) reported on; null for a slot's report. */
+  runWorkerTypeId: string | null
   text: string
   targetRevision: string | null
   submittedAt: string

@@ -394,7 +394,8 @@ describe('cult control: a Plan Forge council (c8)', () => {
     expect(listed.missingSlots).toEqual(STANDARD_WORKER_TYPES.filter((slot) => slot !== 'security'))
     expect(await call(magos, 'cult_conclude_run', { chronicle: 'Done.' })).toMatchObject(refusal('reports_missing'))
     for (const code of ['target_stale', 'plan_invalid'] as const) {
-      f.dispatch = createCultDispatcher(commandDeps({ council: { assertConclusion: () => fail(code, 'The council refuses.') } }))
+      const council = { governs: () => true, status: async () => null, recordSynthesis: () => fail('invalid_state', 'Unused.'), assertConclusion: async () => fail(code, 'The council refuses.') }
+      f.dispatch = createCultDispatcher(commandDeps({ council }))
       expect(await call(magos, 'cult_conclude_run', { chronicle: 'Done.' })).toMatchObject(refusal(code))
     }
     expect(f.h.cults.getRun(run.id)).toMatchObject({ state: 'running', chronicle: null })

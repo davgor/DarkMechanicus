@@ -58,6 +58,7 @@ const PROBES: Record<CommandName, unknown> = {
     rationale: 'Probe.',
     requiredForConclusion: false
   },
+  cultRecordSynthesis: { draftRevision: 1, recommendations: [{ workerType: 'security', recommendation: 'Probe.', decision: 'accepted', reason: 'Probe.' }] },
   getCapabilities: undefined,
   getProject: undefined,
   standardizeProjectWork: { expectedRevision: 1, includeInProgress: false },

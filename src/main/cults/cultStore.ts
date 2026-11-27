@@ -6,6 +6,7 @@
  */
 import type { Db } from '../../core/db/database'
 import type { DynamicWorkerTypeInput, RunWorkerType } from '../../shared/cults/archetypes'
+import type { CultRecordSynthesisArgs } from '../../shared/cults/cultControl'
 import type {
   CultEventInput,
   CultEventPage,
@@ -31,6 +32,7 @@ import * as members from './cultMembers'
 import * as petitions from './cultPetitions'
 import { findCult, type StoreContext } from './cultRecords'
 import * as runs from './cultRuns'
+import * as plans from './cultPlanRecords'
 
 export interface CultStore {
   createCult(input: CultInput): CultView
@@ -70,6 +72,12 @@ export interface CultStore {
   /** One `order_all` event with its order id, mailbox message ids and recipients. */
   recordOrder(runId: string, memberName: string, order: CultOrderData): CultEventView
   pageEvents(runId: string, request?: CultEventPageRequest): CultEventPage
+  /** Plan Forge: binds the run to its target epic and revisions once (`conflict` on a second binding). */
+  bindPlanTarget(runId: string, input: plans.PlanBindingInput): plans.PlanBinding
+  getPlanBinding(runId: string): plans.PlanBinding | null
+  /** Plan Forge: the Magos's synthesis of the reports, as inert JSON. */
+  recordSynthesis(runId: string, memberChatId: string, input: CultRecordSynthesisArgs): plans.SynthesisView
+  latestSynthesis(runId: string): plans.SynthesisView | null
 }
 
 export function createCultStore(options: { db: Db; now?: () => string }): CultStore {
@@ -102,6 +110,10 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     listPetitions: (runId) => petitions.listPetitions(ctx, runId),
     appendEvent: (runId, input) => petitions.appendEvent(ctx, runId, input),
     recordOrder: (runId, memberName, order) => petitions.recordOrder(ctx, runId, memberName, order),
-    pageEvents: (runId, request) => petitions.pageEvents(ctx, runId, request)
+    pageEvents: (runId, request) => petitions.pageEvents(ctx, runId, request),
+    bindPlanTarget: (runId, input) => plans.bindPlanTarget(ctx, runId, input),
+    getPlanBinding: (runId) => plans.getPlanBinding(ctx, runId),
+    recordSynthesis: (runId, memberChatId, input) => plans.recordSynthesis(ctx, runId, memberChatId, input),
+    latestSynthesis: (runId) => plans.latestSynthesis(ctx, runId)
   }
 }

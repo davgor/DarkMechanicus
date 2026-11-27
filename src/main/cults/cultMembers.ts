@@ -226,7 +226,8 @@ interface ReportRow {
   id: number
   run_id: string
   member_chat_id: string
-  slot_id: string
+  slot_id: string | null
+  run_worker_type_id: string | null
   text: string
   target_revision: string | null
   submitted_at: string
@@ -237,25 +238,28 @@ const toReportView = (row: ReportRow): SpecialistReportView => ({
   runId: row.run_id,
   memberChatId: row.member_chat_id,
   slotId: row.slot_id,
+  runWorkerTypeId: row.run_worker_type_id,
   text: row.text,
   targetRevision: row.target_revision,
   submittedAt: row.submitted_at
 })
 
-/** Stores a slot's report; only the live acolyte holding that slot may submit it. */
+/** Stores a specialist report; only the live acolyte holding that slot or run worker type may submit it. */
 export function submitReport(ctx: StoreContext, runId: string, input: SpecialistReportInput): SpecialistReportView {
   const report = parseInput(reportInputSchema, input)
   return ctx.db.tx(() => {
     requireActiveRun(ctx.db, runId)
     const member = requireMember(ctx.db, runId, report.memberChatId)
-    if (member.slot_id !== report.slotId || !isLive(member.state))
-      fail('unauthorized', `${member.display_name} does not hold slot ${report.slotId}.`)
+    const held = report.slotId === null ? member.run_worker_type_id === report.runWorkerTypeId : member.slot_id === report.slotId
+    if (!held || !isLive(member.state))
+      fail('unauthorized', `${member.display_name} does not hold ${report.slotId ?? report.runWorkerTypeId}.`)
     const inserted = ctx.db.run(
-      `INSERT INTO cult_specialist_reports (run_id, member_chat_id, slot_id, text, target_revision, submitted_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cult_specialist_reports (run_id, member_chat_id, slot_id, run_worker_type_id, text, target_revision, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       runId,
       report.memberChatId,
       report.slotId,
+      report.runWorkerTypeId,
       report.text,
       report.targetRevision,
       ctx.now()

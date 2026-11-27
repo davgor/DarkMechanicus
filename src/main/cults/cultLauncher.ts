@@ -64,6 +64,8 @@ export interface CultLauncherDeps {
   userData: string
   /** The Dark Mechanicus home, where db-mode projects live (`dbProjectDir`). */
   dmHome: string
+  /** Binds a Plan Forge run to its target's revisions before its Magos starts (`PlanForgeCouncil.bind`). */
+  bindTarget?: (run: CultRunView) => Promise<void>
 }
 
 /** An acolyte as the Magos (or the person) summons it; the name is generated when absent. */
@@ -217,6 +219,7 @@ async function launch(deps: CultLauncherDeps, launcher: CultLauncher, cultId: st
   const workDir = await launcher.prepareWorkspace(cult)
   const run = deps.cults.startRun(cultId, { workDir, ...options })
   try {
+    await deps.bindTarget?.(run)
     const magos = await startMagos(deps, run)
     if (magos.start.state !== 'running') fail('internal_error', `The Magos did not start: ${magos.start.message}`)
     return { run: deps.cults.transitionRun(run.id, { type: 'started' }), magos }
