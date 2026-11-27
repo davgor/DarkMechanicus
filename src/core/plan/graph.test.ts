@@ -812,28 +812,28 @@ describe('validatePlan orchestrator retry limit', () => {
   })
 })
 
-describe('validatePlan delivery warnings', () => {
-  const DELIVERY = { target: 'main', release: true, verifyInstalled: false }
+const DELIVERY = { target: 'main', release: true, verifyInstalled: false }
 
-  /** Sprint 1 {DM-1, acceptance DM-2}, sprint 2 {DM-3, acceptance DM-4}; `delivery` patches each sprint by ordinal. */
-  function deliveryPlan(delivery: Partial<Record<number, SprintDef['delivery']>>, acceptance = true): PlanBundle {
-    const bundle = makeBundle([[1, 2], [3, 4]])
-    return {
-      ...bundle,
-      tickets: bundle.tickets.map((ticket) =>
-        acceptance && (ticket.id === tid(2) || ticket.id === tid(4)) ? { ...ticket, kind: 'acceptance' } : ticket
-      ),
-      sprints: bundle.sprints.map((sprint) =>
-        delivery[sprint.ordinal] === undefined ? sprint : { ...sprint, delivery: delivery[sprint.ordinal] }
-      )
-    }
+/** Sprint 1 {DM-1, acceptance DM-2}, sprint 2 {DM-3, acceptance DM-4}; `delivery` patches each sprint by ordinal. */
+function deliveryPlan(delivery: Partial<Record<number, SprintDef['delivery']>>, acceptance = true): PlanBundle {
+  const bundle = makeBundle([[1, 2], [3, 4]])
+  return {
+    ...bundle,
+    tickets: bundle.tickets.map((ticket) =>
+      acceptance && (ticket.id === tid(2) || ticket.id === tid(4)) ? { ...ticket, kind: 'acceptance' } : ticket
+    ),
+    sprints: bundle.sprints.map((sprint) =>
+      delivery[sprint.ordinal] === undefined ? sprint : { ...sprint, delivery: delivery[sprint.ordinal] }
+    )
   }
+}
 
-  function deliveryWarningsOf(bundle: PlanBundle, repositories?: { name: string }[] | null): ValidationIssue[] {
-    const report = repositories === undefined ? validatePlan(bundle) : validatePlan(bundle, { repositories })
-    return report.warnings.filter((warning) => warning.code.startsWith('delivery_'))
-  }
+function deliveryWarningsOf(bundle: PlanBundle, repositories?: { name: string }[] | null): ValidationIssue[] {
+  const report = repositories === undefined ? validatePlan(bundle) : validatePlan(bundle, { repositories })
+  return report.warnings.filter((warning) => warning.code.startsWith('delivery_'))
+}
 
+describe('validatePlan delivery warnings that do not fire', () => {
   it('adds no warning to a plan without delivery, with or without folder repositories', () => {
     expect(deliveryWarningsOf(deliveryPlan({}))).toEqual([])
     expect(deliveryWarningsOf(deliveryPlan({}, false))).toEqual([])
@@ -847,7 +847,9 @@ describe('validatePlan delivery warnings', () => {
     expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }), [])).toEqual([])
     expect(validatePlan(deliveryPlan({ 1: DELIVERY })).valid).toBe(true)
   })
+})
 
+describe('validatePlan delivery warnings that fire', () => {
   it('warns when a delivering sprint has no acceptance node', () => {
     expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }, false))).toEqual([
       {
