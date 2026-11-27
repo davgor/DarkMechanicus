@@ -24,14 +24,14 @@ export const STATES = Object.freeze([
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
-  'agent-transcript',
+  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 35 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 540_000
+/** A declared bound: 39 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 600_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -75,8 +75,8 @@ const BASE_FIELDS = [
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
-  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'settings-notifications',
-  'agent-role-picker', 'new-chat-picker'
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'agent-worked-for',
+  'agent-image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -115,6 +115,24 @@ const composersOf = (o) => Array.isArray(o.composers) ? o.composers : []
 const composerButtons = (card) => card?.send && card?.stop ? 'both' : card?.send ? 'send' : card?.stop ? 'stop' : 'none'
 const round = (button) => button?.radius === '50%' && near(button.width, 32) && near(button.height, 32)
 const square = (button) => button?.radius === '8px' && near(button.width, 32) && near(button.height, 32)
+/** The image-result transcript's thumbnails as the page measured them; empty when it reported none. */
+const thumbsOf = (o) => Array.isArray(o.chatImages?.thumbs) ? o.chatImages.thumbs : []
+/** Each thumbnail as [under whose item, name, loaded]: the person's two (the second's file gone), then the tool's one. */
+const IMAGE_THUMBS = [
+  ['you', 'Image from you, 1280x800', true], ['you', 'Image from you, 1024x768 (image missing)', false],
+  ['tool', 'Image from agent, 1440x900', true]
+]
+/** What both image-result states show: thumbnails under the bubble and the tool card, lazy dm-chat-image: pictures, ≤160 px. */
+const IMAGE_RESULT_CHECKS = [
+  ['two thumbnails under the person’s bubble, the gone one a placeholder, and one under the tool card',
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.under, thumb.name, thumb.loaded])) === JSON.stringify(IMAGE_THUMBS),
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.under, thumb.name, thumb.loaded]))],
+  ['every loaded thumbnail is a lazy dm-chat-image: picture', (o) => thumbsOf(o).length === 3
+    && thumbsOf(o).filter((thumb) => thumb.loaded).every((thumb) => thumb.scheme === 'dm-chat-image:' && thumb.lazy === true),
+  (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.scheme, thumb.lazy]))],
+  ['every thumbnail at most 160 px wide', (o) => thumbsOf(o).length === 3 && thumbsOf(o).every((thumb) => thumb.width > 0 && thumb.width <= 160),
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => thumb.width))]
+]
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -284,6 +302,18 @@ const STATE_CHECKS = {
     (o) => JSON.stringify(o.questionCard)],
     ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
   ],
+  'mail-card': [
+    ['a received card then a sent card between the person’s message and the reply', (o) => JSON.stringify(o.mail?.rows)
+      === '["item","mail","mail","item"]' && JSON.stringify(o.mail?.cards?.map((card) => card.direction)) === '["received","sent"]',
+    (o) => JSON.stringify(o.mail)],
+    ['headers read ✉ Lexmechanic → Magos and ✉ Magos → Lexmechanic', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))
+      === '["✉ Lexmechanic → Magos Received","✉ Magos → Lexmechanic Sent"]', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))],
+    ['the sent card names the message it answers', (o) => o.mail?.cards?.[1]?.reply === 'Reply to mm_plan14', (o) => JSON.stringify(o.mail?.cards?.[1])],
+    ['bodies are plain text: <b> shows as typed and renders no element', (o) => o.mail?.cards?.every((card) => card.markup === false)
+      && o.mail.cards[0].body.includes('<b>Not markup</b>'), (o) => JSON.stringify(o.mail?.cards)],
+    ['showing the received card marks it seen once', (o) => Array.isArray(o.mail?.seen) && o.mail.seen.length === 1
+      && o.mail.seen[0][0]?.chatId === 'fixture-magos' && o.mail.seen[0][0]?.throughSeq === 1, (o) => JSON.stringify(o.mail?.seen)]
+  ],
   'agent-transcript': [
     ['a centred reading column at most 760 px wide', (o) => o.transcript?.columnWidth <= 760 && o.transcript.columnWidth >= 600
       && o.transcript.columnOffset <= 1, (o) => JSON.stringify([o.transcript?.columnWidth, o.transcript?.columnOffset])],
@@ -299,6 +329,22 @@ const STATE_CHECKS = {
     ['the code block’s Copy sits in its top-right corner', (o) => o.transcript?.codeCopy === 'Copy'
       && o.transcript.codeCopyCorner?.top <= 12 && o.transcript.codeCopyCorner.right <= 12,
     (o) => JSON.stringify([o.transcript?.codeCopy, o.transcript?.codeCopyCorner])]
+  ],
+  'agent-worked-for': [
+    ['a folded “Worked for 28m 51s” turn, then an opened “Worked for 4m 05s” turn',
+      (o) => JSON.stringify(o.workedFor?.toggles) === '[["Worked for 28m 51s",false],["Worked for 4m 05s",true]]',
+      (o) => JSON.stringify(o.workedFor?.toggles)],
+    ['the folded row is followed by its final reply', (o) => o.workedFor?.afterFolded === 'Assistant', (o) => JSON.stringify(o.workedFor?.afterFolded)],
+    ['the opened turn lists its tool cards in order, and no tool card shows outside it',
+      (o) => JSON.stringify(o.workedFor?.openedTools) === '["Tool call: Read","Tool call: Edit","Tool call: Bash"]' && o.workedFor.toolsOutside === 0,
+      (o) => JSON.stringify([o.workedFor?.openedTools, o.workedFor?.toolsOutside])]
+  ],
+  'agent-image-result': [...IMAGE_RESULT_CHECKS, ['no lightbox open', (o) => o.chatImages?.viewer === null]],
+  'agent-image-viewer': [
+    ...IMAGE_RESULT_CHECKS,
+    ['the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused', (o) => o.chatImages?.viewer?.name === 'Image from agent, 1440x900'
+      && o.chatImages.viewer.scheme === 'dm-chat-image:' && o.chatImages.viewer.loaded === true && o.chatImages.viewer.closeFocused === true,
+    (o) => JSON.stringify(o.chatImages?.viewer)]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')

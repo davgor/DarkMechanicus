@@ -13,8 +13,10 @@ import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { FirstPromptDialog } from '../../src/renderer/src/agents/ChatDialogs'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
+import { FakeChatMail, mailEntry } from '../../src/renderer/src/__mocks__/fakeChatMail'
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
+import { AgentMailContext, createAgentMailStore } from '../../src/renderer/src/agents/useAgentMail'
 import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
@@ -31,14 +33,14 @@ import { NotificationSettings } from '../../src/renderer/src/settings/Notificati
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
  * `AgentChat` / `NotificationSettings` / `AgentRolePicker` / New chat `FirstPromptDialog`) over the renderer test fakes, seeded from
- * `agentChatScenario.ts`. `?state=`
+ * `agentChatScenario.ts`; the `mail` mount is a standalone Skitarii chat with its mailbox. `?state=`
  * picks the state; the page reaches it with real DOM clicks after mount, then writes `#observations` (data-ready).
  */
 declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat' | 'mail'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -51,6 +53,8 @@ interface Seeded {
   chatApi: FakeAgentChat
   /** The `composer` mount's second chat, shown busy beside the idle one. */
   busyChatApi: FakeAgentChat
+  /** The `mail` mount's chat mailboxes (`window.dm.chats.mail`). */
+  chatMail: FakeChatMail
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
   folder: TrackedFolderView
@@ -108,6 +112,18 @@ function click(element: Element): void {
 
 async function clickWhenPresent(find: () => Element | null, label: string): Promise<void> {
   click(await until(find, label))
+}
+
+const loadedImage = (image: Element | null): boolean => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0
+
+/** The image-result transcript: the sent and the returned thumbnail loaded, and the gone file's placeholder in place. */
+const imageResultShown = (): boolean => [...document.querySelectorAll('.chat-images img')].filter(loadedImage).length === 2
+  && $('.chat-images .attachment-missing') !== null
+
+/** Opens the idle image-result turn, whose Read call is folded behind its `Worked for` row, and waits for its thumbnails. */
+async function reachImageResult(): Promise<void> {
+  await clickWhenPresent(() => $('.chat-work-toggle'), 'the turn’s Worked for row')
+  await until(imageResultShown, 'two loaded thumbnails and the missing image’s placeholder')
 }
 
 /** A screenshot-like PNG: a window of the given accent with a title bar and two text lines. */
@@ -257,6 +273,58 @@ function transcriptSnapshot(): AgentChatSnapshot {
   return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 }
 
+/** The mail-card state's Magos chat: the person's ask and the reply, with the Lexmechanic exchange between them. */
+const MAIL_CHAT = 'fixture-magos'
+const after = (seconds: number): string => new Date(Date.parse(AT) + seconds * 1000).toISOString()
+
+function mailSnapshot(): AgentChatSnapshot {
+  const items: ChatItem[] = [
+    { id: 'mc-user', at: after(0), kind: 'user_message', text: 'Check with the Lexmechanic whether DM-1050 can start.' },
+    { id: 'mc-reply', at: after(20), kind: 'assistant_text', text: 'The Lexmechanic confirmed the order; **DM-1050** starts once DM-1049 is accepted.' }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
+/** The agent-worked-for state's two ended turns: three tool calls and a note before each final reply, 28m 51s and 4m 05s long. */
+function workedForSnapshot(): AgentChatSnapshot {
+  const start = Date.parse(AT)
+  const at = (seconds: number): string => new Date(start + seconds * 1_000).toISOString()
+  const call = (id: string, seconds: number, name: string, input: Record<string, string>): ChatItem =>
+    ({ id, at: at(seconds), kind: 'tool_call', name, input, status: 'completed', resultSummary: 'Done' })
+  const items: ChatItem[] = [
+    { id: 'wf-ask-1', at: at(0), kind: 'user_message', text: 'Find why the nightly build is slow.' },
+    call('wf-grep', 12, 'Grep', { pattern: 'buildStart' }),
+    { id: 'wf-note-1', at: at(40), kind: 'assistant_text', text: 'The bundler runs twice; checking its config.' },
+    call('wf-read-1', 65, 'Read', { path: 'electron.vite.config.ts' }),
+    call('wf-bash-1', 900, 'Bash', { command: 'npm run build -- --profile' }),
+    { id: 'wf-reply-1', at: at(1_731), kind: 'assistant_text', text: 'The renderer is bundled twice: `build.watch` stays on in CI. Turning it off halves the build.' },
+    { id: 'wf-ask-2', at: at(1_800), kind: 'user_message', text: 'Turn it off and check the build.' },
+    call('wf-read-2', 1_810, 'Read', { path: 'electron.vite.config.ts' }),
+    { id: 'wf-note-2', at: at(1_830), kind: 'assistant_text', text: 'Removing the watch flag.' },
+    call('wf-edit', 1_840, 'Edit', { file_path: 'electron.vite.config.ts' }),
+    call('wf-bash-2', 2_000, 'Bash', { command: 'npm run build' }),
+    { id: 'wf-reply-2', at: at(2_045), kind: 'assistant_text', text: 'Done — the build now takes 198 s instead of 412 s.' }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
+/** A received card, then the Magos's answer to it as a sent card; the body's markup shows as the text it is. */
+function seedMail(mail: FakeChatMail): void {
+  const ref = { folder: FOLDER.path, chatId: MAIL_CHAT }
+  const lexmechanic = { label: 'Lexmechanic', kind: 'callsign' as const }
+  const magos = { label: 'Magos', kind: 'callsign' as const }
+  mail.put({ ...ref, unseenCount: 1, pendingCount: 1, retainedCount: 1 })
+  mail.setConversation(ref.folder, ref.chatId, [
+    mailEntry({
+      id: 'mm_plan14', seq: 1, from: lexmechanic, to: magos, acceptedAt: after(5),
+      body: 'Plan revision 14 is saved. DM-1050 now depends on DM-1049; start it only after DM-1049 is accepted.\n<b>Not markup</b>: shown as typed.'
+    }),
+    mailEntry({
+      id: 'mm_ack14', direction: 'sent', seq: null, from: magos, to: lexmechanic, acceptedAt: after(12), inReplyTo: 'mm_plan14',
+      body: 'Understood. DM-1049 is in review; DM-1050 stays queued until it is accepted.'
+    })
+  ])
+}
 const relay = (event: AgentChatEvent): AgentChatEvent => ({ ...event, folder: FOLDER.path, chatId: ORCHESTRATOR.id })
 
 // ---------------------------------------------------------------------------------------------- states
@@ -449,6 +517,8 @@ const agentStates: Record<string, StateDef> = {
     seed: (context) => snapshot(context, magosDecided()),
     reach: async () => {
       await openAgentTab()
+      // The idle chat folds the ended turn: the record shows once its work is opened.
+      await clickWhenPresent(() => $('.chat-work-toggle'), 'the turn’s Worked for row')
       await until(() => /Denied by the Magos/.test(text($('.chat-approval-card')) ?? ''), 'the Magos decision record')
     }
   },
@@ -621,6 +691,39 @@ const STATES: Record<string, StateDef> = {
       // Keyboard focus, as Tab would leave it: the bubble's Copy shows without a pointer over it.
       copy.focus()
       await until(() => getComputedStyle($('.chat-msg-user > .chat-msg-actions')!).opacity === '1', 'the bubble’s Copy revealed by focus')
+    }
+  },
+  'agent-worked-for': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: workedForSnapshot() } },
+    reach: async () => {
+      await clickWhenPresent(() => [...document.querySelectorAll<HTMLButtonElement>('.chat-work-toggle')][1] ?? null, 'the second turn’s Worked for row')
+      await until(() => document.querySelectorAll('.chat-work-rows [aria-label^="Tool call: "]').length === 3, 'the opened turn’s three tool cards')
+    }
+  },
+  'agent-image-result': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios['image-result'].snapshot } },
+    reach: reachImageResult
+  },
+  'agent-image-viewer': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios['image-result'].snapshot } },
+    reach: async () => {
+      await reachImageResult()
+      await clickWhenPresent(() => buttonNamed('Open Image from agent, 1440x900'), 'the tool image’s thumbnail')
+      await until(() => loadedImage($('[role="dialog"] img.attachment-lightbox-image')), 'the lightbox with the full image loaded')
+    }
+  },
+  'mail-card': {
+    mount: 'mail',
+    seed: (context) => {
+      context.chatApi.snapshotResult = { ok: true, data: mailSnapshot() }
+      seedMail(context.chatMail)
+    },
+    reach: async () => {
+      await until(() => document.querySelectorAll('.chat-mail-received').length === 1 && document.querySelectorAll('.chat-mail-sent').length === 1,
+        'a received and a sent mail card')
     }
   },
   'settings-notifications': {
@@ -871,6 +974,65 @@ function transcriptObservations(): Record<string, unknown> | null {
   }
 }
 
+/** The mail-card state's transcript: rows in order (mail or item) and each card's head, body and whether markup rendered. */
+function mailObservations(mail: FakeChatMail | null): Record<string, unknown> | null {
+  const cards = [...document.querySelectorAll<HTMLElement>('.chat-mail')]
+  if (cards.length === 0) return null
+  return {
+    rows: [...document.querySelectorAll<HTMLElement>('.chat-rows > li')].map((row) => row.classList.contains('chat-mail') ? 'mail' : 'item'),
+    cards: cards.map((card) => ({
+      direction: card.classList.contains('chat-mail-sent') ? 'sent' : 'received',
+      head: text($('.chat-mail-head', card)),
+      reply: text($('.chat-mail-reply', card)),
+      body: $('.chat-mail-body', card)?.textContent ?? null,
+      markup: $('.chat-mail-body *', card) !== null
+    })),
+    seen: mail?.calls.filter((call) => call.method === 'markSeen').map((call) => call.args) ?? null
+  }
+}
+
+/** The agent-worked-for state: each turn's disclosure and whether it is open, what follows a folded one, and the tool cards shown. */
+function workedForObservations(): Record<string, unknown> | null {
+  const toggles = [...document.querySelectorAll<HTMLButtonElement>('.chat-work-toggle')]
+  if (toggles.length === 0) return null
+  const tools = (root: ParentNode): string[] => [...root.querySelectorAll('[aria-label^="Tool call: "]')].map((row) => row.getAttribute('aria-label') ?? '')
+  const folded = toggles.find((toggle) => toggle.getAttribute('aria-expanded') === 'false')?.closest('li')
+  const opened = $('.chat-work-rows')
+  return {
+    toggles: toggles.map((toggle) => [(toggle.textContent ?? '').replace('›', '').trim(), toggle.getAttribute('aria-expanded') === 'true']),
+    afterFolded: folded?.nextElementSibling?.querySelector('article')?.getAttribute('aria-label') ?? null,
+    openedTools: opened === null ? [] : tools(opened),
+    toolsOutside: tools(document).length - (opened === null ? 0 : tools(opened).length)
+  }
+}
+
+/**
+ * The transcript's image thumbnails in document order (whose they are, name, scheme, lazy, loaded, box width) and the
+ * open lightbox, or null when the transcript shows none.
+ */
+function chatImageObservations(): Record<string, unknown> | null {
+  const pictures = [...document.querySelectorAll<HTMLElement>('.chat-images .chat-image-picture')]
+  if (pictures.length === 0) return null
+  const dialog = $('[role="dialog"].attachment-lightbox')
+  const full = dialog === null ? null : $('img.attachment-lightbox-image', dialog)
+  return {
+    thumbs: pictures.map((picture) => ({
+      under: picture.closest('.chat-msg-user') !== null ? 'you' : picture.closest('.chat-tool') !== null ? 'tool' : null,
+      name: picture instanceof HTMLImageElement ? picture.alt : picture.getAttribute('aria-label'),
+      scheme: picture instanceof HTMLImageElement ? new URL(picture.src).protocol : null,
+      lazy: picture instanceof HTMLImageElement && picture.loading === 'lazy',
+      loaded: loadedImage(picture),
+      width: picture.closest('.chat-image-thumb')?.getBoundingClientRect().width ?? null
+    })),
+    viewer: dialog === null ? null : {
+      name: dialog.getAttribute('aria-label'),
+      scheme: full instanceof HTMLImageElement ? new URL(full.src).protocol : null,
+      loaded: loadedImage(full),
+      closeFocused: document.activeElement === buttonNamed('Close', dialog)
+    }
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -907,6 +1069,9 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     composers: composerObservations(),
     transcript: transcriptObservations(),
+    mail: mailObservations(context?.chatMail ?? null),
+    workedFor: workedForObservations(),
+    chatImages: chatImageObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
@@ -927,9 +1092,23 @@ function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
   return {
-    backend, chatApi, busyChatApi: new FakeAgentChat(), clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR],
+    backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), clock: createManualClock(agentChatScenarioClockStart),
+    chats: [ORCHESTRATOR],
     folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
+}
+
+/** The standalone Magos chat over its mailbox, under the shell's mail store. */
+function mailChat(context: Seeded): JSX.Element {
+  const dm = new FakeDm()
+  dm.agentChat = context.chatApi
+  dm.chats.mail = context.chatMail
+  window.dm = dm
+  const store = createAgentMailStore(context.chatMail)
+  store.track([FOLDER.path])
+  return <ClockContext.Provider value={context.clock}><AgentMailContext.Provider value={store}><div className="preview-chat">
+    <AgentChat folder={FOLDER.path} chatId={MAIL_CHAT} agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus" api={context.chatApi} />
+  </div></AgentMailContext.Provider></ClockContext.Provider>
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -953,6 +1132,7 @@ function render(mount: Mount, context: Seeded): JSX.Element {
         api={context.chatApi} rail="toggle" chat={{ role: 'orchestrator', runId: 'rn_fixture' }} />
     </div></ClockContext.Provider>
   }
+  if (mount === 'mail') return mailChat(context)
   if (mount === 'composer') {
     const dm = new FakeDm()
     dm.agentChat = context.chatApi

@@ -23,6 +23,7 @@ import {
   provisionAgentMailEndpoint,
   pruneAgentMailPollSessions,
   readAgentInbox,
+  readHumanAgentConversation,
   readHumanAgentInbox,
   renameAgentMailEndpoint,
   resumeAgentMailEndpoint,
@@ -395,6 +396,7 @@ describe('only the desktop manages mailboxes', () => {
       () => resumeAgentMailEndpoint(a.ctx, own),
       () => deleteAgentMailEndpoint(a.ctx, { endpointId: b.endpoint.id }),
       () => readHumanAgentInbox(a.ctx, { endpointId: b.endpoint.id }),
+      () => readHumanAgentConversation(a.ctx, { endpointId: b.endpoint.id }),
       () => markHumanAgentMailSeen(a.ctx, { ...own, throughSeq: 0 }),
       () => getHumanAgentMailState(a.ctx, own),
       () => pruneAgentMailPollSessions(a.ctx)
@@ -527,6 +529,49 @@ describe('the person’s inbox and seen cursor', () => {
     expect(getHumanAgentMailState(desktop, { endpointId: b.endpoint.id })).toMatchObject({ humanSeenSeq: 2, unseenCount: 0, pendingCount: 2 })
     // The person seeing mail acknowledges nothing for the agent.
     expect(pending(b)).toBe(2)
+  })
+})
+
+describe('the person’s view of a mailbox’s conversation', () => {
+  it('serves a mailbox its own received and sent mail in time order, never another chat’s, acknowledging and marking nothing', () => {
+    const { desktop, a, b, c } = world()
+    const asked = send(a, b, 'ask', 'Lexmechanic asks')
+    desktop.clock.advanceSeconds(1)
+    const answered = reply(b, a, 'answer', asked.messageId)
+    desktop.clock.advanceSeconds(1)
+    send(c, b, 'elsewhere', 'between other chats')
+    send(b, c, 'other-way', 'also between other chats')
+    desktop.clock.advanceSeconds(1)
+    const again = send(a, b, 'again', 'Lexmechanic again')
+
+    const conversation = readHumanAgentConversation(desktop, { endpointId: a.endpoint.id })
+    expect(conversation).toEqual({
+      hasEarlier: false,
+      messages: [
+        { id: asked.messageId, direction: 'sent', seq: null, peer: { endpointId: b.endpoint.id, name: 'Chat chat-b', deleted: false },
+          inReplyTo: null, acceptedAt: asked.acceptedAt, body: 'Lexmechanic asks' },
+        { id: answered.messageId, direction: 'received', seq: 1, peer: { endpointId: b.endpoint.id, name: 'Chat chat-b', deleted: false },
+          inReplyTo: asked.messageId, acceptedAt: answered.acceptedAt, body: 'answer' },
+        { id: again.messageId, direction: 'sent', seq: null, peer: { endpointId: b.endpoint.id, name: 'Chat chat-b', deleted: false },
+          inReplyTo: null, acceptedAt: again.acceptedAt, body: 'Lexmechanic again' }
+      ]
+    })
+    // The newest of both directions, and the person's cursor and the agent's acknowledgements as they were.
+    expect(readHumanAgentConversation(desktop, { endpointId: a.endpoint.id, limit: 2 })).toMatchObject({
+      hasEarlier: true, messages: [{ id: answered.messageId }, { id: again.messageId }]
+    })
+    expect(getHumanAgentMailState(desktop, { endpointId: a.endpoint.id })).toMatchObject({ humanSeenSeq: 0, unseenCount: 1, pendingCount: 1 })
+    expect(domainErrorOf(() => readHumanAgentConversation(desktop, { endpointId: a.endpoint.id, limit: AGENT_MAIL_LIMITS.conversationSize + 1 })).code)
+      .toBe('invalid_input')
+  })
+
+  it('keeps sent mail under the received mail’s retention: gone once its recipient acknowledged it seven days ago', () => {
+    const { desktop, a, b } = world()
+    const sent = send(a, b, 'kept-a-while')
+    acknowledgeAgentMessages(b.ctx, { messageIds: [sent.messageId] })
+    expect(readHumanAgentConversation(desktop, { endpointId: a.endpoint.id }).messages.map((message) => message.id)).toEqual([sent.messageId])
+    desktop.clock.advanceSeconds(AGENT_MAIL_LIMITS.retentionMs / 1000 + 1)
+    expect(readHumanAgentConversation(desktop, { endpointId: a.endpoint.id }).messages).toEqual([])
   })
 })
 

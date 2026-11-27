@@ -15,6 +15,7 @@ import { canonicalJson, contentHash } from '../canonical'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import type { IdGenerator } from '../ids'
+import type { AgentMailConversationMessageView, AgentMailConversationView } from '../../shared/domain/agentMail'
 import { CHAT_ROLES, type ChatRole } from '../../shared/agents/chat'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -24,6 +25,8 @@ export const AGENT_MAIL_LIMITS = {
   bodyBytes: 16 * 1024,
   /** Messages per inbox or status page. */
   pageSize: 50,
+  /** Messages, received and sent together, in one conversation view (the GUI transcript's mail cards). */
+  conversationSize: 200,
   /** Message ids per acknowledgement. */
   ackBatch: 100,
   /** Unacknowledged messages one recipient may hold. */
@@ -798,6 +801,69 @@ export function readInbox(deps: AgentMailDeps, input: WindowInput & { unacknowle
     )
     const page = pageOf(rows.map((message) => ({ ...metaView(message), body: message.body })), bounds.limit, bounds.afterSeq, bounds.throughSeq)
     return { messages: page.items, throughSeq: page.throughSeq, nextCursor: page.nextCursor, hasMore: page.hasMore }
+  })
+}
+
+interface SentRow {
+  id: string
+  recipient_endpoint_id: string
+  recipient_name: string
+  recipient_state: MailEndpointState
+  in_reply_to: string | null
+  accepted_at: string
+  body: string
+}
+
+/**
+ * The newest `limit` retained messages the mailbox received or sent, merged oldest first by acceptance. A sent message
+ * is one whose sender is this endpoint, in whichever mailbox received it, kept under the same retention as received
+ * mail (until seven days after its recipient acknowledged it). Another endpoint's mail is never read. Reading
+ * acknowledges nothing and marks nothing seen.
+ */
+export function readConversation(deps: AgentMailDeps, input: { endpointId: string; limit?: number }): AgentMailConversationView {
+  return deps.db.tx(() => {
+    const row = requireEndpoint(deps.db, input.endpointId)
+    const limit = pageLimit(input.limit, AGENT_MAIL_LIMITS.conversationSize)
+    const at = now(deps).iso
+    const received = deps.db.all<MessageRow & { body: string }>(
+      `SELECT ${MESSAGE_META_COLUMNS}, m.body
+       FROM agent_mail_messages m JOIN agent_mail_endpoints s ON s.id = m.sender_endpoint_id
+       WHERE m.recipient_endpoint_id = ? AND ${RETAINED}
+       ORDER BY m.recipient_seq DESC LIMIT ?`,
+      row.id,
+      at,
+      limit + 1
+    )
+    const sent = deps.db.all<SentRow>(
+      `SELECT m.id, m.recipient_endpoint_id, r.name AS recipient_name, r.state AS recipient_state, m.in_reply_to, m.accepted_at, m.body
+       FROM agent_mail_messages m JOIN agent_mail_endpoints r ON r.id = m.recipient_endpoint_id
+       WHERE m.sender_endpoint_id = ? AND ${RETAINED}
+       ORDER BY m.accepted_at DESC, m.id DESC LIMIT ?`,
+      row.id,
+      at,
+      limit + 1
+    )
+    const messages: AgentMailConversationMessageView[] = [
+      ...received.slice(0, limit).map((message) => {
+        const { id, seq, from, inReplyTo, acceptedAt } = metaView(message)
+        return { id, direction: 'received' as const, seq, peer: from, inReplyTo, acceptedAt, body: message.body }
+      }),
+      ...sent.slice(0, limit).map((message) => ({
+        id: message.id,
+        direction: 'sent' as const,
+        seq: null,
+        peer: {
+          endpointId: message.recipient_endpoint_id,
+          name: message.recipient_name,
+          deleted: message.recipient_state === 'deleted' || message.recipient_state === 'deleting'
+        },
+        inReplyTo: message.in_reply_to,
+        acceptedAt: message.accepted_at,
+        body: message.body
+      }))
+    ].sort((a, b) => (a.acceptedAt === b.acceptedAt ? (a.id < b.id ? -1 : 1) : a.acceptedAt < b.acceptedAt ? -1 : 1))
+    const hasEarlier = received.length > limit || sent.length > limit || messages.length > limit
+    return { messages: messages.slice(-limit), hasEarlier }
   })
 }
 

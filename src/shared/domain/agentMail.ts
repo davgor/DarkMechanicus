@@ -102,6 +102,27 @@ export interface AgentMailMessageView extends AgentMailMessageMetaView {
   body: string
 }
 
+/** One message of a mailbox's conversation, as the person sees it: one the mailbox received, or one it sent. */
+export interface AgentMailConversationMessageView {
+  id: string
+  direction: 'received' | 'sent'
+  /** A received message's sequence in this mailbox; null for a sent one (its sequence belongs to the recipient). */
+  seq: number | null
+  /** The other mailbox: a received message's sender, a sent message's recipient. */
+  peer: AgentMailSenderView
+  inReplyTo: string | null
+  /** When the recipient's mailbox durably accepted it. */
+  acceptedAt: string
+  body: string
+}
+
+/** The newest retained messages a mailbox received or sent, oldest first. */
+export interface AgentMailConversationView {
+  messages: AgentMailConversationMessageView[]
+  /** Older retained messages exist than the oldest one here. */
+  hasEarlier: boolean
+}
+
 interface AgentMailPage {
   /** The horizon this page (and every later page given it as `throughSeq`) covers; arrivals above it come next sweep. */
   snapshotHighWater: number

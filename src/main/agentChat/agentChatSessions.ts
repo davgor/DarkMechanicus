@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
+import { inspectImageBytes } from '../../core/attachments/intake'
 import { GUI_PROTOCOL_KINDS, type AgentChatAnswer, type AgentChatEvent, type AgentChatModelChoice, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
-import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ApprovalRequestItem, ChatImageRef, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { ChatModelOption } from '../../shared/agents/models'
 import type { AgentId, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
@@ -25,6 +26,8 @@ import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type Omp
 import { PendingPrompts, type ArbitrationGate, type AttentionEvent } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
+import type { ChatImages, ChatImagesRef } from './chatImages'
+import type { ToolResultBlob, TurnImage } from './toolResultImages'
 
 export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'agentFor' | 'folders' | 'checkAuth' | 'cliFor' | 'runs' | 'issueChatCli' | 'issueReachCli' |
@@ -59,6 +62,8 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
    * `STALL_NOTIFY_MS`: told once per silent span, with no chat content. Omitted, nothing is told.
    */
   onAttention?(event: Extract<AttentionEvent, { kind: 'run_stalled' }>): void
+  /** The chats' images (`chatImages`): images the person staged, read back by id for a turn, and tool-result images kept. */
+  chatImages: Pick<ChatImages, 'put' | 'putToolImage' | 'read'>
 }
 
 type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
@@ -66,7 +71,13 @@ type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
 export type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
 export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
-  send(ref: ChatRef, input: { text: string }): Promise<void>
+  /**
+   * A user turn, with the ids of images staged for this chat (`stageImage`). An id this chat does not hold refuses
+   * `invalid_input` before anything is written or stored; the turn's item names the images, never their bytes.
+   */
+  send(ref: ChatRef, input: { text: string; imageIds?: readonly string[] }): Promise<void>
+  /** Keeps an image the person staged for the chat (PNG or JPEG); an unknown chat is `not_found`. */
+  stageImage(ref: ChatRef, bytes: Uint8Array): Promise<ChatImageRef>
   interrupt(ref: ChatRef): Promise<void>
   answer(ref: ChatRef, input: AgentChatAnswer): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
@@ -143,6 +154,30 @@ interface Entry {
   stopResult?: Promise<void>
   starting?: Promise<StartResult>
   ending?: Promise<void>
+  /** The latest copy of each tool_call item, so a tool image stored later upserts the item as last shown. */
+  toolCalls: Map<string, ToolCallItem>
+  /** Tool images kept per tool_call item, and whether one was dropped; applied to every later copy of the item. */
+  toolImages: Map<string, HeldToolImages>
+  /** Tool images being stored, in arrival order. */
+  imageWork?: Promise<void>
+}
+type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
+interface HeldToolImages { images: NonNullable<ToolCallItem['images']>; invalid: boolean }
+/** Transcript items hold at most 8 images (`chat.ts`). */
+const IMAGES_PER_ITEM = 8
+const INVALID_IMAGE_NOTE = 'image not shown (invalid)'
+const imagesRef = (chat: ChatRecord): ChatImagesRef => ({ folder: chat.folder, chatId: chat.id })
+/** The item with the tool images kept for it, and the invalid-image note once (`withToolImages` is idempotent). */
+function withToolImages(item: ToolCallItem, held: HeldToolImages | undefined): ToolCallItem {
+  if (!held) return item
+  const summary = held.invalid && !(item.resultSummary ?? '').includes(INVALID_IMAGE_NOTE)
+    ? [item.resultSummary, INVALID_IMAGE_NOTE].filter(Boolean).join('\n') : item.resultSummary
+  return { ...item, ...(held.images.length ? { images: [...held.images] } : {}), resultSummary: summary }
+}
+/** A turn's user_message naming the images it carried; never their bytes. */
+function withSentImages(event: OmpEvent, refs: ChatImageRef[]): OmpEvent {
+  if (!refs.length || event.type !== 'item' || event.item.kind !== 'user_message') return event
+  return { ...event, item: { ...event.item, images: refs } }
 }
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 /** A chat's thread identities: seeded once from its stored thread items and attempt bindings, so a restart keeps them. */
@@ -198,7 +233,9 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
   return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude', attention: '[]',
     claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), requests: new Map(), grantIds: [], cancelled: false,
-    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose }
+    cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose, toolCalls: new Map(), toolImages: new Map(),
+    // A restarted chat still waits for (and chains after) the old process's tool images, so deleteChat sees them land.
+    imageWork: previous?.imageWork }
 }
 
 /** A missing close is a failure, not proof that the process or its authority was cleaned up. */
@@ -243,9 +280,15 @@ class SessionManager {
     entry.chat = this.deps.store.updateChat(entry.chat, mask(patch))
     this.deps.onChatChanged?.(entry.chat)
   }
+  /** A tool_call item as last shown, with the tool images kept for it; any other event unchanged. */
+  private withHeldImages(entry: Entry, event: OmpEvent): OmpEvent {
+    if (event.type !== 'item' || event.item.kind !== 'tool_call') return event
+    entry.toolCalls.set(event.item.id, event.item)
+    return { ...event, item: withToolImages(event.item, entry.toolImages.get(event.item.id)) }
+  }
   private emit(entry: Entry, event: OmpEvent): void {
     if (event.type === 'pending') return // The registry publishes only the FIFO head.
-    const safe = mask(this.stamped(entry, event))
+    const safe = mask(this.stamped(entry, this.withHeldImages(entry, event)))
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
     if (safe.type === 'status') {
       entry.status = safe.status
@@ -603,6 +646,7 @@ class SessionManager {
       if (event.type === 'thread_claim') this.claim(entry, event)
       else this.settleRequest(entry, event)
     }
+    this.storeToolImages(entry, result.blobs)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)
@@ -630,10 +674,35 @@ class SessionManager {
     for (const event of result.events) this.emit(entry, event)
     entry.prompts?.update(this.stampedPrompts(entry))
     for (const claim of result.internalEvents) this.claim(entry, claim)
+    this.storeToolImages(entry, result.blobs)
     if (entry.claude.initialized) entry.admit()
     else if (result.events.some(event => event.type === 'status' && event.status === 'failed')) {
       entry.rejectReady(new Error('The agent rejected protocol initialization.'))
     }
+  }
+  /**
+   * Keeps each tool-result image in the chat's image store, in arrival order, then upserts its tool_call item (as last
+   * shown) with the image. A blob the store refuses is dropped, and the item notes it.
+   */
+  private storeToolImages(entry: Entry, blobs: readonly ToolResultBlob[]): void {
+    if (!blobs.length) return
+    const ref = imagesRef(entry.chat)
+    entry.imageWork = this.tracked((entry.imageWork ?? Promise.resolve()).then(async () => {
+      const touched = new Set<string>()
+      for (const blob of blobs) {
+        const held = entry.toolImages.get(blob.itemId) ?? { images: [], invalid: false }
+        entry.toolImages.set(blob.itemId, held)
+        touched.add(blob.itemId)
+        if (held.images.length >= IMAGES_PER_ITEM) continue
+        try { held.images.push(await this.deps.chatImages.putToolImage(ref, Buffer.from(blob.base64, 'base64'))) }
+        catch { held.invalid = true }
+      }
+      if (this.deleting.has(entry.chat.id) || this.deps.store.getChat(entry.chat) === null) return
+      for (const id of touched) {
+        const item = entry.toolCalls.get(id)
+        if (item) this.emit(entry, { type: 'item', item })
+      }
+    }).catch(() => undefined))
   }
   private line(entry: Entry, raw: string): void {
     if (entry.cancelled || entry.ending) return
@@ -753,17 +822,21 @@ class SessionManager {
     this.writeTurn(entry, text)
     this.update(entry, { kickoffSent: true, ...(chat.firstPrompt === undefined ? {} : { firstPromptDelivery: 'submitted' }) })
   }
-  private writeTurn(entry: Entry, text: string): void {
+  private encodeTurn(entry: Entry, text: string, turn: readonly TurnImage[]) {
+    const sent = turn.length ? { images: [...turn] } : {}
+    return entry.protocol === 'claude'
+      ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID(), ...sent }, entry.claude, this.now())
+      : encodeOmpCommand({ type: 'send', text, id: randomUUID(), ...sent }, entry.omp, this.now())
+  }
+  private writeTurn(entry: Entry, text: string, images: { refs: ChatImageRef[]; turn: TurnImage[] } = { refs: [], turn: [] }): void {
     const queued = entry.turnActive || entry.queued > 0
-    const encoded = entry.protocol === 'claude'
-      ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID() }, entry.claude, this.now())
-      : encodeOmpCommand({ type: 'send', text, id: randomUUID() }, entry.omp, this.now())
+    const encoded = this.encodeTurn(entry, text, images.turn)
     if (!encoded.lines.length) throw new Error('The agent did not initialize its input protocol.')
     this.write(entry, encoded.lines)
     if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
     else entry.omp = encoded.state as OmpState
     if (!queued) entry.turnActive = true
-    for (const event of encoded.events) this.emit(entry, event)
+    for (const event of encoded.events) this.emit(entry, withSentImages(event, images.refs))
     if (entry.protocol === 'claude' && queued) this.emit(entry, { type: 'queued', count: entry.queued + 1 })
     if (entry.status !== 'busy') this.emit(entry, { type: 'status', status: 'busy' })
   }
@@ -845,13 +918,30 @@ class SessionManager {
       return { ...this.snapshot(entry.chat), status: 'failed' }
     }
   }
-  async send(ref: ChatRef, input: { text: string }): Promise<void> {
+  /** The staged images of this chat that `imageIds` name, measured and base64-encoded; any other id is `invalid_input`. */
+  private async turnImages(chat: ChatRecord, imageIds: readonly string[]): Promise<{ refs: ChatImageRef[]; turn: TurnImage[] }> {
+    const refs: ChatImageRef[] = [], turn: TurnImage[] = []
+    for (const id of imageIds) {
+      const stored = await this.deps.chatImages.read(imagesRef(chat), id)
+      if (stored === null || stored.mime === 'image/webp') throw new DomainError('invalid_input', 'An image is not staged for this chat.')
+      const measured = inspectImageBytes(stored.bytes)
+      refs.push({ id, mime: measured.mime, width: measured.width, height: measured.height, bytes: stored.bytes.byteLength })
+      turn.push({ mime: measured.mime, base64: Buffer.from(stored.bytes.buffer, stored.bytes.byteOffset, stored.bytes.byteLength).toString('base64') })
+    }
+    return { refs, turn }
+  }
+  async send(ref: ChatRef, input: { text: string; imageIds?: readonly string[] }): Promise<void> {
+    // Checked before the chat starts: a refused id writes nothing to the agent and stores nothing.
+    const images = await this.turnImages(this.chatFor(ref), input.imageIds ?? [])
     const result = await this.start(ref)
     if ('code' in result) throw new Error('The chat is running in a terminal.')
     const entry = this.entries.get(this.chatFor(ref).id)
     if (!entry?.process || entry.ending || entry.cancelled) throw new Error('The agent is not running.')
     this.assertCurrent(entry)
-    this.writeTurn(entry, input.text)
+    this.writeTurn(entry, input.text, images)
+  }
+  async stageImage(ref: ChatRef, bytes: Uint8Array): Promise<ChatImageRef> {
+    return this.deps.chatImages.put(imagesRef(this.chatFor(ref)), bytes)
   }
   async answer(ref: ChatRef, input: AgentChatAnswer): Promise<void> {
     const entry = this.entries.get(this.chatFor(ref).id)
@@ -995,7 +1085,12 @@ class SessionManager {
     const chat = this.deps.store.getChat(ref)
     if (chat === null) return remove()
     this.deleting.add(chat.id)
-    try { await this.stop(chat); await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id) }
+    try {
+      await this.stop(chat)
+      // A tool image still being kept lands before the chat's images are removed with it.
+      await this.entries.get(chat.id)?.imageWork
+      await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id)
+    }
     finally { this.deleting.delete(chat.id) }
   }
   /** Stops the processes and starts of the chats `selects` picks, and waits for their close and revocation. */
@@ -1043,7 +1138,8 @@ class SessionManager {
 export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatSessions {
   const manager = new SessionManager(deps)
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
-    send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
+    send: (ref, input) => manager.send(ref, input), stageImage: (ref, bytes) => manager.stageImage(ref, bytes),
+    interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
     releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),

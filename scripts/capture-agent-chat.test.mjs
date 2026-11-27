@@ -90,6 +90,34 @@ const TRANSCRIPT = {
 }
 const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
 
+/** The mail-card state: the Magos chat with a received card and its sent answer between the ask and the reply. */
+const MAIL = {
+  rows: ['item', 'mail', 'mail', 'item'],
+  cards: [
+    { direction: 'received', head: '✉ Lexmechanic → Magos Received', reply: null, markup: false,
+      body: 'Plan revision 14 is saved. DM-1050 now depends on DM-1049; start it only after DM-1049 is accepted.\n<b>Not markup</b>: shown as typed.' },
+    { direction: 'sent', head: '✉ Magos → Lexmechanic Sent', reply: 'Reply to mm_plan14', markup: false,
+      body: 'Understood. DM-1049 is in review; DM-1050 stays queued until it is accepted.' }
+  ],
+  seen: [[{ folder: '/home/u/code/darkmechanicus', chatId: 'fixture-magos', throughSeq: 1 }]]
+}
+const mailRecord = (patch = {}) => ready('mail-card', { ...STANDALONE, mail: { ...MAIL, ...patch } })
+/** The agent-worked-for state's two turns: the first folded, the second opened on its three tool cards. */
+const WORKED_FOR = {
+  toggles: [['Worked for 28m 51s', false], ['Worked for 4m 05s', true]], afterFolded: 'Assistant',
+  openedTools: ['Tool call: Read', 'Tool call: Edit', 'Tool call: Bash'], toolsOutside: 0
+}
+const workedForRecord = (patch = {}) => ready('agent-worked-for', { ...STANDALONE, workedFor: { ...WORKED_FOR, ...patch } })
+/** The image-result transcript's three thumbnails: the person's two (the second's file gone), then the tool's one. */
+const THUMBS = [
+  { under: 'you', name: 'Image from you, 1280x800', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 },
+  { under: 'you', name: 'Image from you, 1024x768 (image missing)', scheme: null, lazy: false, loaded: false, width: 160 },
+  { under: 'tool', name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', lazy: true, loaded: true, width: 160 }
+]
+const VIEWER = { name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', loaded: true, closeFocused: true }
+const imageRecord = (state, thumbs = THUMBS, viewer = state === 'agent-image-viewer' ? VIEWER : null) =>
+  ready(state, { ...STANDALONE, chatImages: { thumbs, viewer } })
+
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
   return {
@@ -136,7 +164,11 @@ function passingChatStates() {
     }),
     'agent-composer': composerRecord(COMPOSERS),
     'agent-images': imagesRecord(),
-    'agent-transcript': transcriptRecord()
+    'agent-transcript': transcriptRecord(),
+    'agent-worked-for': workedForRecord(),
+    'agent-image-result': imageRecord('agent-image-result'),
+    'agent-image-viewer': imageRecord('agent-image-viewer'),
+    'mail-card': mailRecord()
   }
 }
 
@@ -222,23 +254,62 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 35 states once each, in capture order', () => {
+  it('lists the 39 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
-      'new-chat-picker', 'question-multi', 'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending',
-      'delivery-checkpoint'
+      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(35)
+    expect(new Set(STATES).size).toBe(39)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 540 s overall bound: 35 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 600 s overall bound: 39 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(540_000)
+    expect(OVERALL_LIMIT_MS).toBe(600_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: mail-card', () => {
+  it('passes a received then a sent card, headed by callsigns, inert, the received one marked seen once', () => {
+    expect(validateObservations('mail-card', mailRecord())).toEqual([])
+  })
+
+  it('fails cards out of place, a rendered body element and a second seen mark', () => {
+    expect(validateObservations('mail-card', mailRecord({ rows: ['item', 'item', 'mail', 'mail'] }))).toEqual([
+      expect.stringContaining('mail-card: expected a received card then a sent card between the person’s message and the reply')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ cards: [{ ...MAIL.cards[0], markup: true }, MAIL.cards[1]] }))).toEqual([
+      expect.stringContaining('mail-card: expected bodies are plain text')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ seen: [...MAIL.seen, ...MAIL.seen] }))).toEqual([
+      expect.stringContaining('mail-card: expected showing the received card marks it seen once')
+    ])
+  })
+})
+
+describe('capture-agent-chat: agent-image-result and agent-image-viewer', () => {
+  it('passes the thumbnails under the bubble and the tool card, and the viewer open on the tool image', () => {
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result'))).toEqual([])
+    expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer'))).toEqual([])
+  })
+
+  it('fails a gone image shown as loaded, a non-lazy or wide thumbnail, a stray viewer and an unfocused one', () => {
+    const loadedGone = THUMBS.map((thumb, index) => index === 1 ? { ...thumb, name: 'Image from you, 1024x768', loaded: true } : thumb)
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', loadedGone))).toEqual([
+      expect.stringMatching(/^agent-image-result: expected two thumbnails under the person’s bubble, the gone one a placeholder/),
+      expect.stringMatching(/^agent-image-result: expected every loaded thumbnail is a lazy dm-chat-image: picture; got /)
+    ])
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS.map((thumb) => ({ ...thumb, width: 240 })))))
+      .toEqual(['agent-image-result: expected every thumbnail at most 160 px wide; got [240,240,240]'])
+    expect(validateObservations('agent-image-result', imageRecord('agent-image-result', THUMBS, VIEWER)))
+      .toEqual(['agent-image-result: expected no lightbox open'])
+    expect(validateObservations('agent-image-viewer', imageRecord('agent-image-viewer', THUMBS, { ...VIEWER, closeFocused: false })))
+      .toEqual([expect.stringMatching(/^agent-image-viewer: expected the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused; got /)])
   })
 })
 
@@ -283,6 +354,24 @@ describe('capture-agent-chat: agent-transcript', () => {
       .toEqual(['agent-transcript: expected the bubble’s Copy shows under keyboard focus; got [null,true]'])
     expect(validateObservations('agent-transcript', transcriptRecord({ codeCopyCorner: { top: 40, right: 6 } })))
       .toEqual(['agent-transcript: expected the code block’s Copy sits in its top-right corner; got ["Copy",{"top":40,"right":6}]'])
+  })
+})
+
+describe('capture-agent-chat: agent-worked-for', () => {
+  it('passes a folded turn followed by its reply and an opened turn listing its tool cards in order', () => {
+    expect(validateObservations('agent-worked-for', workedForRecord())).toEqual([])
+  })
+
+  it('fails both turns open, a folded row without its reply, and tool cards out of order or outside the opened turn', () => {
+    expect(validateObservations('agent-worked-for', workedForRecord({ toggles: [['Worked for 28m 51s', true], ['Worked for 4m 05s', true]] })))
+      .toEqual(['agent-worked-for: expected a folded “Worked for 28m 51s” turn, then an opened “Worked for 4m 05s” turn; got '
+        + '[["Worked for 28m 51s",true],["Worked for 4m 05s",true]]'])
+    expect(validateObservations('agent-worked-for', workedForRecord({ afterFolded: null })))
+      .toEqual(['agent-worked-for: expected the folded row is followed by its final reply; got null'])
+    expect(validateObservations('agent-worked-for', workedForRecord({ openedTools: ['Tool call: Bash', 'Tool call: Read', 'Tool call: Edit'] })))
+      .toEqual([expect.stringMatching(/^agent-worked-for: expected the opened turn lists its tool cards in order/)])
+    expect(validateObservations('agent-worked-for', workedForRecord({ toolsOutside: 3 })))
+      .toEqual([expect.stringMatching(/^agent-worked-for: expected the opened turn lists its tool cards in order, and no tool card shows outside it; got /)])
   })
 })
 

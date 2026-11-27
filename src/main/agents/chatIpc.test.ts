@@ -613,7 +613,7 @@ describe('chat IPC: the terminal bound by grant', () => {
   })
 })
 
-const CHAT_MAIL_CHANNELS = ['chatMail:markSeen', 'chatMail:read', 'chatMail:snapshot', 'chatMail:state']
+const CHAT_MAIL_CHANNELS = ['chatMail:conversation', 'chatMail:markSeen', 'chatMail:read', 'chatMail:snapshot', 'chatMail:state']
 
 /** Registers the mail service over dependencies `reached` stands for: nothing a refused request may reach. */
 function chatMailIpc(handle: Pick<IpcMain, 'handle'>['handle'], reached: () => never): void {

@@ -45,6 +45,7 @@ const mail: ChatMailApi = {
   snapshot: (folder) => ipcRenderer.invoke('chatMail:snapshot', folder),
   state: (request) => ipcRenderer.invoke('chatMail:state', request),
   read: (request) => ipcRenderer.invoke('chatMail:read', request),
+  conversation: (request) => ipcRenderer.invoke('chatMail:conversation', request),
   markSeen: (request) => ipcRenderer.invoke('chatMail:markSeen', request),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatMailPushEvent): void => {

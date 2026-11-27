@@ -509,7 +509,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, settings, 
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
     folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat), assertForgeSetupLaunch
-  }, push, { claims: guiClaims(folders, workspaces), arbiter: arbiterWiring(folders, workspaces, activity, settings), attention: chatAttention(store, notify) })
+  }, push, { claims: guiClaims(folders, workspaces), arbiter: arbiterWiring(folders, workspaces, activity, settings), attention: chatAttention(store, notify), chatImages })
   recovery = createDesktopToolingRecovery({
     userData: app.getPath('userData'), version: () => app.getVersion(),
     source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
@@ -538,7 +538,7 @@ interface ChatOwners extends ContextTerminals {
 /** The terminals first, with a lazy GUI liveness check, then the one GUI session manager over their ownership. */
 function createChatOwners(
   store: ChatStore, options: Omit<TerminalDeps, 'beforeContextPaste' | 'agentChatLive'>, push: ReturnType<typeof createChatPush>,
-  gui: { claims: GuiClaimDeps; arbiter: ArbiterWiring; attention: AgentChatAttention }
+  gui: { claims: GuiClaimDeps; arbiter: ArbiterWiring; attention: AgentChatAttention; chatImages: ChatImages }
 ): ChatOwners {
   let context: ContextTerminals | undefined
   let agentChats: AgentChatSessions | undefined
@@ -550,7 +550,7 @@ function createChatOwners(
       })
       return context.terminals
     },
-    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, gui.claims),
+    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, { ...gui.claims, chatImages: gui.chatImages }),
     push,
     arbiter: gui.arbiter,
     attention: gui.attention
@@ -593,13 +593,14 @@ function createGuiChats(
   store: ChatStore,
   deps: Pick<TerminalDeps, 'grants' | 'folders' | 'reachFolders' | 'agents'>,
   owned: AgentChatOwnerDeps,
-  claims: GuiClaimDeps
+  /** The thread claim checks and the one chat image store (`startDesktopBridge`). */
+  gui: GuiClaimDeps & Pick<AgentChatSessionsDeps, 'chatImages'>
 ): AgentChatSessions {
   const awake = createKeepAwake(powerSaveBlocker)
   return createAgentChatSessions({
     ...deps.grants,
     ...owned,
-    ...claims,
+    ...gui,
     store,
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
