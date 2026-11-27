@@ -1,5 +1,6 @@
 import { lstatSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import type { RenameRetryNote } from '../../core/repo/forgeManifest'
 import { credentialArgs, type CredentialSession } from '../git/credentials'
 import { createGitRunner, type GitRunner } from '../git/runner'
 import { ensureForgeDirections, FORGE_DIRECTIONS } from './forgeDirections'
@@ -61,7 +62,8 @@ export interface WorldCheckout {
 }
 
 export class ForgeGit {
-  constructor(private readonly session: CredentialSession, private readonly runner: GitRunner = createGitRunner()) {}
+  /** `onRenameRetry` is told of each busy directions rename that is asked again (the main process logs it). */
+  constructor(private readonly session: CredentialSession, private readonly runner: GitRunner = createGitRunner(), private readonly onRenameRetry?: RenameRetryNote) {}
 
   run(root: string, args: string[], url?: string, options: { acceptExitCodes?: number[]; stdin?: string; beforeStart?: () => void } = {}) {
     const credentials = url ? credentialArgs(url, this.session) : null
@@ -176,7 +178,7 @@ export class ForgeGit {
     if (checked !== undefined) parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
     const { url, inspected } = checked ?? await this.checkSyncTarget(root)
     await this.inspectHead(root, inspected)
-    ensureForgeDirections(root)
+    ensureForgeDirections(root, this.onRenameRetry)
     await this.commitRepository(root)
     const { local, range } = await this.mergeOrigin(root, url, inspected)
     await validate({ url, inspected })

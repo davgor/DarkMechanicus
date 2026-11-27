@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, unlinkS
 import { join, resolve } from 'node:path'
 import { z } from 'zod'
 import { assertForgeWorldSyncAllowed, bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
+import { replaceForgeFile, type RenameRetryNote } from '../../core/repo/forgeManifest'
 import { ensureForgeConfig, readForgeReference } from '../../core/repo/forgeReference'
 import { readProject } from '../../core/repo/initialize'
 import { resolveLayout } from '../../core/repo/layout'
@@ -11,15 +12,15 @@ import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { readForgeCheckout, verifyForgeCheckout } from './forgeCheckout'
 import { ensureForgeDirections } from './forgeDirections'
 import type { ForgeGit, WorldCheckout } from './forgeGit'
-import { FORGE_FILE, githubRemote, parseForge, projectName, replaceForgeFile } from './forgeManifest'
+import { FORGE_FILE, githubRemote, parseForge, projectName } from './forgeManifest'
 
 interface HealthOptions {
   git: Pick<ForgeGit, 'run' | 'inspectCheckout'>
   home: string
   /** What the sync running this check has just established about the world's repository; checked again when absent. */
   checked?: WorldCheckout
-  /** Told the code of each busy manifest rename that is asked again (the main process logs it). */
-  onManifestRetry?(code: string): void
+  /** Told the code and file of each busy rename that is asked again (the main process logs it). */
+  onRenameRetry?: RenameRetryNote
 }
 const repairable = z.looseObject({ projects: z.array(z.looseObject({ folder: z.string(), repository: z.string().optional() })) })
 
@@ -62,7 +63,7 @@ async function checkedWorld(root: string, text: string, repository: string, git:
   return parseForge(JSON.stringify(data))
 }
 
-function saveRepairedManifest(root: string, before: string, world: ForgeWorld, onRetry?: (code: string) => void): void {
+function saveRepairedManifest(root: string, before: string, world: ForgeWorld, onRetry?: RenameRetryNote): void {
   const parsed: unknown = JSON.parse(before)
   if (JSON.stringify(parsed) === JSON.stringify(world)) return
   const file = join(root, FORGE_FILE), lock = file + '.lock', temp = file + '.' + randomUUID()
@@ -77,12 +78,12 @@ function saveRepairedManifest(root: string, before: string, world: ForgeWorld, o
   }
 }
 
-function repairCodePointer({ source, member, folder }: { source: string; member: string; folder: string }, repository: string, home: string): void {
+function repairCodePointer({ source, member, folder }: { source: string; member: string; folder: string }, repository: string, home: string, onRetry?: RenameRetryNote): void {
   ensureForgeConfig(source, { version: 1, worldRepository: repository, projectFolder: folder })
   const note = join(source, 'FORGE-WORLD.md')
   if (!existsSync(note)) writeFileSync(note, '# Ticket source control\n\nForge World: ' + repository + '\nProject folder: ' + folder + '\n\nClone or pull the Forge World above, then open the named folder for tickets.\nThe root forge-world.json contains all linked project folders and their repository URLs.\n', { flag: 'wx' })
   try { if (boundForgeRoot(nodeFs, home, source) === member) return } catch { /* A verified pointer newly added above needs one local binding. */ }
-  bindForge(home, source, member, readFileSync(note, 'utf8'))
+  bindForge(home, source, { member, note: readFileSync(note, 'utf8'), onRetry })
 }
 
 /** The world's repository checks no sync has just made: it is the repository's root, its index and HEAD's tree, and its origin. */
@@ -95,7 +96,7 @@ async function checkWorldRepository(root: string, git: HealthOptions['git']): Pr
 }
 
 /** The one idempotent upgrade/check path for boot, opening, sync and all Forge mutations. */
-export async function ensureForgeWorld(root: string, { git, home, checked, onManifestRetry }: HealthOptions): Promise<WorldCheckout> {
+export async function ensureForgeWorld(root: string, { git, home, checked, onRenameRetry }: HealthOptions): Promise<WorldCheckout> {
   assertForgeWorldSyncAllowed(nodeFs, home, root)
   ordinary(root, true)
   ordinary(join(root, FORGE_FILE), false)
@@ -109,8 +110,8 @@ export async function ensureForgeWorld(root: string, { git, home, checked, onMan
     const source = await verifyForgeCheckout(member, project.repository, git, repository)
     if (source) checkouts.push({ source, member, folder: project.folder })
   }
-  saveRepairedManifest(root, text, world, onManifestRetry)
-  ensureForgeDirections(root)
-  for (const checkout of checkouts) repairCodePointer(checkout, repository, home)
+  saveRepairedManifest(root, text, world, onRenameRetry)
+  ensureForgeDirections(root, onRenameRetry)
+  for (const checkout of checkouts) repairCodePointer(checkout, repository, home, onRenameRetry)
   return checkout
 }

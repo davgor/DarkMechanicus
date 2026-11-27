@@ -1168,9 +1168,10 @@ type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 
 
 function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOptions) {
   const { registry, pool, github, skills } = options
+  const onRenameRetry = (code: string, file: string): void => logger.info(`Forge file rename refused (${code}) for ${file}; trying again.`)
   return startForge(ipc, {
-    registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
-    onManifestRetry: code => logger.info(`Forge World manifest rename refused (${code}); trying again.`),
+    registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills, onRenameRetry),
+    onRenameRetry,
     onFoldersChanged: () => {
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('forge:foldersChanged')
     },

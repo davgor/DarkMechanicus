@@ -336,7 +336,7 @@ it('refuses a source path whose link would open a different project inside the o
 Project folder: Member
 `
   writeFileSync(join(h.root, FORGE_POINTER), pointer)
-  bindForge(h.homeDir, h.root, member, pointer)
+  bindForge(h.homeDir, h.root, { member, note: pointer })
   const worker = owner(h.homeDir)
   await expect(worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Must not initialize' } }))
     .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
@@ -459,7 +459,7 @@ it('still rejects a changed project, a hard-linked database, a new binding and a
   const bound = await warmOwner('Bound later')
   const member = join(bound.h.homeDir, 'member')
   mkdirSync(member)
-  bindForge(bound.h.homeDir, bound.h.root, member, '')
+  bindForge(bound.h.homeDir, bound.h.root, { member, note: '' })
   await expect(bound.worker.work(bound.h.root, bound.read, bound.binding))
     .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
 

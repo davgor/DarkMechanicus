@@ -48,7 +48,7 @@ async function forgeFixture() {
   await desktop.setDeliveryStandards({ expectedRevision: 0, policy: baselineDeliveryPolicy })
   const config = join(code.root, FORGE_CONFIG)
   writeFileSync(config, JSON.stringify(REFERENCE))
-  bindForge(h.homeDir, code.root, member, '')
+  bindForge(h.homeDir, code.root, { member, note: '' })
   const hint = join(resolveLayout(member).localDir, 'source-checkout.json')
   return { code, world, member, desktop, git, codeBase, workerCommit, integrated, worldCommit, config, hint, manifest }
 }
@@ -180,7 +180,7 @@ it.each(['missing checkout', 'wrong origin', 'wrong world origin', 'wrong refere
       case 'rebound checkout': {
         const other = join(f.world.root, 'Other')
         mkdirSync(other)
-        bindForge(h.homeDir, f.code.root, other, '')
+        bindForge(h.homeDir, f.code.root, { member: other, note: '' })
         break
       }
       case 'removed manifest':

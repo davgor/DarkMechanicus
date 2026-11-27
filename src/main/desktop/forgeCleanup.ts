@@ -1,12 +1,14 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { replaceForgeFile, type RenameRetryNote } from '../../core/repo/forgeManifest'
 import { ownedEntry } from './mcpJson'
 import { toTarget, type SkillDefinition } from './skillInstall'
 
-export function cleanupForgeSource(source: string, skills: readonly SkillDefinition[]): void {
+/** `onRetry` is told of each busy rename of `.mcp.json` that is asked again (the main process logs it). */
+export function cleanupForgeSource(source: string, skills: readonly SkillDefinition[], onRetry?: RenameRetryNote): void {
   cleanupSkills(source, skills)
-  cleanupMcp(source)
+  cleanupMcp(source, onRetry)
 }
 
 function cleanupSkills(source: string, skills: readonly SkillDefinition[]): void {
@@ -20,7 +22,7 @@ function cleanupSkills(source: string, skills: readonly SkillDefinition[]): void
   }
 }
 
-function cleanupMcp(source: string): void {
+function cleanupMcp(source: string, onRetry?: RenameRetryNote): void {
   const file = join(source, '.mcp.json')
   if (!existsSync(file) || realpathSync.native(file) !== file) return
   const before = readFileSync(file, 'utf8')
@@ -34,6 +36,6 @@ function cleanupMcp(source: string): void {
   else {
     const temp = file + '.' + randomUUID()
     writeFileSync(temp, JSON.stringify(config, null, 2) + '\n', { flag: 'wx' })
-    renameSync(temp, file)
+    replaceForgeFile(temp, file, onRetry)
   }
 }
