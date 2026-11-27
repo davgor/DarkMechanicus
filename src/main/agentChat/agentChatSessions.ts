@@ -8,6 +8,7 @@ import type { AgentId, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { ActivityBinding, ActivityBindings } from '../agents/activityBindings'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
+import { mailboxChat } from '../agents/chatMailboxOperations'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
@@ -575,7 +576,7 @@ class SessionManager {
   private async issue(entry: Entry, agent: AgentView, cwd: string, reach: ReachTarget[] | undefined) {
     const { chat } = entry, { deps } = this
     const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120) }
-    const identity = { id: chat.id, agent: chat.agent, title: chat.title, kind: agent.kind }
+    const identity = { ...mailboxChat(chat), kind: agent.kind }
     const issuing = reach === undefined
       ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId] }))
       : reach.length ? deps.issueReachCli(reach, grant) : Promise.resolve({ cli: deps.cliFor(null), grantIds: [] })
