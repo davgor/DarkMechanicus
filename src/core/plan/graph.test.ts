@@ -811,3 +811,82 @@ describe('validatePlan orchestrator retry limit', () => {
     expect(errorsOf(withPolicies({ autoRetryLimit }))).toEqual([{ code: 'invalid_policy', message: AUTO }])
   })
 })
+
+describe('validatePlan delivery warnings', () => {
+  const DELIVERY = { target: 'main', release: true, verifyInstalled: false }
+
+  /** Sprint 1 {DM-1, acceptance DM-2}, sprint 2 {DM-3, acceptance DM-4}; `delivery` patches each sprint by ordinal. */
+  function deliveryPlan(delivery: Partial<Record<number, SprintDef['delivery']>>, acceptance = true): PlanBundle {
+    const bundle = makeBundle([[1, 2], [3, 4]])
+    return {
+      ...bundle,
+      tickets: bundle.tickets.map((ticket) =>
+        acceptance && (ticket.id === tid(2) || ticket.id === tid(4)) ? { ...ticket, kind: 'acceptance' } : ticket
+      ),
+      sprints: bundle.sprints.map((sprint) =>
+        delivery[sprint.ordinal] === undefined ? sprint : { ...sprint, delivery: delivery[sprint.ordinal] }
+      )
+    }
+  }
+
+  function deliveryWarningsOf(bundle: PlanBundle, repositories?: { name: string }[] | null): ValidationIssue[] {
+    const report = repositories === undefined ? validatePlan(bundle) : validatePlan(bundle, { repositories })
+    return report.warnings.filter((warning) => warning.code.startsWith('delivery_'))
+  }
+
+  it('adds no warning to a plan without delivery, with or without folder repositories', () => {
+    expect(deliveryWarningsOf(deliveryPlan({}))).toEqual([])
+    expect(deliveryWarningsOf(deliveryPlan({}, false))).toEqual([])
+    expect(deliveryWarningsOf(deliveryPlan({}), [{ name: 'api' }])).toEqual([])
+    expect(validatePlan(deliveryPlan({}, false)).warnings).toEqual(validatePlan(makeBundle([[1, 2], [3, 4]])).warnings)
+  })
+
+  it('stays silent for a non-final sprint with an acceptance node in a single repository', () => {
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }))).toEqual([])
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }), null)).toEqual([])
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }), [])).toEqual([])
+    expect(validatePlan(deliveryPlan({ 1: DELIVERY })).valid).toBe(true)
+  })
+
+  it('warns when a delivering sprint has no acceptance node', () => {
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }, false))).toEqual([
+      {
+        code: 'delivery_without_acceptance',
+        message: 'Sprint 1 declares delivery but has no acceptance node, so it has no increment to deliver.',
+        sprintIds: [sid(1)]
+      }
+    ])
+  })
+
+  it('warns when the final sprint declares delivery', () => {
+    expect(deliveryWarningsOf(deliveryPlan({ 2: DELIVERY }))).toEqual([
+      {
+        code: 'delivery_final_sprint',
+        message: 'Sprint 2 is the final sprint: its delivery is recorded after the run completes and holds no later sprint.',
+        sprintIds: [sid(2)]
+      }
+    ])
+  })
+
+  it('warns in a folder of repositories only', () => {
+    const multi = {
+      code: 'delivery_multi_repo',
+      message: 'Structured delivery is not supported in a folder of repositories; record_delivery refuses it.',
+      sprintIds: [sid(1)]
+    }
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }), [{ name: 'api' }])).toEqual([multi])
+    expect(deliveryWarningsOf(deliveryPlan({ 1: DELIVERY }), [{ name: 'api' }, { name: 'web' }])).toEqual([multi])
+  })
+
+  it('reports every case that applies, sprint by sprint, as warnings only', () => {
+    const report = validatePlan(deliveryPlan({ 1: DELIVERY, 2: DELIVERY }, false), { repositories: [{ name: 'api' }] })
+    expect(report.warnings.filter((warning) => warning.code.startsWith('delivery_')).map((w) => [w.code, w.sprintIds])).toEqual([
+      ['delivery_without_acceptance', [sid(1)]],
+      ['delivery_multi_repo', [sid(1)]],
+      ['delivery_without_acceptance', [sid(2)]],
+      ['delivery_final_sprint', [sid(2)]],
+      ['delivery_multi_repo', [sid(2)]]
+    ])
+    expect(codes(report.errors).some((code) => code.startsWith('delivery_'))).toBe(false)
+  })
+})

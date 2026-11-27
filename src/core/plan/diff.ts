@@ -8,6 +8,7 @@ import {
   type Relation,
   type RelationKind,
   type SprintDef,
+  type SprintDelivery,
   type TicketContent,
   type TicketCriterion
 } from '../../shared/domain/bundle'
@@ -124,6 +125,14 @@ function capText(cap: number | null): string {
   return cap === null ? 'plan default' : String(cap)
 }
 
+/** A delivery declaration as a diff phrase reads it: `none`, or its target plus the checks it asks for. */
+function deliveryText(delivery: SprintDelivery | undefined): string {
+  if (delivery === undefined) {
+    return 'none'
+  }
+  return `${delivery.target}${delivery.release ? ' · release' : ''}${delivery.verifyInstalled ? ' · verify installed' : ''}`
+}
+
 /** True when tickets present in both versions of a sprint appear in a different relative order. */
 function ticketOrderChanged(before: string[], after: string[]): boolean {
   const common = new Set(before.filter((id) => after.includes(id)))
@@ -140,6 +149,7 @@ function sprintPhrases(before: SprintDef, after: SprintDef): Phrase[] {
     criteriaPhrase('exit criteria', before.exitCriteria, after.exitCriteria),
     arrow('concurrency cap', capText(before.concurrencyCap), capText(after.concurrencyCap)),
     arrow('checkpoint mode', before.checkpoint.mode, after.checkpoint.mode),
+    arrow('delivery', deliveryText(before.delivery), deliveryText(after.delivery)),
     ticketOrderChanged(before.ticketIds, after.ticketIds) ? 'ticket order changed' : null
   ]
 }
