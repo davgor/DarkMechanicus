@@ -85,10 +85,10 @@ describe('agent chat contract', () => {
     expect(agentChatAttachEvidenceSchema.safeParse({ ...request, path: 'C:\\shot.png' }).success).toBe(false)
   })
 
-  it('re-exports the transcript image ref: only png or jpeg within the measured limits', () => {
+  it('re-exports the sent image ref: only png or jpeg within the measured limits', () => {
     const image = { id: ids[0], mime: 'image/png', width: 8000, height: 1, bytes: CHAT_IMAGE_MAX_BYTES }
     expect(chatImageRefSchema.parse(image)).toEqual(image)
-    for (const invalid of [{ ...image, mime: 'image/gif' }, { ...image, width: 8001 }, { ...image, height: 0 }, { ...image, bytes: CHAT_IMAGE_MAX_BYTES + 1 }, { ...image, path: 'x' }]) {
+    for (const invalid of [{ ...image, mime: 'image/gif' }, { ...image, mime: 'image/webp' }, { ...image, width: 8001 }, { ...image, height: 0 }, { ...image, bytes: CHAT_IMAGE_MAX_BYTES + 1 }, { ...image, path: 'x' }]) {
       expect(chatImageRefSchema.safeParse(invalid).success).toBe(false)
     }
   })

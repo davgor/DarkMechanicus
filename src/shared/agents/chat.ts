@@ -42,19 +42,27 @@ export const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 /** The id main gives an image it holds for a chat: `ci_` and a lower-case ULID. */
 export const chatImageIdSchema = z.string().regex(/^ci_[0-9a-hjkmnp-tv-z]{26}$/)
 
-/** An image main holds for a chat, as a transcript item names it: the id and what main measured, never bytes or a path. */
-export const chatImageRefSchema = z.strictObject({
+const imageRefFields = {
   id: chatImageIdSchema,
-  mime: z.enum(['image/png', 'image/jpeg']),
   width: z.number().int().min(1).max(8000),
   height: z.number().int().min(1).max(8000),
   bytes: z.number().int().min(1).max(CHAT_IMAGE_MAX_BYTES)
-})
+}
+
+/**
+ * An image the person sent, as main holds it for the chat and a transcript item names it: the id and what main
+ * measured, never bytes or a path. Person-sent images are PNG or JPEG only.
+ */
+export const chatImageRefSchema = z.strictObject({ ...imageRefFields, mime: z.enum(['image/png', 'image/jpeg']) })
 
 export type ChatImageRef = z.infer<typeof chatImageRefSchema>
 
+/** An image a tool returned: also WebP, which agent read tools return (OMP's `read`). */
+const toolImageRefSchema = z.strictObject({ ...imageRefFields, mime: z.enum(['image/png', 'image/jpeg', 'image/webp']) })
+
 /** The images on one transcript item; absent on every item stored before chats took images. */
-const itemImages = z.array(chatImageRefSchema).max(8).optional()
+const sentImages = z.array(chatImageRefSchema).max(8).optional()
+const toolImages = z.array(toolImageRefSchema).max(8).optional()
 
 const timestampSchema = z.string().min(1)
 
@@ -188,7 +196,7 @@ export type ErrorProblem = (typeof ERROR_PROBLEMS)[number]
 export const IDLE_STOP_CODE = 'idle_stop'
 
 export const chatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string(), images: itemImages }),
+  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string(), images: sentImages }),
   /** Streamed as deltas while the agent writes; stored once, whole. */
   z.object({ ...itemBase, kind: z.literal('assistant_text'), text: z.string() }),
   z.object({
@@ -199,8 +207,8 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     input: toolInputSchema,
     status: z.enum(TOOL_CALL_STATUSES),
     resultSummary: z.string().nullable(),
-    /** Screenshots the call produced, held by main for the chat. */
-    images: itemImages
+    /** Images the call returned (screenshots, images it read), held by main for the chat. */
+    images: toolImages
   }),
   z.object({
     ...itemBase,

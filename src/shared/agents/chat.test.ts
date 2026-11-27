@@ -125,9 +125,15 @@ describe('chatItemSchema: image refs', () => {
       expect(chatItemSchema.parse({ ...item, images: Array(8).fill(image) })).toHaveProperty('images.length', 8)
       expect(chatItemSchema.safeParse({ ...item, images: Array(9).fill(image) }).success).toBe(false)
       expect(chatItemSchema.safeParse({ ...item, images: [{ ...image, path: 'C:\\shot.png' }] }).success).toBe(false)
-      expect(chatItemSchema.safeParse({ ...item, images: [{ ...image, mime: 'image/webp' }] }).success).toBe(false)
+      expect(chatItemSchema.safeParse({ ...item, images: [{ ...image, mime: 'image/gif' }] }).success).toBe(false)
     }
     expect(chatItemSchema.parse({ ...message, text: '', images: [image] })).toHaveProperty('text', '')
+  })
+
+  it('reads WebP only on a tool result: images the person sends stay PNG or JPEG', () => {
+    const webp = { ...image, mime: 'image/webp' }
+    expect(chatItemSchema.parse({ ...call, images: [webp] })).toEqual({ ...call, images: [webp] })
+    expect(chatItemSchema.safeParse({ ...message, images: [webp] }).success).toBe(false)
   })
 
   it('still reads a legacy stored line with no images', () => {
