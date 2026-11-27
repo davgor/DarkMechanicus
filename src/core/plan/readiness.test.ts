@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanBundle } from '../../shared/domain/bundle'
+import type { PlanBundle, SprintDelivery } from '../../shared/domain/bundle'
 import type { AttemptState } from '../../shared/domain/status'
-import type { TicketExecutionView } from '../../shared/domain/views'
+import type { DeliveryCheckView, TicketExecutionView } from '../../shared/domain/views'
 import { makeBundle, makeSprint, sid, tid } from '../../test/bundles'
+import { deliverySatisfied } from './delivery'
 import { type AttemptSnapshot, computeExecution, type ExecutionSnapshot, type ReadinessInput } from './readiness'
 
 function snap(
@@ -360,5 +361,104 @@ describe('computeExecution — run state', () => {
 
   it('does not hang on a cyclic (invalid) graph', () => {
     expect(states(compute(makeBundle([[1, 2]], [[1, 2], [2, 1]])))).toEqual(['DM-1:blocked', 'DM-2:blocked'])
+  })
+})
+
+const DELIVERY: SprintDelivery = { target: 'main', release: true, verifyInstalled: true }
+
+/** Sprint 1 = {DM-1} declaring `delivery`, sprint 2 = {DM-2, DM-3} with DM-3 requiring DM-2. */
+function deliveringPlan(first: SprintDelivery | null = DELIVERY, second: SprintDelivery | null = null): PlanBundle {
+  const bundle = makeBundle([[1], [2, 3]], [[2, 3]])
+  bundle.sprints = [
+    makeSprint(1, [1], first === null ? {} : { delivery: first }),
+    makeSprint(2, [2, 3], second === null ? {} : { delivery: second })
+  ]
+  return bundle
+}
+
+function delivery(number: number, kind: 'check' | 'waiver', passed: boolean, sprint = 1): DeliveryCheckView {
+  return {
+    id: `dv-${number}`,
+    runId: 'rn-1',
+    sprintId: sid(sprint),
+    number,
+    kind,
+    commit: kind === 'check' ? 'a'.repeat(40) : null,
+    releaseTag: null,
+    releaseVersion: null,
+    installedVersion: null,
+    checks: kind === 'check' ? [{ name: 'On target', status: passed ? 'passed' : 'failed', detail: '' }] : [],
+    reasons: [],
+    reason: kind === 'waiver' ? 'Shipped by hand' : null,
+    passed,
+    recordedBy: 'orchestrator',
+    createdAt: '2026-11-27T00:00:00.000Z'
+  }
+}
+
+/** Sprint 2 active after sprint 1's DM-1 was accepted. */
+function afterFirstSprint(bundle: PlanBundle, deliveries?: DeliveryCheckView[]): ExecutionSnapshot {
+  return compute(bundle, [snap(1, 1, 'accepted')], { activeSprintId: sid(2), deliveries })
+}
+
+const HELD = { kind: 'delivery_pending', sprintId: sid(1), ordinal: 1 }
+
+describe('computeExecution — delivery hold', () => {
+  it.each([
+    ['no delivery check', undefined],
+    ['a failed latest check', [delivery(1, 'check', false)]],
+    ['a failed check after an earlier passed one', [delivery(2, 'check', false), delivery(1, 'check', true)]],
+    ["only another sprint's waiver", [delivery(1, 'waiver', true, 2)]]
+  ])('holds the active sprint with %s', (_label, deliveries) => {
+    const snapshot = afterFirstSprint(deliveringPlan(), deliveries)
+    expect(states(snapshot)).toEqual(['DM-1:accepted', 'DM-2:waiting', 'DM-3:waiting'])
+    expect(ticketView(snapshot, 2).blockers).toEqual([HELD])
+    expect(ticketView(snapshot, 3).blockers).toEqual([
+      { kind: 'prerequisite', ticketId: tid(2), key: 'DM-2', state: 'waiting' },
+      HELD
+    ])
+  })
+
+  it.each([
+    ['a passed latest check', [delivery(1, 'check', false), delivery(2, 'check', true)]],
+    ['a waiver', [delivery(1, 'check', false), delivery(2, 'waiver', true)]],
+    ['a waiver before a later failed check', [delivery(1, 'waiver', true), delivery(2, 'check', false)]]
+  ])('releases the active sprint with %s', (_label, deliveries) => {
+    const snapshot = afterFirstSprint(deliveringPlan(), deliveries)
+    expect(states(snapshot)).toEqual(['DM-1:accepted', 'DM-2:ready', 'DM-3:waiting'])
+    expect(ticketView(snapshot, 2).blockers).toEqual([])
+  })
+
+  it('leaves a plan without delivery unchanged', () => {
+    const plain = makeBundle([[1], [2, 3]], [[2, 3]])
+    const held = afterFirstSprint(plain, [delivery(1, 'check', false)])
+    expect(held).toEqual(afterFirstSprint(plain))
+    expect(states(held)).toEqual(['DM-1:accepted', 'DM-2:ready', 'DM-3:waiting'])
+  })
+
+  it("holds nothing for the active (final) sprint's own delivery, nor before the delivering sprint closes", () => {
+    const final = afterFirstSprint(deliveringPlan(null, DELIVERY))
+    expect(states(final)).toEqual(['DM-1:accepted', 'DM-2:ready', 'DM-3:waiting'])
+    const first = compute(deliveringPlan(), [], { activeSprintId: sid(1) })
+    expect(states(first)).toEqual(['DM-1:ready', 'DM-2:later_sprint', 'DM-3:later_sprint'])
+  })
+
+  it('keeps a blocked ticket blocked and adds the hold to its blockers', () => {
+    const attempts = [snap(1, 1, 'accepted'), snap(2, 1, 'failed'), snap(2, 2, 'failed'), snap(2, 3, 'failed')]
+    const blocked = compute(deliveringPlan(), attempts, { activeSprintId: sid(2) })
+    expect(ticketView(blocked, 3)).toMatchObject({
+      state: 'blocked',
+      blockers: [{ kind: 'prerequisite', ticketId: tid(2), key: 'DM-2', state: 'failed' }, HELD]
+    })
+  })
+})
+
+describe('deliverySatisfied', () => {
+  it('reads the highest-numbered check of the sprint, whatever the order, and any waiver', () => {
+    expect(deliverySatisfied(sid(1), [])).toBe(false)
+    expect(deliverySatisfied(sid(1), [delivery(3, 'check', true), delivery(2, 'check', false)])).toBe(true)
+    expect(deliverySatisfied(sid(1), [delivery(2, 'check', true), delivery(3, 'check', false)])).toBe(false)
+    expect(deliverySatisfied(sid(1), [delivery(1, 'check', true), delivery(2, 'check', false, 2)])).toBe(true)
+    expect(deliverySatisfied(sid(1), [delivery(1, 'waiver', true, 2)])).toBe(false)
   })
 })

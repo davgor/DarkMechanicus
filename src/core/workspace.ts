@@ -91,7 +91,8 @@ export interface OpenWorkspaceOptions {
   autoReconcile?: boolean
   /** The desktop owner reconciles on its sync lane after opening: open neither reconciles nor flushes first. */
   deferOpenReconcile?: boolean
-  serverInfo?: { name: string; version: string }
+  /** Who serves this session. `packaged` is true only for the installed app; missing means false. */
+  serverInfo?: { name: string; version: string; packaged?: boolean }
   /**
    * Internal: the restricted mailbox-poll mode the `dm` CLI selects for own identity and mailbox status reads.
    * It needs the `cli` transport and a grant bound to an open mailbox here; it reuses

@@ -12,7 +12,7 @@ import type { NotificationSettings } from '../../shared/desktop/notificationSett
 
 export type ExclusionReason =
   | 'disabled' | 'not_magos_chat' | 'project_less' | 'unsupported_kind' | 'question' | 'always_ask'
-  | 'no_tool_input' | 'control_file' | 'outside_folder' | 'never_arbitrate'
+  | 'no_tool_input' | 'control_file' | 'outside_folder' | 'path_too_long' | 'never_arbitrate'
 
 /** The disk as this module reads it; each call throws a Node error with a `code` when it cannot read the path. */
 interface ArbitrationFs {
@@ -49,8 +49,21 @@ type NeverArbitrate = (input: ArbitrationInput) => boolean
  */
 const ARBITRABLE_KINDS: ReadonlySet<string> = new Set(GUI_PROTOCOL_KINDS.filter(kind => kind !== 'omp'))
 const MAX_DEPTH = 8
+/** The longest path component Linux (255 bytes) and Windows (255 UTF-16 units) accept; UTF-8 bytes bound both. */
+const MAX_NAME_BYTES = 255
 const MAX_STRINGS = 2000
 const PATH_KEYS: ReadonlySet<string> = new Set(['file_path', 'path', 'notebook_path', 'cwd', 'directory'])
+/**
+ * Claude's file-editing tools: the key naming the file they write, and the keys holding the text written, never a path
+ * the tool opens. `$HOME`, `//`, `\d` or `*` there is file content, so it is not path-scanned; the path key still is,
+ * and must be there.
+ */
+const FILE_EDITS: ReadonlyMap<string, { pathKey: string; contentKeys: ReadonlySet<string> }> = new Map([
+  ['Write', { pathKey: 'file_path', contentKeys: new Set(['content']) }],
+  ['Edit', { pathKey: 'file_path', contentKeys: new Set(['old_string', 'new_string']) }],
+  ['MultiEdit', { pathKey: 'file_path', contentKeys: new Set(['edits']) }],
+  ['NotebookEdit', { pathKey: 'notebook_path', contentKeys: new Set(['new_source']) }]
+])
 const TOKEN_SPLIT = /[\s"'`=;|&<>(),@]+/
 /** Words as a shell sees them once quotes and escapes are gone; commas stay so brace expansions stay whole. */
 const SHELL_WORD_SPLIT = /[\s=;|&<>()@]+/
@@ -97,6 +110,7 @@ const EXCLUSION_TEXT: Record<ExclusionReason, string> = {
   no_tool_input: 'This request does not say which tool it runs with what input; decide this yourself.',
   control_file: 'This request touches agent, git or CI configuration; decide this yourself.',
   outside_folder: 'This request may reach outside the project folder; decide this yourself.',
+  path_too_long: 'This request names a path too long to check; decide this yourself.',
   never_arbitrate: 'The Magos never decides this kind of request; decide this yourself.'
 }
 
@@ -125,7 +139,12 @@ function toolExclusion(input: ArbitrationInput, folder: string): ExclusionReason
   const { tool } = prompt
   if (tool !== undefined && alwaysAsked(tool.name, settings.arbitration.alwaysAsk)) return 'always_ask'
   if (tool === undefined || !isPlainObject(tool.input)) return 'no_tool_input'
-  return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, tool.input], folder, input)]
+  const edit = FILE_EDITS.get(tool.name)
+  if (edit === undefined) return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, tool.input], folder, input)]
+  // A file edit with no file named cannot be placed, so it is outside.
+  if (typeof tool.input[edit.pathKey] !== 'string') return 'outside_folder'
+  const scanned = Object.fromEntries(Object.entries(tool.input).filter(([key]) => !edit.contentKeys.has(key)))
+  return SCAN_EXCLUSION[scanReferences([prompt.title, prompt.detail, scanned], folder, input)]
 }
 
 function registeredExclusion(input: ArbitrationInput): 'never_arbitrate' | null {
@@ -151,10 +170,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** `control` outranks `outside`; `inside` means every reference resolved inside a root and none names a control file. */
-type Scan = 'inside' | 'outside' | 'control'
+/**
+ * `control` outranks `outside`, which outranks `too_long`; `inside` means every reference resolved inside a root and
+ * none names a control file. `too_long`: a word is a name the disk refuses as too long, so where it leads is unknown.
+ */
+type Scan = 'inside' | 'too_long' | 'outside' | 'control'
 
-const SCAN_EXCLUSION: Record<Scan, ExclusionReason | null> = { inside: null, outside: 'outside_folder', control: 'control_file' }
+const SCAN_EXCLUSION: Record<Scan, ExclusionReason | null> = {
+  inside: null, too_long: 'path_too_long', outside: 'outside_folder', control: 'control_file'
+}
 
 interface ScanContext {
   readonly platform: NodeJS.Platform
@@ -167,6 +191,7 @@ interface ScanContext {
   strings: number
   outside: boolean
   control: boolean
+  tooLong: boolean
 }
 
 const nodeFs: ArbitrationFs = { realpath: path => realpathSync.native(path), lstat: path => lstatSync(path) }
@@ -180,10 +205,10 @@ function scanReferences(values: readonly unknown[], folder: string, input: Arbit
       .map(root => path.resolve(root))
     const context: ScanContext = {
       platform: input.platform, path, folder: path.resolve(folder), roots, fs: input.fs ?? nodeFs,
-      real: new Map(), strings: 0, outside: false, control: false
+      real: new Map(), strings: 0, outside: false, control: false, tooLong: false
     }
     for (const value of values) walk(value, 1, context)
-    return context.control ? 'control' : context.outside ? 'outside' : 'inside'
+    return context.control ? 'control' : context.outside ? 'outside' : context.tooLong ? 'too_long' : 'inside'
   } catch {
     return 'outside'
   }
@@ -331,10 +356,19 @@ function absoluteForm(token: string, platform: NodeJS.Platform): boolean {
 /** Both the path as written and its real path must lie inside a root, each by exact case. */
 function checkResolved(token: string, context: ScanContext): void {
   const { path, platform } = context
+  // Windows reports an over-long name absent rather than too long, so the name is measured before the disk is asked.
+  if (token.split(/[\\/]/).some(name => Buffer.byteLength(name, 'utf8') > MAX_NAME_BYTES)) {
+    context.tooLong = true
+    return
+  }
   const lexical = path.resolve(context.folder, token)
   if (!context.real.has(lexical)) context.real.set(lexical, realPrefix(lexical, context))
-  const real = context.real.get(lexical) ?? null
-  if (real === null) {
+  const real = context.real.get(lexical) ?? UNKNOWN
+  if (real === TOO_LONG) {
+    context.tooLong = true
+    return
+  }
+  if (real === UNKNOWN) {
     context.outside = true
     return
   }
@@ -372,21 +406,28 @@ function ambiguousAbsolute(path: string, platform: NodeJS.Platform): boolean {
   return platform === 'win32' && /^[\\/]{2}/.test(path)
 }
 
+/** What `realPrefix` reports when no real path is known; a real path is absolute, so it never equals either. */
+const UNKNOWN = 'unknown'
+const TOO_LONG = 'too_long'
+
 /**
- * The real path of the longest existing prefix, with the missing rest appended unchanged; null when that cannot be
- * known. Only an entry that is truly absent (ENOENT from both realpath and lstat) lets the walk go up to its parent:
- * a dangling symlink still exists as an entry and may point anywhere, and EACCES, EPERM or ELOOP hide where it leads.
+ * The real path of the longest existing prefix, with the missing rest appended unchanged; `UNKNOWN` when that cannot
+ * be known, `TOO_LONG` when the disk refuses the name as too long (ENAMETOOLONG). Only an entry that is truly absent
+ * (ENOENT from both realpath and lstat) lets the walk go up to its parent: a dangling symlink still exists as an entry
+ * and may point anywhere, and EACCES, EPERM or ELOOP hide where it leads.
  */
-function realPrefix(target: string, context: ScanContext): string | null {
+function realPrefix(target: string, context: ScanContext): string {
   const { path, fs } = context
   const tail: string[] = []
   let current = target
   for (;;) {
     const real = attempt(() => fs.realpath(current))
     if (typeof real === 'string') return tail.length === 0 ? real : path.join(real, ...tail.reverse())
-    if (!absent(real) || !absent(attempt(() => fs.lstat(current)))) return null
+    const entry = errorCode(real) === 'ENOENT' ? attempt(() => fs.lstat(current)) : real
+    const code = errorCode(entry)
+    if (code !== 'ENOENT') return code === 'ENAMETOOLONG' ? TOO_LONG : UNKNOWN
     const parent = path.dirname(current)
-    if (parent === current) return null
+    if (parent === current) return UNKNOWN
     tail.push(path.basename(current))
     current = parent
   }
@@ -401,10 +442,11 @@ function attempt<T>(call: () => T): T | { thrown: unknown } {
   }
 }
 
-function absent(result: unknown): boolean {
-  if (typeof result !== 'object' || result === null || !('thrown' in result)) return false
+/** The `code` of what `attempt` caught; null for a result or a throw without one. */
+function errorCode(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null || !('thrown' in result)) return null
   const { thrown } = result
-  return typeof thrown === 'object' && thrown !== null && 'code' in thrown && thrown.code === 'ENOENT'
+  return typeof thrown === 'object' && thrown !== null && 'code' in thrown ? thrown.code : null
 }
 
 /** Inside by both `relative()` and an exact, case-sensitive prefix: a case difference on win32 is ambiguous, so outside. */

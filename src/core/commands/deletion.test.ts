@@ -9,6 +9,11 @@ import { openDatabase } from '../db/database'
 import { encodeBase32, ID_PREFIXES } from '../ids'
 import { nodeFs } from '../repo/nodeFs'
 import type { Workspace } from '../workspace'
+import { idOf, insertDeliveryCheck } from '../../test/repoFixtures'
+
+const DV1 = idOf('deliveryCheck', 1)
+const DV2 = idOf('deliveryCheck', 2)
+const DV3 = idOf('deliveryCheck', 3)
 
 /** Sprint 1: First. Sprint 2: Second, which requires First. */
 const TWO_SPRINTS: DraftOp[] = [
@@ -141,6 +146,35 @@ describe('deleteEpic', () => {
     expect(events.filter((event) => event.kind === 'epic.deleted').map((event) => [event.epicId, event.payload])).toEqual([
       [null, { title: 'Short lived', runs: 0 }]
     ])
+  })
+})
+
+describe('deleteEpic with delivery checks', () => {
+  it("removes the delivery checks and waivers of the epic's runs and keeps another epic's", async () => {
+    const agent = harness.open('orchestrator')
+    const desktop = harness.open('desktop')
+    await agent.initializeRepository({ name: 'delete-repo' })
+    const keeper = await savedEpic(agent, 'Keeper', [{ op: 'add_ticket', ref: 'only', sprint: '1', ticket: { title: 'Only' } }])
+    const keeperRun = await agent.startRun({ epicId: keeper.epicId })
+    await agent.cancelRun({ runId: keeperRun.id, reason: 'Kept for the record' })
+    const { epicId, runId } = await busyEpic(agent, desktop)
+    const sprintId = (await agent.getPlan({ epicId, view: 'saved' })).bundle.sprints[0]?.id ?? ''
+    const keeperSprint = (await agent.getPlan({ epicId: keeper.epicId, view: 'saved' })).bundle.sprints[0]?.id ?? ''
+    const db = openDatabase(dmPath('local', 'state.sqlite'))
+    try {
+      insertDeliveryCheck(db, { id: DV1, runId, sprintId, number: 1 })
+      insertDeliveryCheck(db, { id: DV2, runId, sprintId, number: 2, kind: 'waiver' })
+      insertDeliveryCheck(db, { id: DV3, runId: keeperRun.id, sprintId: keeperSprint, number: 1 })
+    } finally {
+      db.close()
+    }
+    expect(rowsMentioning([DV1, DV2])).toHaveLength(2)
+
+    await desktop.deleteEpic({ epicId })
+
+    expect(rowsMentioning([DV1, DV2])).toEqual([])
+    expect(rowsMentioning([epicId, runId])).toEqual([])
+    expect(rowsMentioning([DV3])).toEqual([expect.stringMatching(/^delivery_checks: /)])
   })
 })
 

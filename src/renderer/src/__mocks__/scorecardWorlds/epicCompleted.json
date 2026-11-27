@@ -99,6 +99,7 @@
           }
         ],
         "increments": [],
+        "deliveries": [],
         "activeSprintTierFacts": [],
         "attempts": [
           {
@@ -354,6 +355,7 @@
           }
         ],
         "increments": [],
+        "deliveries": [],
         "activeSprintTierFacts": [],
         "attempts": [
           {
@@ -4963,6 +4965,7 @@
           }
         ],
         "increments": [],
+        "deliveries": [],
         "activeSprintTierFacts": [
           {
             "ticketId": "tk_000000000000000000000000z9",

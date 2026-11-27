@@ -10,6 +10,7 @@ describe('meta keys', () => {
       projectName: 'project_name',
       keyPrefix: 'key_prefix',
       machineId: 'machine_id',
+      installedApp: 'installed_app',
       checkoutBranch: 'checkout_branch',
       lastFlushAt: 'last_flush_at',
       lastReconcileAt: 'last_reconcile_at',

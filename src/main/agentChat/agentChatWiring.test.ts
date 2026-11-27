@@ -22,11 +22,12 @@ import { createChatRecords } from '../agents/chatRecords'
 import type { ChatRef } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
+import { createNotifier, type NotificationEvent } from '../notify/notifier'
 import { disposeBeforeQuit } from '../quitDisposal'
 import { gate, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { agentChatRig } from './__mocks__/agentChatRig'
 import { createAgentChatHandlers, registerAgentChatIpc } from './agentChatIpc'
-import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type ArbiterWiring } from './agentChatWiring'
+import { endingAgentChats, nativeTerminalStopConfirmation, releasingChatOwners, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type ArbiterWiring } from './agentChatWiring'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
@@ -49,7 +50,7 @@ function app(
   })
   const arbiter: ArbiterWiring = {
     settings: () => DEFAULT_NOTIFICATION_SETTINGS, arbiterReads: () => { throw new Error('No workspace in this test.') },
-    bindings: gui.deps.bindings, allowedRoots: () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
+    bindings: gui.deps.bindings, allowedRoots: async () => [], platform: process.platform, env: gui.env, arbiterRoot: join(gui.root, 'arbiter'),
     log: { info: vi.fn(), warn: vi.fn() },
     ...arbiterOverrides
   }
@@ -105,6 +106,9 @@ function magosChat(state: ReturnType<typeof app>): ChatRef {
   return state.gui.store.createChat({ folder: state.gui.repo, agent: 'claude', role: 'orchestrator', runId: RUN, allowSave: false, model: null, surface: 'gui', firstPrompt: '[worker_approval]' })
 }
 
+/** A prompt's notification dedupe key: scoped to its chat ref as well as its id. */
+const promptKey = (chat: ChatRef, promptId: string): string => `prompt:${JSON.stringify([chat.folder, chat.id, promptId])}`
+
 /** The folder's workspace reads: the run's epic with a Standards section, and the worker attempt's saved ticket. */
 function projectReads() {
   return {
@@ -154,12 +158,15 @@ describe('agent chat wiring: the Magos arbiter', () => {
     await vi.waitFor(() => expect(state.gui.store.readTranscript(chat)!.items.find(item => item.id === WORKER_THREAD)).toMatchObject({ callsign: { ticketKey: 'DM-442', ticketVerified: true } }))
   })
 
-  it('a failing context read still arbitrates, with neither ticket nor Standards', async () => {
+  it('a failing context read escalates to the person and starts no arbiter (DM-1011)', async () => {
     const runner = stubRunner({ verdict: { decision: 'deny', reason: 'Not needed.' } })
-    const state = open(undefined, { startArbiter: runner.start })
-    await state.wiring.agentChats.start(magosChat(state))
-    await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
-    expect(requestOf(runner)).toMatchObject({ ticket: null, standards: null })
+    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    expect(state.wiring.agentChats.snapshot(chat).pending?.arbitration).toEqual({
+      state: 'escalated', reason: 'The Magos could not read the ticket or the Standards for this request; decide this yourself.'
+    })
+    expect(runner.start).not.toHaveBeenCalled()
   })
 
   it('settings with the arbiter off reach the gate: no arbiter runs and the OS notifier is told', async () => {
@@ -167,7 +174,7 @@ describe('agent chat wiring: the Magos arbiter', () => {
     const state = open(undefined, { settings: () => withArbitration({ enabled: false }), startArbiter: runner.start }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
-    expect(state.notify.mock.calls[0][0]).toMatchObject({ kind: 'approval_needed', key: 'prompt:req_T1_worker_approval', target: { kind: 'chat', folder: chat.folder, chatId: chat.id } })
+    expect(state.notify.mock.calls[0][0]).toMatchObject({ kind: 'approval_needed', key: promptKey(chat, 'req_T1_worker_approval'), target: { kind: 'chat', folder: chat.folder, chatId: chat.id } })
     expect(runner.start).not.toHaveBeenCalled()
   })
 })
@@ -175,7 +182,7 @@ describe('agent chat wiring: the Magos arbiter', () => {
 describe('agent chat wiring: quit cancels every arbiter', () => {
   it('quit cancels a hanging real arbiter within 5 s, its process gone and its working folder removed', async () => {
     // The fake CLI's arbiter mode hangs on the `[arbiter:hang]` keyword, which the auto-handle notes carry into its stdin.
-    const state = open(undefined, { settings: () => withArbitration({ autoHandleNotes: '[arbiter:hang]' }) }), chat = magosChat(state)
+    const state = open(undefined, { settings: () => withArbitration({ autoHandleNotes: '[arbiter:hang]' }), arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     const log = join(state.gui.root, 'agent.jsonl')
     const arbiterPid = await vi.waitFor(() => {
@@ -193,7 +200,7 @@ describe('agent chat wiring: quit cancels every arbiter', () => {
 
   it('a stuck arbiter whose runner never settles still lets the quit finish within the 5 s bound', async () => {
     const runner = stubRunner({ stuck: true })
-    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
     const listeners: ((event: { preventDefault(): void }) => void)[] = []
@@ -233,13 +240,13 @@ describe('agent chat wiring: the arbiter root', () => {
 describe('agent chat wiring: attention reaches the OS notifier', () => {
   it('an escalated worker approval names its callsign and lands on the chat, thread and prompt', async () => {
     const runner = stubRunner({ verdict: { decision: 'escalate', cause: 'verdict', reason: 'Needs the person.' } })
-    const state = open(undefined, { startArbiter: runner.start }), chat = magosChat(state)
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
     await state.wiring.agentChats.start(chat)
     await vi.waitFor(() => expect(state.notify).toHaveBeenCalledOnce(), { timeout: 5_000 })
     const prompt = state.wiring.agentChats.snapshot(chat).pending!
     expect(prompt).toMatchObject({ id: 'req_T1_worker_approval', threadId: WORKER_THREAD, arbitration: { state: 'escalated' } })
     expect(state.notify).toHaveBeenCalledExactlyOnceWith({
-      kind: 'approval_needed', key: 'prompt:req_T1_worker_approval', title: 'Acolyte:DM-442 needs you', body: `wants to run: ${prompt.title}`,
+      kind: 'approval_needed', key: promptKey(chat, 'req_T1_worker_approval'), title: 'Acolyte:DM-442 needs you', body: `wants to run: ${prompt.title}`,
       target: { kind: 'chat', folder: state.gui.repo, chatId: chat.id, threadId: WORKER_THREAD, promptId: 'req_T1_worker_approval' }
     })
     // Never the prompt's detail or tool input.
@@ -270,7 +277,7 @@ describe('agent chat wiring: attention reaches the OS notifier', () => {
     const prompt = state.wiring.agentChats.snapshot(chat).pending!
     expect(prompt).toMatchObject({ kind: 'question', threadId: null, callsign: { role: 'Magos' } })
     expect(state.notify).toHaveBeenCalledExactlyOnceWith({
-      kind: 'question', key: `prompt:${prompt.id}`, title: 'Magos needs you', body: `has a question: ${prompt.title}`,
+      kind: 'question', key: promptKey(chat, prompt.id), title: 'Magos needs you', body: `has a question: ${prompt.title}`,
       target: { kind: 'chat', folder: state.gui.repo, chatId: chat.id, promptId: prompt.id }
     })
   })
@@ -280,6 +287,33 @@ describe('agent chat wiring: attention reaches the OS notifier', () => {
     const state = open(undefined, {}, { notify: () => { throw failure } })
     expect(() => state.owned().onAttention({ kind: 'run_stalled', ref: { folder: state.gui.repo, id: 'gone' }, silentMs: 300_000 })).not.toThrow()
     expect(state.onError).toHaveBeenCalledExactlyOnceWith(failure)
+  })
+})
+
+describe('agent chat wiring: the prompt dedupe key is scoped to the chat', () => {
+  it('the same prompt id waiting in two chats shows two OS notifications: the dedupe key is scoped to the chat', async () => {
+    const shown: { title: string; body: string }[] = []
+    class ShownNotification {
+      static isSupported(): boolean { return true }
+      constructor(readonly options: { title: string; body: string; silent: boolean }) {}
+      on(): this { return this }
+      show(): void { shown.push({ title: this.options.title, body: this.options.body }) }
+    }
+    const notifier = createNotifier({
+      Notification: ShownNotification, windows: () => [], settings: () => DEFAULT_NOTIFICATION_SETTINGS,
+      push: vi.fn(), logger: { info: vi.fn() }, now: () => 1_000_000
+    })
+    const notify = vi.fn((event: NotificationEvent) => notifier.notify(event))
+    const state = open(undefined, { settings: () => withArbitration({ enabled: false }) }, { notify })
+    const first = magosChat(state), second = magosChat(state)
+    await Promise.all([state.wiring.agentChats.start(first), state.wiring.agentChats.start(second)])
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2), { timeout: 5_000 })
+    // Both chats' fake CLIs raise the same prompt id; each reaches the person.
+    expect(notify.mock.calls.map(([event]) => event.key).sort()).toEqual([promptKey(first, 'req_T1_worker_approval'), promptKey(second, 'req_T1_worker_approval')].sort())
+    expect(shown).toHaveLength(2)
+    // The same prompt of the same chat still shows once.
+    notifier.notify(notify.mock.calls[0][0])
+    expect(shown).toHaveLength(2)
   })
 })
 
@@ -389,6 +423,33 @@ describe('agent chat wiring: deletion', () => {
     held.open()
     await deleting
     expect(state.gui.children).toHaveLength(0)
+  })
+})
+
+describe('agent chat wiring: untrack and agent removal', () => {
+  it('untracking a folder stops its GUI process and its terminal, revokes both grants, then forgets it', async () => {
+    const state = open(), chat = state.gui.newChat(), terminalChat = state.terminalChat()
+    await state.wiring.agentChats.start(chat)
+    const { pty } = await startTerminal(state.terminals, terminalChat)
+    const pid = state.gui.children[0].pid!
+    const seen: unknown[] = []
+    await releasingChatOwners(state.terminals.sessions, state.wiring.agentChats).releaseFolder(state.gui.repo, async () => {
+      seen.push(alive(pid), state.gui.revoked, pty.kills, state.terminals.revoked.length)
+      await state.wiring.agentChats.start(chat).catch((error: Error) => seen.push(error.message))
+    })
+    expect(seen).toEqual([false, ['grant-1'], 1, 1, "The chat's folder is being untracked."])
+    // The fake PTY exits only when told; its kill and revocation, asked before `forget`, are what untrack waits for.
+    expect(state.wiring.agentChats.isLive(chat)).toBe(false)
+  })
+
+  it('removing an agent stops the GUI processes and terminals of its chats', async () => {
+    const state = open(), chat = state.gui.newChat(), terminalChat = state.terminalChat()
+    await state.wiring.agentChats.start(chat)
+    const { pty } = await startTerminal(state.terminals, terminalChat)
+    const pid = state.gui.children[0].pid!
+    await releasingChatOwners(state.terminals.sessions, state.wiring.agentChats).endAgent('claude')
+    expect([alive(pid), state.gui.revoked, pty.kills]).toEqual([false, ['grant-1'], 1])
+    expect(state.wiring.agentChats.isLive(chat)).toBe(false)
   })
 })
 

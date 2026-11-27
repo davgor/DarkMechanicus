@@ -16,6 +16,7 @@ import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
 import type { PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
+import type { ChatItem } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 
 /** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
@@ -240,6 +241,18 @@ for (const [label, tag] of TERMINAL_ONLY) for (const kind of ['claude', 'omp'] a
   await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'unsupported' })
   expect([r.steps, r.children, r.pushes, r.revoked, write.mock.calls, changed.mock.calls]).toEqual([[], [], [], [], [], []])
   expect([confirm.mock.calls, stopTerminal.mock.calls, r.sessions.isLive(chat), r.store.getChat(chat)!.surface]).toEqual([[], [], false, 'terminal'])
+})
+
+for (const kind of ['claude', 'omp'] as const) it(`refuses GUI start and switch for a ${kind} Forge World merge resolver chat without side effects`, async () => {
+  const changed = vi.fn(), confirm = vi.fn(async () => true)
+  const r = rig(kind, { onChatChanged: changed })
+  const created = r.store.createChat({ folder: r.repo, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'terminal' })
+  const chat = r.store.updateChat(created, { forgeResolver: r.repo })
+  const write = vi.spyOn(r.store, 'updateChat')
+  await expect(r.sessions.start(chat)).rejects.toMatchObject({ code: 'unsupported', message: 'Forge World merge resolvers run only in the terminal.' })
+  await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'unsupported' })
+  expect([r.steps, r.children, r.revoked, write.mock.calls, changed.mock.calls, confirm.mock.calls]).toEqual([[], [], [], [], [], []])
+  expect(r.store.getChat(chat)!.surface).toBe('terminal')
 })
 
 it('refuses a toggle during authentication before any process or grant is issued', async () => {
@@ -600,8 +613,8 @@ describe('claude Magos escalation, exit and clipped input over the fake CLI', ()
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
     const outside = join(r.userData, 'secret.txt')
     inject('visible', `type "${outside}"`)
-    // Short words: one word over 255 bytes is a path component Linux refuses (ENAMETOOLONG), which the scan reads as
-    // outside the folder before the clipped flag is consulted; Windows answers ENOENT. The cut must look harmless.
+    // Short words: one word over 255 bytes is a name too long to check, an exclusion decided before the clipped flag is
+    // consulted. The cut must look harmless.
     inject('clipped', `echo ${'a '.repeat(500)}&& type "${outside}"`)
     inject('inside', 'npm test')
     expect(r.sessions.snapshot(chat).pending).toMatchObject({ id: 'visible', arbitration: { state: 'escalated', reason: exclusionText('outside_folder') } })
@@ -931,25 +944,36 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inte
 
   it('force-kills an unresponsive turn at five seconds and remains resumable', async () => {
     const r = rig(kind), chat = r.newChat()
-    const start = r.deps.startProcess!, forced: number[] = []
+    // Stops are recorded at once and reach the real child only once the deadline has been checked on the fake clock,
+    // so no timer the kill starts is left on that clock.
+    const start = r.deps.startProcess!, stops: Array<{ force?: boolean }> = []
+    // The repository's ES library predates Promise.withResolvers.
+    let reachChild = (): void => undefined
+    const deadlineChecked = new Promise<void>(resolve => { reachChild = resolve })
     r.deps.startProcess = spec => {
       const child = start(spec)
-      return { ...child, stop: options => { if (options?.force) forced.push(Date.now()); return child.stop(options) } }
+      return { ...child, stop: options => { stops.push({ ...options }); return deadlineChecked.then(() => child.stop(options)) } }
     }
     await r.sessions.send(chat, { text: '[hung]' })
     await eventually(() => r.store.getChat(chat)!.sessionId !== null)
     const session = r.store.getChat(chat)!.sessionId, pid = r.children[0].pid!
+    const failures: string[] = []
     const pushed = r.deps.push
-    const failed = new Promise<void>(resolve => {
-      r.deps.push = event => { pushed(event); if (event.type === 'status' && event.status === 'failed') resolve() }
-    })
-    const interrupted = Date.now()
+    r.deps.push = event => { pushed(event); if (event.type === 'status' && event.status === 'failed') failures.push(event.detail ?? '') }
+    // Only the deadline runs on the fake clock; the child's stdout and exit stay real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     await r.sessions.interrupt(chat)
     await r.sessions.interrupt(chat)
-    await failed
-    expect(forced).toHaveLength(1)
-    expect(forced[0] - interrupted).toBeGreaterThanOrEqual(4900)
-    expect(forced[0] - interrupted).toBeLessThan(6000)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(stops).toEqual([])
+    expect(failures).toEqual([])
+    expect(r.sessions.snapshot(chat).status).toBe('busy')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(stops[0]).toEqual({ force: true })
+    expect(stops.filter(stop => stop.force)).toHaveLength(1)
+    expect(failures).toEqual(['The agent did not end its turn within 5 seconds of interrupt.'])
+    vi.useRealTimers()
+    reachChild()
     await eventually(() => !r.sessions.isLive(chat))
     expect(() => process.kill(pid, 0)).toThrow()
     expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'failed', queued: 0 })
@@ -1013,6 +1037,8 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI shut
   })
 })
 
+const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true } catch { return false } }
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephemeral state and deletion`, () => {
 
   it('keeps the latest per-thread todos only in memory, retains on exit and resets on restart', async () => {
@@ -1048,6 +1074,32 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     expect(r.store.getChat(chat)).toBeNull()
     expect(() => process.kill(pid, 0)).toThrow()
     expect(r.revoked).toEqual(['grant-1'])
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI untrack and agent removal`, () => {
+  it('untracking the folder stops its GUI process, revokes its grant and refuses starts until the untrack is done', async () => {
+    const r = rig(kind), chat = r.newChat(), other = r.newChat(undefined, null)
+    await r.sessions.start(chat)
+    await r.sessions.start(other)
+    const pid = r.children[0].pid!
+    const seen: unknown[] = []
+    await r.sessions.releaseFolder(r.repo, async () => {
+      seen.push(alive(pid), [...r.revoked], r.sessions.isLive(chat))
+      await r.sessions.start(chat).then(() => seen.push('started'), (error: Error) => seen.push(error.message))
+    })
+    expect(seen).toEqual([false, ['grant-1'], false, "The chat's folder is being untracked."])
+    expect(r.children).toHaveLength(2)
+    expect(r.sessions.isLive(other)).toBe(true)
+  })
+
+  it('removing the agent stops the GUI processes of its chats and revokes their grants', async () => {
+    const r = rig(kind), chat = r.newChat()
+    await r.sessions.start(chat)
+    const pid = r.children[0].pid!
+    await r.sessions.endAgent(kind)
+    expect([alive(pid), r.revoked, r.sessions.isLive(chat)]).toEqual([false, ['grant-1'], false])
+    await r.sessions.endAgent('codex')
   })
 })
 
@@ -1293,6 +1345,29 @@ describe('callsigns across a restart', () => {
     expect(Object.fromEntries(pushed)).toEqual(before)
     expect(readFileSync(r.bindingsFile, 'utf8')).toBe(stored)
     await reopened.dispose()
+  })
+})
+
+describe('callsigns of threads stored before callsigns existed', () => {
+  it('stamps a live legacy thread with the Servitor ordinal the renderer already shows, never a stamped one', async () => {
+    const r = rig()
+    const chat = orchestratorChat(r, 'claude', '[subagent]')
+    const stored = (id: string, state: 'running' | 'done', callsign?: Callsign): ChatItem => ({
+      id, at: '2026-11-25T10:00:00.000Z', kind: 'thread', parentItemId: null, label: 'Explore', state, ...(callsign ? { callsign } : {})
+    })
+    // Stored before callsigns: two legacy threads among stamped Servitors 1 and 2; the live one comes back last.
+    r.store.appendItems(chat, [
+      stored('thread:old1', 'done', servitor(1, null)), stored('thread:old2', 'done'),
+      stored('thread:old3', 'done', servitor(2, null)), stored('thread:toolu_T1_worker', 'running')
+    ])
+    const live = (): Callsign | undefined => {
+      const found = item(r.store, chat, 'thread:toolu_T1_worker')
+      return found?.kind === 'thread' ? found.callsign : undefined
+    }
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && live() !== undefined)
+    // The renderer names thread:old2 Servitor-3 and the live thread Servitor-4 from the start; main keeps both.
+    expect(live()).toEqual(servitor(4, null))
   })
 })
 

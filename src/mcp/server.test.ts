@@ -11,7 +11,7 @@ import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } fr
 import { REASONING_LEVELS, RELATION_KINDS, TICKET_FAILURE_POLICIES, TOOL_CAPABILITIES, WORK_TYPES } from '../shared/domain/bundle'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { LEARNING_DISPOSITIONS } from '../shared/domain/kanban'
-import type { ProjectView } from '../shared/domain/views'
+import type { Blocker, ProjectView } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { COMMAND_NAMES, createCannedApi, createStubApi } from '../test/stubApi'
 import { promptName } from './prompts'
@@ -86,6 +86,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   reconcile_attempt: { method: 'reconcileAttempt', kind: 'write' },
   carry_forward_ticket: { method: 'carryForwardTicket', kind: 'write' },
   record_row_check: { method: 'recordRowCheck', kind: 'write' },
+  record_delivery: { method: 'recordDelivery', kind: 'write' },
   pause_run: { method: 'pauseRun', kind: 'idempotent' },
   resume_run: { method: 'resumeRun', kind: 'idempotent' },
   cancel_run: { method: 'cancelRun', kind: 'destructive' },
@@ -184,7 +185,9 @@ const HUMAN_ONLY: CommandName[] = [
   'recordEscapedDefects',
   // Which guidance future agents receive is the person's call: no tool retires or replaces a learning.
   'retireLearning',
-  'replaceLearning'
+  'replaceLearning',
+  // Lifting a sprint's delivery hold without a passing check is the person's call; agents only record checks.
+  'waiveDelivery'
 ]
 
 /**
@@ -243,7 +246,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const names = tools.map((tool) => tool.name)
-      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode']
+      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode', 'waive_delivery']
       for (const name of forbidden) {
         expect(names).not.toContain(name)
       }
@@ -415,7 +418,16 @@ const GATE_CONDITIONS = [
   'epic_outcome',
   'plan_current'
 ]
-const BLOCKER_KINDS = ['retry_limit', 'run_state', 'row_check_failed']
+/** Every `Blocker` kind: typecheck fails here when the union gains or loses a kind, so the vocabulary cannot drift. */
+const BLOCKER_KINDS = Object.keys({
+  prerequisite: true,
+  concurrency: true,
+  retry_limit: true,
+  lease_expired: true,
+  run_state: true,
+  row_check_failed: true,
+  delivery_pending: true
+} satisfies Record<Blocker['kind'], true>)
 const DRAFT_OPS: string[] = draftOp.options.map((option) => option.shape.op.value)
 
 const VOCABULARY = new Set<string>([

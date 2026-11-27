@@ -13,7 +13,7 @@ import { DomainError } from '../core/errors'
 import { acceptAttempt, claimTicket, submitAttempt } from '../core/services/attempts'
 import type { AttemptRow, RunRow } from '../core/services/execution'
 import { startRun } from '../core/services/runs'
-import { makeBundle, tid } from './bundles'
+import { makeBundle, sid, tid } from './bundles'
 import { type TestCtx, withRole } from './testContext'
 
 interface SeedEpicOptions {
@@ -279,4 +279,33 @@ export function errorCode(action: () => unknown): string {
     return error instanceof DomainError ? error.code : `raw:${error instanceof Error ? error.message : String(error)}`
   }
   return 'ok'
+}
+
+/**
+ * Records delivery check `number` of the run for sprint ordinal `sprint`: a check with one passed or failed entry,
+ * or a waiver. Returns its id.
+ */
+export function seedDeliveryCheck(
+  ctx: Ctx,
+  runId: string,
+  record: { number: number; sprint: number; kind: 'check' | 'waiver'; passed?: boolean }
+): string {
+  const id = ctx.ids.next('deliveryCheck')
+  const status = record.passed === false ? 'failed' : 'passed'
+  const verdict =
+    record.kind === 'waiver'
+      ? { reason: 'Shipped by hand' }
+      : { checks: [{ name: 'On target', status, detail: '' }], reasons: [], releaseVersion: null, installedVersion: null }
+  ctx.db.run(
+    `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, 'test', ?)`,
+    id,
+    runId,
+    record.number,
+    sid(record.sprint),
+    record.kind,
+    toJson(verdict),
+    ctx.clock.nowIso()
+  )
+  return id
 }

@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { PendingPrompt } from '../../shared/agents/agentChat'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { DEFAULT_NOTIFICATION_SETTINGS, type NotificationSettings } from '../../shared/desktop/notificationSettings'
@@ -10,6 +11,7 @@ import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { createChatStore } from '../agents/chatStore'
 import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
 import { exclusionText, registerNeverArbitrate } from '../magos/arbitrationRules'
+import { createWorktreeRoots } from '../magos/worktreeRoots'
 import { claudeInputClipped, createClaudeProtocolState, translateClaudeLine } from './claudeProtocol'
 import { PendingPrompts } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
@@ -18,6 +20,9 @@ import { createPromptArbitration } from './promptArbitration'
 const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
 
 const TOO_LARGE = 'Input too large to review; decide this yourself.'
+/** One byte over the longest name Linux and Windows accept: Linux refuses it (ENAMETOOLONG), Windows reports it absent. */
+const LONG_WORD = 'a'.repeat(256)
+const CONTEXT_UNAVAILABLE = 'The Magos could not read the ticket or the Standards for this request; decide this yourself.'
 let root: string, folder: string, outside: string
 beforeEach(() => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm prompt arbitration ')))
@@ -58,11 +63,16 @@ function stubRunner() {
 }
 
 type ReadContext = (input: { chat: ChatRecord; prompt: PendingPrompt }) => Promise<{ ticket: null; standards: string | null }>
-function harness(options: { settings?: Pick<NotificationSettings, 'arbitration'>; agent?: 'claude' | 'omp'; readContext?: ReadContext } = {}) {
+type HarnessOptions = {
+  settings?: Pick<NotificationSettings, 'arbitration'>; agent?: 'claude' | 'omp'; readContext?: ReadContext
+  allowedRoots?: (chat: ChatRecord) => Promise<readonly string[]>
+}
+function harness(options: HarnessOptions = {}) {
   const runner = stubRunner(), onAttention = vi.fn(), settings = vi.fn(() => options.settings ?? DEFAULT_NOTIFICATION_SETTINGS)
   const readContext = vi.fn<ReadContext>(options.readContext ?? (async () => ({ ticket: null, standards: null })))
   const arbitration = createPromptArbitration({
-    settings, onAttention, readContext, platform: process.platform, env: { PATH: process.env.PATH }, arbiterRoot: join(root, 'arbiter'), startArbiter: runner.start, log
+    settings, onAttention, readContext, platform: process.platform, env: { PATH: process.env.PATH }, arbiterRoot: join(root, 'arbiter'), startArbiter: runner.start, log,
+    ...(options.allowedRoots === undefined ? {} : { allowedRoots: options.allowedRoots })
   })
   const agent = builtInAgent(options.agent ?? 'claude', { executablePath: join(root, 'claude.exe') })
   /** `clipped`: prompt ids whose tool input the translator recorded as cut. */
@@ -120,6 +130,7 @@ describe('escalating exclusions (fix 7 mapping, requirement b)', () => {
     ['question', () => question('q1')],
     ['always_ask', () => approval('p1', { command: 'npm test' }, 'Bash')],
     ['outside_folder', () => approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })],
+    ['path_too_long', () => approval('p1', { command: `echo ${LONG_WORD}` })],
     ['no_tool_input', () => approval('p1', null)],
     ['control_file', () => approval('p1', { file_path: join(folder, '.claude', 'settings.json'), content: '{}' }, 'Write')],
     ['never_arbitrate', () => approval('p1'), () => registerNeverArbitrate(() => true)]
@@ -141,8 +152,8 @@ describe('escalating exclusions (fix 7 mapping, requirement b)', () => {
 })
 
 // Size and clipping fixtures use short words. The path scan reads each word as a relative path, and a word over 255
-// bytes is a name Linux refuses (ENAMETOOLONG) and Windows reports absent (ENOENT): Linux reads it, fail-closed, as
-// outside the folder, an exclusion that is decided before size or the clip flag (see the precedence case below).
+// bytes is a name too long to check on every platform: an exclusion decided before size or the clip flag (see the
+// precedence cases below).
 describe('oversized and clipped tool input (fix 17, requirement a)', () => {
   it('a 4,001-character Bash command escalates as too large with zero spawns', async () => {
     const h = harness(), r = h.registry(chatOf())
@@ -182,6 +193,29 @@ describe('oversized and clipped tool input (fix 17, requirement a)', () => {
     await settle()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
     expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+})
+
+describe('words over 255 bytes (DM-1008)', () => {
+  it('an exclusion outranks the clip flag: a clipped input with a word over 255 bytes escalates as a path too long', async () => {
+    const h = harness(), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `echo ${LONG_WORD}` })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('path_too_long') })
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+
+  it('a real outside path outranks a word over 255 bytes, clipped or not', async () => {
+    const h = harness(), r = h.registry(chatOf(), new Set(['p1']))
+    const command = `echo ${LONG_WORD} && type "${join(outside, 'secret.txt')}"`
+    r.prompts.update([approval('p1', { command })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    r.prompts.answer('p1', () => [approval('p2', { command })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
     expect(h.runner.start).not.toHaveBeenCalled()
   })
 })
@@ -255,14 +289,155 @@ describe('verdicts', () => {
     expect(log.info).toHaveBeenLastCalledWith('Magos arbitration:', expect.objectContaining({ decision: 'escalate', cause }))
   })
 
-  it('a runner that throws on start, or failing context, still fails closed', async () => {
-    const h = harness({ readContext: () => Promise.reject(new Error('board offline')) }), r = h.registry(chatOf())
+  it('a runner that throws on start still fails closed', async () => {
+    const h = harness(), r = h.registry(chatOf())
     h.runner.start.mockImplementationOnce(() => { throw new Error('spawn refused') })
     r.prompts.update([approval('p1')])
     await settle()
     expect(h.readContext).toHaveBeenCalledOnce()
     expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: 'Arbiter failed to start.' })
     expect(h.onAttention).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a failed context read (DM-1011)', () => {
+  it('a context read that rejects escalates with the context-unavailable reason and starts no arbiter', async () => {
+    const h = harness({ readContext: () => Promise.reject(new Error('board offline')) }), r = h.registry(chatOf())
+    r.prompts.update([approval('p1')])
+    await settle()
+    expect(h.readContext).toHaveBeenCalledOnce()
+    expect(h.runner.start).not.toHaveBeenCalled()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: CONTEXT_UNAVAILABLE })
+    expect(h.onAttention).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'approval_needed', prompt: r.prompts.snapshot() }))
+    expect(r.answer).not.toHaveBeenCalled()
+    expect(log.info).toHaveBeenLastCalledWith('Magos arbitration:', expect.objectContaining({ decision: 'escalate', cause: 'context_unavailable' }))
+  })
+})
+
+/** A scratch root with no spaces, removed after the test: the command scan splits words at spaces, quoted or not. */
+function plainRoot(): string {
+  const plain = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-arbitration-roots-')))
+  onTestFinished(() => removeScratch(plain))
+  return plain
+}
+
+/** A repository with a tracked subfolder `repo/sub` and a registered worktree holding `sub` too. */
+function subfolderLayout() {
+  const plain = plainRoot(), repo = join(plain, 'git'), worktree = join(plain, 'wt')
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args],
+    { cwd: repo, stdio: 'ignore', windowsHide: true })
+  mkdirSync(join(repo, 'sub'), { recursive: true })
+  writeFileSync(join(repo, 'other.txt'), 'other')
+  writeFileSync(join(repo, 'sub', 'a.txt'), 'a')
+  git('init', '-q')
+  git('add', '.')
+  git('commit', '-q', '-m', 'init')
+  git('worktree', 'add', '-q', worktree)
+  return { repo, sub: join(repo, 'sub'), worktree: realpathSync.native(worktree) }
+}
+
+describe('file-edit content (DM-1011)', () => {
+  it('a Write whose content holds $HOME and // reaches the arbiter, which decides it', async () => {
+    const h = harness(), r = h.registry(chatOf())
+    const content = 'export const home = "$HOME" // https://example.com\nconst digits = /\\d+/\nconst glob = "*"'
+    r.prompts.update([approval('p1', { file_path: 'src/a.ts', content }, 'Write')])
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'deciding', reason: null })
+    await settle()
+    expect(h.runner.start).toHaveBeenCalledOnce()
+    h.runner.runs[0].settle({ decision: 'allow_once', reason: 'Routine edit.' })
+    await settle()
+    expect(r.answer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'p1' }), { decision: 'allow_once', reason: 'Routine edit.' })
+    expect(h.onAttention).not.toHaveBeenCalled()
+    expect(log.info.mock.calls.map(([, line]) => line.cause)).toEqual(['verdict'])
+  })
+})
+
+describe('worktree roots of a tracked subfolder (DM-1011)', () => {
+  it('a tracked folder at repo/sub escalates Bash `type repo/other.txt` as outside_folder, with no arbiter', async () => {
+    const { repo, sub } = subfolderLayout()
+    const worktrees = createWorktreeRoots()
+    const h = harness({ allowedRoots: async chat => chat.folder === null ? [] : worktrees.rootsOf(chat.folder) })
+    const r = h.registry(chatOf({ folder: sub }))
+    // Forward slashes: a backslashed path in a command escalates on Windows whatever its place (the POSIX reading).
+    r.prompts.update([approval('p1', { command: `type "${join(repo, 'other.txt').replaceAll('\\', '/')}"` })])
+    await vi.waitFor(() => expect(r.prompts.snapshot()?.arbitration.state).toBe('escalated'))
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    expect(h.runner.start).not.toHaveBeenCalled()
+    expect(h.readContext).not.toHaveBeenCalled()
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(log.info).toHaveBeenLastCalledWith('Magos arbitration:', expect.objectContaining({ decision: 'escalate', cause: 'outside_folder' }))
+  })
+
+  it('the subfolder in a registered worktree is read asynchronously and reaches the arbiter', async () => {
+    const { sub, worktree } = subfolderLayout()
+    const worktrees = createWorktreeRoots()
+    const h = harness({ allowedRoots: async chat => chat.folder === null ? [] : worktrees.rootsOf(chat.folder) })
+    const r = h.registry(chatOf({ folder: sub }))
+    r.prompts.update([approval('p1', { command: `type "${join(worktree, 'sub', 'a.txt').replaceAll('\\', '/')}"` })])
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'deciding', reason: null })
+    await vi.waitFor(() => expect(h.runner.start).toHaveBeenCalledOnce())
+    expect(h.readContext).toHaveBeenCalledOnce()
+  })
+})
+
+describe('worktree roots and the clip flag (DM-1011)', () => {
+  it('a clipped input outside the folder and every worktree still escalates as outside the folder', async () => {
+    const h = harness({ allowedRoots: async () => [] }), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+
+  it('a clipped input inside a worktree escalates as too large', async () => {
+    const worktree = join(plainRoot(), 'wt')
+    mkdirSync(worktree)
+    const h = harness({ allowedRoots: async () => [worktree] }), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `type ${join(worktree, 'notes.txt').replaceAll('\\', '/')}` })])
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: TOO_LARGE })
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+
+  it('a clipped input inside a worktree with a word over 255 bytes escalates as a path too long', async () => {
+    const worktree = join(plainRoot(), 'wt')
+    mkdirSync(worktree)
+    const h = harness({ allowedRoots: async () => [worktree] }), r = h.registry(chatOf(), new Set(['p1']))
+    r.prompts.update([approval('p1', { command: `type ${join(worktree, 'notes.txt').replaceAll('\\', '/')} ${LONG_WORD}` })])
+    await vi.waitFor(() => expect(r.prompts.snapshot()?.arbitration.state).toBe('escalated'))
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('path_too_long') })
+    expect(h.runner.start).not.toHaveBeenCalled()
+  })
+})
+
+describe('worktree roots before a slot (DM-1011)', () => {
+  it('a prompt outside the folder and every worktree escalates at once while every arbiter slot is busy', async () => {
+    const h = harness({ allowedRoots: async () => [] })
+    for (let index = 0; index < 3; index++) h.registry(chatOf()).prompts.update([approval(`busy${index}`)])
+    await settle()
+    expect(h.runner.start).toHaveBeenCalledTimes(3)
+    const r = h.registry(chatOf())
+    // Inline code reaches anything, so no worktree root can bring it inside.
+    r.prompts.update([approval('p1', { command: 'node -e "require(\'fs\').rmSync(\'x\')"' })])
+    expect(r.prompts.snapshot()?.arbitration.state).toBe('deciding')
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).toHaveBeenCalledTimes(3)
+    expect(h.readContext).toHaveBeenCalledTimes(3)
+  })
+
+  it('a dispose while the roots are read cancels the prompt, which never joins the queue', async () => {
+    let release!: (roots: readonly string[]) => void
+    const h = harness({ allowedRoots: () => new Promise(resolve => { release = resolve }) }), r = h.registry(chatOf())
+    r.prompts.update([approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })])
+    await settle()
+    await h.arbitration.dispose()
+    release([outside])
+    await settle()
+    expect(h.runner.start).not.toHaveBeenCalled()
+    expect(h.readContext).not.toHaveBeenCalled()
+    expect(r.prompts.snapshot()?.arbitration.state).toBe('escalated')
   })
 })
 

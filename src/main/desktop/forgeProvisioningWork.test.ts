@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { readLocalGitOrigin } from '../../core/repo/git'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
@@ -34,6 +34,32 @@ function gitIn(path: string, ...args: string[]): string {
   return trace ? trace.observe('git:fixture:' + gitTimingLabel(args), () => realGitIn(path, ...args)) : realGitIn(path, ...args)
 }
 
+/**
+ * The repositories the tests start from, built once for the file: each test copies them, which starts no Git process,
+ * so a test's Git launches are the provisioning flow's own.
+ */
+const templates = { emptyRemote: '', world: '', worldRemote: '' }
+let templateCleanup = () => {}
+beforeAll(() => {
+  const scratch = scratchDir('forge-provision-templates-')
+  templateCleanup = scratch.cleanup
+  Object.assign(templates, {
+    emptyRemote: join(scratch.path, 'empty.git'), world: join(scratch.path, 'world'), worldRemote: join(scratch.path, 'world.git')
+  })
+  for (const bare of [templates.emptyRemote, templates.worldRemote]) {
+    mkdirSync(bare)
+    gitIn(bare, 'init', '--bare', '--initial-branch=main')
+  }
+  mkdirSync(templates.world)
+  gitIn(templates.world, 'init', '--initial-branch=main')
+  gitIn(templates.world, 'remote', 'add', 'origin', 'https://github.com/example/tickets.git')
+  createForge(templates.world, 'example')
+  gitIn(templates.world, 'add', '--', 'forge-world.json')
+  gitIn(templates.world, 'commit', '-m', 'Create pre-existing World fixture')
+  gitIn(templates.world, 'push', templates.worldRemote, 'HEAD:refs/heads/main')
+})
+afterAll(() => templateCleanup())
+
 function fixturePublisher(remoteRoot: string) {
   const account = { id: 117, login: 'example' }
   const remotes = new Map<string, ForgePublishedRepository>()
@@ -46,7 +72,7 @@ function fixturePublisher(remoteRoot: string) {
     async createRemote({ account: owner, name, visibility, provenance }) {
       const bare = join(remoteRoot, name + '.git')
       mkdirSync(bare)
-      gitIn(bare, 'init', '--bare', '--initial-branch=main')
+      cpSync(templates.emptyRemote, bare, { recursive: true })
       const receipt = { id: remotes.size + 1, name, owner: owner.login, ownerId: owner.id, visibility, provenance,
         url: 'https://github.com/example/' + name + '.git' }
       created.push(name)
@@ -319,17 +345,11 @@ async function preexistingWorld(f: ReturnType<typeof fixture>): Promise<string> 
   await f.forge.ready
   f.creation.loseCodeResponse = false
   const world = join(f.scratch.path, 'existing-world')
-  const bare = join(f.scratch.path, 'tickets.git')
   const url = 'https://github.com/example/tickets.git'
   mkdirSync(world)
-  mkdirSync(bare)
-  gitIn(bare, 'init', '--bare', '--initial-branch=main')
-  gitIn(world, 'init', '--initial-branch=main')
-  gitIn(world, 'remote', 'add', 'origin', url)
-  createForge(world, 'example')
-  gitIn(world, 'add', '--', 'forge-world.json')
-  gitIn(world, 'commit', '-m', 'Create pre-existing World fixture')
-  gitIn(world, 'push', bare, 'HEAD:refs/heads/main')
+  cpSync(templates.world, world, { recursive: true })
+  mkdirSync(join(f.scratch.path, 'tickets.git'))
+  cpSync(templates.worldRemote, join(f.scratch.path, 'tickets.git'), { recursive: true })
   f.remotes.set('tickets', { id: 1, name: 'tickets', owner: 'example', ownerId: 117, visibility: 'private', provenance: null, url })
   f.registry.track(world)
   return world

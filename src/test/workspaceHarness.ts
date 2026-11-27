@@ -28,6 +28,8 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     isAncestor: async () => null,
     isAncestorSync: () => null,
     commitParents: async () => null,
+    mergeBase: async () => null,
+    changedPaths: async () => null,
     diffPaths: () => ({ ok: false, reason: 'git_failed' }),
     statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
@@ -67,6 +69,8 @@ interface OpenOptions {
   autoReconcile?: boolean
   /** Opens the restricted mailbox-poll mode, as the CLI does for status and wake polls. */
   mailPoll?: boolean
+  /** What the session reports about its own build; defaults to an unpackaged test server. */
+  serverInfo?: OpenWorkspaceOptions['serverInfo']
 }
 
 interface HarnessEnv {
@@ -132,7 +136,7 @@ export function createHarness(): Harness {
     clock,
     git,
     open(role, options = {}) {
-      const workspace = openWorkspace(openOptions(env, role, options))
+      const workspace = openWorkspace({ ...openOptions(env, role, options), ...(options.serverInfo && { serverInfo: options.serverInfo }) })
       workspaces.push(workspace)
       return workspace
     },

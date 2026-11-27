@@ -291,3 +291,39 @@ describe('ticket editor: repository', () => {
     expect(within(editor).queryByLabelText('Title prefix')).toBe(null)
   })
 })
+
+describe('DM-840 c1: ticket editor sprint delivery', () => {
+  /** The draft with Sprint 2's acceptance node DM-299, Sprint 2 delivering to main with a release. */
+  function deliveryDraft(): ReturnType<typeof draftPlan> {
+    const plan = draftPlan()
+    const node = { id: 'tk_299', key: 'DM-299', title: 'Sprint 2 acceptance', kind: 'acceptance' as const }
+    const tickets = [...plan.bundle.tickets, { ...plan.bundle.tickets[0]!, ...node, acceptanceCriteria: [{ id: 'c1', text: 'Sprint 2 verified' }] }]
+    const sprints = plan.bundle.sprints.map((item) =>
+      item.id === 'sp_2' ? { ...item, ticketIds: [...item.ticketIds, 'tk_299'], delivery: { target: 'main', release: true, verifyInstalled: false } } : item
+    )
+    return { ...plan, bundle: planBundle({ ...plan.bundle, tickets, sprints }) }
+  }
+
+  async function openTicket(title: string, key: string): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
+    const h = renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: deliveryDraft() })))
+    fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    await screen.findByText('DRAFT REV 5 · UNSAVED')
+    fireEvent.click(await screen.findByText(title))
+    return { h, editor: await screen.findByLabelText(`Edit ticket ${key}`) }
+  }
+
+  it('shows the Sprint delivery section on the acceptance node and applies one update_sprint op', async () => {
+    const { h, editor } = await openTicket('Sprint 2 acceptance', 'DM-299')
+    const section = within(editor).getByRole('region', { name: 'Sprint delivery' })
+    expect((within(section).getByLabelText('Require a release that contains it') as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(within(section).getByLabelText('Verify the installed app runs that release'))
+    fireEvent.click(within(section).getByRole('button', { name: 'Apply delivery' }))
+    await within(section).findByText('Delivery applied to the draft.')
+    expect(opsOf(h)).toEqual([[{ op: 'update_sprint', sprint: 'sp_2', patch: { delivery: { target: 'main', release: true, verifyInstalled: true } } }]])
+  })
+
+  it('shows no delivery section for a work ticket', async () => {
+    const { editor } = await openTicket('Transactional bundle import', 'DM-202')
+    expect(within(editor).queryByRole('region', { name: 'Sprint delivery' })).toBe(null)
+  })
+})

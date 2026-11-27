@@ -195,6 +195,16 @@ export interface TicketContent {
 export const CHECKPOINT_MODES = ['human', 'auto'] as const
 export type CheckpointMode = (typeof CHECKPOINT_MODES)[number]
 
+/** A sprint's structured delivery, checked after its checkpoint approval and before the next sprint's first claim. */
+export interface SprintDelivery {
+  /** The branch the sprint's increment reaches after its checkpoint approval (for example `main`). */
+  target: string
+  /** A Deploy release must contain the delivered commit. */
+  release: boolean
+  /** Before the next sprint's first claim, the installed app must run that release or later; requires `release`. */
+  verifyInstalled: boolean
+}
+
 export interface SprintDef {
   deploymentVerification?: string
   id: string
@@ -208,6 +218,8 @@ export interface SprintDef {
   concurrencyCap: number | null
   /** `auto` is only a request: it takes effect when the user authorizes auto-continue on the run. */
   checkpoint: { mode: CheckpointMode }
+  /** Absent when the sprint declares none; never null, never defaulted, so older plans keep their content hash. */
+  delivery?: SprintDelivery
 }
 
 /** `to` requires the accepted result of `from`. */

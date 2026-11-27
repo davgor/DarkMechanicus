@@ -1,6 +1,6 @@
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import type { ValidationIssue, ValidationReport } from '../../shared/domain/views'
-import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket, workTicketsOf } from './acceptance'
+import { acceptanceNodeOf, acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket, workTicketsOf } from './acceptance'
 import { criterionNeedsPersonWarnings } from './criterionWording'
 
 export interface BundleIndex {
@@ -570,6 +570,33 @@ function repositoryIssues(bundle: PlanBundle, repositories: readonly RepositoryR
 }
 
 /**
+ * Warnings about sprint delivery declarations: one with no acceptance node has no increment to deliver, the final
+ * sprint's holds no later sprint, and a folder of repositories (a non-empty `repositories` list) can't record one.
+ */
+function deliveryWarnings(bundle: PlanBundle, repositories: readonly RepositoryRef[] | null): ValidationIssue[] {
+  const finalOrdinal = Math.max(...bundle.sprints.map((sprint) => sprint.ordinal))
+  const folder = repositories !== null && repositories.length > 0
+  return bundle.sprints.flatMap((sprint) => {
+    if (sprint.delivery === undefined) {
+      return []
+    }
+    const issue = (code: string, message: string): ValidationIssue => ({ code, message, sprintIds: [sprint.id] })
+    const name = `Sprint ${sprint.ordinal}`
+    return [
+      ...(acceptanceNodeOf(bundle, sprint.id) === undefined
+        ? [issue('delivery_without_acceptance', `${name} declares delivery but has no acceptance node, so it has no increment to deliver.`)]
+        : []),
+      ...(sprint.ordinal === finalOrdinal
+        ? [issue('delivery_final_sprint', `${name} is the final sprint: its delivery is recorded after the run completes and holds no later sprint.`)]
+        : []),
+      ...(folder
+        ? [issue('delivery_multi_repo', 'Structured delivery is not supported in a folder of repositories; record_delivery refuses it.')]
+        : [])
+    ]
+  })
+}
+
+/**
  * Validates the whole plan as a DAG with sprint ordering; errors block Save, warnings do not. With `options` it
  * also checks each ticket's repository against the project's; without them it skips that check.
  */
@@ -593,6 +620,7 @@ export function validatePlan(bundle: PlanBundle, options?: PlanValidationOptions
     ...sizeWarnings(bundle),
     ...criterionNeedsPersonWarnings(bundle),
     ...acceptanceWarnings(bundle, index),
+    ...deliveryWarnings(bundle, options?.repositories ?? null),
     ...repos.warnings
   ]
   return { valid: errors.length === 0, errors, warnings }

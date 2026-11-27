@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanBundle } from '../../shared/domain/bundle'
+import type { PlanBundle, SprintDelivery } from '../../shared/domain/bundle'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
   acceptTickets,
@@ -14,6 +14,7 @@ import {
   type SeededRun,
   type SeedRunOptions
 } from '../../test/checkpointSeed'
+import { seedDeliveryCheck } from '../../test/execution'
 import { captureError, createSavedEpic, saveNow } from '../../test/authoring'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
@@ -21,12 +22,13 @@ import { CLAIM_TOKEN_MASK } from '../claimTokenMask'
 import { GRANT_TOKEN_MASK } from '../storedSecrets'
 import { getRunTimeline } from './activity'
 import { adoptRevision } from './adoption'
+import { runExecution } from './execution'
 import { claimTicket, failAttempt } from './attempts'
 import { advanceSprint, approveCheckpoint, getCheckpoint } from './checkpoints'
 import { updatePlanDraft } from './drafts'
 import { getPlan } from './plans'
 import { submitSprintReport } from './reports'
-import { startRun } from './runs'
+import { pauseRun, startRun } from './runs'
 
 /** An agent's adoption reason: what failed and what the revision changes. */
 const REASON = 'Test adoption: the plan changed mid-run.'
@@ -427,5 +429,58 @@ describe('adoptRevision without allowSave, through the real services', () => {
     const adopt = (): unknown => adoptRevision(orchestrator, { runId: run.id, revisionId, reason: 'Moving alpha to the later sprint now.' })
     expect(captureError(adopt)).toMatchObject({ code: 'unauthorized', details: { movedLater: [alpha] } })
     expect(runRow(ctx, run.id)?.revision_id).toBe(run.revisionId)
+  })
+})
+
+/** Sprint 1 = {DM-1, DM-2} declaring delivery, sprint 2 = {DM-3}; sprint 1 is accepted and the run is in sprint 2. */
+function pastDeliveringSprint(): { ctx: TestCtx; run: SeededRun; orchestrator: TestCtx } {
+  const ctx = createTestCtx()
+  const bundle = makeBundle([[1, 2], [3]])
+  bundle.sprints[0] = { ...bundle.sprints[0], delivery: { target: 'main', release: true, verifyInstalled: true } }
+  const run = seedRun(ctx, { bundle, activeSprint: 2 })
+  acceptTickets(ctx, run, [1, 2])
+  return { ctx, run, orchestrator: withRole(ctx, 'orchestrator') }
+}
+
+function withFirstDelivery(bundle: PlanBundle, delivery: SprintDelivery | undefined): PlanBundle {
+  const [first, ...rest] = bundle.sprints
+  const { delivery: _dropped, ...plain } = first
+  return { ...bundle, sprints: [delivery === undefined ? plain : { ...plain, delivery }, ...rest] }
+}
+
+describe('adoptRevision delivery guard', () => {
+  it("refuses an orchestrator that pauses and adopts a revision dropping an unverified passed sprint's delivery", () => {
+    const { ctx, run, orchestrator } = pastDeliveringSprint()
+    pauseRun(orchestrator, { runId: run.runId })
+    const revisionId = seedRevision(ctx, run.epicId, withFirstDelivery(run.bundle, undefined))
+    const error = errorOf(() => adoptRevision(orchestrator, { reason: REASON, runId: run.runId, revisionId }))
+    expect([error.code, error.message]).toEqual(['conflict', "Sprint 1's delivery is not verified: only the person can waive it"])
+    expect(error.details).toEqual({ sprintId: sid(1), ordinal: 1 })
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
+    const held = runExecution(ctx, run.runId).tickets.find((ticket) => ticket.ticketId === tid(3))
+    expect(held?.blockers).toContainEqual({ kind: 'delivery_pending', sprintId: sid(1), ordinal: 1 })
+  })
+
+  it('refuses a changed delivery after a failed check, but keeps other edits adoptable', () => {
+    const { ctx, run, orchestrator } = pastDeliveringSprint()
+    seedDeliveryCheck(ctx, run.runId, { number: 1, sprint: 1, kind: 'check', passed: false })
+    const loosened = seedRevision(ctx, run.epicId, withFirstDelivery(run.bundle, { target: 'main', release: false, verifyInstalled: false }))
+    expect(errorOf(() => adoptRevision(orchestrator, { reason: REASON, runId: run.runId, revisionId: loosened })).code).toBe('conflict')
+    const retitled = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    expect(adoptRevision(orchestrator, { reason: REASON, runId: run.runId, revisionId: retitled }).activeSprintId).toBe(sid(2))
+  })
+
+  it('adopts the drop once the delivery is waived or verified, and while the delivering sprint is still active', () => {
+    const waived = pastDeliveringSprint()
+    seedDeliveryCheck(waived.ctx, waived.run.runId, { number: 1, sprint: 1, kind: 'waiver' })
+    const dropWaived = seedRevision(waived.ctx, waived.run.epicId, withFirstDelivery(waived.run.bundle, undefined))
+    expect(adoptRevision(waived.orchestrator, { reason: REASON, runId: waived.run.runId, revisionId: dropWaived }).runId).toBe(waived.run.runId)
+    const verified = pastDeliveringSprint()
+    seedDeliveryCheck(verified.ctx, verified.run.runId, { number: 1, sprint: 1, kind: 'check', passed: true })
+    const dropVerified = seedRevision(verified.ctx, verified.run.epicId, withFirstDelivery(verified.run.bundle, undefined))
+    expect(adoptRevision(verified.orchestrator, { reason: REASON, runId: verified.run.runId, revisionId: dropVerified }).runId).toBe(verified.run.runId)
+    const { ctx, run } = atCheckpoint({ bundle: withFirstDelivery(makeBundle([[1, 2], [3]]), { target: 'main', release: false, verifyInstalled: false }) })
+    const dropActive = seedRevision(ctx, run.epicId, withFirstDelivery(run.bundle, undefined))
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: dropActive }).activeSprintId).toBe(sid(1))
   })
 })

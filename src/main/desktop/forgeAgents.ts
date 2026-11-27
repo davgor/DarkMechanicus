@@ -1,7 +1,9 @@
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentAuthState, AgentId } from '../../shared/desktop/api'
+import type { AgentChatSessions } from '../agentChat/agentChatSessions'
 import type { ChatRecords } from '../agents/chatRecords'
 import type { ChatStore } from '../agents/chatStore'
+import { launchChatOnSurface, terminalLaunch } from '../agents/chatSurfaceStart'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 import type { FolderAgentDefaults } from './folderAgentDefaults'
 
@@ -9,20 +11,28 @@ interface ResolverOptions {
   store: Pick<ChatStore, 'listChats' | 'updateChat'>
   chats: Pick<ChatRecords, 'createChat'>
   terminals: Pick<TerminalSessions, 'start' | 'paste' | 'isRunning' | 'deleteChat'>
+  /** The one GUI session manager, for the shared launch path; it refuses resolver chats, which run only in the terminal. */
+  agentChats: Pick<AgentChatSessions, 'start'>
   agents: { list(): { id: AgentId }[] }
   checkAuth(id: AgentId): Promise<AgentAuthState>
   folderDefaults: Pick<FolderAgentDefaults, 'get'>
   registry: { list(): { path: string; forgeParent?: string }[] }
   beforeArchive?: (chat: ChatRecord) => void | Promise<void>
+  onError?: (error: unknown) => void
 }
 
-async function startResolverTerminal(terminals: ResolverOptions['terminals'], chat: ChatRecord, kickoff: string): Promise<boolean> {
+/**
+ * Starts the resolver through the shared launch path (`launchChatOnSurface`); a kickoff it already delivered is pasted
+ * again into the resumed terminal session. False when the agent is signed out, so the next one may be tried.
+ */
+async function startResolver(options: ResolverOptions, chat: ChatRecord, kickoff: string): Promise<boolean> {
+  const { terminals } = options
   if (terminals.isRunning(chat.id)) return true
   if (chat.firstPromptDelivery === 'uncertain') throw new Error('The resolver prompt delivery is uncertain. Inspect its chat before restarting it.')
   const delivered = chat.kickoffSent === true || chat.firstPromptDelivery === 'submitted'
-  const started = delivered ? await terminals.paste(chat, kickoff) : await terminals.start(chat, { kickoff })
-  if (started.state === 'signed_out') return false
-  if (started.state !== 'running') throw new Error(started.message)
+  const launched = delivered ? terminalLaunch(await terminals.paste(chat, kickoff)) : await launchChatOnSurface(options, chat, kickoff)
+  if (launched.state === 'signed_out') return false
+  if (launched.state !== 'running') throw new Error(launched.message)
   return true
 }
 
@@ -55,11 +65,12 @@ async function beginResolver(options: ResolverOptions, root: string, assertCurre
   for (const id of candidates) {
     if (await checkAuth(id).catch(() => 'unknown') !== 'signed_in') continue
     assertCurrent?.()
-    const chat = prior.find(candidate => candidate.agent === id) ??
+    const created = prior.find(candidate => candidate.agent === id) ??
       await chats.createChat({ folder: root, agent: id, role: 'worker', allowSave: false, title: 'Resolve Forge World merge', firstPrompt: kickoff })
-    store.updateChat(chat, { forgeResolver: root })
+    // The GUI launch has no Forge World reach or resolver context: a resolver runs only in the terminal.
+    const chat = store.updateChat(created, { forgeResolver: root, surface: 'terminal' })
     assertCurrent?.()
-    if (await startResolverTerminal(terminals, chat, kickoff)) return
+    if (await startResolver(options, chat, kickoff)) return
   }
   throw new Error('Sign in to an agent to resolve Forge World conflicts.')
 }

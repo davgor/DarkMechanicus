@@ -7,6 +7,7 @@ import type {
   CheckpointView,
   CheckStatus,
   CriterionResult,
+  DeliveryCheckView,
   FollowUpProposal,
   GateCondition,
   RunView,
@@ -188,6 +189,50 @@ export function gateView(input: GateInput): GateView {
       available: run.ownedByThisMachine && isActiveRunState(run.state),
       note: AUTO_NOTE
     }
+  }
+}
+
+/** What the checkpoint says about structured delivery: the hold after approving, and how the previous sprint's delivery went. */
+export interface DeliveryNotes {
+  /** Shown in the gate when the sprint under review declares delivery and a next sprint exists; null otherwise. */
+  approval: string | null
+  /** The previous sprint's latest delivery check, each named check with its glyph; null without one. */
+  previous: ReportCheck[] | null
+  /** The reason of the previous sprint's latest waiver; null without one. */
+  waiver: string | null
+}
+
+function approvalNote(nextOrdinal: number): string {
+  return (
+    `After approval, Sprint ${nextOrdinal} claims wait for recorded delivery verification or a person-owned waiver. ` +
+    'Under current Sprint standards the protected PR and rollout are already complete before this checkpoint; ' +
+    'the person controls any install restart, and the Magos records the release and installed-version evidence. ' +
+    'An explicitly authorized legacy post-checkpoint delivery follows its approved exception.'
+  )
+}
+
+/** The run's highest-numbered delivery record of `kind` for the sprint; null for none, or without a sprint. */
+function latestDelivery(deliveries: DeliveryCheckView[], sprintId: string | undefined, kind: DeliveryCheckView['kind']): DeliveryCheckView | null {
+  let latest: DeliveryCheckView | null = null
+  for (const delivery of deliveries) {
+    if (delivery.sprintId === sprintId && delivery.kind === kind && delivery.number > (latest?.number ?? 0)) {
+      latest = delivery
+    }
+  }
+  return latest
+}
+
+export function deliveryNotes(input: Omit<GateInput, 'redraft'>): DeliveryNotes {
+  const { checkpoint, run, bundle } = input
+  const sprints = bundle?.sprints ?? []
+  const declares = sprints.find((sprint) => sprint.id === checkpoint.sprintId)?.delivery !== undefined
+  const previousId = sprints.find((sprint) => sprint.ordinal === checkpoint.sprintOrdinal - 1)?.id
+  const check = latestDelivery(run.deliveries, previousId, 'check')
+  const waiver = latestDelivery(run.deliveries, previousId, 'waiver')
+  return {
+    approval: declares && !checkpoint.isFinalSprint ? approvalNote(checkpoint.sprintOrdinal + 1) : null,
+    previous: check === null ? null : check.checks.map(({ name, status, detail }) => ({ name, status, detail, icon: CHECK_ICONS[status] })),
+    waiver: waiver === null ? null : waiver.reason ?? ''
   }
 }
 

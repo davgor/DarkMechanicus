@@ -19,15 +19,17 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
-  'graph', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree', 'rail-collapsed',
-  'chat-rail', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named',
-  'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
+  'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
+  'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
+  'agent-planners', 'chat-rail-legacy',
+  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 17 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 300_000
+/** A declared bound: 27 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 420_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -63,34 +65,98 @@ export function electronEnv(env) {
 }
 
 const BASE_FIELDS = [
-  'viewButtons', 'agentFontWeight', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
-  'treeRows', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine', 'changesHeader', 'cardHeading',
-  'needsYouHeader', 'badgedRows', 'settingsControls', 'errors'
+  'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
+  'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
+  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed',
+  'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
 ]
-const VIEW_BUTTONS = ['Graph', 'List', 'Agent', 'Scorecard']
-const EPIC_STATES = new Set(STATES.filter((state) => state !== 'chat-rail' && state !== 'settings-notifications'))
-const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => state !== 'graph'))
+const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications'])
+const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
+/** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
+const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
+const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
+/** The seeded Sprint 1 delivery check's failure, as the delivery states report their first failed check. */
+const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
 const matches = (value, pattern) => typeof value === 'string' && pattern.test(value)
 
-/** What each state must show, beyond the fields every state reports: [description, check]. */
+/**
+ * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
+ * (Acolyte:DM-2 with its own Inquisitor:DM-2, then Servitor-1) and last the Finished group, which holds Acolyte:DM-1.
+ */
+const AGENT_TREE_LEVELS = [
+  ['Magos', 1, null], ['Acolyte:DM-2', 2, 'Magos'], ['Inquisitor:DM-2', 3, 'Acolyte:DM-2'], ['Servitor-1', 2, 'Magos'],
+  ['Finished 1', 2, 'Magos'], ['Acolyte:DM-1', 3, 'Finished 1']
+]
+
+/** Where a tree row sits: its aria-level and its parent, the nearest row before it one level up (rows are in document order). */
+function placement(o, name) {
+  const rows = Array.isArray(o.treeRows) ? o.treeRows : []
+  const index = rows.findIndex((row) => row.name === name)
+  if (index < 0) return null
+  const { level } = rows[index]
+  const parent = rows.slice(0, index).findLast((row) => row.level === level - 1)
+  return { level, parent: level === 1 ? null : parent?.name ?? null }
+}
+
+const describePlacement = (where) => where === null ? 'no such row' : `level ${where.level} under ${where.parent ?? 'no parent'}`
+
+/** One check per agent-tree node: its tree level and parent, reporting where the capture placed it on a mismatch. */
+const treeLevelChecks = AGENT_TREE_LEVELS.map(([name, level, parent]) => [
+  `${name} at level ${level} under ${parent ?? 'no parent'}`,
+  (o) => { const where = placement(o, name); return where !== null && where.level === level && where.parent === parent },
+  (o) => describePlacement(placement(o, name))
+])
+
+/** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
   graph: [['the Plan graph is present', (o) => o.planGraph === true], ['no Agent chat region', (o) => o.agentChatRegion === false]],
+  'header-long': [
+    ['the Plan graph is present', (o) => o.planGraph === true],
+    ['the long breadcrumb and title truncate', (o) => o.header?.crumbTruncated === true && o.header?.titleTruncated === true]
+  ],
   'agent-empty': [['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard]],
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
+  'agent-legacy-thread': [
+    ['the legacy parent Servitor-2 is selected beside its nested Servitor-3 and the stamped Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-3') && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
+  ],
   'agent-tree': [
     ['railWidth is 280±1', (o) => near(o.railWidth, 280)],
-    ['the tree shows Magos, Finished 1 > Acolyte:DM-1, Acolyte:DM-2 > Inquisitor:DM-2 and Servitor-1',
-      (o) => ['Magos', 'Finished 1', 'Acolyte:DM-1', 'Acolyte:DM-2', 'Inquisitor:DM-2', 'Servitor-1'].every((name) => rowNamed(o, name))]
+    ['the Finished 1 group is collapsed by default', (o) => o.finishedExpandedAtStart === false],
+    ...treeLevelChecks
   ],
   'rail-collapsed': [['railWidth is 40±1', (o) => near(o.railWidth, 40)]],
+  'landing-notification': [
+    ['railWidth is 280±1 with no Expand click', (o) => near(o.railWidth, 280)],
+    ['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]
+  ],
+  'landing-activity': [
+    ['railWidth is 280±1 with no Expand click', (o) => near(o.railWidth, 280)],
+    ['no ticket panel over the rail', (o) => o.ticketPanel === false],
+    ['Acolyte:DM-1 is selected inside the opened Finished 1 group',
+      (o) => rowNamed(o, 'Acolyte:DM-1')?.selected === true && placement(o, 'Acolyte:DM-1')?.parent === 'Finished 1',
+      (o) => describePlacement(placement(o, 'Acolyte:DM-1'))]
+  ],
   'chat-rail': [
     ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
     ['Inquisitor:DM-2 is selected', (o) => rowNamed(o, 'Inquisitor:DM-2')?.selected === true]
+  ],
+  'chat-rail-collapsed': [
+    ['no Chat agents rail', (o) => o.railWidth === null],
+    ['the Agents toggle reads collapsed', (o) => o.agentsPressed === 'false']
+  ],
+  'chat-rail-legacy': [
+    ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
+    ['the legacy and stamped helpers are Servitor-2 (selected) and Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'agent-todos': [
     ['a To-dos header', (o) => matches(o.todosHeader, /To-dos/)],
@@ -115,18 +181,39 @@ const STATE_CHECKS = {
         && matches(o.approvalRecord, /The Magos decided: \S/)]
   ],
   'agent-needs-you': [
-    ['the header reads 2 needs you', (o) => matches(o.needsYouHeader, /^2 needs you/)],
-    ['two badged rows', (o) => o.badgedRows === 2]
+    ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
+    ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+  ],
+  'agent-planners': [
+    ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
+      && rowNamed(o, 'Lexmechanic') && rowNamed(o, 'Lexmechanic-2')?.selected === true && rowNamed(o, 'Lexmechanic-9')
+      && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'settings-notifications': [['the controls have accessible names', (o) => Array.isArray(o.settingsControls)
-    && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]]
+    && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]],
+  'delivery-editor': [
+    ['the acceptance node editor shows the Sprint delivery region', (o) => o.sprintDeliveryRegion === true]
+  ],
+  'delivery-pending': [
+    ['the run bar reads Sprint 1 delivery to main: the latest check failed',
+      (o) => o.deliveryLine === 'Sprint 1 delivery to main: the latest check failed', (o) => JSON.stringify(o.deliveryLine)],
+    [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ],
+  'delivery-checkpoint': [
+    ['the gate’s Delivery on approval note holds Sprint 3', (o) => matches(o.deliveryApproval, /^After approval, Sprint 3 claims wait /)],
+    ['the Previous sprint delivery region', (o) => o.previousDelivery === true],
+    [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ]
 }
 
 /** What every epic state must show, and the agent states besides: [description, applies, check]. */
 const EPIC_CHECKS = [
-  ['the View buttons are Graph, List, Agent, Scorecard in order', () => true,
+  ['the View buttons are Agent, Graph, List, Scorecard in order', () => true,
     (o) => JSON.stringify(o.viewButtons) === JSON.stringify(VIEW_BUTTONS)],
   ['a bold Agent label', () => true, (o) => Number(o.agentFontWeight) >= 600],
+  ['a one-line breadcrumb beside the View group, the heading holding its content, both names titled', () => true,
+    (o) => o.header?.crumbOneLine === true && o.header.besideView === true && o.header.sameRow === true && o.header.contained === true
+      && o.header.crumbTitle === o.header.crumb && o.header.titleTitle === o.header.title],
   ['an Agent chat region', (state) => AGENT_STATES.has(state), (o) => o.agentChatRegion === true],
   ['no plan graph, list or scorecard node', (state) => AGENT_STATES.has(state), (o) => !o.planGraph && !o.planList && !o.scorecard],
   ['the rail right of the stage', (state) => AGENT_STATES.has(state), (o) => o.railRightOfStage !== false]
@@ -136,6 +223,8 @@ function stateChecks(state) {
   const epic = EPIC_STATES.has(state) ? EPIC_CHECKS.filter(([, applies]) => applies(state)) : []
   return [...epic.map(([description, , check]) => [description, check]), ...STATE_CHECKS[state] ?? []]
 }
+
+const failure = (o) => ([description, , observed]) => observed ? `expected ${description}; got ${observed(o)}` : `expected ${description}`
 
 /** A record's own shape: data-ready, every observation field, the right state and no page errors. */
 function shapeProblems(state, record) {
@@ -156,7 +245,7 @@ export function validateObservations(state, record) {
   const shape = shapeProblems(state, record)
   const problems = shape.length > 0
     ? shape
-    : stateChecks(state).filter(([, check]) => !check(record.observations)).map(([description]) => `expected ${description}`)
+    : stateChecks(state).filter(([, check]) => !check(record.observations)).map(failure(record.observations))
   return problems.map((problem) => `${state}: ${problem}`)
 }
 

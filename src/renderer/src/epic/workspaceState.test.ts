@@ -57,7 +57,7 @@ describe('workspace loading', () => {
       layout: 'graph',
       selectedTicketId: null,
       agentChatId: null,
-      agentThreadId: null,
+      agentThreadId: null, agentReveal: false,
       activity: null,
       ticketScorecard: null,
       checkpointOpen: false,
@@ -249,7 +249,19 @@ describe('agent layout transitions', () => {
   it('opens one of a chat’s threads when the link names it', () => {
     const thread = workspaceReducer(loaded(), { type: 'open_agent', chatId: 'chat_orch', threadId: 'th_1' })
     expect([thread.layout, thread.agentChatId, thread.agentThreadId]).toEqual(['agent', 'chat_orch', 'th_1'])
-    expect({ ...thread, layout: 'graph', agentChatId: null, agentThreadId: null }).toEqual(loaded())
+    expect({ ...thread, layout: 'graph', agentChatId: null, agentThreadId: null, agentReveal: false }).toEqual(loaded())
+  })
+})
+
+describe('agent landing reveal', () => {
+  it('asks the Agent stage to reveal the agent a link opens and closes the ticket panel over its rail', () => {
+    const activity = workspaceReducer(loaded(), { type: 'open_activity', ticketId: 'tk_202', attemptId: 'at_202_2' })
+    const opened = workspaceReducer(activity, { type: 'open_agent', chatId: 'chat_orch', threadId: 'th_1' })
+    expect([opened.agentReveal, opened.selectedTicketId, opened.activity, opened.ticketScorecard]).toEqual([true, null, null, null])
+    const revealed = workspaceReducer(opened, { type: 'agent_revealed' })
+    expect({ ...revealed, layout: 'graph', agentChatId: null, agentThreadId: null }).toEqual(loaded())
+    const picked = workspaceReducer(revealed, { type: 'select_agent', chatId: 'chat_plan' })
+    expect(picked.agentReveal).toBe(false)
   })
 })
 
