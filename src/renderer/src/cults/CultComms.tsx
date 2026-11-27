@@ -1,6 +1,6 @@
 /**
- * The comms pane at the Cult page's right: tabs for the Magos's interactive terminal (the default), the Pipeline (a
- * slot the pipeline ticket fills) and one closable, watch-only terminal per acolyte opened from the inspector. A
+ * The comms pane at the Cult page's right: tabs for the Magos's interactive terminal (the default), the run's Pipeline
+ * (`PipelinePanel`, live) and one closable, watch-only terminal per acolyte opened from the inspector. A
  * member's chat is read in its run's work folder, a tracked folder or a project-less cult's sanctum, which main resolves
  * for both, and its terminal is attached there through the same terminal IPC every chat uses.
  */
@@ -11,6 +11,7 @@ import { TerminalPane } from '../agents/TerminalPane'
 import type { TerminalKit } from '../agents/terminalView'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
+import { PipelinePanel } from './PipelinePanel'
 import { useMemberChat } from './useCultPage'
 
 /** The comms tab shown: the Magos's, the Pipeline, or a watched acolyte's by its chat id. */
@@ -86,8 +87,10 @@ interface BodyProps {
 }
 
 function CommsBody({ run, magos, tab, agentName, kit, scheduler }: BodyProps): JSX.Element {
-  if (tab.kind === 'pipeline') return <div className="cult-pipeline-slot" data-slot="pipeline"><p className="cult-empty-note">The run’s pipeline appears here.</p></div>
-  if (run === null) return <p className="cult-empty-note">Start the cult to talk to its Magos.</p>
+  if (run === null) {
+    return <p className="cult-empty-note">{tab.kind === 'pipeline' ? 'Start the cult to see its pipeline.' : 'Start the cult to talk to its Magos.'}</p>
+  }
+  if (tab.kind === 'pipeline') return <div className="cult-pipeline-slot" data-slot="pipeline"><PipelinePanel run={run} live={scheduler} /></div>
   const chatId = tab.kind === 'watch' ? tab.chatId : magos?.chatId
   if (chatId === undefined) return <p className="cult-empty-note">The Magos has not joined yet.</p>
   return <MemberTerminal key={chatId} folder={run.run.workDir} chatId={chatId} watchOnly={tab.kind === 'watch'} agentName={agentName} kit={kit} scheduler={scheduler} />

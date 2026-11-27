@@ -7,7 +7,7 @@
  */
 import type { CommandResult } from '../desktop/api'
 import type { ARCHETYPE_INFO, CultArchetype, RunWorkerType, STANDARD_WORKER_TYPES, WORKER_TYPE_INFO, WorkerType } from './archetypes'
-import type { CultEventPage, CultMemberView, CultPetitionView, CultRunView, CultView, SlotCoverage } from './cult'
+import type { CultEventKind, CultMemberView, CultPetitionView, CultRunView, CultView, MemberRole, SlotCoverage } from './cult'
 
 /** Main pushes every `CultPushEvent` to the window on this channel. */
 export const CULT_EVENT_CHANNEL = 'cults:event'
@@ -48,9 +48,53 @@ interface CultRunOverrides {
   magosWindowMs?: number
 }
 
+/** The most entries one pipeline page holds. */
+export const MAX_PIPELINE_PAGE = 200
+
+/** A page of the run's pipeline after `afterSeq`; `full` returns whole message bodies instead of their previews. */
 interface CultPipelineRequest {
   afterSeq?: number
   limit: number
+  full?: boolean
+}
+
+/** A run member as the pipeline names it: from main's own records, kept after the member left. */
+export interface PipelineMember {
+  chatId: string
+  displayName: string
+  role: MemberRole
+}
+
+/**
+ * One pipeline entry, in the run's stable order (`seq`): a message between two members, one `order_all` (the Magos to
+ * every acolyte, its messages grouped) or another run event. `text` is inert task data, a message body (a preview
+ * unless `full` was asked, `truncated` then says so) or an event summary; it is shown as text, never as HTML or Markdown.
+ */
+export interface CultPipelineEntry {
+  seq: number
+  at: string
+  kind: 'message' | 'order_all' | 'event'
+  /** The run event's kind; null for a message. */
+  eventKind: CultEventKind | null
+  /** Who sent the message or order, or whom the event names; null for an event naming no member. */
+  sender: PipelineMember | null
+  recipients: PipelineMember[]
+  /** The order's id (`order_all` only). */
+  orderId: string | null
+  /** The mailbox messages this entry holds: one for a message, one per recipient for an order, none for an event. */
+  messageIds: string[]
+  /** The message this one answers, when it is a reply. */
+  inReplyTo: string | null
+  text: string
+  truncated: boolean
+}
+
+export interface CultPipelinePage {
+  entries: CultPipelineEntry[]
+  /** The highest sequence this page covered: pass it back as `afterSeq` (an order's grouped messages have no entry). */
+  nextAfterSeq: number
+  /** Whether more entries follow now; when false, ask again from `nextAfterSeq` for what arrives later. */
+  hasMore: boolean
 }
 
 /** A model a cult member may run on, cheapest tier first. */
@@ -166,8 +210,8 @@ export interface CultsApi {
   dismissAcolyte(runId: string, chatId: string): Promise<CommandResult<CultMemberView>>
   /** The cult's runs, newest first, each as its detail. */
   runs(cultId: string): Promise<CommandResult<CultRunDetail[]>>
-  /** The run's pipeline page; served by the pipeline ticket (DM-630): `operation_unavailable` until then. */
-  pipeline(runId: string, request: CultPipelineRequest): Promise<CommandResult<CultEventPage>>
+  /** The run's pipeline after `afterSeq`: member messages and run events merged in one stable order. */
+  pipeline(runId: string, request: CultPipelineRequest): Promise<CommandResult<CultPipelinePage>>
   /** Subscribes to pushed run snapshots; returns the unsubscribe function. */
   onEvent(listener: (event: CultPushEvent) => void): () => void
 }

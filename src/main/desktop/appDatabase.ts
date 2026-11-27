@@ -291,6 +291,39 @@ CREATE TABLE cult_syntheses (
 CREATE INDEX cult_syntheses_run ON cult_syntheses(run_id, id);
 `
 
+/**
+ * The cult pipeline (DM-634): each run's member messages and events in the one order the person was shown, appended
+ * as they are first read and never reordered, so its sequence pages without gaps or duplicates. A message row copies
+ * the body from the member's inbox (read without acknowledging or marking it seen), so the pipeline outlives mail
+ * retention; an event row points at its `cult_events` row. Each cursor holds a member's mailbox endpoint, kept after
+ * its chat is gone so its messages keep their sender, and how far its inbox was read.
+ */
+const V8 = `
+CREATE TABLE cult_pipeline (
+  run_id TEXT NOT NULL REFERENCES cult_runs(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL CHECK (seq >= 1),
+  at TEXT NOT NULL,
+  event_seq INTEGER,
+  message_id TEXT,
+  sender_chat_id TEXT,
+  recipient_chat_id TEXT,
+  in_reply_to TEXT,
+  body TEXT,
+  PRIMARY KEY (run_id, seq),
+  UNIQUE (run_id, event_seq),
+  UNIQUE (run_id, message_id),
+  CHECK ((event_seq IS NULL) <> (message_id IS NULL))
+);
+
+CREATE TABLE cult_pipeline_cursors (
+  run_id TEXT NOT NULL REFERENCES cult_runs(id) ON DELETE CASCADE,
+  chat_id TEXT NOT NULL,
+  endpoint_id TEXT NOT NULL,
+  through_seq INTEGER NOT NULL CHECK (through_seq >= 0),
+  PRIMARY KEY (run_id, chat_id)
+);
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
 export const APP_MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
@@ -299,7 +332,8 @@ export const APP_MIGRATIONS: Migration[] = [
   { version: 4, sql: V4 },
   { version: 5, sql: V5 },
   { version: 6, sql: V6 },
-  { version: 7, sql: V7 }
+  { version: 7, sql: V7 },
+  { version: 8, sql: V8 }
 ]
 
 /**
