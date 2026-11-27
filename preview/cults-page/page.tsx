@@ -16,7 +16,9 @@ import type { CultPetitionView } from '../../src/shared/cults/cult'
 
 /**
  * The Cult page over the renderer fakes, with the real sidebar, chamber and xterm, for screenshots. `?state=` picks the
- * state; the page reaches it with real DOM clicks after mount, then sets `data-ready` on `#root`.
+ * state; the page reaches it with real DOM clicks after mount, then sets `data-ready` on `#root`. The `shrine-*` states
+ * show the run's Shrine in the viewscreen (DM-632): its content loads from `dm-shrine:`, which only a host serving that
+ * scheme (an Electron capture over `src/main/cults/shrineProtocol.ts`) answers.
  */
 const params = new URLSearchParams(window.location.search)
 const state = params.get('state') ?? 'idle'
@@ -47,6 +49,14 @@ function petition(patch: Partial<CultPetitionView>): CultPetitionView {
   return { id: 'pt', runId: 'run_1', kind: 'acolytes', additional: null, folderPath: null, reason: '', state: 'pending', granted: null, createdAt: minutesAgo(3), decidedAt: null, ...patch }
 }
 
+/** The published Shrine each `shrine-*` state shows; null for the empty viewscreen. */
+function shrineOf(): CultRunDetail['shrine'] {
+  const base = { publishedBy: 'Acolyte Ferrum-3', updatedAt: minutesAgo(1) }
+  if (state === 'shrine-image') return { ...base, path: `${WORK}/gerry/gerry.png`, kind: 'image', revision: '4' }
+  if (state === 'shrine-html' || state === 'shrine-enlarged') return { ...base, path: `${WORK}/gerry/index.html`, kind: 'html', revision: '7' }
+  return null
+}
+
 function activeRun(): CultRunDetail {
   const at = minutesAgo(12)
   const paused = state === 'paused'
@@ -60,7 +70,7 @@ function activeRun(): CultRunDetail {
     petition({ id: 'pt_s', kind: 'allow_save', reason: 'Save the drafted shrine plan to the board.', createdAt: minutesAgo(2) })
   ] : []
   return {
-    ...detail, petitions,
+    ...detail, petitions, shrine: shrineOf(),
     workerTypes: [{ id: 'dyn_1', displayName: 'Lore keeper', description: 'd', mission: 'm', rationale: 'Keeps the chronicle of decisions.', requiredForConclusion: false, creatorMemberId: 'chat_magos', createdAt: at, updatedAt: at, retiredAt: null, origin: 'magos_created', state: 'active', assignedChatIds: ['a4'], reportCount: 0 }]
   }
 }
@@ -120,6 +130,7 @@ async function drive(): Promise<void> {
     click(byLabel('Close inspector'))
   }
   if (state === 'past') click(buttonNamed('Past runs'))
+  if (state === 'shrine-enlarged') click(document.querySelector('.cc-viewscreen-window .shrine-enlarge'))
   await document.fonts.ready
   // The chamber's join beams fade before the capture.
   await tick(4000)

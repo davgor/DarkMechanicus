@@ -160,3 +160,12 @@ describe('cult rules: acolytes', () => {
     expect(rules.match(/^## Cult rules/gm)).toHaveLength(1)
   })
 })
+
+describe('cult rules: the Shrine (DM-632)', () => {
+  it('teaches the Magos and every acolyte to publish with cult_shrine', () => {
+    const line = `\`${CULT_TOOLS.shrine}\` and the path of one png, jpg, jpeg, svg or html file`
+    expect(CULT_TOOLS.shrine).toBe('cult_shrine')
+    expect(magosRules(context())).toContain(line)
+    expect(acolyteRules(context(), { name: 'Acolyte Brass', workerType: null })).toContain(line)
+  })
+})

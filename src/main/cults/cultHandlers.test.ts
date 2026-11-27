@@ -3,7 +3,8 @@
  * handlers validate it and drive the real supervisor, store and launcher, and every run change reaches the windows as a
  * `cults:event` snapshot. Magos commands go through the real control pipe, as a member's `dm` sends them.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createDesktopClient } from '../../core/desktop/desktopClient'
 import type { NamingOperation, NamingReply } from '../../shared/agents/chatNaming'
@@ -16,10 +17,11 @@ import { eventually, FakeClock, settle } from '../terminals/__mocks__/terminalSe
 import { backstopMs } from '../../shared/cults/runState'
 import { cultHarness, disposeCultHarness, folderCultInput, ptyOf, type CultHarness } from './__mocks__/cultRig'
 import { createCultDispatcher, planTargetRevision } from './cultCommands'
-import { cultControlPath } from './cultControl'
+import { cultControlPath, type CultControl } from './cultControl'
 import { announcingDispatcher, createCultHandlers, forwardCultEvents, registerCultIpc } from './cultHandlers'
 import { createCultLedger } from './cultLedger'
 import { createCultPipeline } from './cultPipeline'
+import { createCultShrines, type CultShrines } from './cultShrine'
 import { createCultSupervisor, type CultSupervisor } from './cultSupervisor'
 import { parseOmpModels } from './ompModels'
 
@@ -40,13 +42,39 @@ interface Fixture {
   stopForwarding: () => void
   /** Whether the supervisor hears member exits: off, a relaunch looks to it like the same member launching again. */
   hearing: { exits: boolean }
+  /** The run Shrines on the real file watch, as `startCults` wires them, with their reconcile on the run's fake clock. */
+  shrines: CultShrines
+  /** The supervisor's control-file clears: each waits while `held` does, counted in `pending` until it is done. */
+  clears: HeldClears
+}
+
+interface HeldClears {
+  held: Promise<void>
+  pending: number
+  release: () => void
+}
+
+/** The members' control files as the supervisor sees them: a clear waits for `clears.held`, then clears the real file. */
+function heldControl(control: CultControl, clears: HeldClears): CultControl {
+  return {
+    send: (chatId, request) => control.send(chatId, request),
+    clear: async (chatId) => {
+      clears.pending += 1
+      try {
+        await clears.held
+        await control.clear(chatId)
+      } finally {
+        clears.pending -= 1
+      }
+    }
+  }
 }
 
 let f: Fixture
 
-function supervisorOver(h: CultHarness, clock: FakeClock, hearing: Fixture['hearing']): CultSupervisor {
+function supervisorOver(h: CultHarness, clock: FakeClock, hearing: Fixture['hearing'], clears: HeldClears): CultSupervisor {
   return createCultSupervisor({
-    cults: h.cults, launcher: h.launcher, control: h.control, ledger: createCultLedger({ userData: h.rig.userData }),
+    cults: h.cults, launcher: h.launcher, control: heldControl(h.control, clears), ledger: createCultLedger({ userData: h.rig.userData }),
     terminals: {
       isRunning: (chatId) => h.rig.sessions.isRunning(chatId),
       attachGrant: (chatId, grantId) => h.rig.sessions.attachGrant(chatId, grantId),
@@ -70,9 +98,11 @@ beforeEach(async () => {
   const clock = new FakeClock()
   const h = await cultHarness({ now: () => new Date(BASE + clock.now).toISOString(), exitOnKill: true })
   const hearing = { exits: true }
-  const supervisor = supervisorOver(h, clock, hearing)
+  const clears: HeldClears = { held: Promise.resolve(), pending: 0, release: () => {} }
+  const supervisor = supervisorOver(h, clock, hearing, clears)
+  const shrines = createCultShrines({ cults: h.cults, supervisor, clock: { after: (callback, ms) => clock.after(callback, ms) } })
   const dispatch = announcingDispatcher(createCultDispatcher({
-    supervisor, cults: h.cults, council: h.council, models: async () => MODELS,
+    supervisor, cults: h.cults, council: h.council, shrines, models: async () => MODELS,
     sendOrder: (order) => h.pool.get(order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(h.cults, (folder, epicId) => h.pool.get(folder).getEpic({ epicId }))
   }), supervisor)
@@ -96,10 +126,12 @@ beforeEach(async () => {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send: (channel: string, event: unknown) => channel === CULT_EVENT_CHANNEL && pushed.push(event as CultPushEvent) }
   }
-  f = { h, supervisor, clock, pipe, channels, pushed, hearing, stopForwarding: forwardCultEvents(services, () => [window]) }
+  f = { h, supervisor, clock, pipe, channels, pushed, hearing, shrines, clears, stopForwarding: forwardCultEvents(services, () => [window]) }
 })
 
 afterEach(async () => {
+  f.clears.release()
+  f.shrines.dispose()
   f.stopForwarding()
   await f.pipe.close()
   await f.supervisor.dispose()
@@ -161,6 +193,24 @@ async function startedRun(overrides: object = {}) {
   const cult = await createdCult(overrides)
   const detail = await data(invoke<CultRunDetail>('start', cult.id, {}))
   return { cult, detail, run: detail.run, magos: detail.members[0]! }
+}
+
+/** Holds every control-file clear of the supervisor until `f.clears.release()`. */
+function holdClears(): void {
+  f.clears.held = new Promise((resolve) => {
+    f.clears.release = resolve
+  })
+}
+
+/** Each `launcher.deleteCult` call, as the number of control-file clears not yet finished when it was made. */
+function deletionsSeen(): number[] {
+  const seen: number[] = []
+  const deleteCult = f.h.launcher.deleteCult
+  f.h.launcher.deleteCult = (cultId) => {
+    seen.push(f.clears.pending)
+    return deleteCult(cultId)
+  }
+  return seen
 }
 
 describe('cults IPC: channels and validation (c1)', () => {
@@ -335,6 +385,38 @@ describe('cults IPC: Kill now, run history, unsubscribe and delete (c3)', () => 
   })
 })
 
+describe('cults IPC: deleting a cult waits for its runs to settle', () => {
+  it('deletes the cult only once its stopped run has settled, never while a member control file is still being cleared', async () => {
+    const { cult, run } = await startedRun()
+    const deletions = deletionsSeen()
+    holdClears()
+    const deleting = invoke('delete', cult.id)
+    await pastBackstop(run.id)
+    // The end is told, but the members' control files are still being cleared: their chat folders are not removed under them.
+    expect(deletions).toEqual([])
+    f.clears.release()
+    expect(await data(deleting)).toBeNull()
+    expect(deletions).toEqual([0])
+    expect(f.h.cults.getCult(cult.id)).toBeNull()
+  })
+
+  it('waits for a run that has ended but is still settling (Kill now) before deleting the cult', async () => {
+    const { cult, run } = await startedRun()
+    const deletions = deletionsSeen()
+    holdClears()
+    const killing = invoke('killNow', run.id)
+    await eventually(() => lastSnapshot(run.id)?.run.state === 'ended', 'the killed run to end')
+    const deleting = invoke('delete', cult.id)
+    await settle()
+    expect(deletions).toEqual([])
+    f.clears.release()
+    await data(killing)
+    expect(await data(deleting)).toBeNull()
+    expect(deletions).toEqual([0])
+    expect(f.h.cults.getCult(cult.id)).toBeNull()
+  })
+})
+
 describe('cults IPC: a member launching while its run is paused', () => {
   it('re-sends the paused state to a member\'s new launch, whose control file starts afresh', async () => {
     const { run } = await startedRun()
@@ -409,5 +491,53 @@ describe('cults IPC: Magos-created types and reports (c8)', () => {
     expect(f.h.cults.listWorkerTypes(run.id).map((type) => type.id)).toEqual(['dyn_1'])
     expect(f.h.cults.getCult(cult.id)?.slots).toEqual(cult.slots)
     expect(f.h.cults.listMembers(run.id).map((member) => [member.workerType, member.runWorkerTypeId])).toEqual([[null, null]])
+  })
+})
+
+describe('cults IPC: the live Shrine (DM-632)', () => {
+  /** A member command through the pipe that is refused, with its code. */
+  async function refusedCode(member: { chatId: string }, op: string, args: object): Promise<string> {
+    const token = ptyOf(f.h, member).spec.env['DM_SESSION_TOKEN']!
+    const reply: NamingReply = await createDesktopClient({ env: { DM_DESKTOP_PIPE: f.pipe.address, DM_SESSION_TOKEN: token } }).request({ op, args } as NamingOperation)
+    return reply.ok ? 'accepted' : reply.error.code
+  }
+
+  it('a Magos and an acolyte publish through cult_publish_shrine; each publish and each edit reaches cults:event with a new revision', async () => {
+    const { run, magos } = await startedRun()
+    const page = join(run.workDir, 'shrine.html')
+    writeFileSync(page, '<h1>Gerry, day 1</h1>')
+    expect(await command(magos, 'cult_publish_shrine', { path: 'shrine.html' })).toEqual({ shrinePath: page, kind: 'html', revision: '1' })
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, revision: '1', kind: 'html', publishedBy: 'Magos Ferrum' })
+
+    writeFileSync(page, '<h1>Gerry, day 2: a new leaf</h1>')
+    // The watch's reconcile runs on the run clock: the edit is told whether or not the OS delivered its event.
+    f.clock.advance(0)
+    await f.shrines.settled()
+    expect(lastSnapshot(run.id)?.shrine?.revision).toBe('2')
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, publishedBy: 'Magos Ferrum' })
+
+    await command(magos, 'cult_summon_acolyte', { mission: 'Paint Gerry.', name: 'Acolyte Brass' })
+    const brass = (await data(invoke<CultRunDetail[]>('runs', run.cultId)))[0]!.members.find((member) => member.displayName === 'Acolyte Brass')!
+    writeFileSync(join(run.workDir, 'gerry.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    expect(await command(brass, 'cult_publish_shrine', { path: 'gerry.svg' })).toMatchObject({ kind: 'image', revision: '3' })
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ kind: 'image', revision: '3', publishedBy: 'Acolyte Brass' })
+  })
+
+  it('refuses an unsafe candidate over the pipe with shrine_refused, and records nothing', async () => {
+    const { run, magos } = await startedRun()
+    writeFileSync(join(run.workDir, 'notes.txt'), 'plain')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: 'notes.txt' })).toBe('shrine_refused')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: '../../outside.png' })).toBe('shrine_refused')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: 'a.png', runId: run.id })).toBe('invalid_request')
+    expect(f.h.cults.getRun(run.id)?.shrinePath).toBeNull()
+  })
+
+  it('stops watching the Shrine when the run ends', async () => {
+    const { run, magos } = await startedRun()
+    writeFileSync(join(run.workDir, 'shrine.png'), 'png')
+    await command(magos, 'cult_publish_shrine', { path: 'shrine.png' })
+    expect(f.shrines.watching(run.id)).toBe(true)
+    await data(invoke('killNow', run.id))
+    expect(f.shrines.watching(run.id)).toBe(false)
   })
 })

@@ -48,7 +48,12 @@ export interface CultStore {
   /** Persists one lifecycle move and its event atomically; illegal moves are `invalid_state`. */
   transitionRun(runId: string, event: RunEvent, summary?: string): CultRunView
   setChronicle(runId: string, chronicle: string): CultRunView
-  recordShrine(runId: string, shrine: { path: string; revision: string }): CultRunView
+  /** The run's Shrine published by `memberName` at its next revision (`shrine_published`). */
+  recordShrine(runId: string, shrine: { path: string; memberName: string }): CultRunView
+  /** The published file changed: its next revision; null when the run's Shrine is no longer `path`. */
+  bumpShrine(runId: string, path: string): CultRunView | null
+  /** Who published the run's Shrine and when it last changed; null before any publish. */
+  latestShrineEvent(runId: string): { memberName: string | null; at: string } | null
   /** Raises a running or paused run's cap (never lowers it). */
   raiseCap(runId: string, cap: number): CultRunView
   getRun(runId: string): CultRunView | null
@@ -95,6 +100,8 @@ export function createCultStore(options: { db: Db; now?: () => string }): CultSt
     transitionRun: (runId, event, summary) => runs.transitionRun(ctx, runId, event, summary),
     setChronicle: (runId, chronicle) => runs.setChronicle(ctx, runId, chronicle),
     recordShrine: (runId, shrine) => runs.recordShrine(ctx, runId, shrine),
+    bumpShrine: (runId, path) => runs.bumpShrine(ctx, runId, path),
+    latestShrineEvent: (runId) => runs.latestShrineEvent(ctx, runId),
     raiseCap: (runId, cap) => runs.raiseCap(ctx, runId, cap),
     getRun: (runId) => runs.getRun(ctx, runId),
     listRuns: (cultId) => runs.listRuns(ctx, cultId),

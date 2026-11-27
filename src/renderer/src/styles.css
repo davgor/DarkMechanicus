@@ -110,6 +110,9 @@
   --chamber-stasis-edge: #9fc4e0;
   --chamber-stasis-ink: #cfe6f5;
 
+  /* Cult Shrine: the canvas behind a published HTML page that paints no background of its own */
+  --shrine-canvas: #fff;
+
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-serif: "IBM Plex Serif", Georgia, serif;

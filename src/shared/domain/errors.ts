@@ -84,6 +84,7 @@ export const DOMAIN_ERROR_CODES = [
   'worker_type_required',
   'worker_type_assigned',
   'worker_type_unknown',
+  'shrine_refused',
   'internal'
 ] as const
 

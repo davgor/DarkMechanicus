@@ -391,13 +391,43 @@ describe('CultPage Past runs drawer', () => {
 })
 
 describe('CultPage room', () => {
-  it('mounts the chamber for an active run, selects a member from the room and leaves the viewscreen empty', async () => {
+  /** jsdom lays nothing out: the chamber draws its viewscreen only once the room has a size. */
+  function sizedRoom(): void {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(960)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(540)
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('mounts the chamber for an active run, selects a member from the room and shows the empty Shrine in the viewscreen', async () => {
+    sizedRoom()
     seed([running()])
     await show()
     expect(screen.queryByRole('img', { name: /Empty chamber/ })).toBeNull()
     expect(document.querySelector('.cult-room .cc-chamber')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^Acolyte Vox-4/ }))
     expect(document.querySelector('.cult-room')?.getAttribute('data-selected-member')).toBe('chat_b')
+    const viewscreen = document.querySelector('.cc-viewscreen-window') as HTMLElement
+    expect(within(viewscreen).getByRole('region', { name: 'Shrine' }).getAttribute('data-compact')).toBe('true')
+    expect(within(viewscreen).getByRole('status').textContent).toContain('No offering yet')
+  })
+
+  it('updates the viewscreen Shrine live from cults:event, without reopening the page (DM-632 c3)', async () => {
+    sizedRoom()
+    const shrine = { path: `${WORK}/gerry/index.html`, revision: '1', kind: 'html' as const, publishedBy: 'Acolyte Vox-4', updatedAt: '2026-11-27T12:09:00.000Z' }
+    seed([{ ...running(), shrine }])
+    await show()
+    const viewscreen = document.querySelector('.cc-viewscreen-window') as HTMLElement
+    const frame = (): HTMLIFrameElement => viewscreen.querySelector('iframe') as HTMLIFrameElement
+    expect(frame().getAttribute('src')).toBe('dm-shrine://shrine/run_1/1')
+    expect(frame().getAttribute('sandbox')).toBe('allow-scripts')
+    act(() => cults.push({ ...running(), shrine: { ...shrine, revision: '2' } }))
+    expect(frame().getAttribute('src')).toBe('dm-shrine://shrine/run_1/2')
+    act(() => cults.push({ ...running(), shrine: { ...shrine, revision: '3', kind: 'image', path: `${WORK}/gerry.png` } }))
+    expect(viewscreen.querySelector('iframe')).toBeNull()
+    expect(within(viewscreen).getByRole('img', { name: 'Shrine: gerry.png' }).getAttribute('src')).toBe('dm-shrine://shrine/run_1/3')
   })
 })
 

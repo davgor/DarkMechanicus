@@ -220,6 +220,7 @@ const CULT_MEMBER_ONLY: CommandName[] = [
   'cultListWorkerTypes',
   'cultOrderAll',
   'cultPetition',
+  'cultPublishShrine',
   'cultRecordSynthesis',
   'cultRetireWorkerType',
   'cultStatus',

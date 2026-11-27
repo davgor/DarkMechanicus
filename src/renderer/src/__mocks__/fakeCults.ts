@@ -87,7 +87,8 @@ export function runDetail(run: Partial<CultRunView> = {}, members: CultMemberDet
     slots: [],
     workerTypes: [],
     missing: { slots: [], workerTypes: [] },
-    synthesis: null
+    synthesis: null,
+    shrine: null
   }
 }
 

@@ -231,15 +231,43 @@ export function setChronicle(ctx: StoreContext, runId: string, chronicle: string
   })
 }
 
-/** Records where the run's Shrine was published, with its `shrine_published` event. */
-export function recordShrine(ctx: StoreContext, runId: string, shrine: { path: string; revision: string }): CultRunView {
+/** The next Shrine revision after `current`: a counter kept as text, so every publish and every file change is new. */
+const nextRevision = (current: string | null): string => String((Number(current) || 0) + 1)
+
+/** Records the run's Shrine as published by `memberName` at its next revision, with its `shrine_published` event. */
+export function recordShrine(ctx: StoreContext, runId: string, shrine: { path: string; memberName: string }): CultRunView {
   return ctx.db.tx(() => {
-    requireRun(ctx.db, runId)
-    ctx.db.run('UPDATE cult_runs SET shrine_path = ?, shrine_revision = ? WHERE id = ?', shrine.path, shrine.revision, runId)
-    const summary = `Shrine published at revision ${shrine.revision}.`
-    insertEvent(ctx.db, { runId, kind: 'shrine_published', memberName: null, summary, at: ctx.now() })
+    const revision = nextRevision(requireRun(ctx.db, runId).shrine_revision)
+    ctx.db.run('UPDATE cult_runs SET shrine_path = ?, shrine_revision = ? WHERE id = ?', shrine.path, revision, runId)
+    const summary = `Shrine published at revision ${revision}.`
+    insertEvent(ctx.db, { runId, kind: 'shrine_published', memberName: shrine.memberName, summary, at: ctx.now() })
     return toRunView(requireRun(ctx.db, runId))
   })
+}
+
+/**
+ * The published file changed: its next revision, told as a `shrine_published` event of the member who published it.
+ * Null when the run's Shrine is no longer `path` (published again meanwhile), so a late change is never told.
+ */
+export function bumpShrine(ctx: StoreContext, runId: string, path: string): CultRunView | null {
+  return ctx.db.tx(() => {
+    const row = requireRun(ctx.db, runId)
+    if (row.shrine_path !== path) return null
+    const revision = nextRevision(row.shrine_revision)
+    ctx.db.run('UPDATE cult_runs SET shrine_revision = ? WHERE id = ?', revision, runId)
+    const memberName = latestShrineEvent(ctx, runId)?.memberName ?? null
+    insertEvent(ctx.db, { runId, kind: 'shrine_published', memberName, summary: `Shrine updated to revision ${revision}.`, at: ctx.now() })
+    return toRunView(requireRun(ctx.db, runId))
+  })
+}
+
+/** Who published the run's Shrine and when it last changed: its latest `shrine_published` event; null before any. */
+export function latestShrineEvent(ctx: StoreContext, runId: string): { memberName: string | null; at: string } | null {
+  const row = ctx.db.get<{ member_name: string | null; at: string }>(
+    "SELECT member_name, at FROM cult_events WHERE run_id = ? AND kind = 'shrine_published' ORDER BY seq DESC LIMIT 1",
+    runId
+  )
+  return row === undefined ? null : { memberName: row.member_name, at: row.at }
 }
 
 export function getRun(ctx: StoreContext, runId: string): CultRunView | null {

@@ -119,6 +119,17 @@ describe('cult commands: relaying to the desktop', () => {
     })
   })
 
+  it('publish_shrine: one path line of at most 4096 characters; relayed as cult_publish_shrine', async () => {
+    expect(parse('cultPublishShrine', { path: 'shrine.html' }).success).toBe(true)
+    expect(parse('cultPublishShrine', {}).success).toBe(false)
+    expect(parse('cultPublishShrine', { path: '' }).success).toBe(false)
+    expect(parse('cultPublishShrine', { path: 'a\nb.png' }).success).toBe(false)
+    expect(parse('cultPublishShrine', { path: 'x'.repeat(4097) }).success).toBe(false)
+    const { workspace, sent } = core(['cult.act'], () => ({ version: 1, requestId: 'r', ok: true, data: { shrinePath: '/w/a.png', kind: 'image', revision: '1' } }))
+    expect(await cultCommands.cultPublishShrine.run(workspace, { path: 'a.png' })).toEqual({ shrinePath: '/w/a.png', kind: 'image', revision: '1' })
+    expect(sent).toEqual([{ op: 'cult_publish_shrine', args: { path: 'a.png' } }])
+  })
+
   it('refuses a session without cult.act before reaching the desktop, and an unexpected reply', async () => {
     const without = core(['read'], () => { throw new Error('not reached') })
     await expect(cultCommands.cultStatus.run(without.workspace)).rejects.toMatchObject({ code: 'unauthorized' })

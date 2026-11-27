@@ -120,6 +120,8 @@ import { createCultLauncher } from '../cults/cultLauncher'
 import { createPlanForgeCouncil } from '../cults/planForgeCouncil'
 import { createCultSupervisor, type CultSupervisor } from '../cults/cultSupervisor'
 import { createCultWake, type CultWake } from '../cults/cultWake'
+import { createCultShrines } from '../cults/cultShrine'
+import { createShrineLookup, registerShrineProtocol } from '../cults/shrineProtocol'
 import { cheapest, createOmpModelCatalog } from '../cults/ompModels'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
@@ -1224,8 +1226,10 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     userData, supervisor, chats: store, epochOf: (chatId) => terminals.generationOf(chatId),
     onError: (error) => logger.error('Cult wake failed:', error)
   }))
+  const shrines = createCultShrines({ cults, supervisor, onError: (error) => logger.error('Cult Shrine watch failed:', error) })
+  registerShrineProtocol(protocol, createShrineLookup((runId) => cults.getRun(runId)))
   deps.processes.setCultDispatcher(announcingDispatcher(createCultDispatcher({
-    supervisor, cults, council,
+    supervisor, cults, council, shrines,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),
@@ -1244,7 +1248,8 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     onError: (error) => logger.error('Cult pipeline read failed:', error)
   })
   serveCults(deps, { cults, supervisor, launcher, models, pipeline })
-  return supervisor
+  // Quitting ends every run (which stops its Shrine watch), then closes what is left.
+  return { ...supervisor, dispose: async () => { await supervisor.dispose(); shrines.dispose() } }
 }
 
 /** The quit also ends every cult run first: it is recorded interrupted and its upgrades revoked before the chats end. */

@@ -76,13 +76,13 @@ type OpenHandler = (details: { url: string }) => { action: 'deny' }
 
 function createFakeContents(): {
   setWindowOpenHandler(handler: OpenHandler): void
-  on(event: string, listener: (details: NavigationDetails) => void): void
+  on(event: string, listener: (details: NavigationDetails & { isMainFrame: boolean }) => void): void
   registeredEvents(): string[]
   openWindow(url: string): { action: 'deny' } | null
-  navigate(event: string, url: string): boolean
+  navigate(event: string, url: string, isMainFrame?: boolean): boolean
 } {
   let openHandler: OpenHandler | null = null
-  const listeners = new Map<string, (details: NavigationDetails) => void>()
+  const listeners = new Map<string, (details: NavigationDetails & { isMainFrame: boolean }) => void>()
   return {
     setWindowOpenHandler(handler) {
       openHandler = handler
@@ -92,10 +92,11 @@ function createFakeContents(): {
     },
     registeredEvents: () => [...listeners.keys()].sort(),
     openWindow: (url) => (openHandler === null ? null : openHandler({ url })),
-    navigate(event, url) {
+    navigate(event, url, isMainFrame = true) {
       let prevented = false
       listeners.get(event)?.({
         url,
+        isMainFrame,
         preventDefault: () => {
           prevented = true
         }
@@ -136,7 +137,7 @@ describe('hardenWebContents dev-server navigation', () => {
   it('guards navigation and redirects and nothing else', () => {
     const contents = hardened('http://localhost:5173')
 
-    expect(contents.registeredEvents()).toEqual(['will-navigate', 'will-redirect'])
+    expect(contents.registeredEvents()).toEqual(['will-frame-navigate', 'will-navigate', 'will-redirect'])
   })
 
   it('lets the dev-server origin navigate and blocks everything else', () => {
@@ -228,5 +229,24 @@ describe('hardenWebContents without a usable app URL', () => {
   it('blocks all navigation when the app URL has no comparable origin or is malformed', () => {
     expect(hardened('about:blank').navigate('will-navigate', 'about:blank')).toBe(true)
     expect(hardened('not a url').navigate('will-navigate', 'http://localhost:5173/')).toBe(true)
+  })
+})
+
+describe('hardenWebContents frame navigation (DM-632)', () => {
+  it('lets a frame inside the page navigate only to a cult Shrine', () => {
+    const contents = hardened('http://localhost:5173')
+
+    expect(contents.navigate('will-frame-navigate', 'dm-shrine://shrine/cr_1/2', false)).toBe(false)
+    expect(contents.navigate('will-frame-navigate', 'https://example.com/', false)).toBe(true)
+    expect(contents.navigate('will-frame-navigate', 'http://localhost:5173/', false)).toBe(true)
+    expect(contents.navigate('will-frame-navigate', 'file:///etc/passwd', false)).toBe(true)
+    expect(contents.navigate('will-frame-navigate', 'javascript:alert(1)', false)).toBe(true)
+    expect(contents.navigate('will-frame-navigate', 'not a url', false)).toBe(true)
+  })
+
+  it('leaves the main frame to the will-navigate guard', () => {
+    const contents = hardened('http://localhost:5173')
+
+    expect(contents.navigate('will-frame-navigate', 'http://localhost:5173/', true)).toBe(false)
   })
 })

@@ -201,6 +201,14 @@ The cult chamber's run-state theatrics (`cults/chamber/chamber.css`): the sparks
 | `--chamber-stasis-edge` (new) | — | `#9fc4e0` | STASIS plate border |
 | `--chamber-stasis-ink` (new) | — | `#cfe6f5` | STASIS plate text |
 
+### Cult Shrine (DM-632)
+
+The canvas behind a published HTML Shrine (`cults/shrine.css`): a member's page that sets no background reads as on a browser's white page, as its author saw it. The page paints its own text, so section 5 holds no pair for it.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--shrine-canvas` (new) | — | `#fff` | Canvas behind a sandboxed HTML Shrine |
+
 ## 4. Collision rules
 
 Hue (h) and lightness (L) are OKLCH. ΔE is the OKLab distance: about 0.02 is just noticeable, and above 0.1 is clearly different. Every state is always shown with its text label (the existing rule in `epic/tones.css`), so color is never the only cue.

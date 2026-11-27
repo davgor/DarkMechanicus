@@ -161,6 +161,19 @@ interface CultSynthesisView {
   recordedAt: string
 }
 
+/** The run's published Shrine (DM-632): served only as `shrineUrl(run id, revision)`; null until a member publishes. */
+export interface CultShrineView {
+  /** The file's real path inside the run's work dir, for its name; the content is never read by path. */
+  path: string
+  /** Bumped on every publish and every change of the file: a new revision is a new address, so the view reloads. */
+  revision: string
+  kind: 'image' | 'html'
+  /** The member who published it; null when the record has no name. */
+  publishedBy: string | null
+  /** When it was published or last changed, ISO. */
+  updatedAt: string
+}
+
 /** A run as it is now: members with their types and report state, the council's coverage and the Magos's synthesis. */
 export interface CultRunDetail {
   run: CultRunView
@@ -173,6 +186,7 @@ export interface CultRunDetail {
   /** Required definition slots and required active Magos-created types without a report. */
   missing: { slots: string[]; workerTypes: string[] }
   synthesis: CultSynthesisView | null
+  shrine: CultShrineView | null
 }
 
 export type CultPushEvent = { type: 'run_changed'; snapshot: CultRunDetail }
