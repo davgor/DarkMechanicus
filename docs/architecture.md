@@ -82,6 +82,8 @@ Errors are `DomainError(code, message, details)` with codes from `src/shared/dom
 
 See `src/core/authz.ts` for the exact sets. No agent role receives a human-only capability. Every role holds `comment.write` (see [Comments](#comments)). The desktop, planner and orchestrator hold `kanban.write` (see [Kanban cards](#kanban-cards)); `kanban.play` and `kanban.review` are human-only, `kanban.claim` belongs to the orchestrator, and `kanban.report` to the orchestrator and the worker.
 
+`browser.drive` (orchestrator and worker only; agent-only, so the desktop never holds it) gates the `browser_*` commands (`src/core/commands/browser.ts`): `browser_status`, `browser_navigate`, `browser_click`, `browser_type`, `browser_press`, `browser_read` and `browser_screenshot`. Each refuses the desktop transport and sends its op over the desktop's browser pipe (`createBrowserClient`, `src/core/desktop/browserClient.ts`; address `DM_BROWSER_PIPE`, contract `src/shared/browser/browserControl.ts`), and a refusal becomes a `DomainError` with the contract's fixed message, never the pipe's text. `DM_BROWSER_PIPE` is never inherited from main's environment (`terminalEnv.ts` `NEVER_PASSED`); a chat receives it only from its issued CLI env. `browser_screenshot` also needs `attachment.write`: main answers with the chat image and a temp copy in a fresh `dm-browser-shot-*` folder directly under the system temp folder; the command refuses any other path, a link or a file over the attachment limit, stages the copy as an `evidence` attachment, removes the folder (also on failure) and answers with the attachment only.
+
 ## Domain rules
 
 ### Statuses

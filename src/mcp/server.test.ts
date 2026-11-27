@@ -208,6 +208,13 @@ const DESKTOP_READS: CommandName[] = [
  * ticket's budget with `update_plan_draft`; the desktop's `setTicketBudget` is the same draft edit.
  */
 const DESKTOP_ONLY: CommandName[] = ['uploadAttachment', 'setTicketBudget']
+/**
+ * Agent commands with no MCP tool yet: DM-868 ("Expose the browser commands as MCP tools") adds their tools and
+ * deletes this list, and the inventory test below pins it to exactly these seven until then.
+ */
+const AWAITING_DM_868: CommandName[] = [
+  'browserStatus', 'browserNavigate', 'browserClick', 'browserType', 'browserPress', 'browserRead', 'browserScreenshot'
+]
 
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
   if (annotations?.readOnlyHint === true) {
@@ -256,11 +263,12 @@ describe('tool inventory', () => {
 
   it('adapts every command an agent may use, and none of the human-only ones or the desktop-only reads', () => {
     const adapted = new Set(Object.values(TOOLS).map((tool) => tool.method))
+    expect([...AWAITING_DM_868].sort()).toEqual(COMMAND_NAMES.filter((name) => name.startsWith('browser')).sort())
     const agentCommands = COMMAND_NAMES.filter(
-      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name) && !DESKTOP_ONLY.includes(name)
+      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name) && !DESKTOP_ONLY.includes(name) && !AWAITING_DM_868.includes(name)
     )
     expect([...adapted].sort()).toEqual([...agentCommands].sort())
-    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length + DESKTOP_ONLY.length)
+    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length + DESKTOP_ONLY.length + AWAITING_DM_868.length)
   })
 
   it('annotates each tool by kind and only cancel_run as destructive', async () => {

@@ -54,6 +54,27 @@ it('gives only chat terminals their own naming address and never inherits one fr
   expect(Object.keys(login).some(key => /^DM_(?:SESSION_TOKEN|DESKTOP_PIPE)$/iu.test(key))).toBe(false)
 })
 
+it('passes the browser address only from the issued CLI env and never inherits one in any letter case', () => {
+  const base = { DM_BROWSER_PIPE: 'foreign-browser', dm_browser_pipe: 'foreign-lower', Dm_Browser_Pipe: 'foreign-mixed', KEEP: 'yes' }
+  const issued = { ...CLI, env: { ...CLI.env, DM_BROWSER_PIPE: 'owned-browser-pipe' } }
+  for (const kind of ['omp', 'claude', 'codex', 'custom'] as const) {
+    const chat = terminalEnv({ base, platform: 'win32', kind, cli: issued, launcherDir: null })
+    expect(Object.entries(chat).filter(([key]) => key.toUpperCase() === 'DM_BROWSER_PIPE')).toEqual([['DM_BROWSER_PIPE', 'owned-browser-pipe']])
+    expect(chat['KEEP']).toBe('yes')
+    const notIssued = terminalEnv({ base, platform: 'win32', kind, cli: CLI, launcherDir: null })
+    expect(Object.keys(notIssued).some(key => key.toUpperCase() === 'DM_BROWSER_PIPE')).toBe(false)
+    const headless = terminalEnv({ base, platform: 'win32', kind, cli: CLI, launcherDir: null, headless: true })
+    expect(Object.keys(headless).some(key => key.toUpperCase() === 'DM_BROWSER_PIPE')).toBe(false)
+  }
+  // The naming address never stands in for the browser's, nor the reverse.
+  const namingOnly = terminalEnv({ base: {}, platform: 'win32', kind: 'omp', cli: { ...CLI, env: { ...CLI.env, DM_DESKTOP_PIPE: 'naming' } }, launcherDir: null })
+  expect(namingOnly['DM_BROWSER_PIPE']).toBeUndefined()
+  expect(Object.keys(terminalLoginEnv(base)).some(key => key.toUpperCase() === 'DM_BROWSER_PIPE')).toBe(false)
+  for (const kind of ['claude', 'omp'] as const) {
+    expect(Object.keys(arbiterEnv(base, kind)).some(key => key.toUpperCase() === 'DM_BROWSER_PIPE')).toBe(false)
+  }
+})
+
 describe('terminalEnv: the Skitarii mail client descriptor', () => {
   const DESCRIPTOR = 'C:\\data\\agents\\omp\\ch_1\\dm-client\\gen.json'
   const stale = { DM_SKITARII_CLIENT_DESCRIPTOR: 'stale-upper', dm_skitarii_client_descriptor: 'stale-lower', Dm_Skitarii_Client_Descriptor: 'stale-mixed' }

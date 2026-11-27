@@ -4,6 +4,8 @@ import { fail } from './errors'
 export const CAPABILITIES = [
   'tooling.recover',
   'read',
+  // Driving a GUI chat's in-app browser over the desktop's browser pipe (`DM_BROWSER_PIPE`); the person never needs it.
+  'browser.drive',
   'chat.name', 'human.ask',
   'repo.init',
   'repo.flush',
@@ -186,6 +188,7 @@ const ORCHESTRATOR: Capability[] = [
   'metrics.report',
   'metrics.report_run',
   'plan.request_save',
+  'browser.drive',
 ]
 
 /** What the desktop never holds: claiming and reporting on work belong to the agents that execute it. */
@@ -209,7 +212,9 @@ const AGENT_ONLY: readonly Capability[] = [
   'metrics.report',
   'metrics.report_run',
   // A mailbox speaks for an agent's chat; the person reads and manages mail through `mail.manage` instead.
-  'mail.use'
+  'mail.use',
+  // The desktop is the person's window onto the browser, never an agent driving it over the browser pipe.
+  'browser.drive'
 ]
 
 const DESKTOP: Capability[] = CAPABILITIES.filter((capability) => !AGENT_ONLY.includes(capability))
@@ -228,6 +233,7 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
     'comment.write',
     'attachment.write',
     'kanban.report',
+    'browser.drive',
     'metrics.report',
     'mail.use'
   ],

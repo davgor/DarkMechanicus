@@ -129,7 +129,7 @@ describe('isolatedEnv', () => {
   it('strips app-redirecting variables and isolates every home under the root', () => {
     const base = {
       Path: 'C:\\node', ELECTRON_RUN_AS_NODE: '1', electron_enable_logging: '1', NODE_OPTIONS: '--inspect',
-      DM_SESSION_TOKEN: 'secret', DM_DESKTOP_PIPE: 'pipe', UserProfile: 'C:\\Users\\real', AppData: 'C:\\real', KEEP: 'yes'
+      DM_SESSION_TOKEN: 'secret', DM_DESKTOP_PIPE: 'pipe', DM_BROWSER_PIPE: 'browser-pipe', UserProfile: 'C:\\Users\\real', AppData: 'C:\\real', KEEP: 'yes'
     }
     const env = isolatedEnv(base, 'C:\\tmp\\run', 'win32')
     expect(env).toEqual({
