@@ -9,6 +9,7 @@ import type { AgentTodoPhase } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { AgentChangesCard } from '../agentChat/AgentChangesCard'
 import { AgentChat } from '../agentChat/AgentChat'
+import type { ChatEpic } from '../agentChat/ChatImages'
 import { ChatComposer } from '../agentChat/ChatComposer'
 import { todoProgress, todoProgressLabel, withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
@@ -218,6 +219,11 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   nodes: readonly AgentTreeNodeInput[]
   items: readonly ChatItem[]
 }): JSX.Element {
+  const { dispatch, epicId } = ws
+  const savedTickets = ws.data.savedTickets
+  // A chat's images go to the epic or, from a thread bound to one, its ticket; the toast confirms where.
+  const epic = useMemo<ChatEpic>(() => ({ epicId, tickets: savedTickets, confirm: (text) => dispatch({ type: 'toast', text }) }),
+    [epicId, savedTickets, dispatch])
   const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
   const name = named(chat.id) ?? chat.title
   if (threadId !== null) {
@@ -225,7 +231,7 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   }
   if (chat.surface === 'gui') {
     return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
-      agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} />
+      agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} epic={epic} />
   }
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }

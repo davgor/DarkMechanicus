@@ -74,7 +74,8 @@ function app(
     registry: { resolve: path => path === gui.repo ? path : null },
     sessions: wiring.agentChats,
     confirmTerminalStop: nativeTerminalStopConfirmation<unknown, unknown>({ windowFor: sender => sender === SENDER ? WINDOW : null, showMessageBox }),
-    models: { chatModels: async () => [], catalogModels: async () => [] }
+    models: { chatModels: async () => [], catalogModels: async () => [] },
+    evidence: { chats: gui.store, chatImages: gui.chatImages, workspace: () => { throw new Error('No evidence is attached in these tests.') } }
   })
   registerAgentChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: APP_URL }), handlers, event => event.sender)
   const invoke = async <T>(channel: string, request: unknown, event = TRUSTED) => (await listeners.get(channel)!(event, request)) as CommandResult<T>
@@ -552,9 +553,7 @@ describe('agent chat preload bridge', () => {
     const state = open()
     const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(AGENT_CHAT_CHANNELS\.([A-Za-z]+)/g)].map(match => AGENT_CHAT_CHANNELS[match[1] as keyof typeof AGENT_CHAT_CHANNELS]).sort()
     const listened = [...preload.matchAll(/ipcRenderer\.on\(AGENT_CHAT_CHANNELS\.([A-Za-z]+)/g)].map(match => AGENT_CHAT_CHANNELS[match[1] as keyof typeof AGENT_CHAT_CHANNELS])
-    // Contract channels whose main handlers land later: attachEvidence with evidence.
-    const notYetHandled: readonly string[] = [AGENT_CHAT_CHANNELS.attachEvidence]
-    expect(invoked.filter(channel => !notYetHandled.includes(channel))).toEqual([...state.listeners.keys()].sort())
+    expect(invoked).toEqual([...state.listeners.keys()].sort())
     expect([...invoked, ...listened].sort()).toEqual(Object.values(AGENT_CHAT_CHANNELS).sort())
     expect(listened).toEqual([AGENT_CHAT_CHANNELS.event])
   })

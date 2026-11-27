@@ -114,3 +114,69 @@ describe('ChatImages lightbox', () => {
     expect(api.callsOf('interrupt')).toHaveLength(0)
   })
 })
+
+describe('ChatImages Attach as evidence', () => {
+  const stampFor = (ticketKey: string, ticketVerified: boolean) => ({ role: 'Acolyte' as const, ticketKey, ordinal: null, purpose: null, ticketVerified })
+  const shot = (id: string) => [{ id, mime: 'image/png' as const, width: 800, height: 600, bytes: 4_096 }]
+  /** A busy chat (no `Worked for` fold): the person's image, a capture in a thread bound to DM-7, and one in a thread only labelled DM-8. */
+  const epicItems: ChatItem[] = [
+    { id: 'ask', at: '2026-11-24T08:00:00.000Z', kind: 'user_message', text: 'Here is the bug.', images: shot('ci_01m8e000000000000000000021') },
+    { id: 'spawn-7', at: '2026-11-24T08:00:01.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Fix the form' }, status: 'running', resultSummary: null },
+    { id: 'th-7', at: '2026-11-24T08:00:02.000Z', kind: 'thread', parentItemId: 'spawn-7', label: 'Acolyte:DM-7 Fix the form', state: 'running', callsign: stampFor('DM-7', true) },
+    { id: 'shot-7', at: '2026-11-24T08:00:03.000Z', kind: 'tool_call', threadId: 'th-7', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000022') },
+    { id: 'spawn-8', at: '2026-11-24T08:00:04.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Look around' }, status: 'running', resultSummary: null },
+    { id: 'th-8', at: '2026-11-24T08:00:05.000Z', kind: 'thread', parentItemId: 'spawn-8', label: 'Acolyte:DM-8 Look around', state: 'running', callsign: stampFor('DM-8', false) },
+    { id: 'shot-8', at: '2026-11-24T08:00:06.000Z', kind: 'tool_call', threadId: 'th-8', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000023') }
+  ]
+  const TICKETS = [{ id: 'tk_7', key: 'DM-7' }, { id: 'tk_8', key: 'DM-8' }]
+
+  async function mountEpicChat(epic: boolean): Promise<{ api: FakeAgentChat; toasts: string[] }> {
+    const api = new FakeAgentChat()
+    const toasts: string[] = []
+    api.snapshotResult = { ok: true, data: { ...agentChatScenarios['image-result'].snapshot, status: 'busy', items: epicItems } }
+    render(<AgentChat folder="/repo" folderKey={FOLDER_KEY} chatId={CHAT_ID} agentLabel="Magos" api={api} scheduler={new ManualScheduler()}
+      {...(epic ? { epic: { epicId: 'ep_1', tickets: TICKETS, confirm: (text: string) => { toasts.push(text) } } } : {})} />)
+    await settle()
+    // Each subagent thread shows its own items once opened.
+    for (const name of ['Thread: Acolyte:DM-7', 'Thread: Acolyte:DM-8']) {
+      const toggle = within(screen.getByRole('listitem', { name })).getAllByRole('button')[0]
+      if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle)
+    }
+    return { api, toasts }
+  }
+
+  it('is absent outside an epic, beside thumbnails that still open', async () => {
+    await mountEpicChat(false)
+    expect(screen.getAllByRole('button', { name: /^Open Image from/ }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /as evidence/ })).toBeNull()
+  })
+
+  it('sends a bound thread’s image to its ticket and confirms with the ticket key', async () => {
+    const { api, toasts } = await mountEpicChat(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Attach Image from agent, 800x600 as evidence to DM-7' }))
+    await settle()
+    expect(api.callsOf('attachEvidence')).toEqual([[{ folder: '/repo', chatId: CHAT_ID, imageId: 'ci_01m8e000000000000000000022', epicId: 'ep_1', ticketId: 'tk_7' }]])
+    expect(toasts).toEqual(['Attached the image to DM-7 as evidence.'])
+  })
+
+  it('sends the person’s image and an unverified thread’s image to the epic', async () => {
+    const { api } = await mountEpicChat(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Attach Image from you, 800x600 as evidence to the epic' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Attach Image from agent, 800x600 as evidence to the epic' }))
+    await settle()
+    expect(api.callsOf('attachEvidence')).toEqual([
+      [{ folder: '/repo', chatId: CHAT_ID, imageId: 'ci_01m8e000000000000000000021', epicId: 'ep_1' }],
+      [{ folder: '/repo', chatId: CHAT_ID, imageId: 'ci_01m8e000000000000000000023', epicId: 'ep_1' }]
+    ])
+  })
+
+  it('shows a refusal inline under its thumbnail and confirms nothing', async () => {
+    const { api, toasts } = await mountEpicChat(true)
+    api.attachEvidenceResult = { ok: false, error: { code: 'unauthorized', message: 'That chat is not bound to this epic.' } }
+    const button = screen.getByRole('button', { name: 'Attach Image from agent, 800x600 as evidence to DM-7' })
+    fireEvent.click(button)
+    await settle()
+    expect(within(button.closest('li')!).getByRole('alert').textContent).toBe('That chat is not bound to this epic.')
+    expect(toasts).toEqual([])
+  })
+})
