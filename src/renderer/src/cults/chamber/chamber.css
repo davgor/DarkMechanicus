@@ -200,6 +200,11 @@
   transition: none;
 }
 
+/* No active run: the empty room with its lights off; the viewscreen's window stays lit above the shade. */
+.cc-chamber .cc-lights-off .cc-shade {
+  opacity: 0.78;
+}
+
 .cc-chamber .cc-stasis .cc-world {
   filter: grayscale(1) brightness(0.7);
 }

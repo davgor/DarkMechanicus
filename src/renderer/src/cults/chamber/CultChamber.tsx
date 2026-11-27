@@ -33,6 +33,8 @@ interface CultChamberProps {
   selectedMemberId?: string | null
   onSelectMember: (id: string) => void
   members: readonly ChamberMember[]
+  /** No active run: the empty room with its lights off; no Magos, no acolytes, and nothing moves. */
+  dark?: boolean
 }
 
 /** Frame deltas are clamped, as in GraphMascot, so a stalled tab never teleports anyone. */
@@ -282,19 +284,27 @@ function Scene({ state, layout, roster, selectedMemberId, reduced, outlined, onS
   </div>
 }
 
+/** The room with no run: its scenery only, under the lights-off shade. */
+function DarkScene({ layout }: { layout: ChamberLayout }): JSX.Element {
+  return <div className="cc-scene cc-lights-off" aria-hidden="true">
+    <div className="cc-world"><Scenery layout={layout} open={false} /></div>
+    <div className="cc-shade" />
+  </div>
+}
+
 /**
  * The cult chamber: backdrop, viewscreen, props, the Magos at the helm and a tinted, name-plated acolyte per member,
  * with speech bubbles, order and report effects and the run-state theatrics, all driven by the chamber simulation.
  * Decorative: the Cult page's roster carries every fact and control.
  */
-export function CultChamber({ events, seed, viewscreen, selectedMemberId, onSelectMember, members }: CultChamberProps): JSX.Element {
+export function CultChamber({ events, seed, viewscreen, selectedMemberId, onSelectMember, members, dark = false }: CultChamberProps): JSX.Element {
   const root = useRef<HTMLDivElement>(null)
   const size = useRoomSize(root)
   const onScreen = useOnScreen(root)
   const reduced = useMotionPreference()
   const visible = usePageVisible()
   const layout = useMemo(() => chamberLayout(size, CHAMBER_PROPS, members.length), [size, members.length])
-  const active = !reduced && visible && onScreen
+  const active = !dark && !reduced && visible && onScreen
   const state = useChamberSimulation(events, seed, layout, active)
   const shown = useMemo(() => reduced ? staticChamber(state, layout) : state, [reduced, state, layout])
   const outlined = useOrderOutlines(state.effects, reduced)
@@ -303,8 +313,8 @@ export function CultChamber({ events, seed, viewscreen, selectedMemberId, onSele
   return <div ref={root} className="cc-chamber" data-animated={active && ready}
     style={{ '--cc-sprite-scale': layout.spriteScale } as CSSProperties}>
     {ready && <>
-      <Scene state={shown} layout={layout} roster={roster} selectedMemberId={selectedMemberId} reduced={reduced}
-        outlined={outlined} onSelectMember={onSelectMember} />
+      {dark ? <DarkScene layout={layout} /> : <Scene state={shown} layout={layout} roster={roster}
+        selectedMemberId={selectedMemberId} reduced={reduced} outlined={outlined} onSelectMember={onSelectMember} />}
       <div className="cc-viewscreen-window" style={rectStyle(layout.viewscreen.window)}>{viewscreen}</div>
     </>}
   </div>

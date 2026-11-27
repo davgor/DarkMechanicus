@@ -1248,8 +1248,9 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
   }))
   const shrines = createCultShrines({ cults, supervisor, onError: (error) => logger.error('Cult Shrine watch failed:', error) })
   registerShrineProtocol(protocol, createShrineLookup((runId) => cults.getRun(runId)))
+  const pipeline = cultPipeline(deps, cults)
   deps.processes.setCultDispatcher(announcingDispatcher(createCultDispatcher({
-    supervisor, cults, council, shrines,
+    supervisor, cults, council, shrines, pipeline,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),
@@ -1257,7 +1258,7 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
       grant.runId === runId && grant.chatId === chatId && grant.kind === 'folder_access' && grant.tokenFile !== null ? [{ folder: grant.folder, tokenFile: grant.tokenFile }] : []),
     onError: (error) => logger.error('Cult member conclusion failed:', error)
   }), supervisor))
-  serveCults(deps, { cults, supervisor, launcher, models, pipeline: cultPipeline(deps, cults) })
+  serveCults(deps, { cults, supervisor, launcher, models, pipeline })
   // Quitting ends every run (which stops its Shrine watch), then closes what is left.
   return { ...supervisor, dispose: async () => { await supervisor.dispose(); shrines.dispose() } }
 }

@@ -84,7 +84,8 @@ export interface ChamberState {
 }
 
 export type ChamberEvent =
-  | { type: 'memberJoined'; id: string }
+  /** `present`: already in the room when the chamber opened; it stands on the floor at once, with no beam or summon. */
+  | { type: 'memberJoined'; id: string; present?: boolean }
   | { type: 'memberLeft'; id: string }
   | { type: 'working'; id: string; on: boolean }
   | { type: 'bubble'; id: string; text: string }
@@ -327,14 +328,17 @@ function updateMember(state: ChamberState, id: string,
   return { ...state, acolytes: state.acolytes.map((acolyte) => acolyte.id === id ? change(acolyte) : acolyte) }
 }
 
-function memberJoined(state: ChamberState, { id }: { id: string }, layout: ChamberLayout): ChamberState {
+function memberJoined(state: ChamberState, { id, present = false }: { id: string; present?: boolean },
+  layout: ChamberLayout): ChamberState {
   if (member(state, id)) return state
-  const [, seed] = drawRandom(state.randomState)
-  const x = layout.teleportPad.centerX
+  const [spot, seed] = drawRandom(state.randomState)
+  const doorRight = layout.door.rect.x + layout.door.rect.width
+  const x = present ? doorRight + spot * Math.max(0, layout.teleportPad.centerX - doorRight) : layout.teleportPad.centerX
   const acolyte: ChamberAcolyte = {
     id, mode: 'arriving', working: false, consoleId: null, x, y: layout.floorY, facing: 'left',
     pose: 'idle', poseElapsed: 0, progress: 0, modeElapsed: 0, motion: createMotion(seed, { x, y: layout.floorY })
   }
+  if (present) return { ...state, randomState: seed, acolytes: [...state.acolytes, enterBaseMode(acolyte)] }
   const joined = { ...state, randomState: seed, acolytes: [...state.acolytes, acolyte],
     magos: requestMagos(state.magos, 'summon') }
   return addEffect(joined, (effectId) => createBeam(effectId, layout))

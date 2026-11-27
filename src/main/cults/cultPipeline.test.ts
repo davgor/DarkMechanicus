@@ -226,3 +226,27 @@ describe('cult pipeline: order_all (c5)', () => {
     expect(entries.filter((entry) => entry.kind === 'message').map(line)).toEqual([`message ${NAMES.vox} -> ${NAMES.magos}: Concluding.`])
   })
 })
+
+describe('cult pipeline: an order written in one exclusive step (DM-667)', () => {
+  it('holds a page asked while the order is sent until its event is recorded, so its messages never come alone', async () => {
+    const acolytes = ['ferrum', 'vox'] as const
+    let release = (): void => undefined
+    // The repository's ES library predates Promise.withResolvers.
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const ordering = rig.pipeline.exclusive(rig.run.id, async () => {
+      const messageIds = acolytes.map((to, index) =>
+        acceptMessage(rig.mail, { senderEndpointId: rig.endpoints.magos, to: rig.endpoints[to], clientMessageId: `co_2:${index + 1}`, body: 'Kneel.' }).messageId)
+      await gate
+      rig.clock.advanceSeconds(1)
+      rig.cults.recordOrder(rig.run.id, NAMES.magos, { orderId: 'co_2', messageIds, recipients: acolytes.map((key) => NAMES[key]) })
+      return messageIds
+    })
+    const paging = rig.pipeline.page(rig.run.id, { limit: 50 })
+    await Promise.resolve()
+    expect(rig.reads).toEqual([])
+    release()
+    const messageIds = await ordering
+    const { entries } = await paging
+    expect(entries.filter((entry) => entry.kind !== 'event').map((entry) => [entry.kind, entry.orderId, entry.messageIds])).toEqual([['order_all', 'co_2', messageIds]])
+  })
+})

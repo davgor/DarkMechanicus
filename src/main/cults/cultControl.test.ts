@@ -344,6 +344,29 @@ describe('cult control: order_all (c7)', () => {
   })
 })
 
+describe('cult control: order_all and the pipeline (DM-667)', () => {
+  it('sends and records the order inside the run pipeline\'s exclusive step', async () => {
+    const steps: string[] = []
+    const pipeline = {
+      exclusive: async <T>(runId: string, work: () => Promise<T>): Promise<T> => {
+        steps.push(`enter ${runId}`)
+        const result = await work()
+        steps.push(`leave, ${ordersOf(runId).length} order recorded`)
+        return result
+      }
+    }
+    const sendOrder: CultCommandDeps['sendOrder'] = async (order) => {
+      steps.push('send')
+      return f.h.pool.get(order.folder).call('sendCultOrder', order)
+    }
+    f.dispatch = createCultDispatcher(commandDeps({ pipeline, sendOrder }))
+    const { run, magos } = await startRun()
+    await summon(magos, { name: 'Acolyte Brass' })
+    expect(await data(call(magos, 'cult_order_all', { body: 'Kneel.' }))).toMatchObject({ recipients: ['Acolyte Brass'] })
+    expect(steps).toEqual([`enter ${run.id}`, 'send', 'leave, 1 order recorded'])
+  })
+})
+
 describe('cult control: concluding a run', () => {
   it('stores a chronicle of at most 32 KiB and starts the end of the run', async () => {
     const { run, magos } = await startRun()
