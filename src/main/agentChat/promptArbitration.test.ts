@@ -374,6 +374,37 @@ describe('worktree roots and the clip flag (DM-1011)', () => {
   })
 })
 
+describe('worktree roots before a slot (DM-1011)', () => {
+  it('a prompt outside the folder and every worktree escalates at once while every arbiter slot is busy', async () => {
+    const h = harness({ allowedRoots: async () => [] })
+    for (let index = 0; index < 3; index++) h.registry(chatOf()).prompts.update([approval(`busy${index}`)])
+    await settle()
+    expect(h.runner.start).toHaveBeenCalledTimes(3)
+    const r = h.registry(chatOf())
+    // Inline code reaches anything, so no worktree root can bring it inside.
+    r.prompts.update([approval('p1', { command: 'node -e "require(\'fs\').rmSync(\'x\')"' })])
+    expect(r.prompts.snapshot()?.arbitration.state).toBe('deciding')
+    await settle()
+    expect(r.prompts.snapshot()?.arbitration).toEqual({ state: 'escalated', reason: exclusionText('outside_folder') })
+    expect(h.onAttention).toHaveBeenCalledOnce()
+    expect(h.runner.start).toHaveBeenCalledTimes(3)
+    expect(h.readContext).toHaveBeenCalledTimes(3)
+  })
+
+  it('a dispose while the roots are read cancels the prompt, which never joins the queue', async () => {
+    let release!: (roots: readonly string[]) => void
+    const h = harness({ allowedRoots: () => new Promise(resolve => { release = resolve }) }), r = h.registry(chatOf())
+    r.prompts.update([approval('p1', { command: `type "${join(outside, 'secret.txt')}"` })])
+    await settle()
+    await h.arbitration.dispose()
+    release([outside])
+    await settle()
+    expect(h.runner.start).not.toHaveBeenCalled()
+    expect(h.readContext).not.toHaveBeenCalled()
+    expect(r.prompts.snapshot()?.arbitration.state).toBe('escalated')
+  })
+})
+
 describe('races and capacity', () => {
   it('the person answers first: the arbiter is cancelled and its late verdict stores nothing', async () => {
     const h = harness(), r = h.registry(chatOf())

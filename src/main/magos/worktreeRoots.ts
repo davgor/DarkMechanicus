@@ -63,7 +63,11 @@ function placeIn(worktrees: readonly string[], folder: string): string | null {
   return best?.sub ?? null
 }
 
-/** The folder's canonical place in each registered worktree of its repository; a place that does not exist is dropped. */
+/**
+ * The folder's canonical place in each registered worktree of its repository. A place is kept only when its real path
+ * is the plain joined path: a link (symlink or junction) at or below the worktree could lead anywhere, so it is dropped,
+ * as is a place that does not exist.
+ */
 async function readRoots(folder: string, list: (folder: string) => Promise<string>, canonical: (path: string) => Promise<string>): Promise<readonly string[]> {
   const [porcelain, own] = await Promise.all([list(folder), resolved(folder, canonical)])
   if (own === null) return []
@@ -71,7 +75,10 @@ async function readRoots(folder: string, list: (folder: string) => Promise<strin
   const sub = placeIn(worktrees, own)
   if (sub === null) return []
   if (sub === '') return worktrees
-  const places = await Promise.all(worktrees.map(worktree => resolved(join(worktree, sub), canonical)))
+  const places = await Promise.all(worktrees.map(async worktree => {
+    const place = join(worktree, sub)
+    return (await resolved(place, canonical)) === place ? place : null
+  }))
   return places.filter(place => place !== null)
 }
 

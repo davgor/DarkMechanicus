@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -65,6 +65,29 @@ describe('worktree roots (red-team fix 20)', () => {
     expect(exclusion(join(worktree, 'sub', 'a.ts'))).toBeNull()
     expect(exclusion(join(repo, 'other.txt'))).toEqual({ reason: 'outside_folder' })
     expect(exclusion(join(worktree, 'other.txt'))).toEqual({ reason: 'outside_folder' })
+  })
+})
+
+describe('worktree roots: a link at the subfolder of another worktree (DM-1011)', () => {
+  // A junction needs no privilege on Windows; a directory symlink needs Developer Mode or elevation there.
+  for (const type of ['junction', 'dir'] as const) it(`a ${type} at wt/sub is never a root, and a Write through it escalates`, async context => {
+    const { repo, worktree } = layout()
+    const sub = join(repo, 'sub'), target = join(root!, 'outside')
+    mkdirSync(sub)
+    mkdirSync(target)
+    try {
+      symlinkSync(target, join(worktree, 'sub'), type)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') context.skip(`a ${type} link cannot be created here`)
+      throw error
+    }
+    const roots = await createWorktreeRoots().rootsOf(sub)
+    expect(roots).toEqual([sub])
+    const exclusion = arbitrationExclusion({
+      chat: { role: 'orchestrator', runId: 'rn_1' } as ChatRecord, agentKind: 'claude', prompt: write(join(target, 'key')), folder: sub,
+      settings: DEFAULT_NOTIFICATION_SETTINGS, platform: process.platform, allowedRoots: roots
+    })
+    expect(exclusion).toEqual({ reason: 'outside_folder' })
   })
 })
 

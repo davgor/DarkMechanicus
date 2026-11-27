@@ -116,8 +116,8 @@ function exclusionGate(deps: PromptArbitrationDeps, input: ArbitrateInput, exclu
 }
 
 /**
- * One arbiter for one prompt: waits for a slot, then checks the worktree roots when the folder alone left a path
- * outside (`checkRoots`), reads context and runs until its verdict, cancellation or dispose.
+ * One arbiter for one prompt: is admitted once the worktree roots are checked (when the folder alone left a path
+ * outside, `checkRoots`), then waits for a slot, reads context and runs until its verdict, cancellation or dispose.
  */
 class ArbiterJob {
   /** Its outcome is out (verdict or cancellation); a running runner may still be cleaning up. */
@@ -141,12 +141,23 @@ class ArbiterJob {
     try { this.cancelRunner?.() } catch { /* The runner's own fence still drops its result. */ }
   }
 
+  /**
+   * Whether the job may wait for a slot: false once it is settled, here by the worktree-roots exclusion or the clip
+   * flag it outranks. Needs no slot, so a prompt that escalates anyway never waits behind running arbiters.
+   */
+  async admit(): Promise<boolean> {
+    try {
+      const escalation = await this.rootsExclusion()
+      if (escalation !== null) this.finish(escalation)
+    } catch {
+      this.finish({ decision: 'escalate', cause: 'error', reason: 'The Magos could not check this request; decide this yourself.' })
+    }
+    return this.waiting
+  }
+
   /** Resolves once the runner has settled, process cleanup included. */
   async start(): Promise<void> {
     try {
-      const escalation = await this.rootsExclusion()
-      if (this.settled) return
-      if (escalation !== null) { this.finish(escalation); return }
       const request = await this.request()
       if (this.settled) return
       if (typeof request !== 'string') { this.finish(request); return }
@@ -202,20 +213,31 @@ class ArbiterJob {
   }
 }
 
-/** FIFO, at most one per chat and `MAX_ARBITERS` app-wide; a cancelled runner holds its slot until its cleanup ends. */
+/**
+ * FIFO, at most one per chat and `MAX_ARBITERS` app-wide; a cancelled runner holds its slot until its cleanup ends. A
+ * job joins the FIFO only once admitted.
+ */
 class ArbiterQueue {
   private readonly queue: ArbiterJob[] = []
+  /** Jobs whose worktree roots are still being checked, before they join the FIFO. */
+  private readonly admitting = new Set<ArbiterJob>()
   /** Each running job with its start, which settles once its runner has cleaned up. */
   private readonly running = new Map<ArbiterJob, Promise<void>>()
 
   add(job: ArbiterJob): void {
-    this.queue.push(job)
-    // The gate returns before any work starts, so the prompt is published as deciding first.
-    queueMicrotask(() => this.pump())
+    this.admitting.add(job)
+    // admit() never rejects, and resolves after the gate returns, so the prompt is published as deciding first.
+    void job.admit().then(admitted => {
+      this.admitting.delete(job)
+      if (!admitted) return
+      this.queue.push(job)
+      this.pump()
+    })
   }
 
   /** Cancels every job; resolves once the running ones' runners have cleaned up. */
   cancelAll(): Promise<void> {
+    for (const job of this.admitting) job.cancel()
     for (const job of this.queue) job.cancel()
     for (const job of this.running.keys()) job.cancel()
     return Promise.all(this.running.values()).then(() => undefined)
