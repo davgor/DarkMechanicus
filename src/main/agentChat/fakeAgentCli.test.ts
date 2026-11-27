@@ -463,6 +463,26 @@ it('OMP --resume and --session answer get_state with nonempty todoPhases', async
   }
 })
 
+it('OMP starts on FAKE_AGENT_OMP_START_MODEL and _THINKING without --model, and logs each session control to FAKE_AGENT_CONTROL_LOG', async () => {
+  const controls = join(scratch, 'controls.jsonl')
+  const harness = launch(argsFor('omp'), { FAKE_AGENT_OMP_START_MODEL: 'anthropic/claude-opus-5-5', FAKE_AGENT_OMP_START_THINKING: 'high', FAKE_AGENT_CONTROL_LOG: controls })
+  const reply = async (message: Record<string, string>): Promise<{ success: boolean; data?: object }> => {
+    harness.send(message)
+    await harness.until(() => lines(harness.stdout).some((line) => line.includes(`"id":"${message.id}"`)))
+    return JSON.parse(lines(harness.stdout).find((line) => line.includes(`"id":"${message.id}"`)) ?? '')
+  }
+  expect((await reply({ type: 'get_state', id: 'start-state' })).data).toMatchObject({ model: { provider: 'anthropic', id: 'claude-opus-5-5' }, thinkingLevel: 'high' })
+  expect(existsSync(controls)).toBe(false)
+  expect((await reply({ type: 'set_model', id: 'switch-model', provider: 'openai-codex', modelId: 'gpt-6.1-sol' })).success).toBe(true)
+  expect((await reply({ type: 'set_thinking_level', id: 'switch-effort', level: 'medium' })).success).toBe(true)
+  expect((await reply({ type: 'get_state', id: 'switched-state' })).data).toMatchObject({ model: { provider: 'openai-codex', id: 'gpt-6.1-sol' }, thinkingLevel: 'medium' })
+  expect(await finish(harness)).toBe(0)
+  expect(lines(readFileSync(controls, 'utf8')).map((line) => JSON.parse(line))).toEqual([
+    { pid: harness.child.pid, at: expect.any(Number), type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol', busy: false },
+    { pid: harness.child.pid, at: expect.any(Number), type: 'set_thinking_level', level: 'medium', busy: false }
+  ])
+})
+
 it('OMP rpc mode waits for subscription and correlates its response', async () => {
   const harness = launch(['--mode', 'rpc'])
   await harness.until(() => harness.stdout.length > 0)

@@ -17,9 +17,11 @@ import {
   failureScreenshotName,
   fakeAgentLog,
   fakeAgentPids,
+  fakeControls,
   imageEchoLine,
   isAlive,
   isolatedEnv,
+  launchModelFlags,
   newChatLaunch,
   newerVersion,
   parseArgs,
@@ -36,6 +38,7 @@ import {
   sha12,
   staleRoots,
   stepPhases,
+  switchControls,
   transcriptImageRefs,
   turnEnded,
   verdict,
@@ -452,7 +455,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x']).agent).toBe('claude')
     expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
     expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
-    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart; stream drive the claude fake.')
     expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
     expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
   })
@@ -722,5 +725,45 @@ describe('coord steps', () => {
   it('expect the body the fake mails a role with', () => {
     expect(coordMailBody('orchestrator')).toBe('Fake coordination mail for the orchestrator.')
     expect(coordMailBody('planner')).toBe('Fake coordination mail for the planner.')
+  })
+})
+
+describe('model steps', () => {
+  const model = ['model-pick', 'model-busy', 'model-restart']
+
+  it('run only when named, after ready, with the omp fake; model-restart runs as its quit, launch and resumed phases', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('model-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp']).keys.filter((key) => key.startsWith('model-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', model.join(',')])
+    expect(parsed).toMatchObject({ agent: 'omp', keys: ['ready', ...model] })
+    expect(stepPhases(parsed.keys).map((phase) => phase.name)).toEqual([
+      'app ready', 'model-pick', 'model-busy', 'model-restart quit', 'model-restart launch', 'model-restart resumed'
+    ])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'model-pick'])).toThrow('model-pick drive the omp fake: leave out --agent claude.')
+    expect(() => parseArgs(['--out', 'x', '--steps', 'model-pick,stream'])).toThrow('stream drive the claude fake.')
+  })
+
+  it('read the controls one fake run logged since a time, in order', () => {
+    const log = [
+      { pid: 7, at: 10, type: 'set_model', provider: 'anthropic', modelId: 'claude-opus-5-5', busy: false },
+      { pid: 8, at: 20, type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol', busy: false },
+      { pid: 7, at: 30, type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol', busy: true },
+      { pid: 7, at: 31, type: 'set_thinking_level', level: 'medium', busy: true }
+    ].map((entry) => JSON.stringify(entry)).join('\r\n')
+    expect(fakeControls(log, 7).map((entry) => entry.at)).toEqual([10, 30, 31])
+    expect(fakeControls(`${log}\n`, 7, 30).map((entry) => entry.type)).toEqual(['set_model', 'set_thinking_level'])
+    expect(fakeControls('', 7)).toEqual([])
+  })
+
+  it('expect one switch as set_model then set_thinking_level', () => {
+    expect(switchControls('openai-codex/gpt-6.1-sol', 'medium')).toEqual([
+      { type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol' }, { type: 'set_thinking_level', level: 'medium' }
+    ])
+  })
+
+  it('read a launch\'s --model and --thinking', () => {
+    expect(launchModelFlags(['--mode', 'rpc-ui', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high'])).toEqual({ model: 'anthropic/claude-sonnet-5-5', thinking: 'high' })
+    expect(launchModelFlags(['--mode', 'rpc-ui'])).toEqual({ model: null, thinking: null })
+    expect(launchModelFlags(['--model'])).toEqual({ model: null, thinking: null })
   })
 })

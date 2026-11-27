@@ -99,6 +99,13 @@ describe('turnGroups: never hidden', () => {
     expect(shape(turnGroups(items, 'idle'))).toEqual(['m:u', 'w:[t1,t2]', 'i:err', 'i:final'])
   })
 
+  it('keeps the reply final and a model switch shown when the person switched models after the turn', () => {
+    const switched: ChatItem = { id: 'model', at: at(40), kind: 'model_change', from: 'anthropic/claude-opus-5-5', to: 'openai-codex/gpt-6-astra' }
+
+    expect(shape(turnGroups([user('u'), tool('t1', 3), text('final', 10), switched], 'idle'))).toEqual(['m:u', 'w:[t1]', 'i:final', 'i:model'])
+    expect(shape(turnGroups([user('u'), text('final', 10), switched], 'idle'))).toEqual(['m:u', 'i:final', 'i:model'])
+  })
+
   it('keeps a prompt nobody answered outside the fold, but folds an answered one with its decision', () => {
     const request = (id: string, requestId: string): ChatItem =>
       ({ id, at: at(5), kind: 'approval_request', requestId, category: 'command', tool: 'Bash', summary: 'Run it' })

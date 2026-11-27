@@ -2,8 +2,9 @@
  * The chat's items grouped by turn, free of React. A turn starts at a `user_message` of the chat's own thread and
  * ends at the next one, or at the end of the transcript once the chat is idle. Once a turn has ended, its work (tool
  * calls, threads, approval records, intermediate agent text) folds into one `collapsed-work` entry; the turn's final
- * agent reply stays visible after it. Never folded: a prompt still waiting for an answer, an `error` and a
- * `turn_stopped`. A turn that ended any other way stays open, and so does the live one.
+ * agent reply stays visible after it. Never folded: a prompt still waiting for an answer, an `error`, a `turn_stopped`
+ * and a `model_change` (the person's own switch, often made after the turn). A turn that ended any other way stays
+ * open, and so does the live one.
  */
 import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import type { ChatItem } from '../../../shared/agents/chat'
@@ -40,7 +41,7 @@ function turnEntries(start: UserMessage, body: readonly ChatItem[], ended: boole
   // A waiting prompt inside a thread would be hidden with the call that spawned the thread: such a turn stays open.
   if (!ended || body.some((item) => item.threadId !== undefined && waiting.has(item.id))) return open
   const kept = (item: ChatItem): boolean =>
-    item.threadId === undefined && (item.kind === 'error' || item.kind === 'turn_stopped' || waiting.has(item.id))
+    item.threadId === undefined && (item.kind === 'error' || item.kind === 'turn_stopped' || item.kind === 'model_change' || waiting.has(item.id))
   // The final reply is the chat's own last text only when nothing that folds comes after it; otherwise all the work folds.
   const last = [...body].reverse().find((item) => item.threadId === undefined && !kept(item))
   const final = last?.kind === 'assistant_text' ? last : undefined
