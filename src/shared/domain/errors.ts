@@ -12,6 +12,8 @@ export const DOMAIN_ERROR_CODES = [
   'busy_elsewhere',
   /** The selected agent kind has no protocol for the requested surface. */
   'unsupported',
+  /** The request needs another agent kind: switching a chat's model is for Skitarii (OMP) chats only. */
+  'unsupported_agent',
   /** No connected agent is signed in to start the chat with. */
   'no_agent',
   'response_too_large',

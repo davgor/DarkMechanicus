@@ -18,9 +18,10 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notification
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
-import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentChatSnapshot, PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
 import type { ChatItem } from '../../shared/agents/chat'
+import { chatModelOptions } from '../../shared/agents/models'
 import { removeScratch } from '../../test/removeScratch'
 
 /** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
@@ -74,6 +75,27 @@ function injector(r: ReturnType<typeof rig>) {
     lines.receive(JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool.name, input: tool.input } }))
 }
 
+/** The latest non-empty list per thread that `events` pushed, as a snapshot carries them. */
+function latestTodos(events: readonly AgentChatEvent[]): AgentChatSnapshot['todos'] {
+  const latest = new Map<string | null, AgentChatSnapshot['todos'][number]['phases']>()
+  for (const event of events) if (event.type === 'todos') {
+    if (event.phases.length) latest.set(event.threadId, event.phases)
+    else latest.delete(event.threadId)
+  }
+  return [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+}
+/**
+ * A restart drops the old process's to-do lists. A resumed OMP session reports its own (its start's `get_state`, here
+ * the `init_resume` golden's) before the start returns; Claude reports none.
+ */
+async function expectRestartTodos(r: Rig, chat: ChatRef, kind: 'claude' | 'omp') {
+  const before = r.pushes.length
+  await r.sessions.start(chat)
+  const todos = r.sessions.snapshot(chat).todos
+  expect(todos).toEqual(latestTodos(r.pushes.slice(before)))
+  expect(todos.length > 0).toBe(kind === 'omp')
+}
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI lifecycle`, () => {
   it('persists and pushes a text turn in order and submits the kickoff only once', async () => {
     const r = rig(kind), chat = r.newChat('[text]')
@@ -90,9 +112,8 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI life
     await r.sessions.start(chat)
     expect(r.children).toHaveLength(1)
     await r.sessions.stop(chat)
-    await r.sessions.start(chat)
+    await expectRestartTodos(r, chat, kind)
     expect(r.writes.filter(line => JSON.parse(line).type === (kind === 'claude' ? 'user' : 'prompt'))).toHaveLength(1)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
   })
 
   it('prefers the routing firstMessage over the saved first prompt', async () => {
@@ -1076,12 +1097,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     await r.sessions.start(chat)
     await eventually(() => r.pushes.some(event => event.type === 'todos' && event.phases.length > 0))
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
-    const latest = new Map()
-    for (const event of r.pushes) if (event.type === 'todos') {
-      if (event.phases.length) latest.set(event.threadId, event.phases)
-      else latest.delete(event.threadId)
-    }
-    const todos = [...latest].map(([threadId, phases]) => ({ threadId, phases }))
+    const todos = latestTodos(r.pushes)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
     for (const file of filesUnder(r.userData)) {
       expect(file).not.toContain('"type":"todos"')
@@ -1089,8 +1105,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     }
     await r.sessions.stop(chat)
     expect(r.sessions.snapshot(chat).todos).toEqual(todos)
-    await r.sessions.start(chat)
-    expect(r.sessions.snapshot(chat).todos).toEqual([])
+    await expectRestartTodos(r, chat, kind)
   })
 
   it('deletes only after the process is dead and its grant is revoked', async () => {
@@ -1565,6 +1580,107 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} run-stalled att
   for (const [name, fires, run] of stallCases) it(name, async () => {
     const { fired, event } = await run(kind)
     expect(fired).toEqual(Array.from({ length: fires }, () => event))
+  })
+})
+
+/** The fake omp's catalog (the redacted host catalog), normalized as `agentChat:models` serves it. */
+const ompCatalog = chatModelOptions(JSON.parse(readFileSync(join(import.meta.dirname, '__fixtures__', 'omp', 'models.json'), 'utf8')))
+const SOL = { provider: 'openai-codex', modelId: 'gpt-6-sol', effort: 'medium' } as const
+
+const sentSince = (r: Rig, from: number) => r.writes.slice(from).map(line => JSON.parse(line) as Record<string, unknown>)
+
+describe('Skitarii model switching (agentChat:setModel): idle chats and relaunch', () => {
+  it('switches an idle chat: set_model then set_thinking_level, both answered, then get_state; the record keeps both and the transcript says so', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    expect(await r.sessions.start(chat)).toMatchObject({ model: null, thinking: 'off' })
+    const before = r.writes.length
+    const snapshot = await r.sessions.setModel(chat, SOL, async () => ompCatalog)
+    expect(sentSince(r, before)).toEqual([
+      { type: 'set_model', id: expect.any(String), provider: 'openai-codex', modelId: 'gpt-6-sol' },
+      { type: 'set_thinking_level', id: expect.any(String), level: 'medium' },
+      { type: 'get_state', id: expect.any(String) }
+    ])
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+    expect(snapshot).toMatchObject({ status: 'idle', model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+    const change = { kind: 'model_change', id: expect.stringMatching(/^model:/), at: expect.any(String), from: null, to: 'openai-codex/gpt-6-sol' }
+    expect(snapshot.items.at(-1)).toEqual(change)
+    expect(r.pushes).toContainEqual({ type: 'item', folder: chat.folder, chatId: chat.id, item: change })
+  })
+
+  it('relaunches a switched chat with --model and --thinking, and the new session confirms both with get_state', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    await r.sessions.setModel(chat, SOL, async () => ompCatalog)
+    await r.sessions.stop(chat)
+    await r.sessions.start(chat)
+    const launch = readFileSync(r.env.FAKE_AGENT_LOG!, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line)).filter(row => row.mode === 'omp').at(-1)
+    const argv = launch.argv as string[]
+    expect(argv.slice(argv.indexOf('--model'), argv.indexOf('--model') + 4)).toEqual(['--model', 'openai-codex/gpt-6-sol', '--thinking', 'medium'])
+    // The live session's own report wins over the record: a diverging record does not change what the snapshot says.
+    r.store.updateChat(chat, { thinking: 'high' })
+    expect(r.sessions.snapshot(chat)).toMatchObject({ model: 'openai-codex/gpt-6-sol', thinking: 'medium' })
+  })
+})
+
+describe('Skitarii model switching (agentChat:setModel): busy chats and refusals', () => {
+  it('sends a busy chat the switch at once without interrupting its turn, which then finishes', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    await r.sessions.send(chat, { text: '[slow]' })
+    expect(r.sessions.snapshot(chat).status).toBe('busy')
+    const before = r.writes.length
+    const snapshot = await r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-sonnet-5-5' }, async () => ompCatalog)
+    expect(snapshot).toMatchObject({ status: 'busy', model: 'anthropic/claude-sonnet-5-5' })
+    expect(sentSince(r, before).map(frame => frame.type)).toEqual(['set_model', 'get_state'])
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const items = r.sessions.snapshot(chat).items
+    expect(items.some(item => item.kind === 'turn_stopped')).toBe(false)
+    expect(items.some(item => item.kind === 'assistant_text')).toBe(true)
+    expect(r.writes.some(line => JSON.parse(line).type === 'abort')).toBe(false)
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'anthropic/claude-sonnet-5-5', thinking: 'off' })
+  })
+
+  it('refuses a model or effort the catalog does not list with nothing sent and nothing recorded', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const before = r.writes.length, record = r.store.getChat(chat)
+    await expect(r.sessions.setModel(chat, { provider: 'openai-codex', modelId: 'gpt-9' }, async () => ompCatalog)).rejects.toMatchObject({ code: 'invalid_input' })
+    await expect(r.sessions.setModel(chat, { ...SOL, effort: 'minimal' }, async () => ompCatalog)).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(r.writes.length).toBe(before)
+    expect(r.store.getChat(chat)).toEqual(record)
+    expect(r.sessions.snapshot(chat).items.some(item => item.kind === 'model_change')).toBe(false)
+  })
+
+  it('keeps the record when the live session refuses the model', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const record = r.store.getChat(chat)
+    const unknownToSession = [...ompCatalog, { ...ompCatalog[0], id: 'claude-retired' }]
+    await expect(r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-retired' }, async () => unknownToSession)).rejects.toMatchObject({ code: 'operation_unavailable' })
+    expect(r.store.getChat(chat)).toEqual(record)
+    expect(r.sessions.snapshot(chat)).toMatchObject({ model: null, thinking: 'off' })
+  })
+})
+
+describe('Skitarii model switching (agentChat:setModel): other chats', () => {
+  it('refuses a Claude chat with unsupported_agent before asking for a catalog or sending anything', async () => {
+    const r = rig('claude'), chat = r.newChat()
+    await r.sessions.start(chat)
+    const before = r.writes.length, catalog = vi.fn(async () => ompCatalog)
+    await expect(r.sessions.setModel(chat, SOL, catalog)).rejects.toMatchObject({ code: 'unsupported_agent' })
+    expect(catalog).not.toHaveBeenCalled()
+    expect(r.writes.length).toBe(before)
+    expect(r.store.getChat(chat)?.model).toBeNull()
+  })
+
+  it('records a stopped chat\'s switch for its next launch without starting it, dropping a kept level the new model lacks', async () => {
+    const r = rig('omp'), chat = r.newChat()
+    r.store.updateChat(chat, { model: 'anthropic/claude-haiku-4-5', thinking: 'minimal' })
+    const snapshot = await r.sessions.setModel(chat, { provider: 'anthropic', modelId: 'claude-opus-5-5' }, async () => ompCatalog)
+    expect(r.children).toEqual([])
+    expect(r.store.getChat(chat)).toMatchObject({ model: 'anthropic/claude-opus-5-5', thinking: null })
+    expect(snapshot).toMatchObject({ status: 'exited', model: 'anthropic/claude-opus-5-5', thinking: null })
+    expect(snapshot.items).toEqual([{ kind: 'model_change', id: expect.any(String), at: expect.any(String), from: 'anthropic/claude-haiku-4-5', to: 'anthropic/claude-opus-5-5' }])
   })
 })
 

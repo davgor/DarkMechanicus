@@ -1,7 +1,7 @@
 /** Structured CLI chat transport. Main owns launch details, identity and all pending prompts. */
 import { z } from 'zod'
 import type { CommandResult } from '../desktop/api'
-import { CHAT_IMAGE_MAX_BYTES, chatIdSchema, chatImageIdSchema, chatImageRefSchema, chatItemSchema, type ChatImageRef } from './chat'
+import { CHAT_IMAGE_MAX_BYTES, chatIdSchema, chatImageIdSchema, chatImageRefSchema, chatItemSchema, thinkingLevelSchema, type ChatImageRef } from './chat'
 import { callsignSchema } from './callsign'
 import { agentIdSchema } from '../desktop/agentKinds'
 import type { ChatModelOption } from './models'
@@ -14,7 +14,7 @@ export const AGENT_CHAT_CHANNELS = {
   start: 'agentChat:start', send: 'agentChat:send', interrupt: 'agentChat:interrupt',
   answer: 'agentChat:answer', setSurface: 'agentChat:setSurface', snapshot: 'agentChat:snapshot', event: 'agentChat:event',
   attention: 'agentChat:attention', stageImage: 'agentChat:stageImage', attachEvidence: 'agentChat:attachEvidence',
-  models: 'agentChat:models', stop: 'agentChat:stop'
+  models: 'agentChat:models', setModel: 'agentChat:setModel', stop: 'agentChat:stop'
 } as const
 
 /** The most images one message may carry. */
@@ -54,6 +54,15 @@ export const agentChatModelsSchema = z.union([
   z.strictObject({ ...chatRef, ...modelsRefresh }),
   z.strictObject({ folder: z.string().nullable(), agentId: agentIdSchema, ...modelsRefresh })
 ])
+/**
+ * Switches a Skitarii chat to one model of its current catalog (`models`) and, with `effort`, one of that model's
+ * thinking levels; refused, with nothing sent, for any other chat or a model or effort the catalog does not list.
+ */
+export const agentChatSetModelSchema = z.strictObject({
+  ...chatRef, provider: z.string().min(1).max(200), modelId: z.string().min(1).max(200), effort: thinkingLevelSchema.optional()
+})
+/** A model switch without its chat reference, as main's sessions take it. */
+export type AgentChatModelChoice = Omit<z.infer<typeof agentChatSetModelSchema>, 'folder' | 'chatId'>
 /** The one channel image bytes cross: plain base64, validated as `uploadAttachment` validates it; main measures and keeps it. */
 export const agentChatStageImageSchema = z.strictObject({
   ...chatRef,
@@ -117,7 +126,12 @@ export const agentChatEventSchema = z.discriminatedUnion('type', [
 export type AgentChatEvent = z.infer<typeof agentChatEventSchema>
 export const agentChatSnapshotSchema = z.strictObject({
   items: z.array(chatItemSchema), status: statusSchema, pending: pendingPromptSchema.nullable(),
-  queued: z.number().int().nonnegative(), surface: surfaceSchema, todos: z.array(z.strictObject(threadTodos))
+  queued: z.number().int().nonnegative(), surface: surfaceSchema, todos: z.array(z.strictObject(threadTodos)),
+  /**
+   * A Skitarii chat's model (`provider/id`) and thinking level: as its live session last reported them (`get_state`, at
+   * start and after each switch), else as its record stores them; null when neither names one.
+   */
+  model: z.string().min(1).nullable().optional(), thinking: thinkingLevelSchema.nullable().optional()
 })
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>
 
@@ -139,4 +153,6 @@ export interface AgentChatApi {
   attachEvidence(request: z.infer<typeof agentChatAttachEvidenceSchema>): Promise<CommandResult<{ commentId: string; attachmentId: string }>>
   /** The models a Skitarii chat (or, before it starts, agent) can use, normalized; `featuredModels` groups them. */
   models(request: z.infer<typeof agentChatModelsSchema>): Promise<CommandResult<ChatModelOption[]>>
+  /** Switches a Skitarii chat's model and effort; a busy chat takes it from its next model request. */
+  setModel(request: z.infer<typeof agentChatSetModelSchema>): Promise<CommandResult<AgentChatSnapshot>>
 }

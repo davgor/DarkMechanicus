@@ -92,12 +92,14 @@ src/renderer/src/ticket/ticketView.ts - metaLine
 src/renderer/src/ticket/ticketView.ts - scorecardRuns
 src/renderer/src/ticket/ticketView.ts - sizeAndEffortRows
 src/renderer/src/ticket/ticketView.ts - statePill
+src/shared/agents/agentChat.ts - AgentChatModelChoice
 src/shared/agents/agentChat.ts - agentChatModelsSchema
 src/shared/agents/callsign.ts - subagentCallsign
 src/shared/agents/chat.ts - ApprovalRequestItem
 src/shared/agents/chat.ts - DarkMechanicusCli
 src/shared/agents/chat.ts - ErrorProblem
 src/shared/agents/chat.ts - IDLE_STOP_CODE
+src/shared/agents/chat.ts - ThinkingLevel
 src/shared/agents/chatApi.ts - AllowChatMailWakeRequest
 src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatMailConversationRequest

@@ -8,7 +8,7 @@ export interface ThreadClaimEvent {
   token: string
 }
 
-/** The reply to a request main itself made of a live OMP session (`get_available_models`): main-memory only, for the caller awaiting it. */
+/** The reply to a request main itself made of a live OMP session (`OmpRequest`): main-memory only, for the caller awaiting it. */
 export interface CommandResultEvent {
   type: 'command_result'
   id: string

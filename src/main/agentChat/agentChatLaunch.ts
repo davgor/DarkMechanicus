@@ -72,13 +72,15 @@ function claudeArgs(paths: TerminalFiles, model: string | null, sessionId: strin
   ]
 }
 
-function ompArgs(paths: TerminalFiles, cwd: string, model: string | null, sessionId: string | null): string[] {
+/** `thinking` is the record's schema-checked level, so it reaches the command line as one of OMP's own words. */
+function ompArgs(paths: TerminalFiles, cwd: string, chat: Pick<ChatRecord, 'model' | 'thinking'>, sessionId: string | null): string[] {
   return [
     '--mode', 'rpc-ui', '--cwd', cwd, '--append-system-prompt', paths.instructions,
     ...(paths.omp === undefined ? [] : [
       '--config', paths.omp.config, '-e', paths.omp.extension, '--session-dir', paths.omp.sessionDir
     ]),
-    ...modelArgs(model), ...(sessionId === null ? [] : ['--resume', sessionId])
+    ...modelArgs(chat.model), ...(chat.thinking ? ['--thinking', chat.thinking] : []),
+    ...(sessionId === null ? [] : ['--resume', sessionId])
   ]
 }
 
@@ -101,7 +103,7 @@ export function agentChatLaunch(input: AgentChatLaunchInput): AgentChatLaunchSpe
   const { sessionId, resumed } = sessionFor(input)
   const args = protocol === 'claude'
     ? claudeArgs(paths, chat.model, sessionId!, resumed)
-    : ompArgs(paths, cwd, chat.model, sessionId)
+    : ompArgs(paths, cwd, chat, sessionId)
   return {
     file: program.file, args: [...program.leading, ...args], cwd, env, sessionId, resumed, protocol,
     firstMessage: firstMessageFor(input, resumed)

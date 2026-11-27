@@ -123,6 +123,17 @@ function modelCatalog(sessionless) {
   }) }
 }
 
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+/**
+ * The `--model provider/id` this run started on, as `get_state` reports a model; undefined (the golden's own value)
+ * without one, or for a bare alias, which only the real OMP resolves.
+ */
+function launchModel() {
+  const selector = argv.includes('--model') ? option('--model') : '', slash = selector.indexOf('/')
+  return slash > 0 ? { provider: selector.slice(0, slash), id: selector.slice(slash + 1) } : undefined
+}
+
 function renumber(lines, number) {
   if (number === 1) return lines
   const result = []
@@ -324,6 +335,9 @@ class ProtocolReplay {
   chunks = []
   tailQueries = new Map()
   named = false
+  /** The session's model and thinking level as OMP's `get_state` reports them: from `--model`/`--thinking`, then `set_model`/`set_thinking_level`. */
+  model = launchModel()
+  thinking = argv.includes('--thinking') ? option('--thinking') : undefined
 
   constructor(input, stop) {
     this.stop = stop
@@ -444,7 +458,7 @@ class ProtocolReplay {
     }
     if (mode === 'omp') {
       const response = this.startup.slice(1).find((line) => JSON.parse(line).command === message.type)
-      if (response) { emit({ ...JSON.parse(response), id: message.id }); return true }
+      if (response) { emit(this.stateReply({ ...JSON.parse(response), id: message.id })); return true }
     }
     return false
   }
@@ -475,9 +489,32 @@ class ProtocolReplay {
     }
   }
 
-  /** OMP's read-only requests: a subagent's transcript tail and the model catalog. */
+  /** A `get_state` reply reports the session's model and thinking level once a launch flag or a control set them; the golden's otherwise. */
+  stateReply(frame) {
+    if (frame.command !== 'get_state') return frame
+    return { ...frame, data: { ...frame.data, model: this.model ?? frame.data.model, thinkingLevel: this.thinking ?? frame.data.thinkingLevel } }
+  }
+
+  /** OMP's session controls: a catalog model or thinking level is taken (and reported by `get_state`), anything else refused. */
+  control(message) {
+    const reply = (success, error) => emit({ id: message.id, type: 'response', command: message.type, success, ...(success ? {} : { error }) })
+    if (message.type === 'set_model') {
+      const known = modelCatalog(false).models.some((model) => model.provider === message.provider && model.id === message.modelId)
+      if (known) this.model = { provider: message.provider, id: message.modelId }
+      reply(known, `Model not found: ${message.provider}/${message.modelId}`)
+      return true
+    }
+    if (message.type !== 'set_thinking_level') return false
+    const known = THINKING_LEVELS.includes(message.level)
+    if (known) this.thinking = message.level
+    reply(known, `Invalid thinking level: ${message.level}`)
+    return true
+  }
+
+  /** OMP's own requests: a subagent's transcript tail, the session controls and the model catalog. */
   query(message) {
     if (message.type === 'get_subagent_messages') { this.tail(message); return true }
+    if (this.control(message)) return true
     if (message.type !== 'get_available_models') return false
     emit({ id: message.id, type: 'response', command: message.type, success: true, data: modelCatalog(false) })
     return true

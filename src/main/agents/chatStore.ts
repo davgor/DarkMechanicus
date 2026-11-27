@@ -51,7 +51,7 @@ export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | '
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'thinking' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord

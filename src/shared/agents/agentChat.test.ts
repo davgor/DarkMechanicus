@@ -3,7 +3,7 @@ import {
   AGENT_CHAT_CHANNELS, GUI_PROTOCOL_KINDS, TODO_TOOL_NAMES, agentChatStartSchema, agentChatSendSchema,
   agentChatInterruptSchema, agentChatStopSchema, agentChatAnswerSchema, agentChatSetSurfaceSchema, agentChatSnapshotRequestSchema,
   agentChatEventSchema, agentChatSnapshotSchema, pendingPromptSchema, agentTodoTaskSchema, agentTodoPhaseSchema,
-  agentChatAttentionSchema, attentionItemSchema, agentChatStageImageSchema, agentChatAttachEvidenceSchema,
+  agentChatAttentionSchema, attentionItemSchema, agentChatStageImageSchema, agentChatAttachEvidenceSchema, agentChatSetModelSchema,
   CHAT_IMAGE_MAX_BYTES, CHAT_IMAGES_PER_MESSAGE, chatImageIdSchema, chatImageRefSchema,
   type AgentChatEvent, type AttentionItem, type PendingPrompt
 } from './agentChat'
@@ -162,9 +162,28 @@ describe('agent chat events and snapshots', () => {
   })
 
   it('fixes channel and protocol/tool names for all consumers', () => {
-    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence', 'models', 'stop'].map(name => [name, `agentChat:${name}`])))
+    expect(AGENT_CHAT_CHANNELS).toEqual(Object.fromEntries(['start', 'send', 'interrupt', 'answer', 'setSurface', 'snapshot', 'event', 'attention', 'stageImage', 'attachEvidence', 'models', 'setModel', 'stop'].map(name => [name, `agentChat:${name}`])))
     expect(GUI_PROTOCOL_KINDS).toEqual(['omp', 'claude'])
     expect(TODO_TOOL_NAMES).toEqual(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'])
+  })
+})
+
+describe('agent chat model switching contract', () => {
+  it('takes one provider and model with an optional OMP thinking level, and nothing else', () => {
+    const request = { ...ref, provider: 'openai-codex', modelId: 'gpt-6-sol' }
+    expect(agentChatSetModelSchema.safeParse(request).success).toBe(true)
+    for (const effort of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) expect(agentChatSetModelSchema.safeParse({ ...request, effort }).success).toBe(true)
+    for (const bad of [{ ...request, effort: 'auto' }, { ...request, provider: '' }, { ...request, modelId: 'x'.repeat(201) }, { ...request, args: ['--yolo'] }]) {
+      expect(agentChatSetModelSchema.safeParse(bad).success).toBe(false)
+    }
+  })
+
+  it("lets a snapshot carry the chat's model and thinking level, and an older one without them still parses", () => {
+    const snapshot = { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+    expect(agentChatSnapshotSchema.safeParse(snapshot).success).toBe(true)
+    expect(agentChatSnapshotSchema.safeParse({ ...snapshot, model: 'openai-codex/gpt-6-sol', thinking: 'medium' }).success).toBe(true)
+    expect(agentChatSnapshotSchema.safeParse({ ...snapshot, model: null, thinking: null }).success).toBe(true)
+    expect(agentChatSnapshotSchema.safeParse({ ...snapshot, thinking: 'turbo' }).success).toBe(false)
   })
 })
 

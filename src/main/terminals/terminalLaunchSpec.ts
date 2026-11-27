@@ -34,7 +34,7 @@ import { terminalEnv, terminalLoginEnv } from './terminalEnv'
 import { terminalInstructions, type TerminalFiles } from './terminalFiles'
 import { windowsCommandLine } from './windowsCommandLine'
 
-interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'titleStatus' | 'firstPrompt'> {
+interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'thinking' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'titleStatus' | 'firstPrompt'> {
   /** Whether the CLI has written the chat's session yet, so a start resumes it. */
   sessionStarted: boolean
   /** Whether the kickoff (an orchestrator's or a transfer chat's) went with an earlier start. */
@@ -129,6 +129,8 @@ interface KindContext {
   ompConfig: string | undefined
   ompExtension: string | undefined
   model: string | null
+  /** A Skitarii chat's schema-checked thinking level (`--thinking`); null or undefined leaves OMP its default. */
+  thinking: ChatRecord['thinking']
   /** A usable stored session id (a UUID), or null. */
   sessionId: string | null
   sessionStarted: boolean
@@ -270,6 +272,7 @@ function ompLaunch(context: KindContext): KindLaunch {
       ...(context.ompExtension === undefined ? [] : ['-e', context.ompExtension]),
       ...(context.ompSessionDir === undefined ? [] : ['--session-dir', context.ompSessionDir]),
       ...(context.model === null ? [] : ['--model', context.model]),
+      ...(context.thinking ? ['--thinking', context.thinking] : []),
       ...(resumed === null ? [] : ['--resume', resumed]),
       ...(kickoff === null ? [] : [kickoff])
     ],
@@ -462,6 +465,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
     ompConfig: files.omp?.config,
     ompExtension: files.omp?.extension,
     model,
+    thinking: chat.thinking,
     sessionId,
     sessionStarted: chat.sessionStarted,
     kickoff: chat.kickoffSent || literalPaste !== null ? null : input.kickoff,
