@@ -225,6 +225,8 @@ export interface TerminalSessions {
   detachGrant(chatId: string, grantId: string): boolean
   /** Tells `listener` the chat id of every PTY that exits, however it ended; the returned function stops that. */
   onExit(listener: (chatId: string) => void): () => void
+  /** Tells `listener` the chat id of every launch that has just started running (a new generation); the returned function stops that. */
+  onLaunch(listener: (chatId: string) => void): () => void
   /** The running launch's generation (its descriptor's and grant binding's); null while no PTY of the chat runs. */
   generationOf(chatId: string): string | null
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
@@ -446,6 +448,7 @@ interface Manager {
   releasing: Set<string>
   closing: boolean
   exitListeners: Set<(chatId: string) => void>
+  launchListeners: Set<(chatId: string) => void>
 }
 
 const nodeTimers: TerminalTimers = {
@@ -1396,7 +1399,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     newSession: options.newSession === true, forgeSetupAuthorization: options.forgeSetupAuthorization }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
-        manager.entries.set(chat.id, outcome.live)
+        tellLaunch(manager, chat.id, outcome.live)
       } else {
         manager.entries.delete(chat.id)
       }
@@ -1779,7 +1782,8 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleting: new Set(),
     releasing: new Set(),
     closing: false,
-    exitListeners: new Set()
+    exitListeners: new Set(),
+    launchListeners: new Set()
   }
   return {
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
@@ -1809,8 +1813,20 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
   }
 }
 
+/** Enters the chat's running launch, then tells the launch listeners; a listener that throws is reported, never in the start's way. */
+function tellLaunch(manager: Manager, chatId: string, live: Live): void {
+  manager.entries.set(chatId, live)
+  for (const listener of manager.launchListeners) {
+    try {
+      listener(chatId)
+    } catch (error) {
+      manager.onError(error)
+    }
+  }
+}
+
 /** What a cult supervisor ends, upgrades and watches member terminals with. */
-function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit' | 'generationOf'> {
+function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit' | 'onLaunch' | 'generationOf'> {
   return {
     endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
     attachGrant: (chatId, grantId) => attachGrant(manager, chatId, grantId),
@@ -1819,6 +1835,12 @@ function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' |
       manager.exitListeners.add(listener)
       return () => {
         manager.exitListeners.delete(listener)
+      }
+    },
+    onLaunch: (listener) => {
+      manager.launchListeners.add(listener)
+      return () => {
+        manager.launchListeners.delete(listener)
       }
     },
     generationOf: (chatId) => runningTerminal(manager, chatId)?.generation ?? null

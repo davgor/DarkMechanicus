@@ -124,17 +124,25 @@ async function requireTarget(deps: CultHandlerDeps, folder: string, epicId: stri
   }
 }
 
+/** The cult's folder: none for a sanctum cult (main creates its sanctum), else a tracked folder, canonical. */
+function folderOf(deps: CultHandlerDeps, cult: Definition): string | null {
+  if (cult.scope === 'sanctum' && cult.folderPath !== null) fail('invalid_input', 'A sanctum cult names no folder; main creates its sanctum.')
+  if (cult.scope === 'folder' && cult.folderPath === null) fail('invalid_input', 'A folder cult needs a tracked folder.')
+  return cult.folderPath === null ? null : trackedFolder(deps, cult.folderPath)
+}
+
+/** A Plan Forge needs a seat for each of its six specialists and a target epic of its own folder. */
+async function requirePlanForge(deps: CultHandlerDeps, cult: Definition, folderPath: string | null): Promise<void> {
+  if ((cult.defaultCap ?? PLAN_FORGE_MIN_CAP) < PLAN_FORGE_MIN_CAP) fail('invalid_input', `A Plan Forge cult needs a cap of at least ${PLAN_FORGE_MIN_CAP}.`)
+  if (folderPath === null || cult.targetEpicId == null) fail('invalid_input', 'A Plan Forge cult needs a target epic in its folder.')
+  await requireTarget(deps, folderPath, cult.targetEpicId)
+}
+
 /** The definition as the store takes it: the folder canonical and tracked, a Plan Forge's target and cap checked. */
 async function definition(deps: CultHandlerDeps, input: unknown): Promise<CultInput> {
   const cult: Definition = parseInput(definitionSchema, input, 'cult definition')
-  if (cult.scope === 'sanctum' && cult.folderPath !== null) fail('invalid_input', 'A sanctum cult names no folder; main creates its sanctum.')
-  if (cult.scope === 'folder' && cult.folderPath === null) fail('invalid_input', 'A folder cult needs a tracked folder.')
-  const folderPath = cult.folderPath === null ? null : trackedFolder(deps, cult.folderPath)
-  if (cult.archetype === 'plan_forge') {
-    if ((cult.defaultCap ?? PLAN_FORGE_MIN_CAP) < PLAN_FORGE_MIN_CAP) fail('invalid_input', `A Plan Forge cult needs a cap of at least ${PLAN_FORGE_MIN_CAP}.`)
-    if (folderPath === null || cult.targetEpicId == null) fail('invalid_input', 'A Plan Forge cult needs a target epic in its folder.')
-    await requireTarget(deps, folderPath, cult.targetEpicId)
-  }
+  const folderPath = folderOf(deps, cult)
+  if (cult.archetype === 'plan_forge') await requirePlanForge(deps, cult, folderPath)
   return { ...cult, folderPath, targetEpicId: cult.targetEpicId ?? null }
 }
 
@@ -170,7 +178,7 @@ function synthesisOf(cults: Cults, runId: string): CultRunDetail['synthesis'] {
 }
 
 /** A run snapshot as the renderer sees it: members with their type origin and report state, coverage, created types and synthesis. */
-export function runDetail(deps: Pick<CultHandlerDeps, 'cults'>, snapshot: CultRunSnapshot): CultRunDetail {
+function runDetail(deps: Pick<CultHandlerDeps, 'cults'>, snapshot: CultRunSnapshot): CultRunDetail {
   const { run } = snapshot
   const { cults } = deps
   const reported = new Set(deps.cults.listReports(run.id).map((report) => report.memberChatId))
@@ -222,8 +230,8 @@ function controls(deps: CultHandlerDeps) {
     answer(deps, async () => runDetail(deps, await act(runIdOf(runId))))
   return {
     start: (cultId: unknown, overrides: unknown) => answer(deps, async () => {
-      const cult = requireCult(deps, cultId)
-      return runDetail(deps, await deps.supervisor.start(cult.id, parseInput(overridesSchema, overrides, 'run overrides')))
+      const options = parseInput(overridesSchema, overrides, 'run overrides')
+      return runDetail(deps, await deps.supervisor.start(requireCult(deps, cultId).id, options))
     }),
     pause: (runId: unknown) => run(runId, (parsed) => deps.supervisor.pause(parsed)),
     resume: (runId: unknown) => run(runId, (parsed) => deps.supervisor.resume(parsed)),

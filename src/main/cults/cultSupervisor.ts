@@ -58,7 +58,8 @@ type RunOptions = Omit<RunStartInput, 'workDir'>
 interface CultSupervisorDeps {
   cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup' | 'slotCoverage' | 'raiseCap'>
   launcher: Pick<CultLauncher, 'launch' | 'startAcolyte' | 'endMember'>
-  terminals: Pick<TerminalSessions, 'onExit' | 'isRunning' | 'attachGrant' | 'detachGrant'>
+  /** `onLaunch` lets a member relaunched while its run is paused be told the paused state again. */
+  terminals: Pick<TerminalSessions, 'onExit' | 'isRunning' | 'attachGrant' | 'detachGrant'> & Partial<Pick<TerminalSessions, 'onLaunch'>>
   control: CultControl
   ledger: CultLedger
   grants: UpgradeDeps['grants']
@@ -247,7 +248,7 @@ async function track(s: State, runId: string, launched: LaunchedMember): Promise
   // It may have exited before it was watched.
   if (!s.deps.terminals.isRunning(chatId)) memberExited(s, chatId)
   await recording
-  await resendPause(s, runId, member)
+  await resendPause(s, runId, chatId)
   return member
 }
 
@@ -255,9 +256,16 @@ async function track(s: State, runId: string, launched: LaunchedMember): Promise
  * A member launched while its run is paused: actions sent while it had no running launch were dropped
  * (`cultControl.ts`), so its new launch is told the paused state now.
  */
-async function resendPause(s: State, runId: string, member: CultMemberView): Promise<void> {
-  if (s.deps.cults.getRun(runId)?.state !== 'paused' || !s.deps.terminals.isRunning(member.chatId)) return
-  await tell(s, [member], () => ({ action: 'interrupt' }))
+async function resendPause(s: State, runId: string, chatId: string): Promise<void> {
+  if (s.deps.cults.getRun(runId)?.state !== 'paused' || !s.deps.terminals.isRunning(chatId)) return
+  const member = liveMembers(s, runId).find((candidate) => candidate.chatId === chatId)
+  if (member !== undefined) await tell(s, [member], () => ({ action: 'interrupt' }))
+}
+
+/** A member's chat launched again (a new generation) while it is still a member of a supervised run. */
+function memberLaunched(s: State, chatId: string): void {
+  const runId = s.chatRuns.get(chatId)
+  if (runId !== undefined && s.runs.has(runId)) void resendPause(s, runId, chatId).catch(s.onError)
 }
 
 function requireLiveMember(s: State, runId: string, chatId: string): CultMemberView {
@@ -598,6 +606,24 @@ function serialized<T>(s: State, runId: string, work: () => Promise<T>): Promise
   return queued(supervised(s, runId), work)
 }
 
+/** Raises the run's cap in the store and tells the change. */
+function raiseCap(s: State, runId: string, cap: number): CultRunSnapshot {
+  s.deps.cults.raiseCap(runId, cap)
+  return emit(s, runId)
+}
+
+/** Hears every member terminal's exit, and every launch (a member relaunched while paused is told so again). */
+function watchTerminals(s: State): void {
+  s.deps.terminals.onExit((chatId) => {
+    try {
+      memberExited(s, chatId)
+    } catch (error) {
+      s.onError(error)
+    }
+  })
+  s.deps.terminals.onLaunch?.((chatId) => memberLaunched(s, chatId))
+}
+
 export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
   const onError = deps.onError ?? (() => {})
   const upgrades: UpgradeDeps = {
@@ -607,13 +633,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
   const s: State = {
     deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter(), wakeClosers: new Set()
   }
-  deps.terminals.onExit((chatId) => {
-    try {
-      memberExited(s, chatId)
-    } catch (error) {
-      onError(error)
-    }
-  })
+  watchTerminals(s)
   return {
     start: (cultId, options = {}) => start(s, cultId, options),
     pause: (runId) => serialized(s, runId, () => pause(s, runId)),
@@ -639,10 +659,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
       await Promise.all([...s.runs.keys()].map((runId) => abort(s, runId, 'interrupted').catch(onError)))
     },
     busy: () => s.runs.size > 0,
-    raiseCap: (runId, cap) => {
-      deps.cults.raiseCap(runId, cap)
-      return emit(s, runId)
-    },
+    raiseCap: (runId, cap) => raiseCap(s, runId, cap),
     changed: (runId) => void emit(s, runId),
     endRun: (runId) => endRun(s, runId),
     on: (event, listener) => {

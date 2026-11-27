@@ -12,10 +12,10 @@ import type { CultEventPage, CultMemberView, CultPetitionView, CultRunView, Cult
 /** Main pushes every `CultPushEvent` to the window on this channel. */
 export const CULT_EVENT_CHANNEL = 'cults:event'
 
-export type CultScopeInput = { scope: 'folder'; folderPath: string } | { scope: 'sanctum'; folderPath: null }
+type CultScopeInput = { scope: 'folder'; folderPath: string } | { scope: 'sanctum'; folderPath: null }
 
 /** One ordered roster slot the person defines: a stable id, its label and mission. */
-export interface CultSlotInput {
+interface CultSlotInput {
   id: string
   workerType: WorkerType
   label: string
@@ -24,7 +24,7 @@ export interface CultSlotInput {
 }
 
 /** Founding or editing a cult. A folder cult's folder must be tracked; a Plan Forge's target epic must be in it. */
-export type CultDefinitionInput = CultScopeInput & {
+type CultDefinitionInput = CultScopeInput & {
   name: string
   charter: string
   archetype: CultArchetype
@@ -41,20 +41,20 @@ export type CultDefinitionInput = CultScopeInput & {
 }
 
 /** A run's overrides of its cult's defaults; the work folder is always the cult's own. */
-export interface CultRunOverrides {
+interface CultRunOverrides {
   timeLimitMs?: number | null
   cap?: number
   acolyteGraceMs?: number
   magosWindowMs?: number
 }
 
-export interface CultPipelineRequest {
+interface CultPipelineRequest {
   afterSeq?: number
   limit: number
 }
 
 /** A model a cult member may run on, cheapest tier first. */
-export interface CultModelOptionView {
+interface CultModelOptionView {
   id: string
   provider: string
   label: string
@@ -77,7 +77,7 @@ export interface CultCatalogView {
  * Where a member's worker type comes from: a slot of the cult's definition (a standard or custom type), a type the
  * Magos created for this run, or none (the Magos, or an acolyte of a cult without a roster).
  */
-export type MemberTypeOrigin = 'definition_slot' | 'magos_created' | null
+type MemberTypeOrigin = 'definition_slot' | 'magos_created' | null
 
 export interface CultMemberDetail extends CultMemberView {
   typeOrigin: MemberTypeOrigin
@@ -95,11 +95,11 @@ export interface RunWorkerTypeDetail extends RunWorkerType {
 }
 
 /** A definition slot's coverage in the run. */
-export interface SlotCoverageDetail extends SlotCoverage {
+interface SlotCoverageDetail extends SlotCoverage {
   origin: 'definition_slot'
 }
 
-export interface CultSynthesisView {
+interface CultSynthesisView {
   draftRevision: number
   accepted: number
   rejected: number
