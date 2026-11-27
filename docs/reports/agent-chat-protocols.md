@@ -424,6 +424,8 @@ Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identi
 
 With `FAKE_AGENT_NAME_CHATS=1` (the built-app e2e sets it), a protocol run whose instructions file holds the "First-message chat naming" section names its chat on the first user message as a real agent does: it runs the instructions' own `dm` line with `call name_chat '{"title":"Fake agent conversation"}'`, beside the turn, and reports a failing call on stderr. Without it the chat stays "Naming chat…".
 
+`[mail] <role> <epicId>` is Skitarii coordination as the built-app e2e's `coord-*` steps drive it: the run acknowledges the prompt at once, then makes two real calls through its instructions' `dm` line with its own env grant, `list_agent_peers '{"epicId":"<epicId>","role":"<role>"}'` and `send_agent_message` to the first peer listed, with the body `Fake coordination mail for the <role>.`, and replies `mailed the <role> at <endpoint>` (or `mail failed: …` with the refusal). With `FAKE_AGENT_DELIVER_MAIL=1` (set by the e2e only for the coord steps) an OMP run also delivers its inbox once it starts, as the Skitarii extension does: `read_agent_inbox` through the same `dm` line, appended to its session file as one `dm-inbox-delivery` entry, so the app counts that mail delivered and stops waking the chat for it.
+
 ## Arbiter (not GUI launch configuration)
 
 Claude arbiter argv contract:
