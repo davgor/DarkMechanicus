@@ -7,10 +7,10 @@ export const PACKET_MAX_MS = 1200
 /** Time for the noosphere ring to sweep from the helm to the room's farthest corner. */
 export const RING_MS = 1600
 export const BEAM_MS = 900
-export const SPARKS_MS = 1400
+const SPARKS_MS = 1400
 const SPARK_GRAVITY = 900
 
-export type PacketPurpose = 'order' | 'report' | 'mail'
+type PacketPurpose = 'order' | 'report' | 'mail'
 
 interface EffectBase { id: number; elapsed: number; duration: number }
 
@@ -37,7 +37,7 @@ export interface RingEffect extends EffectBase {
 export interface BeamEffect extends EffectBase { kind: 'beam'; x: number; y: number; height: number }
 
 /** A spark's launch point and velocity in px/s; `sparkPoint` gives its position. */
-export interface Spark { x: number; y: number; vx: number; vy: number }
+interface Spark { x: number; y: number; vx: number; vy: number }
 export interface SparksEffect extends EffectBase { kind: 'sparks'; sparks: Spark[] }
 
 export type ChamberEffect = PacketEffect | RingEffect | BeamEffect | SparksEffect
@@ -81,7 +81,7 @@ export function packetPoint(packet: PacketEffect): Point {
   }
 }
 
-export interface RingSpec { orderId: string; origin: Point; targets: Array<{ id: string; point: Point }> }
+interface RingSpec { orderId: string; origin: Point; targets: Array<{ id: string; point: Point }> }
 
 /** A ring from `origin` that reaches each target when its radius passes the target's distance at send time. */
 export function createRing(id: number, spec: RingSpec, layout: ChamberLayout): RingEffect {

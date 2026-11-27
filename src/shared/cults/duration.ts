@@ -30,13 +30,13 @@ const UNIT_MS: Readonly<Record<string, number>> = {
 }
 
 /** The shortest time limit a run may have; shorter limits are refused, longer ones have no upper bound. */
-export const MIN_TIME_LIMIT_MS = MINUTE
+const MIN_TIME_LIMIT_MS = MINUTE
 
 /** Words that mean "no time limit" in a time-limit field. */
 const UNLIMITED_WORDS: Readonly<Record<string, true>> = { unlimited: true, none: true, 'no limit': true }
 
-export type DurationResult = { ok: true; ms: number } | { ok: false; error: string }
-export type TimeLimitResult = { ok: true; ms: number | null } | { ok: false; error: string }
+type DurationResult = { ok: true; ms: number } | { ok: false; error: string }
+type TimeLimitResult = { ok: true; ms: number | null } | { ok: false; error: string }
 
 const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error })
 

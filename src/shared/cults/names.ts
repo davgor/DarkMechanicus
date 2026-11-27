@@ -3,7 +3,7 @@
  * taken in the run (compared case-insensitively, as the store does). Pure, shared with the renderer.
  */
 
-export type CultistRole = 'magos' | 'acolyte'
+type CultistRole = 'magos' | 'acolyte'
 
 const MAGOS_NAMES = [
   'Vettius', 'Cawl', 'Dominus', 'Severax', 'Orthan', 'Lucan', 'Tharsis', 'Varro', 'Hesper', 'Corvane',

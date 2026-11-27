@@ -22,13 +22,13 @@ export const STANDARD_WORKER_TYPES = [
   'quality',
   'architecture_team_lead'
 ] as const
-export type StandardWorkerType = (typeof STANDARD_WORKER_TYPES)[number]
+type StandardWorkerType = (typeof STANDARD_WORKER_TYPES)[number]
 
 /** A user-defined slot perspective; its label and mission carry the meaning. */
 export const CUSTOM_WORKER_TYPE = 'custom'
 export type WorkerType = StandardWorkerType | typeof CUSTOM_WORKER_TYPE
 
-export interface WorkerTypeInfo {
+interface WorkerTypeInfo {
   displayName: string
   description: string
   /** What this perspective must check before work it touches may conclude. */
@@ -84,9 +84,9 @@ export interface RosterSlot {
   required: boolean
 }
 
-export type PresetKind = 'none' | 'fixed' | 'editable_defaults' | 'supplied'
+type PresetKind = 'none' | 'fixed' | 'editable_defaults' | 'supplied'
 
-export interface ArchetypeInfo {
+interface ArchetypeInfo {
   displayName: string
   description: string
   reviewContract: string
@@ -165,7 +165,7 @@ export const ARCHETYPE_INFO: Readonly<Record<CultArchetype, ArchetypeInfo>> = {
   }
 }
 
-export interface MaterializeRosterInput {
+interface MaterializeRosterInput {
   /** Replaces the defaults for Delivery, Audit and Research; the whole roster for Custom. Ignored by Plan Forge and General. */
   slots?: readonly RosterSlot[]
 }
@@ -188,7 +188,7 @@ export function materializeRoster(archetype: CultArchetype, input: MaterializeRo
   }
 }
 
-export interface RosterIssue {
+interface RosterIssue {
   code:
     | 'blank_id'
     | 'duplicate_id'
@@ -204,7 +204,7 @@ export interface RosterIssue {
   slotId?: string
 }
 
-export interface ValidateRosterInput {
+interface ValidateRosterInput {
   archetype: CultArchetype
   slots: readonly RosterSlot[]
   /** Maximum concurrent acolytes for the run. */
@@ -321,14 +321,14 @@ export interface RunWorkerType {
   retiredAt: string | null
 }
 
-export interface DynamicTypeContext {
+interface DynamicTypeContext {
   existing: readonly RunWorkerType[]
   creatorMemberId: string
   /** ISO timestamp. */
   now: string
 }
 
-export type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; error: string }
+type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; error: string }
 
 const BUILT_IN_IDS: ReadonlySet<string> = new Set<string>([...STANDARD_WORKER_TYPES, CUSTOM_WORKER_TYPE])
 const BUILT_IN_NAMES: ReadonlySet<string> = new Set(

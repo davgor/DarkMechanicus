@@ -240,7 +240,7 @@ export function toPetitionView(row: PetitionRow): CultPetitionView {
   }
 }
 
-export interface WorkerTypeRow {
+interface WorkerTypeRow {
   type_id: string
   display_name: string
   description: string
@@ -253,7 +253,7 @@ export interface WorkerTypeRow {
   retired_at: string | null
 }
 
-export function toWorkerType(row: WorkerTypeRow): RunWorkerType {
+function toWorkerType(row: WorkerTypeRow): RunWorkerType {
   return {
     id: row.type_id,
     displayName: row.display_name,
@@ -275,7 +275,7 @@ export function runWorkerTypes(db: Db, runId: string): RunWorkerType[] {
     .map((row) => toWorkerType(row))
 }
 
-export interface NewEvent {
+interface NewEvent {
   runId: string
   kind: CultEventKind
   memberName: string | null

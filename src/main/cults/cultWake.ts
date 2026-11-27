@@ -18,7 +18,7 @@ import { ompFilePaths } from '../terminals/ompSession'
 import { writePrivateFile } from '../terminals/privateFile'
 import type { CultSupervisor } from './cultSupervisor'
 
-export interface CultWakeDeps {
+interface CultWakeDeps {
   userData: string
   supervisor: Pick<CultSupervisor, 'memberOf' | 'isWakeOpen' | 'onWakeClose'>
   chats: Pick<ChatStore, 'listChats'>
@@ -28,7 +28,7 @@ export interface CultWakeDeps {
 }
 
 /** A message as the mail sweep sees it: only its id and its sender's endpoint are read, never its body. */
-export interface WakeMessage {
+interface WakeMessage {
   id: string
   from: { endpointId: string }
 }

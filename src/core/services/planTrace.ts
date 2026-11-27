@@ -9,7 +9,7 @@ import { fail } from '../errors'
 import { latestSeq } from './events'
 
 /** One recorded change of the plan: its event kind, the grant of the session that made it (null: none), and the draft revision it produced. */
-export interface PlanChangeTrace {
+interface PlanChangeTrace {
   kind: string
   grantId: string | null
   draftRevision: number | null
@@ -25,7 +25,7 @@ export interface PlanTrace {
 }
 
 /** The most changes one trace returns; a run that edits more than this between conclusions is read as changed outside. */
-export const MAX_TRACE_CHANGES = 1000
+const MAX_TRACE_CHANGES = 1000
 
 /** The epic's saved and draft revisions now, and every draft change or save request after `afterSeq` (null: none). */
 export function planTrace(ctx: Ctx, epicId: string, afterSeq: number | null): PlanTrace {

@@ -22,7 +22,7 @@ const MAX_ENTRIES = 32
 const MAX_PATH = 4096
 
 export type CultControlAction = 'interrupt' | 'resume' | 'wind_down' | 'conclude' | 'shutdown' | 'petition'
-export type CultPetitionKind = 'acolytes' | 'allow_save' | 'folder_access'
+type CultPetitionKind = 'acolytes' | 'allow_save' | 'folder_access'
 
 export interface CultPetition {
   kind: CultPetitionKind
@@ -32,7 +32,7 @@ export interface CultPetition {
   tokenFile?: string
 }
 
-export interface CultControlEntry {
+interface CultControlEntry {
   seq: number
   action: CultControlAction
   petition?: CultPetition
@@ -103,13 +103,13 @@ export function parseCultControl(text: string, chatId: string, epoch: string): C
 
 const PREFIX = '[Dark Mechanicus desktop] '
 const PERSON = `${PREFIX}The person `
-export const PAUSED = `${PERSON}paused this cult. Stop and wait; you will be told when it resumes.`
-export const RESUMED = `${PERSON}resumed this cult. Continue your current task.`
-export const WIND_DOWN = `${PREFIX}This cult run is ending. Order every acolyte to conclude now, then write the chronicle and conclude the run within the times your cult rules give.`
-export const CONCLUDE = `${PREFIX}This cult run is ending. Finish now, send your final report and conclude within the time your cult rules give.`
+const PAUSED = `${PERSON}paused this cult. Stop and wait; you will be told when it resumes.`
+const RESUMED = `${PERSON}resumed this cult. Continue your current task.`
+const WIND_DOWN = `${PREFIX}This cult run is ending. Order every acolyte to conclude now, then write the chronicle and conclude the run within the times your cult rules give.`
+const CONCLUDE = `${PREFIX}This cult run is ending. Finish now, send your final report and conclude within the time your cult rules give.`
 
 /** The fixed sentence for a petition decision. */
-export function petitionText(p: CultPetition): string {
+function petitionText(p: CultPetition): string {
   if (!p.approved) return `${PERSON}denied your petition (${p.kind}).`
   if (p.kind === 'acolytes') return `${PERSON}approved your petition: the cap rose by ${p.granted ?? 0} acolytes.`
   if (p.kind === 'allow_save') return `${PERSON}approved your petition to save: Allow save is on for this run.`
@@ -117,11 +117,11 @@ export function petitionText(p: CultPetition): string {
 }
 
 /** The last applied seq of one launch, shared by the watchers of its sessions. */
-export interface CultControlCursor {
+interface CultControlCursor {
   lastApplied: number
 }
 
-export interface CultControlDeps {
+interface CultControlDeps {
   readFile: (path: string) => Promise<string>
   timers: Timers
   path: string

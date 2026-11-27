@@ -53,9 +53,9 @@ export interface CultRunSnapshot {
 }
 
 /** A run's overrides of its cult's defaults. */
-export type RunOptions = Omit<RunStartInput, 'workDir'>
+type RunOptions = Omit<RunStartInput, 'workDir'>
 
-export interface CultSupervisorDeps {
+interface CultSupervisorDeps {
   cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup' | 'slotCoverage'>
   launcher: Pick<CultLauncher, 'launch' | 'startAcolyte' | 'endMember'>
   terminals: Pick<TerminalSessions, 'onExit' | 'isRunning' | 'attachGrant' | 'detachGrant'>
@@ -117,7 +117,7 @@ export interface CultSupervisor {
   onWakeClose(listener: WakeCloser): () => void
 }
 
-export type WakeCloser = (memberChatIds: string[]) => Promise<void>
+type WakeCloser = (memberChatIds: string[]) => Promise<void>
 
 /** A run this supervisor drives. */
 interface Supervised {

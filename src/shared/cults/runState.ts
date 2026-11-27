@@ -4,10 +4,10 @@
  * (`timeLimitMs` null) never expires. No database, process or timer code: the store persists what this returns.
  */
 
-export const RUN_STATES = ['starting', 'running', 'paused', 'shutting_down', 'ended'] as const
+const RUN_STATES = ['starting', 'running', 'paused', 'shutting_down', 'ended'] as const
 export type RunState = (typeof RUN_STATES)[number]
 
-export const END_REASONS = ['completed', 'expired', 'stopped', 'killed', 'interrupted', 'failed'] as const
+const END_REASONS = ['completed', 'expired', 'stopped', 'killed', 'interrupted', 'failed'] as const
 export type EndReason = (typeof END_REASONS)[number]
 
 /** Reasons that wind a run down gracefully through `shutting_down`. */
@@ -50,7 +50,7 @@ export const DEFAULT_MAGOS_WINDOW_MS = 2 * MINUTE
 export const MIN_SHUTDOWN_TIMING_MS = 30 * SECOND
 export const MAX_SHUTDOWN_TIMING_MS = 60 * MINUTE
 /** What the backstop adds after the acolyte grace and the Magos window before a run is killed. */
-export const BACKSTOP_MARGIN_MS = MINUTE
+const BACKSTOP_MARGIN_MS = MINUTE
 
 /** A refused lifecycle move: the state it was attempted from and the event. */
 export class RunTransitionError extends Error {
@@ -80,7 +80,7 @@ function describe(event: RunEvent): string {
 }
 
 /** Running time so far, including the current span. */
-export function runningMs(run: RunClock, now: string): number {
+function runningMs(run: RunClock, now: string): number {
   const span = run.state === 'running' && run.runningSince ? Date.parse(now) - Date.parse(run.runningSince) : 0
   return run.accumulatedRunningMs + Math.max(0, span)
 }
@@ -137,11 +137,6 @@ export function transition<T extends RunClock>(run: T, event: RunEvent, now: str
   return { ...run, ...change }
 }
 
-/** Every run state but `ended` holds processes the app must supervise or reconcile. */
-export function isActiveState(state: RunState): boolean {
-  return state !== 'ended'
-}
-
 /** Null when the cap is a whole number from 1 to 24; otherwise why it is refused. */
 export function capIssue(cap: number): string | null {
   if (!Number.isInteger(cap) || cap < MIN_CAP) return `The acolyte cap must be a whole number of at least ${MIN_CAP}.`
@@ -171,7 +166,7 @@ export function backstopMs(acolyteGraceMs: number, magosWindowMs: number): numbe
 
 export type PetitionState = 'pending' | 'approved' | 'denied'
 
-export interface PetitionDecision {
+interface PetitionDecision {
   state: PetitionState
   decidedAt: string | null
 }

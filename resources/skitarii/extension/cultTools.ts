@@ -18,10 +18,10 @@ export const MAGOS_CULT_TOOLS = [
   'cult_status', 'cult_summon_acolyte', 'cult_dismiss_acolyte', 'cult_list_acolytes', 'cult_petition', 'cult_order_all',
   'cult_conclude_run', 'cult_create_worker_type', 'cult_record_synthesis'
 ] as const
-export const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service'] as const
-export type CultToolName = (typeof MAGOS_CULT_TOOLS)[number] | (typeof ACOLYTE_CULT_TOOLS)[number]
+const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service'] as const
+type CultToolName = (typeof MAGOS_CULT_TOOLS)[number] | (typeof ACOLYTE_CULT_TOOLS)[number]
 
-export interface CultToolDefinition {
+interface CultToolDefinition {
   name: CultToolName
   label: string
   description: string

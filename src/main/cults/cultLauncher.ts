@@ -45,7 +45,7 @@ export const EXIT_KEYS_AFTER_MS = 2_000
 /** How long a member's CLI gets to exit on its own before its tree is killed. */
 export const GRACEFUL_EXIT_MS = 5_000
 
-export interface CultLauncherDeps {
+interface CultLauncherDeps {
   cults: Pick<CultStore, 'getCult' | 'getRun' | 'startRun' | 'transitionRun' | 'addMember' | 'listMembers' | 'listWorkerTypes' | 'listRuns' | 'deleteCult'>
   /** The Folders registry: what a folder cult's folder must still be tracked in. */
   folders: { resolve(path: string): string | null }

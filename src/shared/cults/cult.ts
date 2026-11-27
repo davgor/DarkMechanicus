@@ -31,14 +31,14 @@ import {
   type RunState
 } from './runState'
 
-export const CULT_SCOPES = ['folder', 'sanctum'] as const
+const CULT_SCOPES = ['folder', 'sanctum'] as const
 export type CultScope = (typeof CULT_SCOPES)[number]
 
-export const MEMBER_ROLES = ['magos', 'acolyte'] as const
+const MEMBER_ROLES = ['magos', 'acolyte'] as const
 export type MemberRole = (typeof MEMBER_ROLES)[number]
 
 /** `joining` and `active` members are live; the rest have left the run, which is when their `leftAt` is set. */
-export const MEMBER_STATES = ['joining', 'active', 'concluded', 'dismissed', 'left'] as const
+const MEMBER_STATES = ['joining', 'active', 'concluded', 'dismissed', 'left'] as const
 export type MemberState = (typeof MEMBER_STATES)[number]
 export const LIVE_MEMBER_STATES: readonly MemberState[] = ['joining', 'active']
 
@@ -46,7 +46,7 @@ export const PETITION_KINDS = ['acolytes', 'allow_save', 'folder_access'] as con
 export type PetitionKind = (typeof PETITION_KINDS)[number]
 
 /** What the cult pipeline shows, one row per event, in sequence order. */
-export const CULT_EVENT_KINDS = [
+const CULT_EVENT_KINDS = [
   'summoned',
   'dismissed',
   'concluded',
@@ -74,7 +74,7 @@ export type CultEventKind = (typeof CULT_EVENT_KINDS)[number]
 export const MAX_REPORT_BYTES = 32 * 1024
 /** An event summary is inert, one-line-ish text. */
 export const MAX_EVENT_SUMMARY_CHARS = 2000
-export const MAX_EVENT_PAGE = 500
+const MAX_EVENT_PAGE = 500
 
 const text = (max: number) => z.string().trim().min(1).max(max)
 const timingSchema = z.number().int().min(MIN_SHUTDOWN_TIMING_MS).max(MAX_SHUTDOWN_TIMING_MS)
@@ -82,7 +82,7 @@ const capSchema = z.number().int().min(MIN_CAP).max(MAX_CAP)
 /** Null: unlimited. Otherwise at least one minute, with no upper bound. */
 const timeLimitSchema = z.number().int().min(MIN_TIME_LIMIT_MS).max(Number.MAX_SAFE_INTEGER).nullable()
 
-export const rosterSlotSchema = z.object({
+const rosterSlotSchema = z.object({
   id: text(80),
   workerType: z.enum([...STANDARD_WORKER_TYPES, CUSTOM_WORKER_TYPE]),
   label: text(80),

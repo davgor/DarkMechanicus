@@ -230,7 +230,7 @@ async function runStatusCommand(
 }
 
 /** OMP's sign-in status, classified exactly as `agents:status` does, and the providers it holds an account for. */
-export interface OmpSignIn {
+interface OmpSignIn {
   status: AgentAuthStatus
   /** Providers named by `reports` or `accountsWithoutUsage`; empty unless signed in. Nothing else is kept. */
   providers: readonly string[]

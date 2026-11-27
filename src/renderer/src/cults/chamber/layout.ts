@@ -5,16 +5,16 @@ export interface Size { width: number; height: number }
 export interface Rect { x: number; y: number; width: number; height: number }
 
 /** A prop's flat standable top, in image pixels: the x range and the y of the surface. */
-export interface StandTop { left: number; right: number; y: number }
+interface StandTop { left: number; right: number; y: number }
 
 /**
  * A prop image's pixel size; `footY` is the image row that rests on the floor (defaults to the bottom) and
  * `opaqueBounds` the painted part of the image (defaults to all of it). Props are spaced by their opaque part.
  */
-export interface PropImage { width: number; height: number; footY?: number; opaqueBounds?: Rect }
+interface PropImage { width: number; height: number; footY?: number; opaqueBounds?: Rect }
 
 /** A placed prop in room pixels: draw the whole image at `rect`; `bounds` is its opaque part. */
-export interface PlacedProp { rect: Rect; bounds: Rect }
+interface PlacedProp { rect: Rect; bounds: Rect }
 
 /** Prop metrics shaped like the art ticket's `props.json`, in image pixels. */
 export interface ChamberPropMetrics {
@@ -25,7 +25,7 @@ export interface ChamberPropMetrics {
   viewscreen: PropImage & { window: Rect }
 }
 
-export interface ChamberConsole extends PlacedProp {
+interface ChamberConsole extends PlacedProp {
   id: string
   /** The console's flat top as a motion-engine platform. */
   top: MotionRect
@@ -61,10 +61,10 @@ export interface ChamberLayout {
 }
 
 export const MAX_CONSOLES = 6
-export const BACKDROP_HEIGHT = 1200
+const BACKDROP_HEIGHT = 1200
 /** The floor line as a fraction of the room height. */
-export const FLOOR_RATIO = 0.88
-export const BASE_SPRITE: Readonly<Size> = { width: 52, height: 80 }
+const FLOOR_RATIO = 0.88
+const BASE_SPRITE: Readonly<Size> = { width: 52, height: 80 }
 /** The mascot's 512 px atlas cell is drawn this wide at sprite scale 1. */
 export const SPRITE_CELL = 100
 const MAGOS_FACTOR = 1.45

@@ -52,7 +52,7 @@ function Effect({ effect }: { effect: ChamberEffect }): JSX.Element {
   }
 }
 
-export interface ChamberEffectsProps {
+interface ChamberEffectsProps {
   effects: readonly ChamberEffect[]
   width: number
   height: number

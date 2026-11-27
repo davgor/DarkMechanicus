@@ -12,7 +12,7 @@ export interface BubbleInput {
   priority: boolean
 }
 
-export interface BubblePlacement extends BubbleInput {
+interface BubblePlacement extends BubbleInput {
   left: number
   top: number
   width: number
@@ -22,7 +22,7 @@ export interface BubblePlacement extends BubbleInput {
   tailX: number
 }
 
-export const BUBBLE_WIDTH = 200
+const BUBBLE_WIDTH = 200
 const FONT = 12
 const CHAR_WIDTH = FONT * 0.62
 const LINE = 16
@@ -33,7 +33,7 @@ const MARGIN = 6
 const GAP = 4
 
 /** The bubble's size for its text: mono characters per line, one spare line for word wrapping. */
-export function bubbleSize(text: string): { width: number; height: number } {
+function bubbleSize(text: string): { width: number; height: number } {
   const characters = [...text].length
   const perLine = Math.floor((BUBBLE_WIDTH - 2 * PAD - 2) / CHAR_WIDTH)
   const lines = characters <= perLine ? 1 : Math.ceil(characters / perLine) + 1
@@ -57,7 +57,7 @@ function placeOne(bubble: BubbleInput, roomWidth: number): BubblePlacement {
 }
 
 /** A bubble rises at most this many bubble heights above its speaker; higher, its tail would point at no one. */
-export const MAX_LIFT = 2
+const MAX_LIFT = 2
 
 /** Raises `bubble` above every placed bubble it would overlap; null when that leaves the room or its speaker. */
 function stackUp(bubble: BubblePlacement, placed: readonly BubblePlacement[]): BubblePlacement | null {

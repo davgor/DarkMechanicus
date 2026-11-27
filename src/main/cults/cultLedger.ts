@@ -24,7 +24,7 @@ const grantSchema = z.object({
 })
 const ledgerSchema = z.object({ processes: z.array(processSchema), grants: z.array(grantSchema) })
 
-export type LedgerProcess = z.infer<typeof processSchema>
+type LedgerProcess = z.infer<typeof processSchema>
 export type LedgerGrant = z.infer<typeof grantSchema>
 
 export interface CultLedger {
@@ -47,7 +47,7 @@ function load(path: string): Ledger {
   }
 }
 
-export function cultLedgerPath(userData: string): string {
+function cultLedgerPath(userData: string): string {
   return join(userData, 'cults', 'ledger.json')
 }
 
