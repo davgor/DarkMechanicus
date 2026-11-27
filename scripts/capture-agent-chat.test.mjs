@@ -65,6 +65,15 @@ const COMPOSERS = [
 const composerRecord = (composers) => ready('agent-composer', {
   viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, composers
 })
+/** An agent-images record: the standalone chat's one composer with four loaded chips, an enabled Send and the fifth refused. */
+const IMAGES_COMPOSER = {
+  ...COMPOSER, chips: ['Magos · Skitarii', 'dark-mechanicus'], lines: 1, send: { radius: '50%', width: 32, height: 32 }, sendEnabled: true,
+  attach: { radius: '50%', width: 28, height: 28 },
+  images: { chips: 4, loaded: 4, removable: 4, aboveText: true, alert: 'At most 4 images can go with one message.' }
+}
+const imagesRecord = (patch = {}) => ready('agent-images', {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, composers: [{ ...IMAGES_COMPOSER, ...patch }]
+})
 
 /** The agent-transcript state's layout, as Chromium reports the shipped styles at 1280×800. */
 const TRANSCRIPT = {
@@ -121,6 +130,7 @@ function passingChatStates() {
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
     'agent-composer': composerRecord(COMPOSERS),
+    'agent-images': imagesRecord(),
     'agent-transcript': transcriptRecord()
   }
 }
@@ -206,22 +216,41 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 33 states once each, in capture order', () => {
+  it('lists the 34 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'new-chat-picker', 'question-multi',
-      'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'new-chat-picker',
+      'question-multi', 'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(33)
+    expect(new Set(STATES).size).toBe(34)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 510 s overall bound: 33 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 525 s overall bound: 34 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(510_000)
+    expect(OVERALL_LIMIT_MS).toBe(525_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: agent-images', () => {
+  it('passes four loaded chips above the text, a leading round attach button, an enabled Send and the fifth refused', () => {
+    expect(validateObservations('agent-images', imagesRecord())).toEqual([])
+  })
+
+  it('fails a broken thumbnail, chips under the text, a missing attach button and a disabled Send', () => {
+    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, loaded: 3 } })))
+      .toEqual([expect.stringMatching(/^agent-images: expected one composer holding four loaded image thumbnails, each removable; got /)])
+    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, aboveText: false } })))
+      .toEqual(['agent-images: expected the chips sit inside the card above the text area'])
+    expect(validateObservations('agent-images', imagesRecord({ attach: null })))
+      .toEqual(['agent-images: expected a round "+" attach button leads the row; got null'])
+    expect(validateObservations('agent-images', imagesRecord({ sendEnabled: false })))
+      .toEqual(['agent-images: expected Send is enabled with the images'])
+    expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, alert: null } })))
+      .toEqual(['agent-images: expected the fifth image is refused inline; got null'])
   })
 })
 

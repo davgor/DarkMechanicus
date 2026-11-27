@@ -110,6 +110,29 @@ async function clickWhenPresent(find: () => Element | null, label: string): Prom
   click(await until(find, label))
 }
 
+/** A screenshot-like PNG: a window of the given accent with a title bar and two text lines. */
+async function screenshot(accent: string, index: number): Promise<File> {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320
+  canvas.height = 200
+  const paint = canvas.getContext('2d')!
+  paint.fillStyle = '#1b1715'
+  paint.fillRect(0, 0, 320, 200)
+  paint.fillStyle = accent
+  paint.fillRect(0, 0, 320, 36)
+  paint.fillRect(24, 64, 220, 18)
+  paint.fillRect(24, 100, 160, 18)
+  const blob = await new Promise<Blob | null>((resolve) => { canvas.toBlob(resolve, 'image/png') })
+  return new File([blob!], `screenshot-${index + 1}.png`, { type: 'image/png' })
+}
+
+/** A real paste of image files, as the clipboard hands them to the focused field. */
+function pasteFiles(target: Element, files: File[]): void {
+  const data = new DataTransfer()
+  for (const file of files) data.items.add(file)
+  target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+}
+
 /**
  * Clicks the Agent view button. Below 1100 px the app starts the rail collapsed, so at a narrow viewport the states
  * that show the tree reach it as a person would: one real click on Expand Epic agents.
@@ -553,6 +576,26 @@ const STATES: Record<string, StateDef> = {
         && buttonNamed('Stop', $('[aria-label="Busy Magos"]')!), 'an enabled Send beside the idle draft and Stop on the busy chat')
     }
   },
+  'agent-images': {
+    mount: 'chat',
+    seed: (context) => {
+      context.chatApi.snapshotResult = { ok: true, data: scenarios.images.snapshot }
+      context.chatApi.stagedImages = [...(scenarios.images.staged ?? [])]
+    },
+    reach: async () => {
+      const input = await until(() => $('form.chat-composer textarea:not(:disabled)') as HTMLTextAreaElement | null, 'the composer')
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, 'Why does the composer wrap in these?')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      const shots = await Promise.all(['#d69b4a', '#b51a1f', '#4a8fd6', '#5aa469', '#888888'].map(screenshot))
+      pasteFiles(input, shots.slice(0, 4))
+      const loaded = (): boolean => [...document.querySelectorAll<HTMLImageElement>('.chat-image-chip > img')]
+        .filter((image) => image.complete && image.naturalWidth > 0).length === 4
+      await until(() => loaded() && buttonNamed('Send')?.disabled === false, 'four loaded image chips and an enabled Send')
+      // A fifth image is refused inline, without staging.
+      pasteFiles(input, shots.slice(4))
+      await until(() => $('.chat-composer [role="alert"]'), 'the fifth image refused inline')
+    }
+  },
   'agent-transcript': {
     mount: 'chat',
     seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: transcriptSnapshot() } },
@@ -734,7 +777,10 @@ function newChatObservations(): Record<string, unknown> | null {
   }
 }
 
-/** Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button. */
+/**
+ * Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button, the
+ * attach button leading its row, and its image chips (loaded thumbnails, whether they sit above the text, the alert).
+ */
 function composerObservations(): Record<string, unknown>[] {
   const shape = (button: HTMLElement | null): Record<string, unknown> | null => {
     if (button === null) return null
@@ -753,9 +799,24 @@ function composerObservations(): Record<string, unknown>[] {
       width: form.getBoundingClientRect().width, lines, placeholder: input?.placeholder ?? null,
       chips: [...form.querySelectorAll('.chat-composer-chip')].map(text),
       send: shape(form.querySelector<HTMLElement>('button[aria-label="Send"]')),
-      stop: shape(form.querySelector<HTMLElement>('button[aria-label="Stop"]'))
+      sendEnabled: form.querySelector<HTMLButtonElement>('button[aria-label="Send"]')?.disabled === false,
+      stop: shape(form.querySelector<HTMLElement>('button[aria-label="Stop"]')),
+      attach: shape(form.querySelector<HTMLElement>('.chat-composer-row > button[aria-label="Attach images"]:first-child')),
+      images: imageChipObservations(form, input)
     }
   })
+}
+
+function imageChipObservations(form: HTMLElement, input: HTMLTextAreaElement | null): Record<string, unknown> {
+  const list = form.querySelector<HTMLElement>('ul[aria-label="Attached images"]')
+  const thumbnails = [...form.querySelectorAll<HTMLImageElement>('.chat-image-chip > img')]
+  return {
+    chips: thumbnails.length,
+    loaded: thumbnails.filter((image) => image.complete && image.naturalWidth > 0).length,
+    removable: form.querySelectorAll('.chat-image-chip > button[aria-label^="Remove image"]').length,
+    aboveText: list !== null && input !== null && list.getBoundingClientRect().bottom <= input.getBoundingClientRect().top,
+    alert: text(form.querySelector('[role="alert"]'))
+  }
 }
 
 /** The agent-transcript state's layout: the reading column, the person's bubble, the plain reply and the Copy buttons. */
