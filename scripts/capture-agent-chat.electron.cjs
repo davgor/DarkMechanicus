@@ -5,7 +5,7 @@
  * `capturePage()` to `<out>/<state>.png`. Each state's record goes to the parent over IPC; the parent judges it.
  * A parent that goes away closes the IPC channel, and the app then quits, so it never outlives the run.
  */
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, nativeImage, protocol } = require('electron')
 const { writeFileSync } = require('node:fs')
 const { join } = require('node:path')
 
@@ -23,6 +23,27 @@ process.on('disconnect', () => app.exit(1))
 // Display scaling (150% on the Windows host) rounds a hidden window's content to whole device pixels (800 CSS px
 // became 802); at scale 1 the page is exactly the requested size and the PNG the same on every host.
 app.commandLine.appendSwitch('force-device-scale-factor', '1')
+// The app's chat images scheme, registered as main registers it, so composer thumbnails load in the preview.
+const CHAT_IMAGE_SCHEME = 'dm-chat-image'
+protocol.registerSchemesAsPrivileged([{ scheme: CHAT_IMAGE_SCHEME, privileges: { standard: true, secure: true } }])
+/** Thumbnail accents, picked by an image id's last character: brass, crimson, blue, green. */
+const ACCENTS = [[214, 155, 74], [181, 26, 31], [74, 143, 214], [90, 164, 105]]
+/** The accent boxes of a fixture screenshot as [top, bottom, left, right]: the title bar, then two text lines. */
+const ACCENT_BOXES = [[0, 18, 0, 160], [32, 41, 12, 122], [50, 59, 12, 92]]
+const accentAt = (x, y) => ACCENT_BOXES.some(([top, bottom, left, right]) => y >= top && y < bottom && x >= left && x < right)
+
+/** A 160×100 PNG standing in for a staged screenshot: a dark window with an accent title bar and two text lines. */
+function fixtureImage(imageId) {
+  const width = 160
+  const height = 100
+  const [red, green, blue] = ACCENTS[imageId.charCodeAt(imageId.length - 1) % ACCENTS.length]
+  const bitmap = Buffer.alloc(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    // BGRA, as nativeImage takes a bitmap.
+    for (let x = 0; x < width; x++) bitmap.set(accentAt(x, y) ? [blue, green, red, 255] : [21, 23, 27, 255], (y * width + x) * 4)
+  }
+  return nativeImage.createFromBitmap(bitmap, { width, height }).toPNG()
+}
 
 function sleep(ms) {
   const { promise, resolve } = Promise.withResolvers()
@@ -74,6 +95,7 @@ async function captureState(state) {
 }
 
 app.whenReady().then(async () => {
+  protocol.handle(CHAT_IMAGE_SCHEME, (request) => new Response(fixtureImage(new URL(request.url).pathname), { headers: { 'content-type': 'image/png' } }))
   send({ type: 'started', electron: process.versions.electron })
   for (const state of config.states) send({ type: 'state', record: await captureState(state) })
   app.exit(0)

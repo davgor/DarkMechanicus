@@ -80,8 +80,12 @@ export class FakeAgentChat implements AgentChatApi {
     return this.call('attention', request, () => result)
   }
 
+  /** The images later `stageImage` calls answer, one each and in order; `stageImageResult` once they run out. */
+  stagedImages: ChatImageRef[] = []
+
   stageImage(request: Parameters<AgentChatApi['stageImage']>[0]) {
-    const result = this.stageImageResult
+    const next = this.stagedImages.shift()
+    const result: CommandResult<{ image: ChatImageRef }> = next === undefined ? this.stageImageResult : { ok: true, data: { image: next } }
     return this.call('stageImage', request, () => result)
   }
 

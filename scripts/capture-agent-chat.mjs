@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 30 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 465_000
+/** A declared bound: 31 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 480_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -73,7 +73,9 @@ const BASE_FIELDS = [
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form and the role picker. */
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'settings-notifications', 'agent-role-picker'])
+const CHAT_STATES = new Set([
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'settings-notifications', 'agent-role-picker'
+])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
 const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
@@ -236,6 +238,17 @@ const STATE_CHECKS = {
     ['the idle draft grew to two lines and the empty busy composer holds one', (o) => composersOf(o)[0]?.lines === 2
       && composersOf(o)[1]?.lines === 1, (o) => JSON.stringify(composersOf(o).map((card) => card.lines))],
     ['both placeholders reply to the Magos', (o) => composersOf(o).every((card) => card.placeholder === 'Reply to Magos…')]
+  ],
+  'agent-images': [
+    ['one composer holding four loaded image thumbnails, each removable', (o) => composersOf(o).length === 1
+      && composersOf(o)[0].images?.chips === 4 && composersOf(o)[0].images?.loaded === 4 && composersOf(o)[0].images?.removable === 4,
+      (o) => JSON.stringify(composersOf(o).map((card) => card.images))],
+    ['the chips sit inside the card above the text area', (o) => composersOf(o)[0]?.images?.aboveText === true],
+    ['a round "+" attach button leads the row', (o) => composersOf(o)[0]?.attach?.radius === '50%',
+      (o) => JSON.stringify(composersOf(o)[0]?.attach)],
+    ['Send is enabled with the images', (o) => composerButtons(composersOf(o)[0]) === 'send' && composersOf(o)[0]?.sendEnabled === true],
+    ['the fifth image is refused inline', (o) => composersOf(o)[0]?.images?.alert === 'At most 4 images can go with one message.',
+      (o) => JSON.stringify(composersOf(o)[0]?.images?.alert)]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
