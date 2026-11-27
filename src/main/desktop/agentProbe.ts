@@ -46,7 +46,8 @@ export type ProcessOutcome =
   /** The process could not be started (`code` is the OS error code such as ENOENT or EACCES). */
   | { kind: 'spawn_failed'; code: string | null; message: string }
 
-export type ProcessRunner = (launch: ProbeLaunch, timeoutMs: number) => Promise<ProcessOutcome>
+/** `maxOutputChars` caps the collected output; omitted, the runner's own cap for a version or status line applies. */
+export type ProcessRunner = (launch: ProbeLaunch, timeoutMs: number, maxOutputChars?: number) => Promise<ProcessOutcome>
 
 export interface AgentProbeDeps {
   platform: string
