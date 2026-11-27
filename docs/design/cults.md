@@ -1,7 +1,344 @@
-# Cults: OMP control points and the sanctum workspace (DM-622 decision record)
+# Cults: design record (as built)
 
-This record answers the ten questions of DM-622. Later Cults tickets (launch, supervision, models, tools and wake, UI, Shrine,
-Plan Forge) build on it. It is an investigation: it adds no product code, only this record and two redacted fixtures.
+A **cult** is a timed swarm of Skitarii (OMP) chats: one **Magos** that leads, and **acolytes** it summons. The person
+founds a cult, starts a run, talks to the Magos, watches acolytes, approves petitions, and can pause, resume, stop or kill
+the run. This record describes the system as built on `sprint/cults-s1` (epic "Cults", DM-622 to DM-739). The first part
+is the as-built design; the [appendix](#appendix-dm-622-investigation-evidence) keeps the DM-622 investigation the build
+followed, with its probes and decisions. Where the build differs from the investigation, the first part is correct and
+says so. The user-facing walkthrough is the [Cults runbook](../runbooks/cults.md).
+
+## Verification status: verified on Windows only
+
+Cults are verified on **Windows only**. Precisely:
+
+- The macOS development host ran the unit tests of the cult modules (`src/main/cults/*.test.ts`,
+  `src/shared/cults/*.test.ts`, the renderer `src/renderer/src/cults/**` tests). That checks logic, not the Windows runtime.
+- Windows CI runs the test shards (`.github/workflows/pr-checks.yml`, job `test-shards`, `runs-on: windows-latest`).
+- The packaged Windows app is verified at the epic's acceptance node, **DM-621**.
+- The Windows-specific runtime paths are verified there, not on macOS: ConPTY exit (the `ctx.shutdown()`, Ctrl+D and kill
+  sequence below), `taskkill /t /f` for member trees and leftover processes (`cultLedger.ts`), and the CIM command-line
+  lookup (`Get-CimInstance Win32_Process`) that decides whether a recorded pid is still a member's.
+
+macOS is not a verified platform for Cults. The DM-622 probes in the appendix ran on macOS arm64 against OMP 19.2.1.
+
+## Architecture
+
+| Part | Where | What it does |
+| --- | --- | --- |
+| Definition | `src/shared/cults/cult.ts`, `archetypes.ts`; store `src/main/cults/cultStore.ts`, `cultRecords.ts`, `cultRuns.ts` | A cult: name, charter, scope (`folder` or `sanctum`), folder, archetype, roster slots, Plan Forge target epic, Magos name and model, default cap, time limit and shutdown timings. Cults are app-level (app database v5 tables), not per folder. Every write is one transaction with its pipeline event. |
+| Run | `cultRuns.ts`, `src/shared/cults/runState.ts` | One active run at a time per cult (`cult_runs_one_active`). Holds the state, end reason, time limit, banked running time, cap, work dir, chronicle and Shrine. |
+| Members | `cultMembers.ts` | The Magos and acolytes of a run. States `joining`, `active` (live), `concluded`, `dismissed`, `left`. Display names are unique in a run, case-insensitively. |
+| Launcher | `cultLauncher.ts` | Creates the workspace (tracked folder or sanctum) and each member as an ordinary OMP chat with `cultRunId`/`cultRole`, its model (`--model`, `isSafeModelId`), its grant and its cult rules. Ends a member gracefully or by killing its tree. |
+| Supervisor | `cultSupervisor.ts`, `runTimer.ts` | One per app. Drives the state machine, the timer, pause/resume, shutdown, Kill now, quit and startup reconciliation; decides petitions and applies upgrades (`cultUpgrades.ts`); records processes and upgrades in the crash ledger (`cultLedger.ts`, `userData/cults/ledger.json`, mode 0600). Emits `cult_changed` with a run snapshot. |
+| Commands | core `src/core/commands/cults.ts`; main `src/main/cults/cultCommands.ts`; schemas `src/shared/cults/cultControl.ts` | The `cult_*` operations members send over the desktop control pipe (below). |
+| Control file | `src/main/cults/cultControl.ts`; extension `resources/skitarii/extension/cultControl.ts` | `cult-control.json` per member: fixed actions `interrupt`, `resume`, `wind_down`, `conclude`, `shutdown`, `petition`. |
+| Standing wake | `src/main/cults/cultWake.ts`; extension `cultWake.ts` | `cult-wake.json` per member: wakes an idle member on mail from its own running run. |
+| Status | extension `cultStatus.ts`; main `memberActivity.ts` | `cult-status.json` (`working`/`idle`) plus the session JSONL give each member's activity. |
+| Mailbox | the Skitarii mail commands | Members talk over the ordinary bound mailbox; the pipeline reads it for the person. |
+| Pipeline | `cultPipeline.ts` | A run-wide, read-only timeline of member mail and run events (below). |
+| Shrine | `cultShrine.ts`, `shrineProtocol.ts`, `src/shared/cults/shrine.ts` | One file a member publishes, served sandboxed through `dm-shrine:`. |
+| Plan Forge council | `planForgeCouncil.ts`, `cultPlanRecords.ts` | The gate a Plan Forge run passes before its Magos may conclude. |
+| Run worker types | `dynamicWorkerTypes.ts`, `src/shared/cults/archetypes.ts` | Worker types a Magos creates for one run. |
+| Sanctum | `sanctumRegistry.ts` | App-owned workspaces of project-less cults. |
+| Models | `ompModels.ts` | The signed-in chat models from `omp models --json`, cheapest first, with their cost tier. |
+| IPC | `cultHandlers.ts`, `src/shared/cults/cultApi.ts` | `cults:<method>` channels (`list`, `get`, `create`, `update`, `delete`, `models`, `archetypes`, `start`, `pause`, `resume`, `stop`, `killNow`, `raiseCap`, `decidePetition`, `dismissAcolyte`, `runs`, `pipeline`) and the `cults:event` push. Every argument is parsed by a strict zod schema. |
+| UI | `src/renderer/src/cults/**`, `src/renderer/src/sidebar/CultsSection.tsx` | The Cults sidebar section, the Found a cult dialog, and the Cult page: command bar, chamber, roster and inspector, council coverage, petition banners, comms pane (Magos terminal, Pipeline, watch-only acolyte terminals), Shrine and Past runs. |
+
+**Workspace.** A folder cult works in a tracked folder of the Folders registry, checked again at every launch. A
+project-less cult works in its **sanctum**, `realpath(userData)/cults/<cultId>`, registered in
+`userData/cults/sanctums.json` only by the cult create and delete paths. The sanctum is a db-mode workspace (its database
+in `dbProjectDir(sanctum, home)`, nothing written into the folder, not a Git repository). `SanctumRegistry.resolve` is the
+one trusted predicate the untracked-folder gates consult after the Folders registry (`folders.resolve(p) ??
+sanctums.resolve(p)`); a sanctum never appears in Folders, project-less reach grants or forge membership, and no IPC input
+can register one. Deleting a cult deletes its member chats, the cult, the sanctum and the sanctum's database project. A
+Plan Forge cult always works in a tracked folder, and its target epic must be in that folder.
+
+**Members are chats.** Each member is an ordinary OMP chat (so mailbox binding works unchanged), titled with its display
+name and left out of the folder's chat list. Its cult rules (`cultRules.ts`) are written to `cult-rules.md` in the chat's
+own OMP folder (mode 0600) before it starts and appended to its instructions. The Magos's first prompt is the charter; an
+acolyte's is its mission. The charter never appears in the rules.
+
+**Names.** Themed names (`src/shared/cults/names.ts`): a Magos from a fixed list ("Magos Vettius"), an acolyte as stem
+plus number ("Acolyte Ferrum-7"), deterministic from a seed and never one already taken in the run. The Magos may name an
+acolyte itself; a taken name is refused with `name_taken`.
+
+**Models.** `omp models --json` for the providers OMP is signed in for, chat models only, `isSafeModelId` selectors only,
+cheapest first. Tier from `cost.output` per 1M tokens when `pricingStatus` is `fixed`: `low` ≤ 5, `normal` between,
+`high` ≥ 25; otherwise `unpriced`. Without OMP, or signed out, the list is empty with a reason ("OMP is not connected, so
+no model can be offered."); there is never a fallback model. An acolyte runs on the cheapest model unless the Magos names
+one; a model above the cheapest tier needs a `tierReason` (`tier_reason_required`), recorded and shown.
+
+## Archetypes, rosters and worker types
+
+Worker types are professional perspectives. They are deliberately separate from a grant role (which decides authority:
+every acolyte holds a `worker` grant whatever its worker type) and from a ticket's dispatch `workType` (which routes
+tickets to agents). A worker type changes only an acolyte's mission and rules text.
+
+Standard worker types (`STANDARD_WORKER_TYPES`): `ui_ux` (UI/UX), `implementation_engineering` (Implementation
+engineering), `delivery_scrum` (Delivery/Scrum), `security` (Security), `quality` (Quality), `architecture_team_lead`
+(Architecture/team lead), plus `custom`, a person-defined slot described by its label and mission.
+
+| Archetype | Roster | Enforced or default |
+| --- | --- | --- |
+| General (`general`) | none; the Magos chooses | enforced empty (`general_has_slots`) |
+| Plan Forge (`plan_forge`) | the six standard types, in order, all required | **enforced** (`plan_forge_quorum`); cap at least 6 |
+| Delivery (`delivery`) | architecture/team lead, implementation engineering, quality, delivery/Scrum | editable defaults |
+| Audit / Red Team (`audit_red_team`) | security, quality, architecture/team lead, implementation engineering, each "Analysis only" | editable defaults |
+| Research / Creative (`research_creative`) | UI/UX, implementation engineering, quality | editable defaults |
+| Custom (`custom`) | slots the person supplies | supplied |
+
+Every roster is validated (`validateRoster`): ids, labels and missions non-blank and unique; known worker types; and the
+cap at least the number of required slots (`cap_below_required`). A run's roster is frozen at its start. In a cult with a
+roster the Magos summons by `slotId` (`slot_unknown`, `slot_occupied`); for any archetype except Plan Forge, conclusion
+waits until every required slot has reported (`reports_missing`).
+
+**Run worker types** (`dynamicWorkerTypes.ts`). When the roster lacks a perspective the charter materially needs, the
+Magos may create a type with `cult_create_worker_type` (display name ≤ 80, description ≤ 500, mission ≤ 2000, rationale
+≤ 1000 characters; inert text). Main gives it the id `dyn_<n>`. Rules:
+
+- It belongs to its run alone: a new run starts with none, and the cult definition never gains one.
+- At most `MAX_DYNAMIC_WORKER_TYPES` = 24 per run, **counting retired ones** (`worker_type_limit`).
+- A name that collides with a built-in type or one already in the run is refused (`worker_type_name_taken`).
+- `requiredForConclusion: true` makes it gate conclusion like a required slot; a required type **can never be retired**
+  (`worker_type_required`). An optional type retires (`cult_retire_worker_type`) only while no acolyte has ever held it
+  (`worker_type_assigned`).
+- It adds no capability, grant, folder, Save right, model or tier. Its acolytes are summoned like any other: same cap,
+  model and petition rules.
+- It is additive: it never satisfies or replaces a Plan Forge slot (`validateRoster` keeps the six untouched).
+
+## State machine
+
+`src/shared/cults/runState.ts` is a pure machine: `starting → running ⇄ paused → shutting_down → ended`.
+
+| Event | From | To |
+| --- | --- | --- |
+| `started` | `starting` | `running` |
+| `pause` | `running` | `paused` (running time banked) |
+| `resume` | `paused` | `running` |
+| `shutdown` (`completed`, `stopped`) | `starting`, `running`, `paused` | `shutting_down` |
+| `shutdown` (`expired`) | `running`, with the limit used up | `shutting_down` |
+| `finish` | `shutting_down` | `ended` |
+| `abort` (`killed`, `interrupted`, `failed`) | any but `ended` | `ended` |
+
+Any other move throws `RunTransitionError` (`invalid_state`). End reasons: `completed`, `expired`, `stopped`, `killed`,
+`interrupted`, `failed`.
+
+**Timer.** It counts running time only: frozen while paused or shutting down. `remainingMs` is null for an unlimited run,
+which never expires. The supervisor fires at the run's remaining time and re-arms delays longer than `setTimeout`'s
+maximum (`MAX_TIMEOUT_MS` = 2^31 − 1 ms) in chunks (`runTimer.ts`).
+
+**Duration input** (`src/shared/cults/duration.ts`). Whole-number terms with units `s`/`sec`/`second(s)`,
+`m`/`min`/`minute(s)`, `h`/`hr`/`hrs`/`hour(s)`, `d`/`day(s)`, optionally combined: `30m`, `90hr`, `2d`, `1d 6h`. No zero,
+negative or unknown units. A time limit is at least 1 minute (`MIN_TIME_LIMIT_MS`) with no upper bound, or **Unlimited**
+(the dialog's Unlimited box; the parser also reads `unlimited`, `none`, `no limit`).
+
+**Cap.** `MIN_CAP` 1 to `MAX_CAP` 24, default `DEFAULT_CAP` 6 (a Plan Forge needs at least 6). An approved acolytes
+petition or Raise cap lifts it, never past 24.
+
+## Shutdown and its constants
+
+| Constant | Value | Where |
+| --- | --- | --- |
+| Acolyte grace (`DEFAULT_ACOLYTE_GRACE_MS`) | 3 minutes, customizable 30 s to 60 min | `runState.ts` |
+| Magos window (`DEFAULT_MAGOS_WINDOW_MS`) | 2 minutes, customizable 30 s to 60 min | `runState.ts` |
+| Backstop (`backstopMs`) | grace + window + 1 minute (`BACKSTOP_MARGIN_MS`); derived, never stored | `runState.ts` |
+| Ctrl+D (`EXIT_KEYS_AFTER_MS`) | 2 s after the `shutdown` action | `cultLauncher.ts` |
+| Kill (`GRACEFUL_EXIT_MS`) | 5 s after the `shutdown` action | `cultLauncher.ts` |
+| Extension control poll (`CULT_CONTROL_POLL_MS`) | 1 s | extension `cultControl.ts` |
+
+Shutdown (Stop, expiry, or the Magos concluding the run with `cult_conclude_run`):
+
+1. The run moves to `shutting_down`; the standing wake closes. The Magos gets the fixed `wind_down` notice and every
+   acolyte `conclude`.
+2. Acolytes that conclude (`cult_conclude_service`) end gracefully within the **acolyte grace**; after it, the rest are
+   asked to exit.
+3. The Magos then has its **window** to write the chronicle and conclude; after it, it is asked to exit.
+4. At the **backstop**, every member still running is killed. The run ends with its reason; its pending petitions are
+   denied in the same transaction; every petition upgrade is revoked.
+
+Ending one member (`endMember`): write `shutdown` to its control file (the extension calls `ctx.shutdown()`), type Ctrl+D
+after 2 s for a CLI whose extension did not act, and kill its tree after 5 s. Its grants are revoked by the terminal on
+every way out.
+
+**Kill now** ends every member at once (`killed`). **Quit** (`dispose`; a live run keeps the app's quit busy) does the
+same with `interrupted`. **Startup** (`reconcileOnStartup`) marks every run left active `interrupted`, ends any member
+process that survived through the ledger (a pid is ended only when its command line still names the chat's own OMP session
+folder: `ps` on macOS/Linux, CIM and `taskkill` on Windows) and revokes the upgrades it left. A Magos whose terminal exits
+on its own (`left`) during a running or paused run ends the run `failed` and kills every acolyte.
+
+**Pause** writes `interrupt` (the extension calls `ctx.abort()` and shows the fixed "paused" notice) and closes the
+standing wake; **Resume** sends the fixed "resumed" notice. No process restarts.
+
+## Control, wake and status files
+
+All three live in the member's chat folder beside `context-outbox.json`. Only main writes `cult-control.json` and
+`cult-wake.json`, with `writePrivateFile` at mode **0600**; the extension writes `cult-status.json` through a 0600 temp
+file renamed over it.
+
+- **Control** (`{ version, chatId, epoch, actions }`): up to 32 kept actions, each with a `seq`. The **epoch** is the
+  member's launch generation; the extension applies only a file of its own launch, each `seq` once, so a restarted member
+  never re-applies an earlier launch's actions. Only fixed action codes and validated values are written; the extension
+  renders fixed templates (`[Dark Mechanicus desktop] …`) delivered as `dm-cult-control` asides. From the file only the
+  validated integer `granted` and the JSON-quoted absolute `folder`/`tokenFile` reach the agent.
+- **Wake** (`{ version, chatId, epoch, wake }`): peer mail does not wake an idle member by itself. Main arms a wake only
+  when both endpoints are live members of the same run this app supervises and the run is `running` (`cultWakeAllowed`,
+  `isWakeOpen`). The extension takes it once (no retry, no refund) and starts a turn with the fixed `CULT_WAKE_REMINDER`
+  (`dm-cult-wake`), never peer text. When a run leaves `running` (pause, shutdown, Kill now, failure, quit) every armed
+  wake is disarmed (`wake: null`) before any member is told or ended.
+- **Status** (`{ state: 'working' | 'idle' }`), written on `agent_start`, `tool_execution_start` and `agent_end`. Main
+  (`memberActivity.ts`) takes the last tool call from the session JSONL, reduced to a target (a file tool's last two path
+  segments, a shell command's first 40 characters, a search pattern), control characters stripped, at most 80
+  characters; at most one update per member every 2 s (`ACTIVITY_THROTTLE_MS`).
+
+## Commands
+
+Members act through native Skitarii tools (`resources/skitarii/extension/cultTools.ts`), each a strict wrapper over a core
+`dm` command (`src/core/commands/cults.ts`) that relays one operation to the desktop over the control pipe. The tool names
+are `CULT_TOOLS` in `src/main/cults/cultRules.ts`, which the cult rules teach:
+
+| Tool | Core operation | Who |
+| --- | --- | --- |
+| `cult_status` | `cult_status` | Magos, acolyte |
+| `cult_summon_acolyte` | `cult_summon_acolyte` | Magos |
+| `cult_dismiss_acolyte` | `cult_dismiss_acolyte` | Magos |
+| `cult_list_acolytes` | `cult_list_acolytes` | Magos |
+| `cult_petition` | `cult_petition` | Magos |
+| `cult_order_all` | `cult_order_all` | Magos |
+| `cult_conclude_run` | `cult_conclude_run` | Magos |
+| `cult_conclude_service` | `cult_conclude_service` | acolyte |
+| `cult_create_worker_type` | `cult_create_worker_type` | Magos |
+| `cult_list_worker_types` | `cult_list_worker_types` | Magos |
+| `cult_retire_worker_type` | `cult_retire_worker_type` | Magos |
+| `cult_record_synthesis` | `cult_record_synthesis` | Magos |
+| `cult_shrine` | `cult_publish_shrine` | Magos, acolyte |
+
+Every command needs the capability `cult.act`. Arguments never name a run, a role or a sender: main resolves the caller
+from the pipe's **bound grant** only. Its chat must be a live member of a run this app supervises, in the run's own
+folder; a Magos-only operation from an acolyte, an acolyte-only one from the Magos, and anything from another chat are
+`unauthorized`. Refusals are typed (`CULT_ERROR_CODES`): `cap_reached`, `model_unavailable`, `tier_reason_required`,
+`run_paused`, `run_ending`, `name_taken`, `folder_not_tracked`, `no_acolytes`, `slot_unknown`, `slot_occupied`,
+`reports_missing`, `target_stale`, `plan_invalid`, `synthesis_missing`, `worker_type_name_taken`, `worker_type_limit`,
+`worker_type_required`, `worker_type_assigned`, `worker_type_unknown`, `shrine_refused`, `invalid_state`. Data rides only
+on `model_unavailable` (signed-in ids), `reports_missing` (missing fixed and created types) and `plan_invalid` (up to 20
+validation errors). Order text is at most 16 KiB (`MAX_ORDER_BYTES`); a report at most 32 KiB (`MAX_REPORT_BYTES`).
+
+## Petitions and grant upgrades
+
+Only the Magos petitions (`cult_petition`), with a reason. Kinds (`PETITION_KINDS`):
+
+- **`acolytes`**: more acolytes. The person grants 1 to what was asked; the cap rises by that, never past 24.
+- **`allow_save`**: the Magos's own grant's `allow_save` is flipped on (`setChatGrantAllowSave`) and its chat record
+  follows. The next `dm` command sees it; no restart.
+- **`folder_access`**: another **tracked** folder (never a sanctum). Main issues a new `orchestrator` grant in that
+  folder's database with `allowSave: false` and `runSave: false`, writes its token to a private file in the Magos's
+  scratch folder, attaches it to the Magos's terminal (renewed with its own grant, revoked if it exits) and tells the
+  Magos with a fixed notice naming `dm --repo <folder> --token-file <file>`.
+
+The decision reaches the Magos as a fixed `petition` control notice. When the run ends, pending petitions are denied and
+every upgrade is revoked: Allow save flipped back, the folder grant revoked and its token file deleted. Every upgrade is
+in the ledger until revoked, so the start after a crash revokes what the crash left.
+
+## Plan Forge council
+
+A Plan Forge run is bound at start (before its Magos) to its target epic's saved and draft revisions and the folder's
+event high-water mark, read through the workspace command layer. Conclusion (`cult_conclude_run`) re-reads the target and
+refuses, leaving the run running, with:
+
+- `target_stale`: a draft change or save since the binding not made through a Magos grant;
+- `reports_missing`: a required type (the fixed six, plus each active Magos-created required type) has no report from one
+  distinct member of it, tagged with the target revision it saw;
+- `synthesis_missing`: no synthesis (`cult_record_synthesis`) for the Magos's latest edit of the draft with a decision on a
+  recommendation of every required type, or a draft revision the Magos did not write;
+- `plan_invalid`: the draft does not validate.
+
+Saving is not part of the gate. Acolytes hold `worker` grants and cannot edit the draft (`draft.edit`) or save.
+
+## Pipeline
+
+`cultPipeline.ts` builds a run-wide, human-only, read-only timeline: every message between the run's members (read through
+`readHumanAgentInbox`, which neither acknowledges nor moves the person's seen cursor; a message counts only when its sender
+is a member of the same run) and every `cult_events` row, merged by `(time, id)` and appended to `cult_pipeline` (app
+database) after everything already shown, so the paged order never moves. Bodies are copied, so the pipeline outlives mail
+retention and a member's departure. An `order_all` is one entry with its recipients, written with its messages in one
+exclusive step. Previews are 600 characters (`PIPELINE_PREVIEW_CHARS`); pages at most 200 (`MAX_PIPELINE_PAGE`). Bodies
+and summaries are inert text: React renders them as text, never HTML or Markdown.
+
+## Chamber
+
+The Cult page (`CultPage.tsx`) shows the command bar across the top, the chamber on the left with the roster strip and
+petition banners, the comms pane on the right, and the Past runs drawer.
+
+- **Layout.** A side-view room (`chamber/layout.ts`, measured art in `src/renderer/src/assets/chamber/props.json`):
+  backdrop, viewscreen (the compact Shrine), props, a teleport pad, a door, and the **helm**, where the Magos stands. Each
+  acolyte is the mascot sprite (`MascotSprite`), tinted with its roster colour and name-plated.
+- **Animations.** The Magos (never tinted) plays its action at the helm. Acolytes join through the teleport pad (beam),
+  wander, work and leave. Effects (`effects.ts`): **packets** fly for an order, a report or peer mail; an `order_all`
+  sweeps a **ring** from the helm across the room; **beam** and **sparks** mark arrivals.
+- **Feed.** `chamberFeed.ts` turns consecutive run snapshots (`cult_changed` → `cults:event`) and pipeline entries into
+  chamber events, each exactly once: members joining or leaving, working, the Magos busy, a pending petition, the last
+  minute (under 60 s left: warning), run state, and bubbles. Entries sent before the feed started are history and never
+  animate. An `order_all` comes as one entry and one `orderSent` to all.
+- **Bubbles** (`bubbleLines.ts`): an acolyte's last tool call phrased by kind, the first line of a mail, or an idle quip;
+  plain text, trimmed and capped, never parsed.
+- **Run states.** Paused is **stasis** (everything frozen); shutting down dims the lights once the acolytes have gone; the
+  end is a **blackout**; no active run shows the empty room with its lights off.
+- **Reduced motion.** With the reduced-motion preference the chamber is static (`staticChamber`), effects are dropped and
+  orders show as outlines. The chamber is `aria-hidden`: every fact it hints at is in the roster, inspector, council
+  coverage and pipeline as text.
+- **Art provenance**: [`docs/mascot-sprites.md`](../mascot-sprites.md).
+
+## Shrine
+
+`cult_shrine` (core `cult_publish_shrine`) names one file. Main resolves its real path and requires it inside the run's own
+work dir (`..` or a symlink out is refused), with extension `png`, `jpg`, `jpeg`, `svg` or `html`, at most 10 MiB
+(`SHRINE_MAX_BYTES`); otherwise `shrine_refused`. It is recorded at the run's next Shrine revision; a debounced watch
+(300 ms) plus a reconcile every 2 s (`SHRINE_RECONCILE_MS`) bump the revision when the file changes.
+
+The content is untrusted. It is served only by the `dm-shrine:` protocol at `dm-shrine://shrine/<run id>/<revision>`: the
+address names a run, never a path; main re-checks the file on every read and answers 404 otherwise. HTML gets
+`SHRINE_HTML_CSP` (`default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:`: no
+network) and is shown only in an `<iframe sandbox="allow-scripts">` without `allow-same-origin` (opaque origin: no app,
+preload or top window). Images and SVG are shown as `<img>` (an SVG's scripts never run) with `SHRINE_IMAGE_CSP`.
+
+## Security boundaries
+
+- **Authority comes only from bound grants.** Every cult command needs `cult.act` and is resolved from the pipe's bound
+  grant, never from arguments.
+- **The Magos** holds an `orchestrator` grant issued with `allowSave: false` (an orchestrator grant otherwise defaults to
+  true) and `runSave: false`: the grants column `run_save = 0` (core schema **v38**, DM-738) takes it out of the DM-900
+  run-ownership Save exception (`requireSaveAuthority`), so the Magos saves only after an approved `allow_save` petition.
+- **Acolytes** hold `worker` grants: read and validate plans, never edit drafts or save; they cannot summon or petition.
+- **Petitions** are the only upgrades, decided by the person; all are revoked at run end and after a crash.
+- **Folder access** is a separate grant in that folder whose token sits in a private token file, deleted at revocation.
+- **Control, wake and status files** are 0600, epoch-stamped (control and wake) and carry no free text; peer text never
+  reaches the control or wake path. The wake is run-scoped: only mail between live members of the same running run arms it.
+- **The sanctum bypass** is one predicate over app-created paths; its limit is that a sanctum never joins Folders, reach
+  grants or forge membership, and nothing from IPC creates one.
+- **The Shrine** is served through `dm-shrine:` with CSP and sandbox as above.
+- **Acolyte terminals** in the comms pane are **watch-only**: no input subscription, `disableStdin`, no focus, no PTY
+  resize. Only the Magos's terminal takes input.
+- **Inert text.** Names, missions, worker type contracts and rationales are JSON-quoted in the rules; pipeline bodies,
+  bubbles and reports are rendered as text; created types carry no authority.
+
+## Compared with Claude Code agent teams
+
+[Claude Code agent teams](https://code.claude.com/docs/en/agent-teams) also have a lead session coordinating teammates
+that message each other. Cults differ in what the desktop enforces: a time limit on running time only (or Unlimited), an
+acolyte cap raised only by the person, typed rosters with required reports, a shutdown protocol with a backstop kill,
+petitions for Save and folder access with revocation at run end, authority from per-member grants, and a run-wide
+pipeline and chamber for the person to watch. Members are ordinary Skitarii chats on the Dark Mechanicus mailbox, not a
+separate team runtime.
+
+# Appendix: DM-622 investigation evidence
+
+The rest of this record is the DM-622 investigation as written before the build. Its decisions were implemented as
+described above; where the build differs, the sections above are correct. Notable differences: the extension polls the
+control file every 1 s (`CULT_CONTROL_POLL_MS`), not through `MailWatcher`'s timer; the Ctrl+D fallback is typed after 2 s
+and the kill follows at 5 s; the control file carries an `epoch` and an `actions` list rather than a single `action`; the
+standing wake uses its own `cult-wake.json`; the pipeline is the `cults:pipeline` channel over the app-database
+`cult_pipeline` table rather than `cultMail:read`; and the Q10 `runSave` opt-out was built (schema v38). The "Limits" below
+describe the investigation only; current verification is in [Verification status](#verification-status-verified-on-windows-only).
+
 
 ## How the evidence was gathered
 
@@ -501,11 +838,11 @@ The existing tests that prove it passed on this branch: `drafts.test.ts`, `plans
 - **Plan Forge**: the existing commands with `expectedDraftRevision` (Q9); the run-ownership caveat and the `runSave` opt-out
   if needed (Q10).
 
-## Limits
+## Limits of the investigation
 
-- macOS arm64 only. The Windows-specific parts were not run here: ConPTY exit timing, `taskkill` in `killPtyTree`, and Escape
-  and Ctrl+D through ConPTY. *Supervision* must repeat the Q1 and Q3 timings on Windows.
+- macOS arm64 only. The Windows-specific parts were not run during the investigation: ConPTY exit timing, `taskkill` in
+  `killPtyTree`, and Escape and Ctrl+D through ConPTY. They are verified at DM-621 (see Verification status).
 - Five real turns on one model. Interrupt timing under heavy tool use (a long `bash` run) was not measured; OMP's
   `abort_bash` semantics suggest the running tool is stopped too. [INFERENCE]
-- The `cult-control.json`, `cult-status.json`, `SanctumRegistry`, `setGrantAllowSave` and `runSave` designs are proposals
-  based on the verified mechanisms above. None of them is implemented.
+- At the time of the investigation, `cult-control.json`, `cult-status.json`, `SanctumRegistry`, `setGrantAllowSave` and
+  `runSave` were proposals. All of them are now built (see the as-built sections).
