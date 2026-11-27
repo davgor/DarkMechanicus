@@ -173,6 +173,14 @@ function switchModel<S>({ registry, sessions, models }: AgentChatHandlerDeps<S>,
   return sessions.setModel(ref, { provider, modelId, ...(effort === undefined ? {} : { effort }) }, () => models.chatModels(ref))
 }
 
+/** The `models` request: a chat's catalog, or before a chat starts, an agent's. */
+function modelCatalog<S>({ registry, models }: AgentChatHandlerDeps<S>, input: unknown): Promise<ChatModelOption[]> {
+  const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
+  const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
+  const options = { refresh: request.refresh === true }
+  return 'chatId' in request ? models.chatModels({ folder, id: request.chatId }, options) : models.catalogModels(request.agentId, options)
+}
+
 export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): AgentChatHandlers<S> {
   const { registry, sessions } = deps
   const attachEvidence = evidenceAttacher(registry, deps.evidence)
@@ -217,12 +225,7 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       return { image: await sessions.stageImage(ref, Buffer.from(request.data, 'base64')) }
     }),
     attachEvidence: input => answer(deps, () => attachEvidence(input)),
-    models: input => answer(deps, () => {
-      const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
-      const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
-      const options = { refresh: request.refresh === true }
-      return 'chatId' in request ? deps.models.chatModels({ folder, id: request.chatId }, options) : deps.models.catalogModels(request.agentId, options)
-    }),
+    models: input => answer(deps, () => modelCatalog(deps, input)),
     setModel: input => answer(deps, () => switchModel(deps, input))
   }
 }
