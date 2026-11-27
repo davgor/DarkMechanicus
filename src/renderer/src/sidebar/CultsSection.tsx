@@ -19,8 +19,8 @@ import '../cults/cults.css'
 /** The run's state as the sidebar dot says it. */
 type CultDot = 'idle' | 'running' | 'paused' | 'ending'
 
-/** A member's live activity, published by the supervisor with each snapshot (DM-666); absent before it lands. */
-type Member = CultMemberDetail & { activity?: { working: boolean } | null }
+/** A member as the sidebar lists it, with the live activity the supervisor publishes in each snapshot. */
+type Member = CultMemberDetail
 
 interface CultsSectionProps {
   folders: readonly TrackedFolderView[]
