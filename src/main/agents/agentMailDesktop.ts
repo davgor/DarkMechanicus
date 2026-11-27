@@ -290,13 +290,23 @@ class ChatMailDesk {
     const chat = await this.chatAt(folder, state.chatId, true)
     if (chat === null) return true
     if (this.watches.get(folder) !== watch) return false
-    const problem = await delivery.resume(chat)
+    const problem = await this.wake(delivery, chat)
     if (this.watches.get(folder) !== watch) return false
     const key = `${folder}\0${chat.id}`
     if (problem === null) this.deliveryProblems.delete(key)
     else this.deliveryProblems.set(key, problem)
     state.delivery.problem = problem
     return true
+  }
+
+  /** The activation's answer, or its refusal (a GUI start or terminal attach the chat's state forbids) as the blocker. */
+  private async wake(delivery: NonNullable<AgentMailDesktopDeps['delivery']>, chat: ChatRecord): Promise<string | null> {
+    try {
+      return await delivery.resume(chat)
+    } catch (error) {
+      if (!(error instanceof DomainError)) this.deps.onUnexpectedError?.(error)
+      return error instanceof Error ? error.message : String(error)
+    }
   }
 
   private publishSweep(folder: string, states: ChatMailState[], watch: FolderWatch): void {
