@@ -242,19 +242,32 @@ describe('verifyDelivery: installed app version', () => {
     const verdict = await verify(scene(), { commit: increment }, { delivery: { target: 'main', release: false, verifyInstalled: false }, installed: null })
     expect(verdict.checks.map((item) => item.name)).toEqual(NAMES.slice(0, 3))
     expect(verdict).toMatchObject({ passed: true, releaseVersion: null, installedVersion: null })
+    const known = await verify(scene(), { commit: increment }, { delivery: { target: 'main', release: false, verifyInstalled: false } })
+    expect(known.installedVersion).toBeNull()
   })
 })
 
+/** Squash-merges the epic onto main after an unrelated main commit and publishes it; returns the merge commit. */
+function squashed(repo: GitRepo): string {
+  repo.commit('unrelated main work')
+  const merged = repo.squash(EPIC, 'deliver')
+  publish(repo, merged)
+  return merged
+}
+
+/** The real adapter, except that reading `path` at any of `refs` fails: showFile and listFiles both answer null. */
+function failingAt(repo: GitRepo, refs: string[], path: string): GitAdapter {
+  const real = createGitAdapter(repo.root)
+  const fails = (ref: string, at: string): boolean => refs.includes(ref) && at === path
+  return {
+    ...real,
+    showFile: async (ref, at) => (fails(ref, at) ? null : real.showFile(ref, at)),
+    listFiles: async (ref, pathspec) => (fails(ref, pathspec) ? null : real.listFiles(ref, pathspec))
+  }
+}
+
 describe('verifyDelivery: fail-closed on answers git could not give', () => {
   const scene = useScene()
-
-  function squashed(): string {
-    const { repo } = scene()
-    repo.commit('unrelated main work')
-    const merged = repo.squash(EPIC, 'deliver')
-    publish(repo, merged)
-    return merged
-  }
 
   it('fails every check when git answers nothing', async () => {
     const verdict = await verifyDelivery(createStubGit(), contextOf(scene()), { commit: 'a'.repeat(40), releaseTag: 'v1.2.0', observedInstalledVersion: '1.3.0' }, NOW)
@@ -263,17 +276,8 @@ describe('verifyDelivery: fail-closed on answers git could not give', () => {
     expect(verdict.reasons).toHaveLength(NAMES.length)
   })
 
-  it('fails when showFile answers null for a path listFiles still lists', async () => {
-    const merged = squashed()
-    const real = createGitAdapter(scene().repo.root)
-    const git: GitAdapter = { ...real, showFile: async (ref, path) => (path === 'feature.txt' ? null : real.showFile(ref, path)) }
-    const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, git)
-    expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'failed', detail: 'Git could not read these paths: feature.txt.' })
-    expect(verdict.passed).toBe(false)
-  })
-
   it('fails when isAncestor, changedPaths or mergeBase cannot answer', async () => {
-    const merged = squashed()
+    const merged = squashed(scene().repo)
     const real = createGitAdapter(scene().repo.root)
     const claim = { commit: merged, releaseTag: 'v1.2.0' }
     for (const git of [
@@ -298,6 +302,61 @@ describe('verifyDelivery: fail-closed on answers git could not give', () => {
     publish(repo, merged)
     const verdict = await verifyDelivery(createGitAdapter(repo.root), { ...contextOf(scene()), increment: { commit: increment } }, { commit: merged, releaseTag: 'v1.2.0' }, NOW)
     expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'passed', detail: 'squash-merged: 1 files match' })
+  })
+})
+
+describe('verifyDelivery: fail-closed on paths git could not read', () => {
+  const scene = useScene()
+
+  it('fails when showFile answers null for a path listFiles still lists', async () => {
+    const merged = squashed(scene().repo)
+    const real = createGitAdapter(scene().repo.root)
+    const git: GitAdapter = { ...real, showFile: async (ref, path) => (path === 'feature.txt' ? null : real.showFile(ref, path)) }
+    const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, git)
+    expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'failed', detail: 'Git could not read these paths: feature.txt.' })
+    expect(verdict.passed).toBe(false)
+  })
+
+  it('fails when reads of a path fail at both the increment and the delivered commit', async () => {
+    const { repo, increment } = scene()
+    const merged = squashed(repo)
+    const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, failingAt(repo, [increment, merged], 'feature.txt'))
+    expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'failed', detail: 'Git could not read these paths: feature.txt.' })
+    expect(verdict.passed).toBe(false)
+  })
+
+  it('fails rather than passing as merged with target changes when a read fails only at the target or the merge base', async () => {
+    const { repo, increment } = scene()
+    commitFiles(repo, { 'shared.txt': SHARED.replace('seven', 'SEVEN') }, 'main edits shared.txt')
+    const merged = repo.squash(EPIC, 'deliver')
+    publish(repo, merged)
+    const target = repo.rev(`${merged}^`)
+    const base = repo.git('merge-base', increment, target).trim()
+    for (const ref of [target, base]) {
+      const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, failingAt(repo, [ref], 'shared.txt'))
+      expect(named(verdict, 'Carries the increment')).toMatchObject({ status: 'failed', detail: 'Git could not read these paths: shared.txt.' })
+      expect(verdict.passed).toBe(false)
+    }
+  })
+
+  it('compares the changed paths one at a time', async () => {
+    const merged = squashed(scene().repo)
+    const real = createGitAdapter(scene().repo.root)
+    const reading = new Set<string>()
+    let paths = 0
+    const git: GitAdapter = {
+      ...real,
+      showFile: async (ref, path) => {
+        reading.add(path)
+        paths = Math.max(paths, reading.size)
+        const text = await real.showFile(ref, path)
+        reading.delete(path)
+        return text
+      }
+    }
+    const verdict = await verify(scene(), { commit: merged, releaseTag: 'v1.2.0' }, {}, git)
+    expect(named(verdict, 'Carries the increment')?.status).toBe('passed')
+    expect(paths).toBe(1)
   })
 })
 

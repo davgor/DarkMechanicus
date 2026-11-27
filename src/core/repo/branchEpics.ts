@@ -76,7 +76,7 @@ async function readBranchEpic(deps: BranchEpicDeps, branch: string, candidate: C
 async function readBranch(deps: BranchEpicDeps, branch: string, limit: number): Promise<BranchEpicView[]> {
   const epicsPath = displayPath(deps.layout, deps.layout.epicsDir)
   const views: BranchEpicView[] = []
-  for (const candidate of candidatesFrom(await deps.git.listFiles(branch, epicsPath), epicsPath)) {
+  for (const candidate of candidatesFrom((await deps.git.listFiles(branch, epicsPath)) ?? [], epicsPath)) {
     const view = views.length < limit ? await readBranchEpic(deps, branch, candidate) : null
     if (view !== null) {
       views.push(view)

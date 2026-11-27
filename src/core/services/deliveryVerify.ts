@@ -34,6 +34,7 @@ export interface DeliveryVerdict {
   reasons: string[]
   /** The release's package.json version, once `Release version` passed; else null. */
   releaseVersion: string | null
+  /** The recording app's version, when `Installed app version` ran; else null. */
   installedVersion: string | null
   verifiedAt: string
 }
@@ -115,14 +116,15 @@ type Content = string | null | typeof UNKNOWN
 
 /**
  * The file at `ref`, null when the commit does not have it. `showFile` answers null for a failure too, so a null is
- * only taken as absence when `listFiles` does not list the path.
+ * only taken as absence when `listFiles` succeeds and does not list the path; a failed listing is unknown.
  */
 async function contentAt(git: GitAdapter, ref: string, path: string): Promise<Content> {
   const text = await git.showFile(ref, path)
   if (text !== null) {
     return text
   }
-  return (await git.listFiles(ref, path)).length === 0 ? null : UNKNOWN
+  const listing = await git.listFiles(ref, path)
+  return listing !== null && listing.length === 0 ? null : UNKNOWN
 }
 
 /** The commits the squash comparison reads: the increment, the merge commit M, M's first parent T and B = merge-base(I, T). */
@@ -170,7 +172,11 @@ async function squashCheck(git: GitAdapter, increment: string, merged: Commit): 
   if (typeof resolved === 'string') {
     return check(NAME.carries, 'failed', resolved)
   }
-  const verdicts = await Promise.all(resolved.paths.map((path) => comparePath(git, resolved.squash, path)))
+  // One path at a time: a squash can touch many paths, and a burst of parallel git reads times out on a loaded host.
+  const verdicts: PathVerdict[] = []
+  for (const path of resolved.paths) {
+    verdicts.push(await comparePath(git, resolved.squash, path))
+  }
   const having = (wanted: PathVerdict): string[] => resolved.paths.filter((_, index) => verdicts[index] === wanted)
   const [unknown, differs, target] = [having('unknown'), having('differs'), having('target')]
   if (unknown.length > 0) {
@@ -267,15 +273,16 @@ export async function verifyDelivery(git: GitAdapter, context: DeliveryContext, 
   const checks = [exists.result, await targetCheck(git, exists.found, delivery.target), await carriesCheck(git, exists.found, context.increment.commit)]
   const release = delivery.release ? await releaseChecks(git, exists.found, claim) : { checks: [], version: null }
   checks.push(...release.checks)
-  if (delivery.verifyInstalled) {
-    checks.push(installedCheck(context.installed, release.version, claim.observedInstalledVersion))
+  const installed = delivery.verifyInstalled ? installedCheck(context.installed, release.version, claim.observedInstalledVersion) : null
+  if (installed !== null) {
+    checks.push(installed)
   }
   return {
     passed: checks.every((item) => item.status === 'passed'),
     checks,
     reasons: checks.filter((item) => item.status === 'failed').map((item) => item.detail),
     releaseVersion: release.version,
-    installedVersion: context.installed?.version ?? null,
+    installedVersion: installed === null ? null : (context.installed?.version ?? null),
     verifiedAt
   }
 }

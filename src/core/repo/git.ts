@@ -451,8 +451,10 @@ export function createGitAdapter(
       lines((await output(['worktree', 'list', '--porcelain'])) ?? '')
         .filter((line) => line.startsWith('worktree '))
         .map((line) => line.slice('worktree '.length)),
-    listFiles: async (ref, pathspec) =>
-      lines((await output(['ls-tree', '-r', '--name-only', safeArg(ref), '--', safeArg(pathspec)])) ?? ''),
+    listFiles: async (ref, pathspec) => {
+      const listing = await output(['ls-tree', '-r', '--name-only', safeArg(ref), '--', safeArg(pathspec)])
+      return listing === null ? null : lines(listing)
+    },
     showFile: async (ref, path) => output(['show', `${safeArg(ref)}:./${safeArg(path)}`]),
     ...commitQueries(run, output),
     ...recordPathQueries(root, fs, runSync),
