@@ -64,6 +64,16 @@ const composerRecord = (composers) => ready('agent-composer', {
   viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, composers
 })
 
+/** The agent-transcript state's layout, as Chromium reports the shipped styles at 1280×800. */
+const TRANSCRIPT = {
+  columnWidth: 760, columnOffset: 0,
+  bubble: { radius: '18px', background: 'rgb(48, 40, 35)', rightGap: 0, leftGap: 280 },
+  bubbleCopy: 'Copy', bubbleCopyFocused: true,
+  reply: { background: 'rgba(0, 0, 0, 0)', border: '0px', width: 760 },
+  replyActions: ['Copy'], codeCopy: 'Copy', codeCopyCorner: { top: 6, right: 6 }
+}
+const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
+
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
   return {
@@ -108,7 +118,8 @@ function passingChatStates() {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
-    'agent-composer': composerRecord(COMPOSERS)
+    'agent-composer': composerRecord(COMPOSERS),
+    'agent-transcript': transcriptRecord()
   }
 }
 
@@ -185,22 +196,47 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 30 states once each, in capture order', () => {
+  it('lists the 31 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'settings-notifications',
-      'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'agent-transcript',
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(30)
+    expect(new Set(STATES).size).toBe(31)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 465 s overall bound: 30 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 480 s overall bound: 31 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(465_000)
+    expect(OVERALL_LIMIT_MS).toBe(480_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: agent-transcript', () => {
+  it('passes a centred column, a right-hand bubble, a plain reply and every Copy in place', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord())).toEqual([])
+  })
+
+  it('fails a column wider than 760 px, a reply in a bubble and a bubble on the left', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord({ columnWidth: 860 })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected a centred reading column at most 760 px wide/),
+        expect.stringMatching(/^agent-transcript: expected the reply is plain text across the column/)])
+    expect(validateObservations('agent-transcript', transcriptRecord({ reply: { ...TRANSCRIPT.reply, background: 'rgb(33, 27, 24)' } })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected the reply is plain text across the column, with no bubble; got /)])
+    expect(validateObservations('agent-transcript', transcriptRecord({ bubble: { ...TRANSCRIPT.bubble, rightGap: 280, leftGap: 0 } })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected the person’s message is a rounded bubble against the column’s right edge/)])
+  })
+
+  it('fails a missing action row, a bubble Copy hidden under focus and a code Copy outside the corner', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord({ replyActions: [] })))
+      .toEqual(['agent-transcript: expected the reply’s action row holds Copy; got []'])
+    expect(validateObservations('agent-transcript', transcriptRecord({ bubbleCopy: null })))
+      .toEqual(['agent-transcript: expected the bubble’s Copy shows under keyboard focus; got [null,true]'])
+    expect(validateObservations('agent-transcript', transcriptRecord({ codeCopyCorner: { top: 40, right: 6 } })))
+      .toEqual(['agent-transcript: expected the code block’s Copy sits in its top-right corner; got ["Copy",{"top":40,"right":6}]'])
   })
 })
 
