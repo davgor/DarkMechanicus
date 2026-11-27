@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { once } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -18,7 +19,8 @@ afterEach(async () => {
   removeScratch(scratch)
 })
 
-function launch(frame: Buffer, shortReads = false) {
+/** `open` keeps stdin open after the frame, for a test that ends it itself. */
+function launch(frame: Buffer, { shortReads = false, open = false } = {}) {
   const job = windowsAgentJob(process.execPath, [CLI])
   const args = [...job.args]
   if (shortReads) {
@@ -39,7 +41,8 @@ function launch(frame: Buffer, shortReads = false) {
     child.once('close', resolveClose)
   })
   children.push({ child, closed })
-  child.stdin.end(frame)
+  if (open) child.stdin.write(frame)
+  else child.stdin.end(frame)
   return { child, closed, output: () => ({ stdout, stderr }) }
 }
 
@@ -61,12 +64,22 @@ describe.runIf(process.platform === 'win32')('native exact-read launch framing',
   it.each([false, true])('preserves immediate JSONL and EOF without prefetch (forced short reads: %s)', async (shortReads) => {
     const job = windowsAgentJob(process.execPath, [CLI])
     const jsonl = '{"type":"prompt","message":"immediate 猫"}\n'
-    const harness = launch(Buffer.concat([job.stdin, Buffer.from(jsonl)]), shortReads)
+    const harness = launch(Buffer.concat([job.stdin, Buffer.from(jsonl)]), { shortReads })
     expect(await harness.closed).toBe(0)
     expect(harness.output()).toEqual({ stdout: `fake-tui ready session_T1\n${jsonl}`, stderr: '' })
     const record = JSON.parse(readFileSync(join(scratch, 'fake.jsonl'), 'utf8')) as { pid: number }
     expect(() => process.kill(harness.child.pid!, 0)).toThrowError(expect.objectContaining({ code: 'ESRCH' }))
     expect(() => process.kill(record.pid, 0)).toThrowError(expect.objectContaining({ code: 'ESRCH' }))
+  })
+
+  it('exits with the CLI within a second of its EOF, never holding the stop in .NET shutdown', async () => {
+    const harness = launch(windowsAgentJob(process.execPath, [CLI]).stdin, { open: true })
+    await once(harness.child.stdout, 'data')
+    const eof = Date.now()
+    harness.child.stdin.end()
+    expect(await harness.closed).toBe(0)
+    // `[Environment]::Exit` held every stop for about 2.3 s; PowerShell's own exit takes tens of milliseconds.
+    expect(Date.now() - eof).toBeLessThan(1_000)
   })
 
   const badFrames: [string, (frame: Buffer) => Buffer][] = [

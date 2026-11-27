@@ -10,6 +10,8 @@ import type { ForgeSetupConversationStatus, ForgeSetupProjectView } from '../../
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { seedForgeFixture } from '../../test/forgeFixture'
 import { pngBytes } from '../../test/images'
+import type * as SessionsModule from '../agentChat/agentChatSessions'
+import type { AgentChatSessions, AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { FakePtyHost } from '../terminals/__mocks__/fakePtyHost'
 import { windowsCommandLine } from '../terminals/windowsCommandLine'
 import type { WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
@@ -416,4 +418,39 @@ it('recovers learning approvals at startup only in set-up folders, opening no ow
   expect(postedNames(restarted.owners[0]!).filter(name => !name.startsWith('sync:'))).toEqual(['pendingLearningApprovals'])
   expect(existsSync(join(lazy.path, '.darkmechanicus'))).toBe(false)
   expect(restarted.bridge.chats.busy()).toBe(false)
+})
+
+it('untracking releases the GUI chats before forgetting the folder, and removing an agent ends its GUI chats', async () => {
+  const calls: string[] = []
+  // The real GUI manager, observed at the two calls the bridge must make into it.
+  vi.doMock('../agentChat/agentChatSessions', async (importOriginal) => {
+    const actual = await importOriginal<typeof SessionsModule>()
+    return { ...actual, createAgentChatSessions: (deps: AgentChatSessionsDeps): AgentChatSessions => {
+      const sessions = actual.createAgentChatSessions(deps)
+      return { ...sessions,
+        releaseFolder: (folder, forget, related) => {
+          calls.push('release ' + folder)
+          return sessions.releaseFolder(folder, () => { calls.push('forget'); return forget() }, related)
+        },
+        endAgent: (id) => { calls.push('endAgent ' + id); return sessions.endAgent(id) }
+      }
+    } }
+  })
+  cleanups.push(() => { vi.doUnmock('../agentChat/agentChatSessions') })
+  const f = await bridgeFixture()
+  const { openAppDatabase } = await import('./appDatabase')
+  const { createAgentRegistry } = await import('./agentRegistry')
+  const db = openAppDatabase(desktop.userData)
+  try { createAgentRegistry({ db }).upsert({ kind: 'omp', executablePath: process.execPath, version: null, connectedVia: 'found' }) }
+  finally { db.close() }
+  const folder = await track(f, 'released')
+  const kept = await track(f, 'kept')
+
+  expect(await f.invoke('dm:untrackFolder', folder.path)).toMatchObject([{ path: kept.path }])
+  // The GUI release wraps `forget`: the folder is still tracked when its chats are stopped, and forgotten only after.
+  expect(calls).toEqual(['release ' + folder.path, 'forget'])
+  expect(await f.invoke('dm:listFolders')).toMatchObject([{ path: kept.path }])
+
+  expect(await f.invoke('agents:remove', 'omp')).toEqual([])
+  expect(calls).toEqual(['release ' + folder.path, 'forget', 'endAgent omp'])
 })

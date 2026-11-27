@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RenameRetryNote } from '../../core/repo/forgeManifest'
-import { pausesTaken, refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { RENAME_PAUSES_MS, type RenameRetryNote } from '../../core/repo/forgeManifest'
+import { refuseRenames, refuseUntilLocked, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { createForgeProvisioning, type ForgeProvisioningWork } from './forgeProvisioning'
 import { ForgeCreationRefused, type ForgePublishedRepository } from './forgePublish'
@@ -260,27 +260,29 @@ it('rejects overlapping world and code names and missing operation receipts befo
 })
 
 describe('a busy rename onto the creation journal', () => {
-  it('asks again after one busy refusal, pausing 50 ms of its 300 ms bound, and journals the creation', async () => {
+  it('asks again after one busy refusal and journals the creation within 300 ms', async () => {
     const f = fixture()
     const onRetry = vi.fn<RenameRetryNote>()
+    let firstCreate: number | undefined
+    f.change.beforeCreate = async () => { firstCreate ??= performance.now() }
     refuseRenames('EPERM')
+    const started = performance.now()
     const result = await f.start(onRetry).provision(createRequest, f.operation)
     expect(result).toMatchObject({ state: 'complete', phase: 'complete' })
-    expect(pausesTaken()).toEqual([50])
+    expect((firstCreate ?? Infinity) - started).toBeLessThan(300)
     expect(onRetry.mock.calls).toEqual([['EPERM', f.file]])
     expect(renamesAsked()).toBeGreaterThan(2)
     expect(JSON.parse(readFileSync(f.file, 'utf8')).entries).toMatchObject([{ id: f.operation, state: 'complete' }])
     expect(readdirSync(dirname(f.file))).not.toContainEqual(expect.stringMatching(/^provisioning\.json\./))
   })
 
-  it('throws the last busy refusal after the bound and writes no journal', async () => {
+  it('throws that the journal stayed locked after the bound and writes no journal', async () => {
     const f = fixture()
     const onRetry = vi.fn<RenameRetryNote>()
-    refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
-    await expect(f.start(onRetry).provision(createRequest, f.operation)).rejects.toThrow('EPERM: rename refused')
-    expect(renamesAsked()).toBe(4)
-    expect(pausesTaken()).toEqual([50, 100, 150])
-    expect(onRetry.mock.calls).toEqual([['EPERM', f.file], ['EACCES', f.file], ['EBUSY', f.file]])
+    const codes = refuseUntilLocked(RENAME_PAUSES_MS.length + 1)
+    await expect(f.start(onRetry).provision(createRequest, f.operation)).rejects.toThrow('stayed locked for 2550 ms (EPERM: rename refused)')
+    expect(renamesAsked()).toBe(codes.length)
+    expect(onRetry.mock.calls).toEqual(codes.slice(0, -1).map((code) => [code, f.file]))
     expect(existsSync(f.file)).toBe(false)
     expect(readdirSync(dirname(f.file))).not.toContainEqual(expect.stringMatching(/^provisioning\.json/))
     expect(f.calls).toEqual([])

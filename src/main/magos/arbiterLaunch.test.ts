@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SHIM_HELP } from '../terminals/claudeExecutable'
+import { SHIM_HELP } from '../terminals/agentExecutable'
 import { arbiterLaunch } from './arbiterLaunch'
 
 type Input = Parameters<typeof arbiterLaunch>[0]

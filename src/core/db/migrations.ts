@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 38
+export const SCHEMA_VERSION = 39
 
 export interface Migration {
   version: number
@@ -1305,11 +1305,23 @@ CREATE INDEX delivery_checks_run ON delivery_checks(run_id, sprint_id);
 `
 // ─── End DM-835 ───
 
+// ─── DM-1047: trusted epic and role of agent mail endpoints ─────────────────────────────────────────
 /**
- * v38 (DM-738): `run_save = 0` takes a grant out of the DM-900 run-ownership Save exception (`requireSaveAuthority`), so
- * it saves only with Allow save. Cult Magos grants are issued so; every other grant keeps the exception (default 1).
+ * v38 records, on each agent mail endpoint, the epic its chat is bound to and the chat's Dark Mechanicus role. Only
+ * main writes them, from its own chat record (never from an agent), so peers can trust them, unlike the display
+ * `name`. Both are nullable: rows that existed before this version, and chats with no epic binding, have none.
  */
 const V38 = `
+ALTER TABLE agent_mail_endpoints ADD COLUMN epic_id TEXT;
+ALTER TABLE agent_mail_endpoints ADD COLUMN chat_role TEXT CHECK (chat_role IN ('planner','orchestrator','worker','reviewer'));
+`
+// ─── End DM-1047 ───
+
+/**
+ * v39 (DM-738): `run_save = 0` takes a grant out of the DM-900 run-ownership Save exception (`requireSaveAuthority`), so
+ * it saves only with Allow save. Cult Magos grants are issued so; every other grant keeps the exception (default 1).
+ */
+const V39 = `
 ALTER TABLE grants ADD COLUMN run_save INTEGER NOT NULL DEFAULT 1 CHECK (run_save IN (0, 1));
 `
 
@@ -1364,7 +1376,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 35, sql: V35 },
   { version: 36, sql: V36 },
   { version: 37, sql: V37 },
-  { version: 38, sql: V38 }
+  { version: 38, sql: V38 },
+  { version: 39, sql: V39 }
 ]
 
 export function readSchemaVersion(db: Db): number {

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -155,13 +156,46 @@ describe('packaged launch routing', () => {
 })
 
 describe('applyAppUserModelId', () => {
-  it("sets the installer's app id (package.json build.appId) on win32 only", () => {
+  const defaultHome = 'C:\\Users\\Ada\\.darkmechanicus'
+  const idFor = (home: string): string[] => {
     const set: string[] = []
-    for (const platform of ['darwin', 'linux', 'freebsd'] as const) expect(applyAppUserModelId(platform, id => set.push(id))).toBe(false)
-    expect(set).toEqual([])
-    expect(applyAppUserModelId('win32', id => set.push(id))).toBe(true)
-    expect(set).toEqual(['com.davgor.darkmechanicus'])
+    expect(applyAppUserModelId('win32', id => set.push(id), { home, defaultHome })).toBe(true)
+    return set
+  }
+
+  it("gives the default home the installer's app id (package.json build.appId)", () => {
     const { build } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { build: { appId: string } }
-    expect(set).toEqual([build.appId])
+    expect(idFor(defaultHome)).toEqual(['com.davgor.darkmechanicus'])
+    expect(idFor(defaultHome)).toEqual([build.appId])
+    expect(idFor('c:\\users\\ada\\.DarkMechanicus\\')).toEqual([build.appId])
+  })
+
+  it('gives an isolated home a stable id from the first 12 hex of the SHA-256 of its lower-cased path', () => {
+    const digest = createHash('sha256').update('c:\\tmp\\e2e-profile').digest('hex').slice(0, 12)
+    expect(idFor('C:\\tmp\\e2e-profile')).toEqual([`com.davgor.darkmechanicus.isolated.${digest}`])
+    expect(idFor('C:\\tmp\\e2e-profile')).toEqual(idFor('C:\\tmp\\e2e-profile'))
+  })
+
+  it('gives the same isolated id to one home spelled in different case', () => {
+    expect(idFor('C:\\TMP\\E2E-PROFILE')).toEqual(idFor('C:\\tmp\\e2e-profile'))
+    expect(idFor('c:/tmp/e2e-profile/')).toEqual(idFor('C:\\tmp\\e2e-profile'))
+  })
+
+  it('gives different homes different isolated ids', () => {
+    const [first] = idFor('C:\\tmp\\e2e-profile')
+    const [second] = idFor('C:\\tmp\\packaged-profile')
+    expect(first).toMatch(/^com\.davgor\.darkmechanicus\.isolated\.[0-9a-f]{12}$/)
+    expect(second).toMatch(/^com\.davgor\.darkmechanicus\.isolated\.[0-9a-f]{12}$/)
+    expect(first).not.toBe(second)
+  })
+
+  it('sets no id off Windows, for the default and isolated homes alike', () => {
+    const set: string[] = []
+    for (const platform of ['darwin', 'linux', 'freebsd'] as const) {
+      for (const home of [defaultHome, 'C:\\tmp\\e2e-profile']) {
+        expect(applyAppUserModelId(platform, id => set.push(id), { home, defaultHome })).toBe(false)
+      }
+    }
+    expect(set).toEqual([])
   })
 })

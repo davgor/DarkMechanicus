@@ -8,6 +8,15 @@ export interface ThreadClaimEvent {
   token: string
 }
 
+/** The reply to a request main itself made of a live OMP session (`OmpRequest`): main-memory only, for the caller awaiting it. */
+export interface CommandResultEvent {
+  type: 'command_result'
+  id: string
+  ok: boolean
+  /** The response's `data`; undefined when the command failed. */
+  data: unknown
+}
+
 /** Reject ambiguity even when two different secrets name the same attempt. Not claim verification. */
 export function threadClaim(threadId: string, prompt: string): ThreadClaimEvent | null {
   const attemptId = claimedAttemptId(prompt)

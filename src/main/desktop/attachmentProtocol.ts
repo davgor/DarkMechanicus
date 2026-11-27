@@ -6,6 +6,7 @@
 import type { Protocol } from 'electron'
 import type { AttachmentMime } from '../../shared/domain/views'
 import { ATTACHMENT_SCHEME } from '../../shared/desktop/attachmentUrl'
+import { CHAT_IMAGE_SCHEME } from '../../shared/agents/chatImageUrl'
 import { isStableId } from '../../core/ids'
 
 /** A folder key is 16 random bytes in lowercase hex (`folderRegistry`). */
@@ -103,9 +104,15 @@ export function createAttachmentLookup(deps: AttachmentLookupDeps): AttachmentLo
   }
 }
 
-/** Before the app is ready: the scheme must be privileged to load as an image source. */
+/**
+ * Before the app is ready: both image schemes (`dm-attachment:` and the chats' `dm-chat-image:`) must be privileged to
+ * load as image sources. Electron honours only one `registerSchemesAsPrivileged` call, so this is the app's only one.
+ */
 export function registerAttachmentScheme(protocol: Pick<Protocol, 'registerSchemesAsPrivileged'>): void {
-  protocol.registerSchemesAsPrivileged([{ scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true } }])
+  protocol.registerSchemesAsPrivileged([
+    { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true } },
+    { scheme: CHAT_IMAGE_SCHEME, privileges: { standard: true, secure: true } }
+  ])
 }
 
 /** After the app is ready: answers `dm-attachment:` requests with `lookup`. */

@@ -1,25 +1,51 @@
 /**
  * The transcript a chat stored before chats became terminals, read-only: what was said, what was run, the
  * approval requests with the decision stored for each, the sign-ins that were lost and the subagent threads.
- * Nothing here can be answered or sent. Only text from the agent goes through the Markdown renderer; everything
- * else is plain text.
+ * Nothing here can be answered or sent; a message can only be copied. Only text from the agent goes through the
+ * Markdown renderer; everything else is plain text. Mail cards (`MailCard`) sit between the chat's own rows where
+ * the stream placed them; they are never stored items.
  */
 import { memo, useMemo, type ReactNode } from 'react'
+import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import { IDLE_STOP_CODE, type ErrorProblem } from '../../../shared/agents/chat'
+import { ChatImages, type ChatImageSrc } from '../agentChat/ChatImages'
+import { CopyButton } from '../agentChat/CopyButton'
+import { MailCard } from '../agentChat/MailCard'
+import type { MailLine, TranscriptLine } from '../agentChat/useAgentChat'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalRecord } from './ApprovalRecord'
 import { decisionText, problemNotice, resetText, STOPPED_TEXT, type TranscriptEntry } from './chatViewModel'
 import { ThreadBlock } from './ThreadBlock'
 import { transcriptTree, type TreeRow } from './threadModel'
 import { ToolCallRow } from './ToolCallRow'
+import { TurnRows } from './TurnWork'
 
-function Message({ who, children }: { who: 'You' | 'Assistant'; children: ReactNode }): JSX.Element {
+interface MessageProps {
+  who: 'You' | 'Assistant'
+  /** The stored, already-masked text: the person's words, or the agent's raw Markdown. Copy writes exactly this. */
+  text: string
+  children: ReactNode
+  /** The message's images, shown under the bubble. */
+  images?: ReactNode
+}
+
+/**
+ * One message, laid out like a chat client: the person's as a right-aligned bubble whose Copy shows on hover or
+ * keyboard focus, the agent's as plain full-width text with an action row under it. The speaker is named for
+ * assistive technology only.
+ */
+function Message({ who, text, children, images }: MessageProps): JSX.Element {
+  const user = who === 'You'
   return (
-    <li className={`chat-msg chat-msg-${who === 'You' ? 'user' : 'assistant'}`}>
-      <article aria-label={who}>
-        <p className="chat-msg-who">{who}</p>
+    <li className={`chat-msg chat-msg-${user ? 'user' : 'assistant'}`}>
+      <article aria-label={who} className={user ? 'chat-bubble' : undefined}>
+        <p className="chat-msg-who sr-only">{who}</p>
         {children}
       </article>
+      {images}
+      <div className="chat-msg-actions">
+        <CopyButton text={text} title="Copy message" />
+      </div>
     </li>
   )
 }
@@ -86,25 +112,28 @@ interface RowProps {
   answer: TreeRow['answer']
   /** The thread blocks that hang under this entry (a call that spawned subagents). */
   threads: TreeRow['threads']
+  /** Where the images on messages and tool calls load from; without it (terminal transcripts) none are shown. */
+  imageSrc: ChatImageSrc | undefined
 }
 
 /** One transcript entry, read-only. */
-function EntryRow({ entry, answer, folder, agentName }: RowProps): JSX.Element | null {
+function EntryRow({ entry, answer, folder, agentName, imageSrc }: RowProps): JSX.Element | null {
   switch (entry.kind) {
     case 'user_message':
       return (
-        <Message who="You">
+        <Message who="You" text={entry.text}
+          images={imageSrc && entry.images ? <ChatImages from="you" images={entry.images} imageSrc={imageSrc} /> : null}>
           <p className="chat-user-text">{entry.text}</p>
         </Message>
       )
     case 'assistant_text':
       return (
-        <Message who="Assistant">
+        <Message who="Assistant" text={entry.text}>
           <Markdown source={entry.text} />
         </Message>
       )
     case 'tool_call':
-      return <ToolCallRow call={entry} />
+      return <ToolCallRow call={entry} imageSrc={imageSrc} />
     case 'error':
       // An idle stop failed nothing: it says why the agent was not running, like the other notices.
       return entry.code === IDLE_STOP_CODE ? <Notice>{entry.message}</Notice> : <ErrorRow message={entry.message} code={entry.code} problem={entry.problem} />
@@ -142,18 +171,53 @@ interface ChatTranscriptProps {
   agentName: string
   /** The chat's folder. */
   folder: string
-  entries: readonly TranscriptEntry[]
+  /** The chat's items, with any mail cards placed among them (`useMailTranscript`'s stream). */
+  entries: readonly TranscriptLine[]
+  /** Set by GUI chats, whose items carry images; terminal transcripts leave it out and show none. */
+  imageSrc?: ChatImageSrc
+  /** A live chat's status: given, each ended turn's work folds into one `Worked for …` row; a stored or thread transcript leaves it out. */
+  status?: AgentChatSnapshot['status'] | null
+}
+
+const NO_MAIL: readonly MailLine[] = []
+
+/**
+ * Each mail card by the top-level row it goes before (`null`: after every row). An item that is no row of its own (a
+ * thread under its call, a decision on its request) passes its cards on to the next row.
+ */
+function placeMail(entries: readonly TranscriptLine[], rows: readonly TreeRow[]): Map<string | null, MailLine[]> {
+  const rowIds = new Set(rows.map((row) => row.entry.id))
+  const before = new Map<string | null, MailLine[]>()
+  let pending: MailLine[] = []
+  for (const entry of entries) {
+    if (entry.kind === 'mail') pending.push(entry)
+    else if (pending.length > 0 && rowIds.has(entry.id)) {
+      before.set(entry.id, pending)
+      pending = []
+    }
+  }
+  if (pending.length > 0) before.set(null, pending)
+  return before
 }
 
 /** The stored conversation, in the order it happened. */
-export function ChatTranscript({ agentName, folder, entries }: ChatTranscriptProps): JSX.Element {
-  const rows = useMemo(() => transcriptTree(entries), [entries])
+export function ChatTranscript({ agentName, folder, entries, imageSrc, status }: ChatTranscriptProps): JSX.Element {
+  const items = useMemo(() => entries.filter((entry): entry is TranscriptEntry => entry.kind !== 'mail'), [entries])
+  const rows = useMemo(() => transcriptTree(items), [items])
+  const placedMail = useMemo(() => placeMail(entries, rows), [entries, rows])
+  const cards = (anchor: string | null): JSX.Element[] => (placedMail.get(anchor) ?? NO_MAIL).map((line) => <MailCard key={line.id} mail={line.mail} />)
+  const before = (row: TreeRow): JSX.Element[] => cards(row.entry.id)
+  const renderRow = (row: TreeRow): JSX.Element => (
+    <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName}
+      imageSrc={imageSrc} />
+  )
   return (
     <div className="chat-transcript" role="log" aria-label="Transcript" tabIndex={0}>
       <ol className="chat-rows">
-        {rows.map((row) => (
-          <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName} />
-        ))}
+        {status === undefined
+          ? rows.flatMap((row) => [...before(row), renderRow(row)])
+          : <TurnRows entries={items} rows={rows} status={status} renderRow={renderRow} before={before} />}
+        {cards(null)}
       </ol>
     </div>
   )

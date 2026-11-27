@@ -20,15 +20,18 @@ import type {
   AcknowledgeAgentMessagesResult,
   AgentIdentityView,
   AgentInboxPage,
+  AgentMailConversationView,
   AgentMailboxStatus,
   AgentMailStatusPage,
   AgentMailWindow,
   AgentMessageAcceptanceView,
   AgentPeersPage,
   HumanAgentMailStateView,
+  ListAgentPeersInput,
   ReadAgentInboxInput,
   SendAgentMessageInput
 } from '../../shared/domain/agentMail'
+import type { ChatRole } from '../../shared/agents/chat'
 import type { CommandName } from '../../shared/domain/api'
 import type { GrantableRole, SessionRole } from '../../shared/domain/views'
 import { type Capability, requireCapability, type SessionContext } from '../authz'
@@ -51,8 +54,10 @@ import {
   type InboxPage,
   type MailBinding,
   type MailEndpoint,
+  type MailEndpointChatMeta,
   markHumanSeen,
   provisionEndpoint,
+  readConversation,
   readHumanMailState,
   readInbox,
   readMailStatus,
@@ -193,22 +198,34 @@ export function getAgentIdentity(ctx: Ctx): AgentIdentityView {
   }))
 }
 
-/** Open mailboxes on this machine other than the caller's, in id order, a bounded page at a time. */
-export function listAgentPeers(ctx: Ctx, input: { afterId?: string; limit?: number } = {}): AgentPeersPage {
+/**
+ * Open mailboxes on this machine other than the caller's, in id order, a bounded page at a time. Each carries the
+ * trusted `epicId` and `role` main recorded from the peer's chat record; `epicId` and `role` filters keep only peers
+ * whose recorded value equals them (a peer with none never matches a filter).
+ */
+export function listAgentPeers(ctx: Ctx, input: ListAgentPeersInput = {}): AgentPeersPage {
   const limit = requireLimit(input.limit, AGENT_MAIL_LIMITS.endpointPageSize)
+  const epicId = input.epicId ?? null
+  const role = input.role ?? null
   return ctx.db.tx(() => {
     const { endpoint } = requireMailbox(ctx)
-    const rows = ctx.db.all<{ id: string; name: string }>(
-      `SELECT id, name FROM agent_mail_endpoints
-       WHERE state = 'open' AND machine_id = ? AND id <> ? AND id > ? ORDER BY id LIMIT ?`,
+    const rows = ctx.db.all<{ id: string; name: string; epic_id: string | null; chat_role: ChatRole | null }>(
+      `SELECT id, name, epic_id, chat_role FROM agent_mail_endpoints
+       WHERE state = 'open' AND machine_id = ? AND id <> ? AND id > ?
+         AND (? IS NULL OR epic_id = ?) AND (? IS NULL OR chat_role = ?)
+       ORDER BY id LIMIT ?`,
       ctx.machineId,
       endpoint.id,
       input.afterId ?? '',
+      epicId,
+      epicId,
+      role,
+      role,
       limit + 1
     )
     const page = rows.slice(0, limit)
     return {
-      peers: page.map((row) => ({ endpointId: row.id, name: row.name })),
+      peers: page.map((row) => ({ endpointId: row.id, name: row.name, epicId: row.epic_id, role: row.chat_role })),
       nextAfterId: page.at(-1)?.id ?? null,
       hasMore: rows.length > limit
     }
@@ -389,18 +406,42 @@ function requireLocalEndpoint(ctx: Ctx, endpointId: string): MailEndpoint {
   return endpoint
 }
 
-/** Desktop: the mailbox for a trusted chat id of this machine, created on first use (`provisionEndpoint`). */
-export function provisionAgentMailEndpoint(ctx: Ctx, input: { chatId: string; name: string }): MailEndpoint {
+/**
+ * Desktop: the mailbox for a trusted chat id of this machine, created on first use (`provisionEndpoint`). `epicId` and
+ * `chatRole` come from main's own chat record, never from an agent; an omitted one records null (unknown).
+ */
+export function provisionAgentMailEndpoint(
+  ctx: Ctx,
+  input: { chatId: string; name: string } & Partial<MailEndpointChatMeta>
+): MailEndpoint {
   requireManager(ctx)
-  return provisionEndpoint(ctx, { machineId: ctx.machineId, chatId: input.chatId, name: input.name })
+  return provisionEndpoint(ctx, {
+    machineId: ctx.machineId,
+    chatId: input.chatId,
+    name: input.name,
+    epicId: input.epicId ?? null,
+    chatRole: input.chatRole ?? null
+  })
 }
 
-/** Desktop: sets an endpoint's display name (the chat's title). A deleted mailbox stays as it is. */
-export function renameAgentMailEndpoint(ctx: Ctx, input: { endpointId: string; name: string }): MailEndpoint {
+/**
+ * Desktop: sets an endpoint's display name (the chat's title), and refreshes the trusted `epicId` and `chatRole` from
+ * main's chat record when given; an omitted one keeps its recorded value. A deleted mailbox stays as it is.
+ */
+export function renameAgentMailEndpoint(
+  ctx: Ctx,
+  input: { endpointId: string; name: string } & Partial<MailEndpointChatMeta>
+): MailEndpoint {
   requireManager(ctx)
   return ctx.db.tx(() => {
     const endpoint = requireLocalEndpoint(ctx, input.endpointId)
-    return provisionEndpoint(ctx, { machineId: endpoint.machineId, chatId: endpoint.chatId, name: input.name })
+    return provisionEndpoint(ctx, {
+      machineId: endpoint.machineId,
+      chatId: endpoint.chatId,
+      name: input.name,
+      epicId: input.epicId === undefined ? endpoint.epicId : input.epicId,
+      chatRole: input.chatRole === undefined ? endpoint.chatRole : input.chatRole
+    })
   })
 }
 
@@ -491,6 +532,15 @@ export function readHumanAgentInbox(ctx: Ctx, input: { endpointId: string } & Re
   return ctx.db.tx(() => {
     requireLocalEndpoint(ctx, input.endpointId)
     return inboxView(readInbox(ctx, input))
+  })
+}
+
+/** Desktop: the newest messages a mailbox received or sent, with bodies, for the person. Acknowledges and marks nothing. */
+export function readHumanAgentConversation(ctx: Ctx, input: { endpointId: string; limit?: number }): AgentMailConversationView {
+  requireManager(ctx)
+  return ctx.db.tx(() => {
+    requireLocalEndpoint(ctx, input.endpointId)
+    return readConversation(ctx, input)
   })
 }
 

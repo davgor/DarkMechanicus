@@ -75,7 +75,8 @@ function fixture(legacy = false) {
       publisher: createForgeRepositoryPublisher(session, async () => { throw new Error('This test never calls the GitHub write API') }) },
     setup,
     runner: { run: async request => {
-      if (request.kind !== 'network') return git.run(request)
+      // Like Git's own test suite, disposable fixtures need real objects, not power-loss hardware flushes.
+      if (request.kind !== 'network') return git.run({ ...request, env: { ...request.env, GIT_TEST_FSYNC: '0' } })
       request.beforeStart?.()
       network.push(request.args)
       if (request.args.includes('push') && state.failPush) throw new Error('Fixture remote offline')

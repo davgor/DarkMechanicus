@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RenameRetryNote } from '../../core/repo/forgeManifest'
-import { pausesTaken, refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { RENAME_PAUSES_MS, type RenameRetryNote } from '../../core/repo/forgeManifest'
+import { refuseRenames, refuseUntilLocked, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { cleanupForgeSource } from './forgeCleanup'
 import { installClaudeSkills, toTarget } from './skillInstall'
@@ -51,13 +51,14 @@ describe('a busy rename onto .mcp.json', () => {
     return { root, file, before, cleanup: fixture.cleanup }
   }
 
-  it('asks again after one busy refusal, pausing 50 ms of its 300 ms bound, and removes the entry', () => {
+  it('asks again after one busy refusal and removes the entry within 300 ms', () => {
     const { root, file, cleanup } = checkout()
     const onRetry = vi.fn<RenameRetryNote>()
     try {
       refuseRenames('EPERM')
+      const started = performance.now()
       cleanupForgeSource(root, [], onRetry)
-      expect(pausesTaken()).toEqual([50])
+      expect(performance.now() - started).toBeLessThan(300)
       expect(renamesAsked()).toBe(2)
       expect(onRetry.mock.calls).toEqual([['EPERM', file]])
       expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ mcpServers: { other: { command: 'keep' } } })
@@ -65,15 +66,14 @@ describe('a busy rename onto .mcp.json', () => {
     } finally { cleanup() }
   })
 
-  it('throws the last busy refusal after the bound and leaves .mcp.json unchanged', () => {
+  it('throws that .mcp.json stayed locked after the bound and leaves it unchanged', () => {
     const { root, file, before, cleanup } = checkout()
     const onRetry = vi.fn<RenameRetryNote>()
     try {
-      refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
-      expect(() => cleanupForgeSource(root, [], onRetry)).toThrow('EPERM: rename refused')
-      expect(renamesAsked()).toBe(4)
-      expect(pausesTaken()).toEqual([50, 100, 150])
-      expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
+      const codes = refuseUntilLocked(RENAME_PAUSES_MS.length + 1)
+      expect(() => cleanupForgeSource(root, [], onRetry)).toThrow('stayed locked for 2550 ms (EPERM: rename refused)')
+      expect(renamesAsked()).toBe(codes.length)
+      expect(onRetry.mock.calls).toEqual(codes.slice(0, -1).map((code) => [code, file]))
       expect(readFileSync(file, 'utf8')).toBe(before)
     } finally { cleanup() }
   })

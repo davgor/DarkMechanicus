@@ -36,7 +36,40 @@ export function canSavePlans(role: ChatRole): boolean {
 /** Chat ids name files on disk, so they are restricted to filesystem-safe characters. */
 export const chatIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/)
 
+/** The largest chat image: the same limit as a stored attachment (`MAX_IMAGE_BYTES` in core attachment intake). */
+export const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+/** The id main gives an image it holds for a chat: `ci_` and a lower-case ULID. */
+export const chatImageIdSchema = z.string().regex(/^ci_[0-9a-hjkmnp-tv-z]{26}$/)
+
+const imageRefFields = {
+  id: chatImageIdSchema,
+  width: z.number().int().min(1).max(8000),
+  height: z.number().int().min(1).max(8000),
+  bytes: z.number().int().min(1).max(CHAT_IMAGE_MAX_BYTES)
+}
+
+/**
+ * An image the person sent, as main holds it for the chat and a transcript item names it: the id and what main
+ * measured, never bytes or a path. Person-sent images are PNG or JPEG only.
+ */
+export const chatImageRefSchema = z.strictObject({ ...imageRefFields, mime: z.enum(['image/png', 'image/jpeg']) })
+
+export type ChatImageRef = z.infer<typeof chatImageRefSchema>
+
+/** An image a tool returned: also WebP, which agent read tools return (OMP's `read`). */
+const toolImageRefSchema = z.strictObject({ ...imageRefFields, mime: z.enum(['image/png', 'image/jpeg', 'image/webp']) })
+
+/** The images on one transcript item; absent on every item stored before chats took images. */
+const sentImages = z.array(chatImageRefSchema).max(8).optional()
+const toolImages = z.array(toolImageRefSchema).max(8).optional()
+
 const timestampSchema = z.string().min(1)
+
+/** OMP's thinking levels (`--thinking`, `set_thinking_level`), lowest first. */
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export const thinkingLevelSchema = z.enum(THINKING_LEVELS)
+export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>
 
 export const chatRecordSchema = z.object({
   id: chatIdSchema,
@@ -50,6 +83,11 @@ export const chatRecordSchema = z.object({
   agent: agentIdSchema,
   /** The model the chat currently runs on; null until one is chosen. */
   model: z.string().min(1).nullable(),
+  /**
+   * A Skitarii chat's thinking level, set with its model (`agentChat:setModel`) and passed back as `--thinking` on every
+   * later launch; null or absent leaves it to the agent's own default, as for every other chat.
+   */
+  thinking: thinkingLevelSchema.nullable().optional(),
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),
@@ -176,7 +214,7 @@ export type ErrorProblem = (typeof ERROR_PROBLEMS)[number]
 export const IDLE_STOP_CODE = 'idle_stop'
 
 export const chatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string() }),
+  z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string(), images: sentImages }),
   /** Streamed as deltas while the agent writes; stored once, whole. */
   z.object({ ...itemBase, kind: z.literal('assistant_text'), text: z.string() }),
   z.object({
@@ -186,7 +224,9 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     /** The call's input, summarized by the adapter to what is worth showing. */
     input: toolInputSchema,
     status: z.enum(TOOL_CALL_STATUSES),
-    resultSummary: z.string().nullable()
+    resultSummary: z.string().nullable(),
+    /** Images the call returned (screenshots, images it read), held by main for the chat. */
+    images: toolImages
   }),
   z.object({
     ...itemBase,

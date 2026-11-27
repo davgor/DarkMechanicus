@@ -1,9 +1,10 @@
 /**
- * Captures the epic Agent tab's states unattended: `node scripts/capture-agent-chat.mjs --out <dir>` serves
- * `preview/epic-agent` with the repo's Vite, opens each `?state=` in the repo's own Electron (hidden windows, one
- * temporary profile) and writes `<state>.png` per state plus `observations.json`. Any launch failure, missed
- * deadline, page error, missing observation or empty/small capture fails the run with its reason; nothing is
- * reported as skipped. The Vite server, the Electron process tree and the temporary profile never outlive the run.
+ * Captures the epic Agent tab's states unattended: `node scripts/capture-agent-chat.mjs --out <dir>` builds
+ * `preview/epic-agent` once with the repo's Vite, serves the built page, opens each `?state=` in the repo's own
+ * Electron (hidden windows, one temporary profile) and writes `<state>.png` per state plus `observations.json`. Any
+ * launch failure, missed deadline, page error, missing observation or empty/small capture fails the run with its
+ * reason; nothing is reported as skipped. The preview server, the Electron process tree, the build and the temporary
+ * profile never outlive the run.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -17,20 +18,52 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PREVIEW = join(REPO, 'preview', 'epic-agent')
 const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
-/** Every state the preview page knows, in capture order. */
+/** Every state the preview page knows, in capture order. A `-1024` or `-1440` state is captured at that width. */
 export const STATES = Object.freeze([
   'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
+  'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
+  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'image-result', 'agent-image-viewer',
+  'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
+  'new-chat-model', 'start-run-model', 'lexmechanic-model',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+])
+
+/** The Sprint 3 image and polish states every capture run must write, as the review asks for them. */
+export const S3_STATES = Object.freeze([
+  'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
+  'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
+  'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 27 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 420_000
+/**
+ * A declared bound for building the preview once, before the states' clock starts. A dev server transformed the page's
+ * module graph on demand inside the first state's deadline, so that state's time depended on the machine's load; the
+ * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
+ */
+export const BUILD_LIMIT_MS = 60_000
+/** A declared bound once the preview is built: 49 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 750_000
 export const MIN_PNG_BYTES = 10 * 1024
+/** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
+export const MIN_COLORS = 16
+
+/** The fixed window sizes of the `-1024` and `-1440` states. */
+const SIZED = Object.freeze({ 1024: Object.freeze({ width: 1024, height: 768 }), 1440: Object.freeze({ width: 1440, height: 900 }) })
+const SIZE_SUFFIX = /-(1024|1440)$/
+
+/** The preview state a capture state shows: a sized state shows its unsized one. */
+const baseState = (state) => state.replace(SIZE_SUFFIX, '')
+
+/** The window size a state is captured at: its own for a sized state, else the run's. */
+export function viewportOf(state, viewport = DEFAULT_VIEWPORT) {
+  const match = SIZE_SUFFIX.exec(state)
+  return match === null ? viewport : SIZED[match[1]]
+}
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
 const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE)$/i
@@ -68,11 +101,17 @@ const BASE_FIELDS = [
   'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
   'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed',
-  'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
+  'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck',
+  'imageChips', 'thumbnails', 'composerHeights', 'copyButtons', 'workedForRows', 'roleNames', 'checkedCount', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications'])
-const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
+/** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
+const CHAT_STATES = new Set([
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'chat-images', 'agent-transcript', 'agent-worked-for',
+  'image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker',
+  'new-chat-model'
+])
+const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(baseState(state))))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
 const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
 const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
@@ -82,6 +121,57 @@ const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
 const matches = (value, pattern) => typeof value === 'string' && pattern.test(value)
+/** The alpha of a computed `rgb()`/`rgba()` color; null for anything else. */
+const alphaOf = (color) => {
+  const match = /^rgba?\([^,]+,[^,]+,[^,)]+(?:,\s*([\d.]+))?\)$/.exec(typeof color === 'string' ? color : '')
+  return match === null ? null : match[1] === undefined ? 1 : Number(match[1])
+}
+/** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
+const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
+  && alphaOf(surface?.background) <= 0.72
+/** A role-picker state's cards as the page measured them; empty when it reported none. */
+const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
+/** Each role card as [name, checked, disabled reason], for the epic Agent tab's picker states. */
+const cardStates = (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked, card.reason ?? null]))
+/** What every shown role picker must hold: two labelled illustrations, frosted cards and no clipped text. */
+const ROLE_CARD_CHECKS = [
+  ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
+    && new Set(roleCards(o).map((card) => card.art)).size === 2
+    && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
+  (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
+  ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
+  ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)],
+  ['the role names read Magos then Lexmechanic', (o) => JSON.stringify(o.roleNames) === '["Magos","Lexmechanic"]', (o) => JSON.stringify(o.roleNames)]
+]
+/** The agent-composer state's composers, or none. */
+const composersOf = (o) => Array.isArray(o.composers) ? o.composers : []
+/** Which of Send and Stop a composer shows: `send`, `stop`, `both` or `none`. */
+const composerButtons = (card) => card?.send && card?.stop ? 'both' : card?.send ? 'send' : card?.stop ? 'stop' : 'none'
+const round = (button) => button?.radius === '50%' && near(button.width, 32) && near(button.height, 32)
+const square = (button) => button?.radius === '8px' && near(button.width, 32) && near(button.height, 32)
+/** The image-result transcript's thumbnails as the page measured them; empty when it reported none. */
+const thumbsOf = (o) => Array.isArray(o.chatImages?.thumbs) ? o.chatImages.thumbs : []
+/** Each thumbnail as [under whose item, name, loaded]: the person's two (the second's file gone), then the tool's one. */
+const IMAGE_THUMBS = [
+  ['you', 'Image from you, 1280x800', true], ['you', 'Image from you, 1024x768 (image missing)', false],
+  ['tool', 'Image from agent, 1440x900', true]
+]
+/**
+ * What both image-result states show: thumbnails under the bubble and the tool card, lazy dm-chat-image: pictures, ≤160 px,
+ * and, in a chat outside any epic, no Attach as evidence.
+ */
+const IMAGE_RESULT_CHECKS = [
+  ['two thumbnails under the person’s bubble, the gone one a placeholder, and one under the tool card',
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.under, thumb.name, thumb.loaded])) === JSON.stringify(IMAGE_THUMBS),
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.under, thumb.name, thumb.loaded]))],
+  ['every loaded thumbnail is a lazy dm-chat-image: picture', (o) => thumbsOf(o).length === 3
+    && thumbsOf(o).filter((thumb) => thumb.loaded).every((thumb) => thumb.scheme === 'dm-chat-image:' && thumb.lazy === true),
+  (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.scheme, thumb.lazy]))],
+  ['every thumbnail at most 160 px wide', (o) => thumbsOf(o).length === 3 && thumbsOf(o).every((thumb) => thumb.width > 0 && thumb.width <= 160),
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => thumb.width))],
+  ['no Attach as evidence outside an epic', (o) => Array.isArray(o.chatImages?.evidence) && o.chatImages.evidence.length === 0,
+    (o) => JSON.stringify(o.chatImages?.evidence)]
+]
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -111,6 +201,53 @@ const treeLevelChecks = AGENT_TREE_LEVELS.map(([name, level, parent]) => [
   (o) => describePlacement(placement(o, name))
 ])
 
+/** What the role picker shows wherever it is captured: Magos checked first, both illustrated glass cards, nothing clipped. */
+const ROLE_PICKER_CHECKS = [
+  ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
+    === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
+  ...ROLE_CARD_CHECKS
+]
+
+/** Both model-picker states: the chip on Opus 5.5 · High before Send, an upward glass menu nothing clips, Effort Low to Max. */
+const MODEL_PICKER_CHECKS = [
+  ['the chip reads Opus 5.5 · High just left of Send', (o) => o.modelPicker?.chip === 'Opus 5.5 · High' && o.modelPicker?.beforeSend === true,
+    (o) => JSON.stringify([o.modelPicker?.chip, o.modelPicker?.beforeSend])],
+  ['the menu opens upward from the chip, inside the window and below the top of whatever clips it',
+    (o) => o.modelPicker?.upward === true && o.modelPicker?.inWindow === true && o.modelPicker?.unclipped === true,
+    (o) => JSON.stringify([o.modelPicker?.upward, o.modelPicker?.inWindow, o.modelPicker?.unclipped])],
+  ['the Effort control lists Low to Max with High checked', (o) => JSON.stringify(o.modelPicker?.efforts)
+    === JSON.stringify(['Low', 'Medium', 'High', 'XHigh', 'Max'].map((label) => ({ label, checked: label === 'High' }))),
+  (o) => JSON.stringify(o.modelPicker?.efforts)],
+  ['the menu is blurred glass', (o) => matches(o.modelPicker?.surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(o.modelPicker?.surface?.background) > 0,
+    (o) => JSON.stringify(o.modelPicker?.surface)]
+]
+const LATEST_MODELS = [
+  { label: 'Claude', models: ['Fable 5.2', 'Haiku 5.5', 'Mythos 5.2', 'Opus 5.5', 'Sonnet 5.5'] },
+  { label: 'Codex', models: ['GPT-6 Astra', 'GPT-6 Luna', 'GPT-6.1 Sol', 'GPT-6.1 Terra'] }
+]
+const EFFORTS = ['Low', 'Medium', 'High', 'XHigh', 'Max']
+
+/**
+ * A start surface's Model field (New chat, Start run, the Lexmechanic card) after `model` at `effort` was chosen and the
+ * chip opened again: the field and chip, an upward glass menu nothing clips, Default above the latest of each line,
+ * and the choice checked.
+ */
+function startModelChecks(label, dialog, model, effort) {
+  const chip = `${model} · ${effort}`
+  return [
+    [`the ${label} field ${dialog === null ? 'under the role cards' : `in the ${dialog} dialog`} reads ${chip}`,
+      (o) => o.modelChoice?.label === label && o.modelChoice.dialog === dialog && o.modelPicker?.chip === chip,
+      (o) => JSON.stringify([o.modelChoice, o.modelPicker?.chip])],
+    MODEL_PICKER_CHECKS[1],
+    MODEL_PICKER_CHECKS[3],
+    ['Default leads the latest Claude and Codex groups', (o) => JSON.stringify(o.modelPicker?.groups?.slice(0, 3))
+      === JSON.stringify([{ label: 'Default', models: ['Default'] }, ...LATEST_MODELS]), (o) => JSON.stringify(o.modelPicker?.groups)],
+    [`${model} is checked, with Effort ${effort} of Low to Max`, (o) => JSON.stringify(o.modelPicker?.checked) === JSON.stringify([model])
+      && JSON.stringify(o.modelPicker?.efforts) === JSON.stringify(EFFORTS.map((level) => ({ label: level, checked: level === effort }))),
+    (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.efforts])]
+  ]
+}
+
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
   graph: [['the Plan graph is present', (o) => o.planGraph === true], ['no Agent chat region', (o) => o.agentChatRegion === false]],
@@ -118,7 +255,16 @@ const STATE_CHECKS = {
     ['the Plan graph is present', (o) => o.planGraph === true],
     ['the long breadcrumb and title truncate', (o) => o.header?.crumbTruncated === true && o.header?.titleTruncated === true]
   ],
-  'agent-empty': [['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard]],
+  'agent-empty': [
+    ['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard],
+    ['the Magos card shows the active run’s reason and Lexmechanic is checked', (o) => cardStates(o)
+      === '[["Magos",false,"A run is active; its Magos is in the list"],["Lexmechanic",true,null]]', cardStates]
+  ],
+  'epic-agent-picker': [
+    ['the empty Agent tab’s radios are Magos (checked) then Lexmechanic, both enabled', (o) => cardStates(o)
+      === '[["Magos",true,null],["Lexmechanic",false,null]]', cardStates],
+    ...ROLE_CARD_CHECKS
+  ],
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
@@ -175,6 +321,21 @@ const STATE_CHECKS = {
     ['the card is headed Acolyte:DM-442 wants to run: npm test', (o) => o.cardHeading === 'Acolyte:DM-442 wants to run: npm test'],
     ['the card says The Magos asks you', (o) => matches(o.cardArbitration, /^The Magos asks you: \S/)]
   ],
+  'agent-glass': [
+    ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
+    ['the open rail is frosted glass', (o) => near(o.railWidth, 280) && frosted(o.glass?.rail), (o) => JSON.stringify(o.glass?.rail)],
+    ['the docked approval card is frosted glass', (o) => matches(o.cardHeading, /wants to run/) && frosted(o.glass?.card),
+      (o) => JSON.stringify(o.glass?.card)],
+    ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
+      (o) => JSON.stringify(o.glass?.transcript)]
+  ],
+  'agent-role-picker': ROLE_PICKER_CHECKS,
+  'new-chat-picker': [
+    ['the Start a new chat dialog shows the role picker above the First prompt field',
+      (o) => o.newChat?.title === 'Start a new chat' && o.newChat.pickerAbovePrompt === true, (o) => JSON.stringify(o.newChat)],
+    ['the dialog shows Start without scrolling', (o) => o.newChat?.scrolls === false],
+    ...ROLE_PICKER_CHECKS
+  ],
   'agent-magos-decided': [
     ['the record reads Asked by Acolyte:DM-442 and Denied by the Magos with its reason',
       (o) => matches(o.approvalRecord, /Asked by Acolyte:DM-442/) && matches(o.approvalRecord, /Denied by the Magos/)
@@ -183,6 +344,139 @@ const STATE_CHECKS = {
   'agent-needs-you': [
     ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
     ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+  ],
+  'agent-composer': [
+    ['two composers: the idle one with Send and no Stop, the busy one with Stop and no Send',
+      (o) => Array.isArray(o.composers) && o.composers.length === 2 && composerButtons(o.composers[0]) === 'send'
+        && composerButtons(o.composers[1]) === 'stop',
+      (o) => JSON.stringify(o.composers?.map(composerButtons))],
+    ['each composer is a frosted glass card rounded 16 px or more, at most 760 px wide',
+      (o) => composersOf(o).every((card) => frosted(card) && parseFloat(card.radius) >= 16 && card.width <= 760),
+      (o) => JSON.stringify(composersOf(o).map(({ radius, background, backdropFilter, width }) => ({ radius, background, backdropFilter, width })))],
+    ['a round 32 px Send and a square 32 px Stop', (o) => round(composersOf(o)[0]?.send) && square(composersOf(o)[1]?.stop),
+      (o) => JSON.stringify([composersOf(o)[0]?.send, composersOf(o)[1]?.stop])],
+    ['both composers chip the agent, the context and 2 queued', (o) => composersOf(o).length === 2 && composersOf(o).every((card) =>
+      JSON.stringify(card.chips) === JSON.stringify(['Magos · Skitarii', 'dark-mechanicus', '2 queued'])),
+      (o) => JSON.stringify(composersOf(o).map((card) => card.chips))],
+    ['the idle draft grew to two lines and the empty busy composer holds one', (o) => composersOf(o)[0]?.lines === 2
+      && composersOf(o)[1]?.lines === 1, (o) => JSON.stringify(composersOf(o).map((card) => card.lines))],
+    ['both placeholders reply to the Magos', (o) => composersOf(o).every((card) => card.placeholder === 'Reply to Magos…')],
+    ['the idle composer stands taller than the busy one', (o) => o.composerHeights?.busy > 0 && o.composerHeights.idle > o.composerHeights.busy,
+      (o) => JSON.stringify(o.composerHeights)]
+  ],
+  'chat-images': [
+    ['four image chips and no transcript thumbnail', (o) => o.imageChips === 4 && o.thumbnails === 0,
+      (o) => JSON.stringify([o.imageChips, o.thumbnails])],
+    ['one composer holding four loaded image thumbnails, each removable', (o) => composersOf(o).length === 1
+      && composersOf(o)[0].images?.chips === 4 && composersOf(o)[0].images?.loaded === 4 && composersOf(o)[0].images?.removable === 4,
+      (o) => JSON.stringify(composersOf(o).map((card) => card.images))],
+    ['the chips sit inside the card above the text area', (o) => composersOf(o)[0]?.images?.aboveText === true],
+    ['a round "+" attach button leads the row', (o) => composersOf(o)[0]?.attach?.radius === '50%',
+      (o) => JSON.stringify(composersOf(o)[0]?.attach)],
+    ['Send is enabled with the images', (o) => composerButtons(composersOf(o)[0]) === 'send' && composersOf(o)[0]?.sendEnabled === true],
+    ['the fifth image is refused inline', (o) => composersOf(o)[0]?.images?.alert === 'At most 4 images can go with one message.',
+      (o) => JSON.stringify(composersOf(o)[0]?.images?.alert)]
+  ],
+  'question-multi': [
+    ['a docked multi-select question headed Question 1 of 2 with its legend', (o) => o.questionCard?.progress === 'Question 1 of 2'
+      && matches(o.questionCard?.legend, /\S/), (o) => JSON.stringify(o.questionCard)],
+    ['Lint and Unit tests checked among the checkboxes, reading 2 selected', (o) => o.questionCard?.checkboxes >= 2
+      && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
+    (o) => JSON.stringify(o.questionCard)],
+    ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)],
+    ['two options checked', (o) => o.checkedCount === 2, (o) => JSON.stringify(o.checkedCount)],
+    ['both checked options in view in the option list', (o) => JSON.stringify(o.questionCard?.checkedInView) === '["Lint","Unit tests"]',
+      (o) => JSON.stringify(o.questionCard)],
+    ['Submit in view', (o) => o.questionCard?.submitInView === true, (o) => JSON.stringify(o.questionCard)],
+    ['the transcript keeps at least its declared minimum height beside the card', (o) => o.questionCard?.transcriptMin > 0
+      && o.questionCard?.transcriptHeight >= o.questionCard?.transcriptMin, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'model-picker': [
+    ...MODEL_PICKER_CHECKS,
+    ['Claude and Codex groups list the latest of each line', (o) => JSON.stringify(o.modelPicker?.groups) === JSON.stringify(LATEST_MODELS),
+      (o) => JSON.stringify(o.modelPicker?.groups)],
+    ['Opus 5.5 is checked and a collapsed More models expander follows the groups', (o) => JSON.stringify(o.modelPicker?.checked) === '["Opus 5.5"]'
+      && o.modelPicker?.more?.name === 'More models' && o.modelPicker?.more?.expanded === 'false',
+    (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.more])]
+  ],
+  'model-picker-epic': [
+    ...MODEL_PICKER_CHECKS,
+    ['the latest Claude and Codex groups, then More Claude and More Codex', (o) => JSON.stringify(o.modelPicker?.groups?.slice(0, 2))
+      === JSON.stringify(LATEST_MODELS) && JSON.stringify(o.modelPicker?.groups?.slice(2).map((group) => group.label)) === '["More Claude","More Codex"]',
+    (o) => JSON.stringify(o.modelPicker?.groups?.map((group) => group.label))],
+    ['Opus 5.5 is checked and More models is expanded', (o) => JSON.stringify(o.modelPicker?.checked) === '["Opus 5.5"]'
+      && o.modelPicker?.more?.expanded === 'true', (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.more])]
+  ],
+  'new-chat-model': [...startModelChecks('Model', 'Start a new chat', 'Sonnet 5.5', 'Low'), ...ROLE_PICKER_CHECKS],
+  'start-run-model': startModelChecks('Model', 'Start run', 'GPT-6 Astra', 'High'),
+  'lexmechanic-model': startModelChecks('Lexmechanic model', null, 'Opus 5.5', 'Max'),
+  'epic-agent-tabs': [
+    ['the tab strip reads Magos (selected, no ✕) then Lexmechanic (unread dot, ✕), above the chat', (o) => JSON.stringify(o.agentTabs?.tabs)
+      === '[{"name":"Magos","selected":true,"unread":false,"closable":false},{"name":"Lexmechanic, 2 unread messages","selected":false,"unread":true,"closable":true}]'
+      && o.agentTabs?.aboveChat === true, (o) => JSON.stringify(o.agentTabs)],
+    ['the active tab is joined to the chat header: the same surface, rounded top corners', (o) => o.agentTabs?.activeJoined === true
+      && o.agentTabs?.roundedTop === true, (o) => JSON.stringify(o.agentTabs)]
+  ],
+  'mail-card': [
+    ['a received card then a sent card between the person’s message and the reply', (o) => JSON.stringify(o.mail?.rows)
+      === '["item","mail","mail","item"]' && JSON.stringify(o.mail?.cards?.map((card) => card.direction)) === '["received","sent"]',
+    (o) => JSON.stringify(o.mail)],
+    ['headers read ✉ Lexmechanic → Magos and ✉ Magos → Lexmechanic', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))
+      === '["✉ Lexmechanic → Magos Received","✉ Magos → Lexmechanic Sent"]', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))],
+    ['the sent card names the message it answers', (o) => o.mail?.cards?.[1]?.reply === 'Reply to mm_plan14', (o) => JSON.stringify(o.mail?.cards?.[1])],
+    ['bodies are plain text: <b> shows as typed and renders no element', (o) => o.mail?.cards?.every((card) => card.markup === false)
+      && o.mail.cards[0].body.includes('<b>Not markup</b>'), (o) => JSON.stringify(o.mail?.cards)],
+    ['showing the received card marks it seen once', (o) => Array.isArray(o.mail?.seen) && o.mail.seen.length === 1
+      && o.mail.seen[0][0]?.chatId === 'fixture-magos' && o.mail.seen[0][0]?.throughSeq === 1, (o) => JSON.stringify(o.mail?.seen)]
+  ],
+  'agent-transcript': [
+    ['a centred reading column at most 760 px wide', (o) => o.transcript?.columnWidth <= 760 && o.transcript.columnWidth >= 600
+      && o.transcript.columnOffset <= 1, (o) => JSON.stringify([o.transcript?.columnWidth, o.transcript?.columnOffset])],
+    ['the person’s message is a rounded bubble against the column’s right edge', (o) => parseFloat(o.transcript?.bubble?.radius) >= 12
+      && alphaOf(o.transcript.bubble.background) > 0 && near(o.transcript.bubble.rightGap, 0) && o.transcript.bubble.leftGap > 40,
+    (o) => JSON.stringify(o.transcript?.bubble)],
+    ['the reply is plain text across the column, with no bubble', (o) => alphaOf(o.transcript?.reply?.background) === 0
+      && o.transcript.reply.border === '0px' && near(o.transcript.reply.width, o.transcript.columnWidth), (o) => JSON.stringify(o.transcript?.reply)],
+    ['the reply’s action row holds Copy', (o) => JSON.stringify(o.transcript?.replyActions) === '["Copy"]',
+      (o) => JSON.stringify(o.transcript?.replyActions)],
+    ['the bubble’s Copy shows under keyboard focus', (o) => o.transcript?.bubbleCopy === 'Copy' && o.transcript.bubbleCopyFocused === true,
+      (o) => JSON.stringify([o.transcript?.bubbleCopy, o.transcript?.bubbleCopyFocused])],
+    ['the code block’s Copy sits in its top-right corner', (o) => o.transcript?.codeCopy === 'Copy'
+      && o.transcript.codeCopyCorner?.top <= 12 && o.transcript.codeCopyCorner.right <= 12,
+    (o) => JSON.stringify([o.transcript?.codeCopy, o.transcript?.codeCopyCorner])],
+    ['three Copy buttons: the bubble’s, the reply’s and the code block’s', (o) => o.copyButtons === 3, (o) => JSON.stringify(o.copyButtons)]
+  ],
+  'agent-worked-for': [
+    ['a folded “Worked for 28m 51s” turn, then an opened “Worked for 4m 05s” turn',
+      (o) => JSON.stringify(o.workedFor?.toggles) === '[["Worked for 28m 51s",false],["Worked for 4m 05s",true]]',
+      (o) => JSON.stringify(o.workedFor?.toggles)],
+    ['the folded row is followed by its final reply', (o) => o.workedFor?.afterFolded === 'Assistant', (o) => JSON.stringify(o.workedFor?.afterFolded)],
+    ['the opened turn lists its tool cards in order, and no tool card shows outside it',
+      (o) => JSON.stringify(o.workedFor?.openedTools) === '["Tool call: Read","Tool call: Edit","Tool call: Bash"]' && o.workedFor.toolsOutside === 0,
+      (o) => JSON.stringify([o.workedFor?.openedTools, o.workedFor?.toolsOutside])],
+    ['the Worked for rows read 28m 51s then 4m 05s', (o) => JSON.stringify(o.workedForRows) === '["Worked for 28m 51s","Worked for 4m 05s"]',
+      (o) => JSON.stringify(o.workedForRows)]
+  ],
+  'image-result': [
+    ...IMAGE_RESULT_CHECKS,
+    ['three transcript thumbnails and no composer chip', (o) => o.thumbnails === 3 && o.imageChips === 0,
+      (o) => JSON.stringify([o.thumbnails, o.imageChips])],
+    ['no lightbox open', (o) => o.chatImages?.viewer === null]
+  ],
+  'agent-image-viewer': [
+    ...IMAGE_RESULT_CHECKS,
+    ['the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused', (o) => o.chatImages?.viewer?.name === 'Image from agent, 1440x900'
+      && o.chatImages.viewer.scheme === 'dm-chat-image:' && o.chatImages.viewer.loaded === true && o.chatImages.viewer.closeFocused === true,
+    (o) => JSON.stringify(o.chatImages?.viewer)]
+  ],
+  'agent-image-evidence': [
+    ['the person’s image offers the epic and the DM-1 thread’s capture its ticket', (o) => JSON.stringify(o.chatImages?.evidence) === JSON.stringify([
+      'Attach Image from you, 1440x900 as evidence to the epic', 'Attach Image from agent, 1280x800 as evidence to DM-1'
+    ]), (o) => JSON.stringify(o.chatImages?.evidence)],
+    ['the click asks main once for the capture on DM-1', (o) => Array.isArray(o.evidence?.requests) && o.evidence.requests.length === 1
+      && o.evidence.requests[0]?.[0]?.imageId === 'ci_01m8e000000000000000000032' && o.evidence.requests[0][0].epicId === 'ep_1'
+      && o.evidence.requests[0][0].ticketId === 'tk_1', (o) => JSON.stringify(o.evidence?.requests)],
+    ['a toast confirms with the ticket key', (o) => o.evidence?.toast === 'Attached the image to DM-1 as evidence.', (o) => JSON.stringify(o.evidence?.toast)]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
@@ -221,7 +515,7 @@ const EPIC_CHECKS = [
 
 function stateChecks(state) {
   const epic = EPIC_STATES.has(state) ? EPIC_CHECKS.filter(([, applies]) => applies(state)) : []
-  return [...epic.map(([description, , check]) => [description, check]), ...STATE_CHECKS[state] ?? []]
+  return [...epic.map(([description, , check]) => [description, check]), ...STATE_CHECKS[baseState(state)] ?? []]
 }
 
 const failure = (o) => ([description, , observed]) => observed ? `expected ${description}; got ${observed(o)}` : `expected ${description}`
@@ -254,26 +548,30 @@ function sameSize(page, viewport) {
 }
 
 /**
- * The reasons a captured image fails: an empty image, a PNG under 10 KB, or a page whose CSS viewport (read from the
- * fresh page itself) is not the requested size.
+ * The reasons a captured image fails: an empty image, a PNG under 10 KB, a blank page (fewer than 16 distinct colours
+ * among its sampled pixels), or a page whose CSS viewport (read from the fresh page itself) is not the requested size.
  */
 export function validateCapture(state, record, viewport = DEFAULT_VIEWPORT) {
   if (!record || record.ready !== true) return []
   if (record.empty) return [`${state}: capturePage() returned an empty image`]
   const problems = []
   if (!(record.bytes >= MIN_PNG_BYTES)) problems.push(`${state}: the PNG is ${record.bytes} bytes, under ${MIN_PNG_BYTES}`)
+  if (!(record.colors >= MIN_COLORS)) problems.push(`${state}: the capture is blank (${record.colors} distinct colours, under ${MIN_COLORS})`)
   if (!sameSize(record.viewport, viewport)) {
     problems.push(`${state}: the page viewport was ${record.viewport?.width}x${record.viewport?.height}, not ${viewport.width}x${viewport.height}`)
   }
   return problems
 }
 
-/** Every reason the run fails, across all states; a state Electron never reported is a failure too. */
+/**
+ * Every reason the run fails, across all states; a state Electron never reported is a failure too. A sized state is
+ * judged at its own size, every other one at the run's.
+ */
 export function runFailures(records, viewport = DEFAULT_VIEWPORT) {
   return STATES.flatMap((state) => {
     const record = records[state]
     if (record === undefined) return [`${state}: Electron reported nothing for this state`]
-    return [...validateObservations(state, record), ...validateCapture(state, record, viewport)]
+    return [...validateObservations(state, record), ...validateCapture(state, record, viewportOf(state, viewport))]
   })
 }
 
@@ -294,14 +592,23 @@ function killTree(child) {
   else child.kill('SIGKILL')
 }
 
-async function startVite() {
-  const { createServer } = await import('vite')
-  const port = await freePort()
-  const server = await createServer({
+/** The preview's own Vite config, building `agent.html` into `outDir` outside the repo. */
+export function previewBuildConfig(outDir) {
+  return {
     configFile: join(PREVIEW, 'vite.config.ts'), root: PREVIEW, logLevel: 'error', clearScreen: false,
-    server: { host: '127.0.0.1', port, strictPort: true, hmr: false }
-  })
-  await server.listen()
+    build: { outDir, emptyOutDir: true, rollupOptions: { input: join(PREVIEW, 'agent.html') } }
+  }
+}
+
+async function buildPreview(outDir) {
+  const { build } = await import('vite')
+  await build(previewBuildConfig(outDir))
+}
+
+async function servePreview(outDir) {
+  const { preview } = await import('vite')
+  const port = await freePort()
+  const server = await preview({ ...previewBuildConfig(outDir), preview: { host: '127.0.0.1', port, strictPort: true } })
   return { server, base: `http://127.0.0.1:${port}/agent.html` }
 }
 
@@ -311,7 +618,8 @@ async function startVite() {
  */
 function runElectron({ base, out, userData, session, viewport }) {
   const { promise, resolve: done, reject } = Promise.withResolvers()
-  const config = Buffer.from(JSON.stringify({ base, states: STATES, out, deadlineMs: STATE_DEADLINE_MS, viewport })).toString('base64')
+  const states = STATES.map((state) => ({ state, viewport: viewportOf(state, viewport) }))
+  const config = Buffer.from(JSON.stringify({ base, states, out, deadlineMs: STATE_DEADLINE_MS })).toString('base64')
   const electron = createRequire(import.meta.url)('electron')
   const child = spawn(electron, [ELECTRON_ENTRY, `--user-data-dir=${userData}`, `--capture-config=${config}`],
     { cwd: REPO, env: electronEnv(process.env), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true })
@@ -335,12 +643,14 @@ function runElectron({ base, out, userData, session, viewport }) {
   return promise
 }
 
-function overallLimit(session) {
+/** Rejects with `message` once `ms` pass, killing Electron's process tree; replaces any earlier phase's limit. */
+function phaseLimit(session, ms, message) {
   const { promise, reject } = Promise.withResolvers()
+  clearTimeout(session.timer)
   session.timer = setTimeout(() => {
     killTree(session.child)
-    reject(new Error(`The capture exceeded its ${OVERALL_LIMIT_MS / 1_000} s overall limit`))
-  }, OVERALL_LIMIT_MS)
+    reject(new Error(message))
+  }, ms)
   return promise
 }
 
@@ -353,16 +663,22 @@ async function main() {
   const { out, viewport } = parseArgs(process.argv.slice(2))
   mkdirSync(out, { recursive: true })
   const userData = mkdtempSync(join(tmpdir(), 'dm-capture-agent-chat-'))
+  const built = mkdtempSync(join(tmpdir(), 'dm-capture-agent-chat-build-'))
   const session = { child: null, timer: null, server: null }
   let records = {}
   let failures
   try {
+    const buildStarted = Date.now()
+    await Promise.race([buildPreview(built),
+      phaseLimit(session, BUILD_LIMIT_MS, `Building the preview exceeded its ${BUILD_LIMIT_MS / 1_000} s limit`)])
+    console.log(`Built the preview in ${Date.now() - buildStarted} ms`)
     const capture = (async () => {
-      const vite = await startVite()
-      session.server = vite.server
-      return runElectron({ base: vite.base, out, userData, session, viewport })
+      const served = await servePreview(built)
+      session.server = served.server
+      return runElectron({ base: served.base, out, userData, session, viewport })
     })()
-    records = await Promise.race([capture, overallLimit(session)])
+    records = await Promise.race([capture,
+      phaseLimit(session, OVERALL_LIMIT_MS, `The capture exceeded its ${OVERALL_LIMIT_MS / 1_000} s overall limit`)])
     failures = runFailures(records, viewport)
   } catch (error) {
     failures = [error instanceof Error ? error.message : String(error)]
@@ -371,6 +687,7 @@ async function main() {
     killTree(session.child)
     await session.server?.close()
     rmSync(userData, { recursive: true, force: true })
+    rmSync(built, { recursive: true, force: true })
   }
   report(out, records, failures)
   if (failures.length > 0) {

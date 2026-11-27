@@ -57,6 +57,21 @@
   /* Lens green: brand glow only; the running state shares it */
   --lens: #84c20a;
 
+  /* Glass: frosted panels over a brass/crimson glow on the Agent surface. --glass-bg is a --panel tint for the rail,
+     docked prompt cards and composer; --glass-bg-strong is a near-solid --bg tint for text-bearing surfaces (the
+     transcript). styles.test.ts holds --ink and --muted on both, over the brightest point of --agent-backdrop, to 4.5:1. */
+  --glass-bg: rgba(33, 27, 24, 0.7);
+  --glass-bg-strong: rgba(21, 18, 17, 0.9);
+  --glass-edge: rgba(242, 215, 174, 0.12);
+  --glass-blur: 16px;
+  --glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --glow-brass: rgba(214, 155, 74, 0.28);
+  --glow-crimson: rgba(181, 26, 31, 0.3);
+  --agent-backdrop:
+    radial-gradient(ellipse 75% 85% at 85% 0%, var(--glow-brass), transparent 70%),
+    radial-gradient(ellipse 70% 85% at 0% 100%, var(--glow-crimson), transparent 70%),
+    var(--bg);
+
   /* State colors — always paired with a text label in the UI */
   --st-accepted: #4cc7a8;
   --st-review: #a78bfa;
@@ -419,6 +434,40 @@ code {
   border-style: dashed;
 }
 
+/* ---------- Glass (the Agent surface) ---------- */
+
+.glass,
+.glass-strong {
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+
+.glass {
+  background: var(--glass-bg);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+}
+
+/* Without a blur, or when the person asks for less transparency, every glass surface is a solid panel. */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass,
+  .glass-strong {
+    background: var(--panel-2);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-strong {
+    background: var(--panel-2);
+    backdrop-filter: none;
+  }
+}
+
 /* ---------- Cards, fields, code ---------- */
 
 .card {
@@ -720,6 +769,16 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* New chat's role cards: a wider dialog so the facts wrap less, and smaller art, so Start shows without scrolling. */
+.dialog:has(.first-prompt-roles) {
+  width: min(720px, 100%);
+}
+
+.first-prompt-roles .arc-art {
+  width: 112px;
+  height: 112px;
 }
 
 .dialog-path {

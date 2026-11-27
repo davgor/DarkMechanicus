@@ -46,6 +46,7 @@ const mail: ChatMailApi = {
   snapshot: (folder) => ipcRenderer.invoke('chatMail:snapshot', folder),
   state: (request) => ipcRenderer.invoke('chatMail:state', request),
   read: (request) => ipcRenderer.invoke('chatMail:read', request),
+  conversation: (request) => ipcRenderer.invoke('chatMail:conversation', request),
   markSeen: (request) => ipcRenderer.invoke('chatMail:markSeen', request),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatMailPushEvent): void => {
@@ -127,6 +128,7 @@ const agentChat: AgentChatApi = {
   start: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.start, request),
   send: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.send, request),
   interrupt: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.interrupt, request),
+  stop: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stop, request),
   answer: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.answer, request),
   setSurface: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setSurface, request),
   snapshot: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.snapshot, request),
@@ -141,7 +143,11 @@ const agentChat: AgentChatApi = {
       }
     }
   },
-  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request)
+  models: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.models, request),
+  setModel: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setModel, request),
+  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request),
+  stageImage: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stageImage, request),
+  attachEvidence: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attachEvidence, request)
 }
 
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */

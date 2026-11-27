@@ -8,7 +8,7 @@ import type { AgentId, CommandResult } from '../desktop/api'
 import type { AgentInboxPage } from '../domain/agentMail'
 import type { KanbanCardView } from '../domain/kanban'
 import type { RunView } from '../domain/views'
-import type { ChatItem, ChatRecord, ChatRole } from './chat'
+import type { ChatItem, ChatRecord, ChatRole, ThinkingLevel } from './chat'
 
 /** Main pushes every `ChatPushEvent` to the window on this channel. */
 export const CHAT_EVENT_CHANNEL = 'chats:event'
@@ -31,6 +31,8 @@ export interface CreateChatRequest {
   role: ChatRole
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level (`--thinking`), with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** Lets the chat save plans (`--allow-save`); on unless turned off. */
   allowSave?: boolean
   title?: string
@@ -59,6 +61,8 @@ export interface StartOrchestratorRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii Magos's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** The person's additional instructions from the Start run dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
   instructions?: string
 }
@@ -79,6 +83,8 @@ export interface StartTransferChatRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
 }
 
 /** What starting a transfer chat left behind. The transfer stays authorized either way; the chat exists only when its agent was started. */
@@ -89,10 +95,17 @@ export interface StartTransferChatResult {
   problem: string | null
 }
 
-/** Starts a planner chat bound to an epic; the agent (`pickChatAgent`), role, Allow save, title and kickoff are decided in main. */
+/**
+ * Starts a planner chat bound to an epic; the agent (`pickChatAgent`), role, Allow save, title and kickoff are decided in
+ * main. A model (and a Skitarii planner's thinking level) may be named; left out, the agent uses its default.
+ */
 export interface StartPlannerRequest {
   folder: string
   epicId: string
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+  /** A Skitarii planner's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
 }
 
 /** What starting a planner left behind; the chat exists only when its agent was started. */
@@ -110,6 +123,8 @@ export interface StartKanbanCardRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** A Skitarii chat's thinking level, with a model of its catalog; null (or left out) for its default. */
+  thinking?: ThinkingLevel | null
   /** The person's additional instructions from the Play dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
   instructions?: string
 }
@@ -270,6 +285,38 @@ export interface MarkChatMailSeenRequest extends ChatMailRef {
   throughSeq: number
 }
 
+/** The newest mail a chat received or sent, for its GUI transcript; `limit` 1 to 200 (default 200). */
+export interface ChatMailConversationRequest extends ChatMailRef {
+  limit?: number
+}
+
+/** A side of a mail card: a callsign from the chat records, or the mailbox's stored name for a chat outside the epic. */
+export interface ChatMailParty {
+  label: string
+  kind: 'callsign' | 'name'
+}
+
+/** One mail card of a GUI transcript: plain text from another agent, its body masked; never a stored chat item. */
+export interface ChatMailEntry {
+  id: string
+  direction: 'received' | 'sent'
+  /** A received message's sequence in this chat's mailbox (what `markSeen` takes); null for a sent one. */
+  seq: number | null
+  from: ChatMailParty
+  to: ChatMailParty
+  inReplyTo: string | null
+  /** When the recipient's mailbox accepted it: the card's place in the transcript. */
+  acceptedAt: string
+  body: string
+}
+
+/** A chat's mail cards, oldest first; answered only to the app window that asked, and it acknowledges and marks nothing. */
+export interface ChatMailConversation {
+  entries: ChatMailEntry[]
+  /** Older retained mail exists than the oldest card here. */
+  hasEarlier: boolean
+}
+
 
 /** A chat's mailbox state changed, or the chat no longer has a mailbox (deleted). Metadata only. */
 export type ChatMailPushEvent =
@@ -289,6 +336,8 @@ export interface ChatMailApi {
   state(request: ChatMailRef): Promise<CommandResult<ChatMailState>>
   /** One page with bodies; neither acknowledges for the agent nor marks seen. */
   read(request: ReadChatMailRequest): Promise<CommandResult<ChatMailPage>>
+  /** The chat's received and sent mail, newest `limit` of both, oldest first; lets `markSeen` reach the received ones shown. */
+  conversation(request: ChatMailConversationRequest): Promise<CommandResult<ChatMailConversation>>
   /** Forward only; the state after it. A message arriving meanwhile stays unseen. */
   markSeen(request: MarkChatMailSeenRequest): Promise<CommandResult<ChatMailState>>
   /** Subscribes to metadata pushes for monitored folders; returns the unsubscribe function. */

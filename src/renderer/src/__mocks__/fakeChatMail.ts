@@ -1,11 +1,15 @@
 /**
  * `window.dm.chats.mail` for renderer tests about Skitarii inboxes: an in-memory store of each chat's mailbox state
  * and messages, keyed by folder and chat, that answers the way main does. Every answer and push carries a new version
- * from one counter; `read` pages by sequence; `markSeen` moves only the person's cursor.
+ * from one counter; `read` pages by sequence; `conversation` serves the chat's mail cards; `markSeen` moves only the
+ * person's cursor.
  * Every call is recorded; a method held with `hold` waits until `release`; `failures` answers a method with an error.
  */
 import type {
   ChatMailApi,
+  ChatMailConversation,
+  ChatMailConversationRequest,
+  ChatMailEntry,
   ChatMailPage,
   ChatMailPushEvent,
   ChatMailRef,
@@ -19,7 +23,7 @@ import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { AgentMailMessageView } from '../../../shared/domain/agentMail'
 import { deferred, type Deferred } from './deferred'
 
-type Method = 'snapshot' | 'state' | 'read' | 'markSeen'
+type Method = 'snapshot' | 'state' | 'read' | 'conversation' | 'markSeen'
 
 const keyOf = (folder: string, chatId: string): string => `${folder}\0${chatId}`
 
@@ -52,11 +56,26 @@ export function mailMessage(patch: Partial<AgentMailMessageView> & { seq: number
   }
 }
 
+/** A mail card the chat received from the Magos, unless the patch says otherwise (a sent one has a null `seq`). */
+export function mailEntry(patch: Partial<ChatMailEntry> & { id: string }): ChatMailEntry {
+  return {
+    direction: 'received',
+    seq: 1,
+    from: { label: 'Magos', kind: 'callsign' },
+    to: { label: 'Lexmechanic', kind: 'callsign' },
+    inReplyTo: null,
+    acceptedAt: '2026-11-15T10:00:00.000Z',
+    body: 'hello',
+    ...patch
+  }
+}
+
 export class FakeChatMail implements ChatMailApi {
   readonly calls: { method: Method; args: unknown[] }[] = []
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   private readonly states = new Map<string, ChatMailState>()
   private readonly inboxes = new Map<string, AgentMailMessageView[]>()
+  private readonly conversations = new Map<string, ChatMailEntry[]>()
   private readonly served = new Map<string, number>()
   private readonly holds: Partial<Record<Method, Deferred[]>> = {}
   private readonly listeners = new Set<(event: ChatMailPushEvent) => void>()
@@ -74,6 +93,11 @@ export class FakeChatMail implements ChatMailApi {
   /** The chat's retained messages, ascending, as `read` serves them. */
   setMessages(folder: string, chatId: string, messages: AgentMailMessageView[]): void {
     this.inboxes.set(keyOf(folder, chatId), messages)
+  }
+
+  /** The chat's mail cards, oldest first, as `conversation` serves them; its received ones count as shown once served. */
+  setConversation(folder: string, chatId: string, entries: ChatMailEntry[]): void {
+    this.conversations.set(keyOf(folder, chatId), entries)
   }
 
   /** Removes the chat's mailbox and pushes `mail_removed`. */
@@ -127,6 +151,16 @@ export class FakeChatMail implements ChatMailApi {
     return { ok: true, data: { messages, snapshotHighWater: horizon, nextCursor: last, hasMore: window.length > messages.length } }
   }
 
+  async conversation(request: ChatMailConversationRequest): Promise<CommandResult<ChatMailConversation>> {
+    const failed = await this.enter('conversation', [request])
+    if (failed) return failed
+    const key = keyOf(request.folder, request.chatId)
+    const entries = this.conversations.get(key)
+    if (entries === undefined) return { ok: false, error: { code: 'not_found', message: 'No mailbox.' } }
+    this.served.set(key, entries.reduce((highest, entry) => Math.max(highest, entry.seq ?? 0), this.served.get(key) ?? 0))
+    return { ok: true, data: { entries, hasEarlier: false } }
+  }
+
   async markSeen(request: MarkChatMailSeenRequest): Promise<CommandResult<ChatMailState>> {
     const failed = await this.enter('markSeen', [request])
     if (failed) return failed
@@ -135,7 +169,8 @@ export class FakeChatMail implements ChatMailApi {
     const known = this.states.get(key)
     if (known === undefined) return { ok: false, error: { code: 'not_found', message: 'No mailbox.' } }
     const humanSeenSeq = Math.max(known.humanSeenSeq, request.throughSeq)
-    const unseenCount = (this.inboxes.get(key) ?? []).filter((message) => message.seq > humanSeenSeq).length
+    const seqs = [...(this.inboxes.get(key) ?? []).map((message) => message.seq), ...(this.conversations.get(key) ?? []).flatMap((entry) => entry.seq ?? [])]
+    const unseenCount = new Set(seqs.filter((value) => value > humanSeenSeq)).size
     return { ok: true, data: this.put({ folder: request.folder, chatId: request.chatId, humanSeenSeq, unseenCount }) }
   }
 

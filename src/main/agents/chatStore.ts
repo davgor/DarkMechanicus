@@ -28,6 +28,7 @@ import { chatItemSchema, chatRecordSchema, type ChatItem, type ChatRecord } from
 import { canonicalPath } from '../desktop/folderRegistry'
 import { maskClaimTokensDeep } from './claimTokenMask'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
+import type { ChatImages } from '../agentChat/chatImages'
 
 /** The filesystem surface the store uses; tests inject fakes through it. */
 export interface ChatStoreFs {
@@ -45,12 +46,12 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'thinking' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -76,7 +77,7 @@ export interface ChatStore {
   readTranscript(ref: ChatRef): ChatTranscript | null
   /** Appends masked transcript items; throws `not_found` for an unknown chat. */
   appendItems(ref: ChatRef, items: ChatItem[]): void
-  /** Removes the chat, its transcript and every stored version of its record; throws `not_found` for an unknown chat. */
+  /** Removes the chat, its transcript, its images and every stored version of its record; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): void
 }
 
@@ -109,6 +110,7 @@ interface StoreContext {
   fs: ChatStoreFs
   now: () => string
   newId: () => string
+  images: Pick<ChatImages, 'deleteChat'> | null
   /** Folder key -> the folder's chats by id, loaded from its index on first use. */
   indexes: Map<string, Map<string, ChatRecord>>
   /** Files whose tail was already checked for a truncated last line by this process. */
@@ -244,6 +246,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     folder: location.folder,
     agent: input.agent,
     model: input.model,
+    ...(input.thinking == null ? {} : { thinking: input.thinking }),
     role: input.role,
     allowSave: input.allowSave,
     title: input.title ?? DEFAULT_TITLE,
@@ -315,14 +318,15 @@ function indexWithout(text: string, id: string): string {
 }
 
 /**
- * Deletes the transcript first and the index lines second: a failure in between leaves a chat with an
- * empty transcript that can be deleted again, never a transcript that no chat points to.
+ * Deletes the transcript and the chat's images first and the index lines last: a failure in between leaves a chat
+ * with an empty transcript that can be deleted again, never a transcript or images that no chat points to.
  */
 function deleteChat(context: StoreContext, ref: ChatRef): void {
   const { location, chat } = requireChat(context, ref)
   const transcript = join(location.dir, `${chat.id}.jsonl`)
   const index = join(location.dir, INDEX_FILE)
   context.fs.removeFile(transcript)
+  context.images?.deleteChat({ folder: location.folder, chatId: chat.id })
   context.fs.replaceFile(index, indexWithout(readLines(context.fs, index).join('\n'), chat.id))
   loadIndex(context, location).delete(chat.id)
 }
@@ -335,12 +339,15 @@ export function createChatStore(options: {
   now?: () => string
   /** Chat id source; ids must be filesystem-safe (letters, digits, `_`, `-`). */
   newId?: () => string
+  /** The chats' image store (`agentChat/chatImages`); deleting a chat removes its images with its transcript. */
+  images?: Pick<ChatImages, 'deleteChat'>
 }): ChatStore {
   const context: StoreContext = {
     root: options.root,
     fs: options.fs ?? nodeChatStoreFs,
     now: options.now ?? (() => new Date().toISOString()),
     newId: options.newId ?? (() => `chat_${randomUUID()}`),
+    images: options.images ?? null,
     indexes: new Map(),
     checked: new Set()
   }

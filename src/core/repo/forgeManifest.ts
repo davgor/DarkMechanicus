@@ -46,26 +46,48 @@ export function forgeWorldAt(root: string): ForgeWorld | undefined {
 /** Told the code of each busy rename that is asked again, and the file it replaces; the main process logs it. */
 export type RenameRetryNote = (code: string, file: string) => void
 
-/** What Windows answers a rename onto a file another handle holds open (a scan, a reader) for a moment. */
+/** What Windows answers a rename onto a file another handle holds open (a virus scan, an indexer, a reader) for a while. */
 const RENAME_BUSY: Record<string, true> = { EPERM: true, EACCES: true, EBUSY: true }
-/** Waits after each busy refusal: 300 ms in all. */
-const RENAME_PAUSES_MS = [50, 100, 150]
+/**
+ * Waits after each busy refusal: doubling from 50 ms, 2,550 ms in all. An external scanner held a just-written
+ * forge-world.json past the earlier 300 ms on a quiet Windows host, with no git or owner of DM's own holding it.
+ */
+export const RENAME_PAUSES_MS: readonly number[] = [50, 100, 200, 400, 800, 1_000]
+
+/** Blocks this thread for `ms`: the writers are synchronous, and a pause is short and bounded. */
+function blockFor(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/** The rename and the pause between refusals; tests pass their own, production uses `renameSync` and a blocking wait. */
+interface RenameIo {
+  rename?: (from: string, to: string) => void
+  pause?: (ms: number) => void
+}
 
 /**
  * Renames the written `temp` over `file`. A busy refusal is asked again after each of `RENAME_PAUSES_MS`, after
- * telling `onRetry` its code; any other error, or the last refusal, is thrown as it came, with the target untouched.
- * This module logs nothing itself: plain Node scripts bundle it, so the main process passes its logger in.
+ * telling `onRetry` its code; any other error is thrown as it came. A refusal still busy after the last pause throws
+ * that the file stayed locked and for how long, with the refusal's code and the refusal as its cause. Either way the
+ * target is untouched. This module logs nothing itself: plain Node scripts bundle it, so the main process passes its
+ * logger in.
  */
-export function replaceForgeFile(temp: string, file: string, onRetry?: RenameRetryNote, rename: (from: string, to: string) => void = renameSync): void {
+export function replaceForgeFile(temp: string, file: string, onRetry?: RenameRetryNote, { rename = renameSync, pause = blockFor }: RenameIo = {}): void {
+  let waited = 0
   for (let attempt = 0; ; attempt++) {
     try {
       rename(temp, file)
       return
     } catch (error) {
-      const pause = RENAME_PAUSES_MS[attempt], code = (error as NodeJS.ErrnoException).code ?? ''
-      if (pause === undefined || !Object.hasOwn(RENAME_BUSY, code)) throw error
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (!Object.hasOwn(RENAME_BUSY, code)) throw error
+      const ms = RENAME_PAUSES_MS[attempt]
+      if (ms === undefined) {
+        throw Object.assign(new Error(`${file} stayed locked for ${waited} ms (${(error as Error).message})`, { cause: error }), { code })
+      }
       noteRetry(onRetry, code, file)
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pause)
+      pause(ms)
+      waited += ms
     }
   }
 }

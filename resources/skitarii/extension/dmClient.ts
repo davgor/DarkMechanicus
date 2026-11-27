@@ -88,8 +88,13 @@ export interface DmMailIdentity {
   boundAt: string
 }
 
+/** A chat's Dark Mechanicus roles, as the desktop records them for a peer. */
+export const DM_CHAT_ROLES = ['planner', 'orchestrator', 'worker', 'reviewer'] as const
+type DmChatRole = (typeof DM_CHAT_ROLES)[number]
+
 export interface DmMailPeersPage {
-  peers: { endpointId: string; name: string }[]
+  /** `epicId` and `role` are trusted metadata the desktop recorded from the peer's chat record; `name` is only a label. */
+  peers: { endpointId: string; name: string; epicId: string | null; role: DmChatRole | null }[]
   nextAfterId: string | null
   hasMore: boolean
 }
@@ -152,7 +157,7 @@ export interface DmMailAcknowledged {
 /** Each command's input and the `data` of its successful result. */
 export interface DmMailCalls {
   identity: { input: Record<string, never>; output: DmMailIdentity }
-  peers: { input: { afterId?: string; limit?: number }; output: DmMailPeersPage }
+  peers: { input: { afterId?: string; limit?: number; epicId?: string; role?: DmChatRole }; output: DmMailPeersPage }
   send: { input: DmMailSendInput; output: DmMailAcceptance }
   read: { input: DmMailReadInput; output: DmMailInboxPage }
   ack: { input: { messageIds: string[] }; output: DmMailAcknowledged }

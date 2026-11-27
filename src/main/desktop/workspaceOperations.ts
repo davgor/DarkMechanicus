@@ -21,10 +21,10 @@ import { appendEvent } from '../../core/services/events'
 import { planTrace } from '../../core/services/planTrace'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
-import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, renameAgentMailEndpoint, suspendAgentMailEndpoint } from '../../core/services/agentMail'
+import { getHumanAgentMailState, readHumanAgentConversation, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, suspendAgentMailEndpoint } from '../../core/services/agentMail'
 import { acceptMessage, findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
-import { bindChatMailbox, deleteChatMailbox, hasMailbox, mailboxName, provisionAll, type MailboxChat } from '../agents/chatMailboxOperations'
+import { bindChatMailbox, deleteChatMailbox, hasMailbox, provisionAll, renameChatMailbox, type MailboxChat } from '../agents/chatMailboxOperations'
 import {
   finishLearningApproval,
   learningApprovalState,
@@ -82,7 +82,7 @@ function mailboxOperations(ctx: Context) {
       return mailboxError
     },
     deleteMailbox: (chat: MailboxChat) => deleteChatMailbox(ctx(), chat),
-    renameMailbox: (endpointId: string, title: string) => renameAgentMailEndpoint(ctx(), { endpointId, name: mailboxName(title) }),
+    renameMailbox: (endpointId: string, chat: MailboxChat) => renameChatMailbox(ctx(), endpointId, chat),
     suspendMailbox(chatId: string) {
       const context = ctx()
       const row = findEndpointByChat(context, { machineId: context.machineId, chatId })
@@ -152,6 +152,10 @@ function mailReadOperations(ctx: Context) {
     mailRead(chat: ChatRecord, window: MailWindow) {
       const context = ctx()
       return readHumanAgentInbox(context, { ...window, endpointId: endpoint(context, chat) })
+    },
+    mailConversation(chat: ChatRecord, limit: number | undefined) {
+      const context = ctx()
+      return readHumanAgentConversation(context, { endpointId: endpoint(context, chat), limit })
     },
     mailSeen(chat: ChatRecord, throughSeq: number) {
       const context = ctx()

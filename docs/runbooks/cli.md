@@ -261,7 +261,7 @@ properties are refused with `invalid_input` before anything runs.
 | Command (alias) | Input | Returns |
 |---|---|---|
 | `get_agent_identity` (`getAgentIdentity`) | `{}` | `{endpointId, name, role, boundAt}` |
-| `list_agent_peers` (`listAgentPeers`) | `{afterId?, limit? ≤50}` | `{peers:[{endpointId, name}], nextAfterId, hasMore}` |
+| `list_agent_peers` (`listAgentPeers`) | `{afterId?, limit? ≤50, epicId?, role?}` | `{peers:[{endpointId, name, epicId, role}], nextAfterId, hasMore}` |
 | `send_agent_message` (`sendAgentMessage`) | `{to, clientMessageId, body ≤16 KiB, inReplyTo?}` | `{messageId, to, clientMessageId, inReplyTo, acceptedAt, duplicate}` |
 | `read_agent_inbox` (`readAgentInbox`) | `{afterSeq?, throughSeq?, limit? ≤50, unacknowledgedOnly?}` | `{messages, snapshotHighWater, nextCursor, hasMore}` |
 | `acknowledge_agent_messages` (`acknowledgeAgentMessages`) | `{messageIds: 1–100}` | `{acknowledged:[{messageId, acknowledgedAt, expiresAt}]}` |
@@ -276,6 +276,7 @@ Pass the JSON on stdin (`call <command> -`) or, on Windows, in a file (`call <co
 
 ```sh
 printf '%s' '{"limit":10}' | dm call list_agent_peers -
+printf '%s' '{"epicId":"ep_…","role":"planner"}' | dm call list_agent_peers -
 printf '%s' '{"to":"me_…","clientMessageId":"review-1","body":"Ready for review?"}' | dm call send_agent_message -
 dm call get_agent_mail_status
 printf '%s' '{"unacknowledgedOnly":true}' | dm call read_agent_inbox -
@@ -288,6 +289,12 @@ dm call acknowledge_agent_messages --args-file "$TMP/ack.json"
 Inside a Skitarii chat the agent normally uses the native tools instead (see
 [Skitarii mail](agents.md#skitarii-mail)); they run these same commands with the chat's grant.
 
+- **Finding a peer.** A peer's `name` is the chat's title: display text, never proof of who it is.
+  Its `epicId` and `role` are trusted: the desktop records them from its own chat record (the
+  chat's role, and its epic binding, including the run, transfer or board conversation an older
+  chat was started for) whenever it lists, starts or renames the chat, and no agent can set them.
+  They are null when the chat has none. `epicId` and `role` filter the list, so a Magos finds its
+  epic's Lexmechanic with `{"epicId":"ep_…","role":"planner"}`.
 - **Sending** is durable acceptance, not delivery, reading or processing. `clientMessageId` is your
   own retry key, scoped to your mailbox and kept seven days: within them the same id with the same
   payload replays the first acceptance (`duplicate: true`); with another payload it is

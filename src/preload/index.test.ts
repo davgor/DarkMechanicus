@@ -290,9 +290,9 @@ describe('preload bridge subscriptions', () => {
 })
 
 describe('preload bridge agent chat attention', () => {
-  it('maps agentChat.attention, appended last, to agentChat:attention with only its request and forwards attention pushes', async () => {
+  it('maps agentChat.attention, before the image methods, to agentChat:attention with only its request and forwards attention pushes', async () => {
     const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
-    expect(Object.keys(dm.agentChat).at(-1)).toBe('attention')
+    expect(Object.keys(dm.agentChat).slice(-3)).toEqual(['attention', 'stageImage', 'attachEvidence'])
     bridge.calls.length = 0
     await expect(dm.agentChat.attention({ folder: '/repo' })).rejects.toThrow(`Unregistered channel ${AGENT_CHAT_CHANNELS.attention}`)
     expect(bridge.calls).toEqual([['agentChat:attention', { folder: '/repo' }]])
@@ -305,6 +305,18 @@ describe('preload bridge agent chat attention', () => {
     }
     expect(received).toEqual([valid])
     unsubscribe()
+  })
+})
+
+describe('preload bridge agent chat images', () => {
+  it('maps stageImage and attachEvidence to their own channels, forwarding only the request', async () => {
+    const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
+    const stage = { folder: '/repo', chatId: 'chat_1', data: 'iVBORw0KGgo=' }
+    const evidence = { folder: '/repo', chatId: 'chat_1', imageId: 'ci_01m8ec59dbq52ydhsy6ry7knhv', epicId: 'ep_1', ticketId: 'tk_1' }
+    bridge.calls.length = 0
+    await expect(dm.agentChat.stageImage(stage)).rejects.toThrow(`Unregistered channel ${AGENT_CHAT_CHANNELS.stageImage}`)
+    await expect(dm.agentChat.attachEvidence(evidence)).rejects.toThrow(`Unregistered channel ${AGENT_CHAT_CHANNELS.attachEvidence}`)
+    expect(bridge.calls).toEqual([['agentChat:stageImage', stage], ['agentChat:attachEvidence', evidence]])
   })
 })
 

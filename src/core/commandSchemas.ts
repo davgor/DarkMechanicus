@@ -1,5 +1,6 @@
 import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
+import { CHAT_ROLES } from '../shared/agents/chat'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import {
@@ -671,7 +672,9 @@ export const COMMAND_SCHEMAS = {
   getAgentIdentity: noInput,
   listAgentPeers: z.strictObject({
     afterId: stableId.optional().describe('The previous page\'s nextAfterId.'),
-    limit: z.number().int().min(1).max(AGENT_MAIL_LIMITS.endpointPageSize).optional()
+    limit: z.number().int().min(1).max(AGENT_MAIL_LIMITS.endpointPageSize).optional(),
+    epicId: stableId.optional().describe('Only peers whose chat the desktop bound to this epic (trusted, server-recorded).'),
+    role: z.enum(CHAT_ROLES).optional().describe('Only peers whose chat runs as this role (trusted, server-recorded).')
   }),
   sendAgentMessage: z.strictObject({
     to: stableId.describe('The recipient mailbox\'s endpoint id (me_…).'),

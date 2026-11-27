@@ -4,6 +4,7 @@
  */
 import { render, type RenderResult } from '@testing-library/react'
 import { SignInRecorder } from '../../__mocks__/signInRecorder'
+import { AgentMailContext, type AgentMailStore } from '../../agents/useAgentMail'
 import type { Clock } from '../clock'
 import { ClockContext } from '../clock'
 import { EpicWorkspace, type EpicWorkspaceProps } from '../EpicWorkspace'
@@ -30,7 +31,8 @@ export interface WorkspaceHarness extends RenderResult {
   openEpic(epicId: string): void
 }
 
-export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspaceProps> = {}): WorkspaceHarness {
+/** `mail`: the shell's mail store the page is under; none by default (nothing reads mail). */
+export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspaceProps> = {}, mail: AgentMailStore | null = null): WorkspaceHarness {
   window.dm = backend
   const changes = { count: 0 }
   const deleted = { count: 0 }
@@ -40,7 +42,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
   const signIn = new SignInRecorder()
   let shown = { refreshToken: patch.refreshToken ?? 0, epicId: patch.epicId ?? 'ep_1' }
   const element = (): JSX.Element => (
-    <ClockContext.Provider value={FIXED_CLOCK}>
+    <AgentMailContext.Provider value={mail}><ClockContext.Provider value={FIXED_CLOCK}>
       <ViewMemoryContext.Provider value={memory}>
         <EpicWorkspace
           folder={folder()}
@@ -56,7 +58,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
           {...shown}
         />
       </ViewMemoryContext.Provider>
-    </ClockContext.Provider>
+    </ClockContext.Provider></AgentMailContext.Provider>
   )
   const result = render(signIn.wrap(element()))
   const show = (next: Partial<typeof shown>): void => {

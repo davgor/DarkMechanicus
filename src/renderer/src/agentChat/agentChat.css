@@ -1,10 +1,12 @@
 .agent-chat {
+  /* The transcript's least height beside a docked prompt card, which shrinks (its options scroll) before it does. */
+  --agent-transcript-min: 96px;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   min-width: 0;
-  background: var(--bg);
+  background: var(--agent-backdrop);
   color: var(--ink);
 }
 
@@ -58,10 +60,11 @@
 
 .agent-chat-scroll {
   flex: 1;
-  min-height: 0;
+  min-height: var(--agent-transcript-min);
   overflow-y: auto;
   overflow-wrap: anywhere;
   padding: 20px 24px;
+  margin: 12px 16px 0;
 }
 
 .agent-chat .chat-transcript {
@@ -69,62 +72,20 @@
   padding: 0;
 }
 
+/* The transcript's reading column (chatView.css .chat-rows): the live reply and the empty note line up with it. */
 .agent-chat-stream,
 .agent-chat-empty {
-  max-width: 860px;
+  max-width: 760px;
   margin: 16px auto;
 }
 
 .agent-chat-empty,
-.agent-chat-thinking,
-.agent-chat-hint {
+.agent-chat-thinking {
   color: var(--muted);
-}
-
-.agent-chat-stream > .chat-msg-who {
-  margin-bottom: 8px;
 }
 
 .agent-chat-thinking summary {
   cursor: pointer;
-}
-
-.agent-chat-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.agent-chat-label {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.agent-chat-composer textarea {
-  width: 100%;
-  min-height: 72px;
-  max-height: 240px;
-  resize: vertical;
-}
-
-.agent-chat-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.agent-chat-hint {
-  flex: 1;
-  font-size: 11px;
-}
-
-.agent-chat-command-error {
-  margin: 0;
-  color: var(--st-failed);
 }
 
 .agent-chat-detail {
@@ -136,8 +97,7 @@
 
 @media (max-width: 600px) {
   .agent-chat-header,
-  .agent-chat-scroll,
-  .agent-chat-composer {
+  .agent-chat-scroll {
     padding: 12px;
   }
 }

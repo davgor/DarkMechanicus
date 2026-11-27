@@ -3,11 +3,8 @@
   min-height: 0;
   max-height: 45%;
   overflow: auto;
-  margin: 0 16px;
+  margin: 12px 16px 0;
   padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
   overflow-wrap: anywhere;
 }
 
@@ -54,6 +51,150 @@
 
 .agent-prompt-answer button {
   justify-self: start;
+}
+
+.agent-prompt-progress {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/*
+ * A multi question keeps its question, count and Submit in view; only the options scroll. Its rows are one line each
+ * (label, then the description cut to the row), so two or three options show even where the transcript keeps only its
+ * minimum height (`--agent-transcript-min`).
+ */
+.agent-prompt.agent-prompt-multi-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 60%;
+  overflow: hidden;
+  margin-top: 8px;
+  padding: 8px 12px;
+}
+
+.agent-prompt-multi-card .agent-prompt-tool,
+.agent-prompt-multi-card .agent-prompt-detail {
+  margin: 0;
+}
+
+.agent-prompt-multi-card > * {
+  flex: none;
+}
+
+.agent-prompt-multi-card > .agent-prompt-multi {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agent-prompt-multi fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.agent-prompt-choices {
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.agent-prompt-multi legend {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.agent-prompt-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.agent-prompt-check:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.agent-prompt-check:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.agent-prompt-check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.agent-prompt-check-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-prompt-check-label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.agent-prompt-check-description {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-prompt-other {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.agent-prompt-other textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+
+.agent-prompt-submit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.agent-prompt-submit .agent-prompt-progress {
+  margin: 0 auto 0 0;
+}
+
+.agent-prompt-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-prompt fieldset:disabled .agent-prompt-check {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .agent-prompt-notice {

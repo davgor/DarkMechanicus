@@ -2,9 +2,10 @@
  * The one launch path of a chat on its stored `surface`: a GUI chat through the one agent-chat session manager, any
  * other chat in its terminal. `launchChatOnSurface` starts a chat with its kickoff (the GUI's first user turn) and says
  * how that went; `startChatOnSurface` answers only why the agent did not start, or null once it runs, and
- * `resumeChatOnSurface` wakes an existing chat with no kickoff (peer and board delivery). Failures that are not
- * DomainErrors are reported to `onError` too.
+ * `resumeChatOnSurface` wakes an existing chat with no kickoff (peer and board delivery), and `pasteBoardOnSurface`
+ * puts a pending person body into it as input. Failures that are not DomainErrors are reported to `onError` too.
  */
+import { boardContextText, type BoardContextBody } from '../../../resources/skitarii/extension/contextDelivery'
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentChatSessions, StartResult } from '../agentChat/agentChatSessions'
@@ -68,4 +69,32 @@ export async function resumeChatOnSurface(deps: ChatResumers, chat: ChatRecord):
   if (chat.surface !== 'gui') return resumeContextChat(deps.terminals, chat)
   const launched = guiLaunch(await deps.agentChats.start(chat))
   return launched.state === 'running' ? null : launched.message
+}
+
+interface BoardPasters {
+  terminals: Pick<TerminalSessions, 'paste'>
+  agentChats: Pick<AgentChatSessions, 'start' | 'send'>
+  /** The ledger's claim on the body (`AgentContextDelivery.reserveBoardInput`): false once it was delivered or an input attempt is unverified. */
+  reserveBoardInput(chat: ChatRecord, messageId: string, content: string): boolean
+}
+
+const ALREADY_SENT = 'The person message was already sent to this chat; it is not sent again until the agent’s transcript shows it.'
+
+/**
+ * A pending board body as input on the chat's stored surface: a terminal chat's PTY paste (the terminal claims the body
+ * in the ledger before it writes), a GUI chat's user turn through the one GUI manager, started first when stopped (no
+ * PTY) and queued behind a running turn, never interrupting it. The GUI claim precedes the send, so a body is sent at
+ * most once; only the host transcript then proves delivery. Null once the input was handed over, else why not.
+ */
+export async function pasteBoardOnSurface(deps: BoardPasters, chat: ChatRecord, message: BoardContextBody): Promise<string | null> {
+  const content = boardContextText(message)
+  if (chat.surface !== 'gui') {
+    const pasted = await deps.terminals.paste(chat, content, message.id)
+    return pasted.state === 'running' ? null : pasted.message
+  }
+  const started = guiLaunch(await deps.agentChats.start(chat))
+  if (started.state !== 'running') return started.message
+  if (!deps.reserveBoardInput(chat, message.id, content)) return ALREADY_SENT
+  await deps.agentChats.send(chat, { text: content })
+  return null
 }

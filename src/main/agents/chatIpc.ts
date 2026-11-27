@@ -33,6 +33,7 @@ export function registerChatMailIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: 
   ipcMain.handle('chatMail:snapshot', (_event, folder: unknown) => handlers.snapshot(folder))
   ipcMain.handle('chatMail:state', (_event, request: unknown) => handlers.state(request))
   ipcMain.handle('chatMail:read', (_event, request: unknown) => handlers.read(request))
+  ipcMain.handle('chatMail:conversation', (_event, request: unknown) => handlers.conversation(request))
   ipcMain.handle('chatMail:markSeen', (_event, request: unknown) => handlers.markSeen(request))
 }
 

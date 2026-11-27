@@ -35,6 +35,8 @@ export interface WorkspaceHandle {
   runner: Runner
   /** Reads the epic again. */
   reload(): void
+  /** Opens the Start run dialog, as the header's Start run does. */
+  openStartRun(): void
   now: number
   /** Timers for what the workspace polls (the run feed). */
   scheduler: Scheduler
@@ -102,7 +104,9 @@ function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch,
 /** The transfer calls of the chat bridge, for one epic of one folder. */
 function transferChatsFor(folder: string, epicId: string): TransferChats {
   return {
-    start: (choice) => unwrapChat(window.dm.chats.startTransferChat({ folder, epicId, agent: choice.agent, model: choice.model })),
+    start: (choice) => unwrapChat(window.dm.chats.startTransferChat({
+      folder, epicId, agent: choice.agent, model: choice.model, ...(choice.thinking === undefined ? {} : { thinking: choice.thinking })
+    })),
     find: () => unwrapChat(window.dm.chats.findTransferChat({ folder, epicId })),
     prompt: () => unwrapChat(window.dm.chats.transferPrompt({ folder, epicId })),
     copy: (text) => window.dm.copyText(text)

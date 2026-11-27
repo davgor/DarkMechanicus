@@ -873,6 +873,29 @@ function insertDeliveryCheckRow(db: Db, spec: { id: string; number?: number; run
   )
 }
 
+describe('schema v38 trusted epic and role of mail endpoints', () => {
+  it('upgrades a v37 database, adding nullable epic_id and chat_role and keeping every endpoint as it was', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 37))
+    insertMailEndpoint(db, 'me1')
+    insertMailEndpoint(db, 'me2')
+    db.run("UPDATE agent_mail_endpoints SET last_seq = 3, human_seen_seq = 2, state = 'suspended' WHERE id = 'me2'")
+    expect(columnsOf(db, 'agent_mail_endpoints')).not.toContain('epic_id')
+
+    // Named columns: a later migration (v39) changes the schema again, and a cached SELECT * may keep the old columns.
+    expectAdditiveUpgrade(db, 37, { agent_mail_endpoints: { epic_id: null, chat_role: null } })
+  })
+
+  it('stores an epic and a chat role, and refuses a role a chat cannot run as', () => {
+    const db = freshDb()
+    migrate(db)
+    insertMailEndpoint(db, 'me1')
+    db.run("UPDATE agent_mail_endpoints SET epic_id = 'ep1', chat_role = 'planner' WHERE id = 'me1'")
+    expect(db.get('SELECT epic_id, chat_role FROM agent_mail_endpoints')).toEqual({ epic_id: 'ep1', chat_role: 'planner' })
+    expect(() => db.run("UPDATE agent_mail_endpoints SET chat_role = 'desktop' WHERE id = 'me1'")).toThrow(/CHECK constraint failed/)
+  })
+})
+
 describe('schema v37 delivery checks', () => {
   it('upgrades a v36 database, keeping its runs and adding an empty delivery_checks table and its index', () => {
     const db = freshDb()
@@ -1516,7 +1539,7 @@ describe('v23 elevation storage compatibility', () => {
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 22))
     db.run("INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, created_at, expires_at) VALUES ('gr1', 'worker', 0, 'Existing worker', 'old-hash', 'mc1', '2026-01-01', '2027-01-01')")
     insertAttachment(db, 'old-image', { kind: 'kanban_message', id: 'ke1' })
-    // Named columns: later migrations add grant columns (v38 run_save), which a cached SELECT * may or may not return.
+    // Named columns: later migrations add grant columns (v39 run_save), which a cached SELECT * may or may not return.
     expectAdditiveUpgrade(db, 22, { grants: { run_save: 1 }, attachments: {} })
     expect(db.all('SELECT * FROM yolo_elevations')).toEqual([])
     expect(db.all('SELECT * FROM yolo_chat_bindings')).toEqual([])
