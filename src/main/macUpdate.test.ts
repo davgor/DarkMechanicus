@@ -18,6 +18,15 @@ import {
   sweepStaleMacUpdates
 } from './macUpdate'
 
+// The real logger loads electron-log, which requires the electron runtime.
+vi.mock('./logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
+}))
+
 const files = [
   { url: 'DarkMechanicus-0.83.0-x64.dmg', sha512: 'x64-sha' },
   { url: 'DarkMechanicus-0.83.0-arm64.dmg', sha512: 'arm64-sha' }
