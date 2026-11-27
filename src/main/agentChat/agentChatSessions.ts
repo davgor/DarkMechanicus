@@ -158,6 +158,11 @@ function withToolImages(item: ToolCallItem, held: HeldToolImages | undefined): T
     ? [item.resultSummary, INVALID_IMAGE_NOTE].filter(Boolean).join('\n') : item.resultSummary
   return { ...item, ...(held.images.length ? { images: [...held.images] } : {}), resultSummary: summary }
 }
+/** A turn's user_message naming the images it carried; never their bytes. */
+function withSentImages(event: OmpEvent, refs: ChatImageRef[]): OmpEvent {
+  if (!refs.length || event.type !== 'item' || event.item.kind !== 'user_message') return event
+  return { ...event, item: { ...event.item, images: refs } }
+}
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 /** A chat's thread identities: seeded once from its stored thread items and attempt bindings, so a restart keeps them. */
 interface Callsigns {
@@ -243,13 +248,15 @@ class SessionManager {
     entry.chat = this.deps.store.updateChat(entry.chat, mask(patch))
     this.deps.onChatChanged?.(entry.chat)
   }
+  /** A tool_call item as last shown, with the tool images kept for it; any other event unchanged. */
+  private withHeldImages(entry: Entry, event: OmpEvent): OmpEvent {
+    if (event.type !== 'item' || event.item.kind !== 'tool_call') return event
+    entry.toolCalls.set(event.item.id, event.item)
+    return { ...event, item: withToolImages(event.item, entry.toolImages.get(event.item.id)) }
+  }
   private emit(entry: Entry, event: OmpEvent): void {
     if (event.type === 'pending') return // The registry publishes only the FIFO head.
-    if (event.type === 'item' && event.item.kind === 'tool_call') {
-      entry.toolCalls.set(event.item.id, event.item)
-      event = { ...event, item: withToolImages(event.item, entry.toolImages.get(event.item.id)) }
-    }
-    const safe = mask(this.stamped(entry, event))
+    const safe = mask(this.stamped(entry, this.withHeldImages(entry, event)))
     if (safe.type === 'item') this.deps.store.appendItems(entry.chat, [safe.item])
     if (safe.type === 'status') {
       entry.status = safe.status
@@ -680,22 +687,21 @@ class SessionManager {
     this.writeTurn(entry, text)
     this.update(entry, { kickoffSent: true, ...(chat.firstPrompt === undefined ? {} : { firstPromptDelivery: 'submitted' }) })
   }
-  private writeTurn(entry: Entry, text: string, images: { refs: ChatImageRef[]; turn: TurnImage[] } = { refs: [], turn: [] }): void {
-    const queued = entry.turnActive || entry.queued > 0
-    const sent = images.turn.length ? { images: images.turn } : {}
-    const encoded = entry.protocol === 'claude'
+  private encodeTurn(entry: Entry, text: string, turn: readonly TurnImage[]) {
+    const sent = turn.length ? { images: [...turn] } : {}
+    return entry.protocol === 'claude'
       ? encodeClaudeCommand({ type: 'send', text, uuid: randomUUID(), ...sent }, entry.claude, this.now())
       : encodeOmpCommand({ type: 'send', text, id: randomUUID(), ...sent }, entry.omp, this.now())
+  }
+  private writeTurn(entry: Entry, text: string, images: { refs: ChatImageRef[]; turn: TurnImage[] } = { refs: [], turn: [] }): void {
+    const queued = entry.turnActive || entry.queued > 0
+    const encoded = this.encodeTurn(entry, text, images.turn)
     if (!encoded.lines.length) throw new Error('The agent did not initialize its input protocol.')
     this.write(entry, encoded.lines)
     if (entry.protocol === 'claude') entry.claude = encoded.state as ClaudeProtocolState
     else entry.omp = encoded.state as OmpState
     if (!queued) entry.turnActive = true
-    for (const event of encoded.events) {
-      const named = images.refs.length > 0 && event.type === 'item' && event.item.kind === 'user_message'
-        ? { ...event, item: { ...event.item, images: images.refs } } : event
-      this.emit(entry, named)
-    }
+    for (const event of encoded.events) this.emit(entry, withSentImages(event, images.refs))
     if (entry.protocol === 'claude' && queued) this.emit(entry, { type: 'queued', count: entry.queued + 1 })
     if (entry.status !== 'busy') this.emit(entry, { type: 'status', status: 'busy' })
   }

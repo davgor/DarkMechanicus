@@ -549,7 +549,7 @@ function createChatOwners(
       })
       return context.terminals
     },
-    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, gui.claims, gui.chatImages),
+    agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, { ...gui.claims, chatImages: gui.chatImages }),
     push,
     arbiter: gui.arbiter,
     attention: gui.attention
@@ -592,16 +592,15 @@ function createGuiChats(
   store: ChatStore,
   deps: Pick<TerminalDeps, 'grants' | 'folders' | 'reachFolders' | 'agents'>,
   owned: AgentChatOwnerDeps,
-  claims: GuiClaimDeps,
-  chatImages: ChatImages
+  /** The thread claim checks and the one chat image store (`startDesktopBridge`). */
+  gui: GuiClaimDeps & Pick<AgentChatSessionsDeps, 'chatImages'>
 ): AgentChatSessions {
   const awake = createKeepAwake(powerSaveBlocker)
   return createAgentChatSessions({
     ...deps.grants,
     ...owned,
-    ...claims,
+    ...gui,
     store,
-    chatImages,
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
     reachFolders: deps.reachFolders,

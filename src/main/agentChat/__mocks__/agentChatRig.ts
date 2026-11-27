@@ -106,8 +106,7 @@ export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Parti
       return () => { callbacks.delete(callback) }
     } },
     startProcess: spec => recordingChild(spec, children, writes, steps),
-    ...claimDeps,
-    chatImages,
+    ...claimDeps, chatImages,
     ...overrides
   }
   const sessions = createAgentChatSessions(deps)

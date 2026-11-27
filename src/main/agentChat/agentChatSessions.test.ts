@@ -1608,7 +1608,9 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images`, (
     expect(r.store.readTranscript(chat)!.items).toEqual([])
     expect(r.pushes.filter(event => event.type === 'item')).toEqual([])
   })
+})
 
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images, queued and from tools`, () => {
   it('keeps a queued send’s images', async () => {
     const r = rig(kind), chat = r.newChat()
     const image = await r.sessions.stageImage(chat, SWATCH)
