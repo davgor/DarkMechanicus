@@ -77,6 +77,14 @@ export class FakeAgentChat implements AgentChatApi {
     })
   }
 
+  setModel(request: Parameters<AgentChatApi['setModel']>[0]) {
+    return this.call('setModel', request, () => {
+      const model = `${request.provider}/${request.modelId}`
+      if (this.snapshotResult.ok) this.snapshotResult = { ok: true, data: { ...this.snapshotResult.data, model, thinking: request.effort ?? this.snapshotResult.data.thinking ?? null } }
+      return this.snapshotResult
+    })
+  }
+
   attention(request: Parameters<AgentChatApi['attention']>[0]) {
     const result = this.attentionResult
     return this.call('attention', request, () => result)

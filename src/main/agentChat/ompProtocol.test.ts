@@ -647,6 +647,32 @@ describe('main-issued get_available_models', () => {
   })
 })
 
+describe('model switching', () => {
+  it('writes set_model and set_thinking_level exactly as omp 18.20.2 takes them, and hands their replies only to main', () => {
+    const h = initialized()
+    expect(h.send({ type: 'set_model', id: 'model_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }))
+      .toEqual(['{"type":"set_model","id":"model_1","provider":"openai-codex","modelId":"gpt-6-sol"}'])
+    expect(h.send({ type: 'set_thinking_level', id: 'thinking_1', level: 'medium' })).toEqual(['{"type":"set_thinking_level","id":"thinking_1","level":"medium"}'])
+    expect(h.feed({ id: 'model_1', type: 'response', command: 'set_model', success: true })).toEqual([])
+    expect(h.feed({ id: 'thinking_1', type: 'response', command: 'set_thinking_level', success: false, error: 'Invalid level' })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'model_1', ok: true, data: undefined }, { type: 'command_result', id: 'thinking_1', ok: false, data: undefined }])
+    expect(h.state.commands.size).toBe(0)
+  })
+
+  it("decodes get_state's model and thinking level, at start and on main's own get_state", () => {
+    const h = initialized()
+    expect([h.state.model, h.state.thinking]).toEqual([null, 'off'])
+    expect(h.send({ type: 'get_state', id: 'state_1' })).toEqual(['{"type":"get_state","id":"state_1"}'])
+    const data = { model: { provider: 'openai-codex', id: 'gpt-6-sol', name: 'GPT-6 Sol' }, thinkingLevel: 'medium', sessionId: 'session_T1', sessionFile: 'C:/fixture/repo/session_T1.jsonl' }
+    expect(h.feed({ id: 'state_1', type: 'response', command: 'get_state', success: true, data })).toEqual([])
+    expect(h.internalEvents).toEqual([{ type: 'command_result', id: 'state_1', ok: true, data }])
+    expect([h.state.model, h.state.thinking, h.state.sessionId]).toEqual(['openai-codex/gpt-6-sol', 'medium', 'session_T1'])
+    h.send({ type: 'get_state', id: 'state_2' })
+    h.feed({ id: 'state_2', type: 'response', command: 'get_state', success: true, data: { model: { provider: 'anthropic' }, thinkingLevel: 'auto' } })
+    expect([h.state.model, h.state.thinking]).toEqual([null, null])
+  })
+})
+
 const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))
 const swatchBase64 = swatch.toString('base64')
 
