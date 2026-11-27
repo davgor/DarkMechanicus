@@ -25,3 +25,23 @@ describe('ChatHeader terminal title', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Fix the build')
   })
 })
+
+describe('ChatHeader GUI switch', () => {
+  const target = { folder: '/home/u/code/alpha', agentKind: 'claude' as const }
+  const forgeSetup = { intentId: '00000000-0000-4000-8000-000000000001', mode: 'onboarding' as const, stepId: '00000000-0000-4000-8000-000000000002' }
+  const gui = (): HTMLElement | null => screen.queryByRole('button', { name: 'GUI' })
+
+  it.each([
+    ['Forge setup', chatRecord({ id: 'f', title: 'Set up', forgeSetup })],
+    ['tooling repair', chatRecord({ id: 'r', title: 'Repair', repairIncidentId: 'ti_1' })]
+  ])('renders no GUI switch for a %s chat', (_kind, terminalOnly) => {
+    render(<ChatHeader chat={terminalOnly} agentName="Claude Code" fact="Running" surfaceTarget={target} />)
+    expect(screen.getByRole('heading', { level: 1 })).toBeTruthy()
+    expect(gui()).toBeNull()
+  })
+
+  it('keeps the GUI switch for a chat that can switch', () => {
+    render(<ChatHeader chat={chat} agentName="Claude Code" fact="Running" surfaceTarget={target} />)
+    expect(gui()).not.toBeNull()
+  })
+})
