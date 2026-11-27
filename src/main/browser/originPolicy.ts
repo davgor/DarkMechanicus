@@ -15,10 +15,10 @@ import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import { isAppUrl } from '../desktop/navigation'
 
 /** Why a target was refused. `secret_refused` matches the browser control error of the same name. */
-export type TargetRefusal = 'invalid_url' | 'scheme' | 'userinfo' | 'blocked_host' | 'secret_refused' | 'app_page'
+type TargetRefusal = 'invalid_url' | 'scheme' | 'userinfo' | 'blocked_host' | 'secret_refused' | 'app_page'
 
 /** A page the browser may be asked to open: `origin` is null only for `about:blank`, which belongs to no site. */
-export interface BrowserTarget {
+interface BrowserTarget {
   origin: string | null
   href: string
 }
@@ -173,7 +173,7 @@ export interface AllowedSites {
   once: ReadonlySet<string>
 }
 
-export type NavigationDecision = 'allow' | 'ask' | 'deny'
+type NavigationDecision = 'allow' | 'ask' | 'deny'
 
 /**
  * Whether a tab may open a normalized target: `allow` only for an origin on the folder's always list or in the tab's
@@ -192,7 +192,7 @@ function isLocalPage(pageOrigin: string | null): boolean {
   return page !== null && PAGE_PROTOCOLS.has(page.protocol) && isLocal(classifyHost(page.hostname))
 }
 
-export type SubresourceDecision = 'allow' | 'deny'
+type SubresourceDecision = 'allow' | 'deny'
 
 /** Whether a request opens a connection a page may try at all: http, https, ws or wss, without userinfo or a secret. */
 function isAcceptableRequest(url: string, parsed: URL): boolean {
