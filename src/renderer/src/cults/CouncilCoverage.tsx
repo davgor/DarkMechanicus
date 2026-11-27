@@ -28,9 +28,14 @@ function coverageOf(run: CultRunDetail): Coverage[] {
   return [...slots, ...created]
 }
 
-/** What the conclusion waits for, naming each missing perspective; the synthesis once every required one reported. */
+/**
+ * What the conclusion waits for, naming each missing perspective (main sends slot and type ids; they read as their
+ * labels, a Magos-created type beside the fixed ones), then the synthesis once every required one reported.
+ */
 function councilStatus(run: CultRunDetail): string {
-  const missing = [...run.missing.slots, ...run.missing.workerTypes]
+  const slotLabel = (id: string): string => run.slots.find((slot) => slot.slotId === id)?.label ?? id
+  const typeLabel = (id: string): string => run.workerTypes.find((type) => type.id === id)?.displayName ?? id
+  const missing = [...run.missing.slots.map(slotLabel), ...run.missing.workerTypes.map(typeLabel)]
   if (missing.length > 0) return `Collecting: waiting for ${missing.join(', ')}`
   if (run.synthesis === null) return 'Resolving: every required perspective reported; the Magos has not recorded a synthesis'
   const { draftRevision, accepted, rejected } = run.synthesis

@@ -304,14 +304,16 @@
   overflow-wrap: anywhere;
 }
 
-/* The roster strip: one chip per member, scrolling sideways so none is hidden however full the room. */
-.cult-roster {
+/* The roster strip: one chip per member, wrapping and scrolling so none is hidden however full the room. */
+.cult-roster-strip {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 6px;
+  max-height: 30%;
   margin: 0;
   padding: 8px 12px;
-  overflow-x: auto;
+  overflow-y: auto;
   border-top: 1px solid var(--line);
   background: var(--panel);
   list-style: none;
@@ -319,16 +321,18 @@
 
 .cult-chip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
+  max-width: 100%;
   padding: 4px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: 14px;
+  text-align: left;
   background: var(--panel-2);
   color: var(--ink-2);
   font: inherit;
   font-size: 12px;
-  white-space: nowrap;
   cursor: pointer;
 }
 

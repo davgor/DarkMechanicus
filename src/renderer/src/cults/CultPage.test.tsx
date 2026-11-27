@@ -400,3 +400,34 @@ describe('CultPage room', () => {
     expect(document.querySelector('.cult-room')?.getAttribute('data-selected-member')).toBe('chat_b')
   })
 })
+
+describe('CultPage Plan Forge council', () => {
+  it('links the target plan and shows coverage, Magos-created types beside the fixed slots, and names what the conclusion waits for', async () => {
+    const run = running()
+    run.slots = [
+      { slotId: 'ui_ux', workerType: 'ui_ux', label: 'UI/UX', required: true, liveMemberChatIds: ['chat_a'], reportCount: 1, lastReportAt: '2026-11-27T12:08:00.000Z', origin: 'definition_slot' },
+      { slotId: 'security', workerType: 'security', label: 'Security', required: true, liveMemberChatIds: [], reportCount: 0, lastReportAt: null, origin: 'definition_slot' }
+    ]
+    run.workerTypes = [{ id: 'dyn_1', displayName: 'Lore keeper', description: 'd', mission: 'm', rationale: 'Keeps the record.', requiredForConclusion: true, creatorMemberId: 'chat_magos',
+      createdAt: 'a', updatedAt: 'a', retiredAt: null, origin: 'magos_created', state: 'active', assignedChatIds: ['chat_b'], reportCount: 0 }]
+    run.missing = { slots: ['security'], workerTypes: ['dyn_1'] }
+    seed([run], cultView({ archetype: 'plan_forge', targetEpicId: 'ep_9' }))
+    const opened: string[] = []
+    render(
+      <ClockContext.Provider value={clock}>
+        <CultPage cultId="cult_1" agentName="OMP" kit={kit} scheduler={new ManualScheduler()} onOpenEpic={(folder, id) => opened.push(`${folder}:${id}`)} />
+      </ClockContext.Provider>
+    )
+    await settle()
+    fireEvent.click(bar().getByRole('button', { name: 'Target plan: ep_9' }))
+    expect(opened).toEqual([`${WORK}:ep_9`])
+    const coverage = within(screen.getByRole('region', { name: 'Council coverage' }))
+    const items = coverage.getAllByRole('listitem')
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
+      'UI/UX: reported, Acolyte Ferrum-3', 'Security: waiting, unassigned', 'Lore keeper: waiting, Acolyte Vox-4'
+    ])
+    expect(within(items[2]).getByText('Magos-created')).toBeTruthy()
+    for (const item of items) expect(item.tabIndex).toBe(0)
+    expect(coverage.getByRole('status').textContent).toBe('Collecting: waiting for Security, Lore keeper')
+  })
+})

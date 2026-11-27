@@ -78,7 +78,7 @@ interface RosterProps {
 /** Every live member: the strip scrolls, so none is ever hidden behind another, however full the room. */
 export function RosterStrip({ run, roster, selectedMemberId, onSelectMember }: RosterProps): JSX.Element {
   return (
-    <ul className="cult-roster" aria-label="Roster">
+    <ul className="cult-roster-strip" aria-label="Roster">
       {roster.map((entry) => <RosterChip key={entry.member.chatId} entry={entry} run={run} selected={entry.member.chatId === selectedMemberId} onOpen={onSelectMember} />)}
     </ul>
   )
