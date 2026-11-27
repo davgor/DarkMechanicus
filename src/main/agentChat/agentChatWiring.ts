@@ -158,6 +158,8 @@ function chatName(chat: ChatRecord | null): string {
  * The one attention seam of the Magos gate and the GUI session manager: each event becomes an OS notification that
  * names the chat (a prompt's callsign before the chat's title) and lands on the chat. Only the prompt's title reaches
  * the text, never its detail or tool input; the notifier strips control characters, masks secrets and clips it.
+ * A prompt's dedupe key is scoped to its chat ref (folder and chat id) as well as the prompt id: each chat's agent
+ * numbers its own prompts, so two chats can hold the same prompt id and each must notify.
  */
 function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) => void {
   const translate = (event: AttentionEvent): NotificationEvent => {
@@ -172,7 +174,7 @@ function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) =>
     const { prompt } = event
     const name = prompt.callsign === null ? chatName(chat) : formatCallsign(prompt.callsign)
     return {
-      kind: event.kind, key: `prompt:${prompt.id}`, title: `${name} needs you`,
+      kind: event.kind, key: `prompt:${JSON.stringify([event.ref.folder, event.ref.id, prompt.id])}`, title: `${name} needs you`,
       body: event.kind === 'question' ? `has a question: ${prompt.title}` : `wants to run: ${prompt.title}`,
       target: { kind: 'chat', folder: event.ref.folder, chatId: event.ref.id, ...(prompt.threadId === null ? {} : { threadId: prompt.threadId }), promptId: prompt.id }
     }

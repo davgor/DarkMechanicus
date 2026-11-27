@@ -218,3 +218,64 @@ describe('NotificationSettings inline validation (DM-829 c2)', () => {
     expect(screen.queryByRole('list', { name: 'Always-ask entries' })).toBeNull()
   })
 })
+
+describe('NotificationSettings always-ask error reset (DM-1018 c2)', () => {
+  it('clears the always-ask refusal on Revert', async () => {
+    await mount()
+    fireEvent.click(box('Play a sound'))
+    addEntry('rm -rf')
+    expect(screen.getByRole('alert').textContent).toContain('Use only letters')
+    fireEvent.click(button('Revert'))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(entryInput().getAttribute('aria-invalid')).toBe('false')
+    expect(entryInput().value).toBe('')
+  })
+
+  it('clears the always-ask refusal on a successful save', async () => {
+    await mount()
+    fireEvent.click(box('Play a sound'))
+    addEntry('BASH')
+    expect(screen.getByRole('alert').textContent).toBe('BASH is already on the list.')
+    fireEvent.click(button('Save'))
+    await settle()
+    expect(dm.settings.saved).toHaveLength(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(entryInput().getAttribute('aria-invalid')).toBe('false')
+  })
+
+  it('keeps the refusal when the save is refused with an error', async () => {
+    await mount()
+    dm.settings.failures.push({ code: 'invalid_input', message: 'Settings refused.' })
+    fireEvent.click(box('Play a sound'))
+    addEntry('BASH')
+    fireEvent.click(button('Save'))
+    await settle()
+    expect(screen.getByText('BASH is already on the list.')).toBeTruthy()
+  })
+})
+
+describe('NotificationSettings failed load (DM-1018 c3)', () => {
+  it('shows the error with Retry instead of "Loading…" when the load rejects, and Retry loads the form', async () => {
+    const load = dm.settings.getNotifications.bind(dm.settings)
+    let failing = true
+    dm.settings.getNotifications = () => (failing ? Promise.reject(new Error('IPC is down.')) : load())
+    await mount()
+    expect(screen.queryByText('Loading…')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('Could not load the notification settings. IPC is down.')
+    failing = false
+    fireEvent.click(button('Retry'))
+    await settle()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(box('A question needs you').checked).toBe(false)
+    expect(entries()).toEqual(['Bash', 'mcp__github__*'])
+  })
+
+  it('shows the refusal main answered with Retry', async () => {
+    dm.settings.getNotifications = () =>
+      Promise.resolve({ ok: false, error: { code: 'internal', message: 'Settings file unreadable.' } })
+    await mount()
+    expect(screen.queryByText('Loading…')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('Could not load the notification settings. Settings file unreadable.')
+    expect(button('Retry').disabled).toBe(false)
+  })
+})

@@ -138,7 +138,7 @@ describe('ChatTranscript: subagent threads', () => {
     ]
     const scroll = vi.fn()
     Element.prototype.scrollIntoView = scroll
-    const reveal = { path: new Set(['outer', 'inner']), target: 'inner', nonce: 1 }
+    const reveal = { path: new Set(['outer', 'inner']), target: 'inner', nonce: 1, handled: new Map<string, number>() }
     const view = render(
       <RevealThreadContext.Provider value={reveal}>
         <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} />

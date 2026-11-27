@@ -14,11 +14,11 @@ export interface RailTab {
   content: ReactNode
 }
 
-interface RightRailProps {
-  label: string
-  storageKey: string
-  tabs: RailTab[]
-}
+/**
+ * The rail remembers its own state under `storageKey`, or shows a `rail` state its caller owns, so a control
+ * outside the rail (a chat's Agents toggle) reads and writes the same state as the rail's chevron.
+ */
+type RightRailProps = { label: string; tabs: RailTab[] } & ({ storageKey: string } | { rail: RailStateHandle })
 
 const RailContext = createContext<RailStateHandle | null>(null)
 
@@ -28,11 +28,16 @@ function Badge({ badge }: { badge: RailTab['badge'] }): JSX.Element | null {
 
 /** Keying the state owner prevents a mounted rail from copying one chat's memory into another. */
 export function RightRail(props: RightRailProps): JSX.Element {
-  return <RailContents key={props.storageKey} {...props} />
+  if ('rail' in props) return <RailContents label={props.label} tabs={props.tabs} rail={props.rail} />
+  return <StoredRail key={props.storageKey} label={props.label} tabs={props.tabs} storageKey={props.storageKey} />
 }
 
-function RailContents({ label, storageKey, tabs }: RightRailProps): JSX.Element {
+function StoredRail({ label, tabs, storageKey }: { label: string; tabs: RailTab[]; storageKey: string }): JSX.Element {
   const rail = useRailState(storageKey)
+  return <RailContents label={label} tabs={tabs} rail={rail} />
+}
+
+function RailContents({ label, tabs, rail }: { label: string; tabs: RailTab[]; rail: RailStateHandle }): JSX.Element {
   const { state, setCollapsed, setTab } = rail
   const id = useId()
   const ordered = RAIL_TAB_ORDER.flatMap((tabId) => tabs.filter((tab) => tab.id === tabId))

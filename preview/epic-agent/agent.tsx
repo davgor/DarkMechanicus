@@ -47,6 +47,8 @@ interface Seeded {
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
   folder: TrackedFolderView
+  /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
+  finishedExpandedAtStart: boolean | null
 }
 
 const STEP_MS = 12_000
@@ -241,8 +243,10 @@ const agentStates: Record<string, StateDef> = {
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),
-    reach: async () => {
+    reach: async (context) => {
       await openAgentTab()
+      const finished = await until(() => treeItem('Finished 1'), 'the Finished 1 group')
+      context.finishedExpandedAtStart = finished.getAttribute('aria-expanded') === 'true'
       await clickWhenPresent(() => buttonNamed('Expand Finished 1'), 'the Finished 1 group')
       await until(() => treeItem('Acolyte:DM-1') && treeItem('Inquisitor:DM-2') && treeItem('Servitor-1'), 'the expanded agent tree')
     }
@@ -354,6 +358,16 @@ const STATES: Record<string, StateDef> = {
       await until(() => treeItem('Inquisitor:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Inquisitor:DM-2 node')
     }
   },
+  'chat-rail-collapsed': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.tree.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await clickWhenPresent(() => buttonNamed('Collapse Chat agents'), 'Collapse Chat agents')
+      await until(() => $('aside[aria-label="Chat agents"]') === null && $('.agent-chat-agents')?.getAttribute('aria-pressed') === 'false',
+        'the rail closed by its chevron and the Agents toggle released')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -409,7 +423,7 @@ function headerObservations(): Record<string, unknown> | null {
   }
 }
 
-function observe(state: string): Record<string, unknown> {
+function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
   return {
@@ -428,6 +442,7 @@ function observe(state: string): Record<string, unknown> {
       expanded: row.hasAttribute('aria-expanded') ? row.getAttribute('aria-expanded') === 'true' : null,
       selected: row.getAttribute('aria-selected') === 'true'
     })),
+    finishedExpandedAtStart: context?.finishedExpandedAtStart ?? null,
     ...todoObservations(),
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
@@ -436,6 +451,7 @@ function observe(state: string): Record<string, unknown> {
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
+    agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     errors: [...window.__errors]
   }
 }
@@ -454,7 +470,9 @@ function publish(observations: Record<string, unknown>): void {
 function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
-  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER }
+  return {
+    backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER, finishedExpandedAtStart: null
+  }
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -488,7 +506,7 @@ async function main(): Promise<void> {
   const definition = STATES[state]
   if (definition === undefined) {
     window.__errors.push(`Unknown state "${state}"`)
-    publish(observe(state))
+    publish(observe(state, null))
     return
   }
   const context = seeded()
@@ -500,7 +518,7 @@ async function main(): Promise<void> {
   } catch (cause) {
     window.__errors.push(cause instanceof Error ? cause.message : String(cause))
   }
-  publish(observe(state))
+  publish(observe(state, context))
 }
 
 void main()

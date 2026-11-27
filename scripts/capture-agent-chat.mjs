@@ -20,13 +20,13 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
   'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-  'rail-collapsed', 'chat-rail', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named',
-  'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+  'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
+  'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 18 states at up to 15 s each, plus the Vite and Electron start. */
+/** A declared bound: 19 states at up to 15 s each, plus the Vite and Electron start. */
 export const OVERALL_LIMIT_MS = 300_000
 export const MIN_PNG_BYTES = 10 * 1024
 
@@ -64,11 +64,12 @@ export function electronEnv(env) {
 
 const BASE_FIELDS = [
   'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
-  'treeRows', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine', 'changesHeader', 'cardHeading',
-  'needsYouHeader', 'badgedRows', 'settingsControls', 'errors'
+  'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
+  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'settingsControls', 'agentsPressed', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-const EPIC_STATES = new Set(STATES.filter((state) => state !== 'chat-rail' && state !== 'settings-notifications'))
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'settings-notifications'])
+const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 const PLAN_STATES = new Set(['graph', 'header-long'])
 const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
 
@@ -76,7 +77,35 @@ const near = (value, target) => typeof value === 'number' && Math.abs(value - ta
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
 const matches = (value, pattern) => typeof value === 'string' && pattern.test(value)
 
-/** What each state must show, beyond the fields every state reports: [description, check]. */
+/**
+ * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
+ * (Acolyte:DM-2 with its own Inquisitor:DM-2, then Servitor-1) and last the Finished group, which holds Acolyte:DM-1.
+ */
+const AGENT_TREE_LEVELS = [
+  ['Magos', 1, null], ['Acolyte:DM-2', 2, 'Magos'], ['Inquisitor:DM-2', 3, 'Acolyte:DM-2'], ['Servitor-1', 2, 'Magos'],
+  ['Finished 1', 2, 'Magos'], ['Acolyte:DM-1', 3, 'Finished 1']
+]
+
+/** Where a tree row sits: its aria-level and its parent, the nearest row before it one level up (rows are in document order). */
+function placement(o, name) {
+  const rows = Array.isArray(o.treeRows) ? o.treeRows : []
+  const index = rows.findIndex((row) => row.name === name)
+  if (index < 0) return null
+  const { level } = rows[index]
+  const parent = rows.slice(0, index).findLast((row) => row.level === level - 1)
+  return { level, parent: level === 1 ? null : parent?.name ?? null }
+}
+
+const describePlacement = (where) => where === null ? 'no such row' : `level ${where.level} under ${where.parent ?? 'no parent'}`
+
+/** One check per agent-tree node: its tree level and parent, reporting where the capture placed it on a mismatch. */
+const treeLevelChecks = AGENT_TREE_LEVELS.map(([name, level, parent]) => [
+  `${name} at level ${level} under ${parent ?? 'no parent'}`,
+  (o) => { const where = placement(o, name); return where !== null && where.level === level && where.parent === parent },
+  (o) => describePlacement(placement(o, name))
+])
+
+/** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
   graph: [['the Plan graph is present', (o) => o.planGraph === true], ['no Agent chat region', (o) => o.agentChatRegion === false]],
   'header-long': [
@@ -89,13 +118,17 @@ const STATE_CHECKS = {
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
   'agent-tree': [
     ['railWidth is 280±1', (o) => near(o.railWidth, 280)],
-    ['the tree shows Magos, Finished 1 > Acolyte:DM-1, Acolyte:DM-2 > Inquisitor:DM-2 and Servitor-1',
-      (o) => ['Magos', 'Finished 1', 'Acolyte:DM-1', 'Acolyte:DM-2', 'Inquisitor:DM-2', 'Servitor-1'].every((name) => rowNamed(o, name))]
+    ['the Finished 1 group is collapsed by default', (o) => o.finishedExpandedAtStart === false],
+    ...treeLevelChecks
   ],
   'rail-collapsed': [['railWidth is 40±1', (o) => near(o.railWidth, 40)]],
   'chat-rail': [
     ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
     ['Inquisitor:DM-2 is selected', (o) => rowNamed(o, 'Inquisitor:DM-2')?.selected === true]
+  ],
+  'chat-rail-collapsed': [
+    ['no Chat agents rail', (o) => o.railWidth === null],
+    ['the Agents toggle reads collapsed', (o) => o.agentsPressed === 'false']
   ],
   'agent-todos': [
     ['a To-dos header', (o) => matches(o.todosHeader, /To-dos/)],
@@ -145,6 +178,8 @@ function stateChecks(state) {
   return [...epic.map(([description, , check]) => [description, check]), ...STATE_CHECKS[state] ?? []]
 }
 
+const failure = (o) => ([description, , observed]) => observed ? `expected ${description}; got ${observed(o)}` : `expected ${description}`
+
 /** A record's own shape: data-ready, every observation field, the right state and no page errors. */
 function shapeProblems(state, record) {
   if (!record || record.ready !== true) return [`#observations[data-ready="1"] never appeared${record?.error ? ` (${record.error})` : ''}`]
@@ -164,7 +199,7 @@ export function validateObservations(state, record) {
   const shape = shapeProblems(state, record)
   const problems = shape.length > 0
     ? shape
-    : stateChecks(state).filter(([, check]) => !check(record.observations)).map(([description]) => `expected ${description}`)
+    : stateChecks(state).filter(([, check]) => !check(record.observations)).map(failure(record.observations))
   return problems.map((problem) => `${state}: ${problem}`)
 }
 

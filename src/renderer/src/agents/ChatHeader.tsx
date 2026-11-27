@@ -22,6 +22,10 @@ interface ChatHeaderProps {
 
 const saveText = (chat: ChatRecord): string => (chat.allowSave && canSavePlans(chat.role) ? 'Allowed to save plans' : 'Does not save plans')
 
+/** Forge setup and tooling repair conversations run only in the terminal (main refuses their switch); other chats need a GUI protocol. */
+const canSwitchToGui = (chat: ChatRecord, agentKind: AgentView['kind'] | undefined): boolean =>
+  chat.forgeSetup === undefined && chat.repairIncidentId === undefined && GUI_PROTOCOL_KINDS.some(kind => kind === agentKind)
+
 /**
  * What the chat is: title, agent, the fact the view puts after it (the terminal's state), role. The agent
  * is text only, since a chat keeps its agent for life; its model is the CLI's own `/model` to change.
@@ -30,7 +34,7 @@ export function ChatHeader({ chat, agentName, fact, terminalTitle, mascot, actio
   const [notice, setNotice] = useState<string | null>(null)
   const [switching, setSwitching] = useState(false)
   const locked = useRef(false)
-  const guiAvailable = surfaceTarget !== undefined && GUI_PROTOCOL_KINDS.some(kind => kind === surfaceTarget.agentKind)
+  const guiAvailable = surfaceTarget !== undefined && canSwitchToGui(chat, surfaceTarget.agentKind)
   async function openGui(): Promise<void> {
     if (!guiAvailable || locked.current || surfaceTarget === undefined) return
     locked.current = true
