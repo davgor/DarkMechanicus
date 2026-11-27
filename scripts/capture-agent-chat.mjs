@@ -21,13 +21,13 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 export const STATES = Object.freeze([
   'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
   'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-  'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+  'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'agent-planners', 'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 19 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 300_000
+/** A declared bound: 20 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 320_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -155,6 +155,11 @@ const STATE_CHECKS = {
   'agent-needs-you': [
     ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
     ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+  ],
+  'agent-planners': [
+    ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
+      && rowNamed(o, 'Lexmechanic') && rowNamed(o, 'Lexmechanic-2')?.selected === true && rowNamed(o, 'Lexmechanic-9')
+      && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'settings-notifications': [['the controls have accessible names', (o) => Array.isArray(o.settingsControls)
     && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]]

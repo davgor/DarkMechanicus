@@ -97,13 +97,12 @@ export function epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, 
   const ordinals = rootOrdinals(bound)
   for (const chat of bound) {
     const transcript = transcripts.get(chat.id)
-    const ordinal = ordinals.get(chat.id)
     const derived = chatAgentNodes({
       root: {
         id: chat.id,
         chat,
         fallbackName: chat.title,
-        ...(ordinal === undefined ? {} : { ordinal }),
+        ordinal: ordinals.get(chat.id),
         secondary: chatKindLabel(chat, run),
         status: needsYou?.has(chat.id) ? 'needs_you' : transcript?.busy ? 'running' : 'idle',
         startedAt: Date.parse(chat.createdAt),

@@ -67,6 +67,9 @@ function passing() {
       approvalRecord: 'Approval Denied by the Magos Run npm test Asked by Acolyte:DM-442 The Magos decided: docs only.'
     }),
     'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '3 needs you · 4 working', badgedRows: 3 }),
+    'agent-planners': ready('agent-planners', {
+      treeRows: [row('Magos'), ...Array.from({ length: 9 }, (_, index) => row(index === 0 ? 'Lexmechanic' : `Lexmechanic-${index + 1}`, index === 1))]
+    }),
     'settings-notifications': ready('settings-notifications', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
       settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
@@ -105,19 +108,19 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 19 states once each, in capture order', () => {
+  it('lists the 20 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
       'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'agent-planners', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(19)
+    expect(new Set(STATES).size).toBe(20)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 300 s overall bound that covers all 19', () => {
+  it('declares 15 s per state within a 320 s overall bound that covers all 20', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(300_000)
+    expect(OVERALL_LIMIT_MS).toBe(320_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
   })
 })

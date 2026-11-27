@@ -339,6 +339,25 @@ const agentStates: Record<string, StateDef> = {
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
     }
+  },
+  // Ten GUI chats: the run's Magos and nine planners, each named apart, with the second planner selected.
+  'agent-planners': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, { ...scenarios.empty.snapshot, items: conversation })
+      for (let index = 1; index <= 9; index++) {
+        context.chats.push(chatRecord({
+          id: `chat_plan_${index}`, folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',
+          createdAt: `2026-02-0${index}T10:00:00.000Z`
+        }))
+      }
+    },
+    reach: async () => {
+      await openAgentTab()
+      await selectNode('Lexmechanic-2')
+      await until(() => treeItem('Lexmechanic-2')?.getAttribute('aria-selected') === 'true' && treeItem('Lexmechanic-9'), 'the selected Lexmechanic-2')
+      await chatLoaded()
+    }
   }
 }
 

@@ -131,7 +131,7 @@ class ChatSubscription {
   private publish(): void {
     this.cancelRender?.()
     this.cancelRender = undefined
-    if (this.active) for (const onChange of [...this.views]) onChange(this.state)
+    if (this.active) for (const onChange of this.views) onChange(this.state)
   }
 }
 

@@ -91,7 +91,7 @@ const chats: ChatsApi = {
 const agentChatListeners = new Set<(event: AgentChatEvent) => void>()
 function forwardAgentChatEvent(_event: Electron.IpcRendererEvent, event: unknown): void {
   const parsed = agentChatEventSchema.safeParse(event)
-  if (parsed.success) for (const listener of [...agentChatListeners]) listener(parsed.data)
+  if (parsed.success) for (const listener of agentChatListeners) listener(parsed.data)
 }
 
 const agentChat: AgentChatApi = {
