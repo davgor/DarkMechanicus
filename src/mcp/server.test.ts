@@ -11,7 +11,7 @@ import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } fr
 import { REASONING_LEVELS, RELATION_KINDS, TICKET_FAILURE_POLICIES, TOOL_CAPABILITIES, WORK_TYPES } from '../shared/domain/bundle'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { LEARNING_DISPOSITIONS } from '../shared/domain/kanban'
-import type { ProjectView } from '../shared/domain/views'
+import type { Blocker, ProjectView } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { COMMAND_NAMES, createCannedApi, createStubApi } from '../test/stubApi'
 import { promptName } from './prompts'
@@ -418,7 +418,16 @@ const GATE_CONDITIONS = [
   'epic_outcome',
   'plan_current'
 ]
-const BLOCKER_KINDS = ['retry_limit', 'run_state', 'row_check_failed']
+/** Every `Blocker` kind: typecheck fails here when the union gains or loses a kind, so the vocabulary cannot drift. */
+const BLOCKER_KINDS = Object.keys({
+  prerequisite: true,
+  concurrency: true,
+  retry_limit: true,
+  lease_expired: true,
+  run_state: true,
+  row_check_failed: true,
+  delivery_pending: true
+} satisfies Record<Blocker['kind'], true>)
 const DRAFT_OPS: string[] = draftOp.options.map((option) => option.shape.op.value)
 
 const VOCABULARY = new Set<string>([
