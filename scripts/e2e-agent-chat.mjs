@@ -1286,14 +1286,15 @@ async function epicViews(session, signal, size, file) {
 }
 
 /**
- * Step 6: the saved epic's Agent stage starts the planner (Lexmechanic) and, after `[subagent_tree]`, names its
- * workers in the rail's tree; a finished worker sits in the collapsed Finished group; a row opens its thread read-only.
+ * Step 6: the saved epic's Agent stage starts the planner from its Lexmechanic role card and, after `[subagent_tree]`,
+ * names its workers in the rail's tree; a finished worker sits in the collapsed Finished group; a row opens its thread
+ * read-only.
  */
 async function epicAgent(session, signal) {
   await resizeWindow(session, signal, WIDE_WINDOW)
   await until(session, signal, clickEpic, EPIC_TITLE)
   await until(session, signal, agentToggle)
-  await until(session, signal, clickButton, 'section.eap .eap-empty', 'Start planner')
+  await until(session, signal, clickSelector, 'section.eap .eap-empty .arc[data-role="planner"]')
   const { chat } = await until(session, signal, chatRecord, session.folderPath, { role: 'planner', epicId: session.epicId })
   const kickoff = await until(session, signal, plannerKickoff)
   await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'Plan this Dark Mechanicus epic', prefix: true })

@@ -13,14 +13,16 @@ import type { WorkspaceHandle } from './useWorkspace'
 
 /** The Magos card's reason for each way the header's Start run is withheld. */
 const MAGOS_BLOCKED: Record<StartRunBlocker, string> = {
+  completed: 'The epic is complete',
   no_plan: 'Save the plan first',
+  draft_view: 'View the saved plan to start a run',
   active_run: 'A run is active; its Magos is in the list',
   open_transfer: 'A Linear transfer is open'
 }
 
 /** Why the Magos cannot start now: exactly when the header withholds Start run. None when it can. */
 function disabledRoles(ws: WorkspaceHandle): Partial<Record<AgentRole, string>> {
-  const blocker = startRunBlocker({ epic: ws.data.epic, ...runLocks(ws.data) })
+  const blocker = startRunBlocker({ epic: ws.data.epic, view: ws.state.view, ...runLocks(ws.data) })
   return blocker === null ? {} : { orchestrator: MAGOS_BLOCKED[blocker] }
 }
 

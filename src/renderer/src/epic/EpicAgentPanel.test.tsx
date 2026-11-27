@@ -291,7 +291,8 @@ describe('EpicAgentPanel: starting the Magos on an empty epic', () => {
   it.each([
     ['no saved plan', noRunBackend({ epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), saved: null }), 'Save the plan first'],
     ['an active run', backendWith(), 'A run is active; its Magos is in the list'],
-    ['an open Linear transfer', noRunBackend({ transfer: transferView('in_progress') }), 'A Linear transfer is open']
+    ['an open Linear transfer', noRunBackend({ transfer: transferView('in_progress') }), 'A Linear transfer is open'],
+    ['a completed epic', noRunBackend({ epic: epicDetail({ status: 'completed' }) }), 'The epic is complete']
   ])('disables Magos with its reason with %s, as the header withholds Start run, and choosing it opens nothing', async (_, backend, reason) => {
     openAgent(backend, [])
     const stage = await agentStage()
@@ -305,7 +306,9 @@ describe('EpicAgentPanel: starting the Magos on an empty epic', () => {
   })
 })
 
-function pickerWorkspace(input: Pick<WorkspaceData, 'epic' | 'run'> & Partial<Pick<WorkspaceData, 'transfer'>>, backend: FakeBackend): {
+type PickerInput = Pick<WorkspaceData, 'epic' | 'run'> & Partial<Pick<WorkspaceData, 'transfer'>> & { view?: 'saved' | 'draft' }
+
+function pickerWorkspace({ view = 'saved', ...input }: PickerInput, backend: FakeBackend): {
   ws: WorkspaceHandle
   opened: { count: number }
   dispatched: unknown[]
@@ -314,7 +317,7 @@ function pickerWorkspace(input: Pick<WorkspaceData, 'epic' | 'run'> & Partial<Pi
   const opened = { count: 0 }
   const dispatched: unknown[] = []
   const ws = {
-    data: { transfer: null, ...input }, folder: folder(), epicId: 'ep_1', orchestration: fakeOrchestration(),
+    data: { transfer: null, ...input }, state: { view }, folder: folder(), epicId: 'ep_1', orchestration: fakeOrchestration(),
     dispatch: (action: unknown) => dispatched.push(action),
     openStartRun: () => { opened.count += 1 }
   } as unknown as WorkspaceHandle
@@ -333,9 +336,11 @@ describe('AgentPickerDialog', () => {
     expect(closed.count).toBe(1)
   })
 
-  it.each([
+  it.each<[string, PickerInput, string]>([
     ['until the plan is saved', { epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), run: null }, 'Save the plan first'],
-    ['while a Linear transfer is open', { epic: epicDetail(), run: null, transfer: transferView('queued') }, 'A Linear transfer is open']
+    ['while a Linear transfer is open', { epic: epicDetail(), run: null, transfer: transferView('queued') }, 'A Linear transfer is open'],
+    ['on a completed epic', { epic: epicDetail({ status: 'completed' }), run: null }, 'The epic is complete'],
+    ['while the draft is shown', { epic: epicDetail({ hasDraft: true }), run: null, view: 'draft' }, 'View the saved plan to start a run']
   ])('disables Magos %s', (_, data, reason) => {
     const { ws } = pickerWorkspace(data, noRunBackend())
     render(<AgentPickerDialog ws={ws} onClose={() => undefined} />)

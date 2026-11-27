@@ -74,15 +74,17 @@ export function runLocks(data: { run: RunView | null; transfer: TransferView | n
   return { hasActiveRun: data.run !== null && isActiveRunState(data.run.state), hasOpenTransfer: isOpenTransfer(data.transfer?.status ?? null) }
 }
 
-/** Why Start run is withheld from a saved plan. */
-export type StartRunBlocker = 'no_plan' | 'active_run' | 'open_transfer'
+/** Why the header withholds Start run. */
+export type StartRunBlocker = 'completed' | 'no_plan' | 'draft_view' | 'active_run' | 'open_transfer'
 
 /**
- * Why a run cannot start from the saved plan, in the order the person can resolve them: no saved plan, an active run,
- * an open Linear transfer; null when Start run is offered.
+ * Why a run cannot start, exactly when the header withholds Start run: a completed epic, no saved plan, the draft shown
+ * instead of the saved plan, an active run, an open Linear transfer; null when Start run is offered.
  */
-export function startRunBlocker(input: Pick<HeaderInput, 'epic' | 'hasActiveRun' | 'hasOpenTransfer'>): StartRunBlocker | null {
+export function startRunBlocker(input: Pick<HeaderInput, 'epic' | 'view' | 'hasActiveRun' | 'hasOpenTransfer'>): StartRunBlocker | null {
+  if (input.epic.status === 'completed') return 'completed'
   if (input.epic.currentRevisionId === null) return 'no_plan'
+  if (input.view === 'draft') return 'draft_view'
   if (input.hasActiveRun) return 'active_run'
   return input.hasOpenTransfer ? 'open_transfer' : null
 }
