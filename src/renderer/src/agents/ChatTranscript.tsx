@@ -2,13 +2,16 @@
  * The transcript a chat stored before chats became terminals, read-only: what was said, what was run, the
  * approval requests with the decision stored for each, the sign-ins that were lost and the subagent threads.
  * Nothing here can be answered or sent; a message can only be copied. Only text from the agent goes through the
- * Markdown renderer; everything else is plain text.
+ * Markdown renderer; everything else is plain text. Mail cards (`MailCard`) sit between the chat's own rows where
+ * the stream placed them; they are never stored items.
  */
 import { memo, useMemo, type ReactNode } from 'react'
 import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import { IDLE_STOP_CODE, type ErrorProblem } from '../../../shared/agents/chat'
 import { ChatImages, type ChatImageSrc } from '../agentChat/ChatImages'
 import { CopyButton } from '../agentChat/CopyButton'
+import { MailCard } from '../agentChat/MailCard'
+import type { MailLine, TranscriptLine } from '../agentChat/useAgentChat'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalRecord } from './ApprovalRecord'
 import { decisionText, problemNotice, resetText, STOPPED_TEXT, type TranscriptEntry } from './chatViewModel'
@@ -168,16 +171,42 @@ interface ChatTranscriptProps {
   agentName: string
   /** The chat's folder. */
   folder: string
-  entries: readonly TranscriptEntry[]
+  /** The chat's items, with any mail cards placed among them (`useMailTranscript`'s stream). */
+  entries: readonly TranscriptLine[]
   /** Set by GUI chats, whose items carry images; terminal transcripts leave it out and show none. */
   imageSrc?: ChatImageSrc
   /** A live chat's status: given, each ended turn's work folds into one `Worked for …` row; a stored or thread transcript leaves it out. */
   status?: AgentChatSnapshot['status'] | null
 }
 
+const NO_MAIL: readonly MailLine[] = []
+
+/**
+ * Each mail card by the top-level row it goes before (`null`: after every row). An item that is no row of its own (a
+ * thread under its call, a decision on its request) passes its cards on to the next row.
+ */
+function placeMail(entries: readonly TranscriptLine[], rows: readonly TreeRow[]): Map<string | null, MailLine[]> {
+  const rowIds = new Set(rows.map((row) => row.entry.id))
+  const before = new Map<string | null, MailLine[]>()
+  let pending: MailLine[] = []
+  for (const entry of entries) {
+    if (entry.kind === 'mail') pending.push(entry)
+    else if (pending.length > 0 && rowIds.has(entry.id)) {
+      before.set(entry.id, pending)
+      pending = []
+    }
+  }
+  if (pending.length > 0) before.set(null, pending)
+  return before
+}
+
 /** The stored conversation, in the order it happened. */
 export function ChatTranscript({ agentName, folder, entries, imageSrc, status }: ChatTranscriptProps): JSX.Element {
-  const rows = useMemo(() => transcriptTree(entries), [entries])
+  const items = useMemo(() => entries.filter((entry): entry is TranscriptEntry => entry.kind !== 'mail'), [entries])
+  const rows = useMemo(() => transcriptTree(items), [items])
+  const placedMail = useMemo(() => placeMail(entries, rows), [entries, rows])
+  const cards = (anchor: string | null): JSX.Element[] => (placedMail.get(anchor) ?? NO_MAIL).map((line) => <MailCard key={line.id} mail={line.mail} />)
+  const before = (row: TreeRow): JSX.Element[] => cards(row.entry.id)
   const renderRow = (row: TreeRow): JSX.Element => (
     <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName}
       imageSrc={imageSrc} />
@@ -185,7 +214,10 @@ export function ChatTranscript({ agentName, folder, entries, imageSrc, status }:
   return (
     <div className="chat-transcript" role="log" aria-label="Transcript" tabIndex={0}>
       <ol className="chat-rows">
-        {status === undefined ? rows.map(renderRow) : <TurnRows entries={entries} rows={rows} status={status} renderRow={renderRow} />}
+        {status === undefined
+          ? rows.flatMap((row) => [...before(row), renderRow(row)])
+          : <TurnRows entries={items} rows={rows} status={status} renderRow={renderRow} before={before} />}
+        {cards(null)}
       </ol>
     </div>
   )

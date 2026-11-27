@@ -100,6 +100,7 @@ src/shared/agents/chat.ts - ErrorProblem
 src/shared/agents/chat.ts - IDLE_STOP_CODE
 src/shared/agents/chatApi.ts - AllowChatMailWakeRequest
 src/shared/agents/chatApi.ts - BoundThreadsRequest
+src/shared/agents/chatApi.ts - ChatMailConversationRequest
 src/shared/agents/chatApi.ts - ChatMailRef
 src/shared/agents/chatApi.ts - ChatRequestRef
 src/shared/agents/chatApi.ts - ConversationStateRequest
@@ -156,6 +157,8 @@ src/shared/desktop/forgeSetup.ts - ForgeSetupPlatform
 src/shared/desktop/forgeSetup.ts - ForgeRecipebookEdit
 src/shared/desktop/sourceCheckout.ts - SourceCheckoutProblem
 src/shared/desktop/sourceCheckout.ts - SourceCheckoutTarget
+src/shared/domain/agentMail.ts - AgentMailConversationMessageView
+src/shared/domain/agentMail.ts - AgentMailConversationView
 src/shared/domain/agentMail.ts - AgentMailMessageView
 src/shared/domain/agentMail.ts - AgentMailWakeState
 src/shared/domain/agentMail.ts - HumanAgentMailStateView

@@ -24,14 +24,14 @@ export const STATES = Object.freeze([
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
-  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
+  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 38 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 585_000
+/** A declared bound: 39 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 600_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -76,7 +76,7 @@ const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
   'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'agent-worked-for',
-  'agent-image-result', 'agent-image-viewer', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
+  'agent-image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -301,6 +301,18 @@ const STATE_CHECKS = {
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
     (o) => JSON.stringify(o.questionCard)],
     ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'mail-card': [
+    ['a received card then a sent card between the person’s message and the reply', (o) => JSON.stringify(o.mail?.rows)
+      === '["item","mail","mail","item"]' && JSON.stringify(o.mail?.cards?.map((card) => card.direction)) === '["received","sent"]',
+    (o) => JSON.stringify(o.mail)],
+    ['headers read ✉ Lexmechanic → Magos and ✉ Magos → Lexmechanic', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))
+      === '["✉ Lexmechanic → Magos Received","✉ Magos → Lexmechanic Sent"]', (o) => JSON.stringify(o.mail?.cards?.map((card) => card.head))],
+    ['the sent card names the message it answers', (o) => o.mail?.cards?.[1]?.reply === 'Reply to mm_plan14', (o) => JSON.stringify(o.mail?.cards?.[1])],
+    ['bodies are plain text: <b> shows as typed and renders no element', (o) => o.mail?.cards?.every((card) => card.markup === false)
+      && o.mail.cards[0].body.includes('<b>Not markup</b>'), (o) => JSON.stringify(o.mail?.cards)],
+    ['showing the received card marks it seen once', (o) => Array.isArray(o.mail?.seen) && o.mail.seen.length === 1
+      && o.mail.seen[0][0]?.chatId === 'fixture-magos' && o.mail.seen[0][0]?.throughSeq === 1, (o) => JSON.stringify(o.mail?.seen)]
   ],
   'agent-transcript': [
     ['a centred reading column at most 760 px wide', (o) => o.transcript?.columnWidth <= 760 && o.transcript.columnWidth >= 600

@@ -90,6 +90,18 @@ const TRANSCRIPT = {
 }
 const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
 
+/** The mail-card state: the Magos chat with a received card and its sent answer between the ask and the reply. */
+const MAIL = {
+  rows: ['item', 'mail', 'mail', 'item'],
+  cards: [
+    { direction: 'received', head: '✉ Lexmechanic → Magos Received', reply: null, markup: false,
+      body: 'Plan revision 14 is saved. DM-1050 now depends on DM-1049; start it only after DM-1049 is accepted.\n<b>Not markup</b>: shown as typed.' },
+    { direction: 'sent', head: '✉ Magos → Lexmechanic Sent', reply: 'Reply to mm_plan14', markup: false,
+      body: 'Understood. DM-1049 is in review; DM-1050 stays queued until it is accepted.' }
+  ],
+  seen: [[{ folder: '/home/u/code/darkmechanicus', chatId: 'fixture-magos', throughSeq: 1 }]]
+}
+const mailRecord = (patch = {}) => ready('mail-card', { ...STANDALONE, mail: { ...MAIL, ...patch } })
 /** The agent-worked-for state's two turns: the first folded, the second opened on its three tool cards. */
 const WORKED_FOR = {
   toggles: [['Worked for 28m 51s', false], ['Worked for 4m 05s', true]], afterFolded: 'Assistant',
@@ -155,7 +167,8 @@ function passingChatStates() {
     'agent-transcript': transcriptRecord(),
     'agent-worked-for': workedForRecord(),
     'agent-image-result': imageRecord('agent-image-result'),
-    'agent-image-viewer': imageRecord('agent-image-viewer')
+    'agent-image-viewer': imageRecord('agent-image-viewer'),
+    'mail-card': mailRecord()
   }
 }
 
@@ -241,23 +254,41 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 38 states once each, in capture order', () => {
+  it('lists the 39 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
-      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
+      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
       'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(38)
+    expect(new Set(STATES).size).toBe(39)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 585 s overall bound: 38 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 600 s overall bound: 39 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(585_000)
+    expect(OVERALL_LIMIT_MS).toBe(600_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: mail-card', () => {
+  it('passes a received then a sent card, headed by callsigns, inert, the received one marked seen once', () => {
+    expect(validateObservations('mail-card', mailRecord())).toEqual([])
+  })
+
+  it('fails cards out of place, a rendered body element and a second seen mark', () => {
+    expect(validateObservations('mail-card', mailRecord({ rows: ['item', 'item', 'mail', 'mail'] }))).toEqual([
+      expect.stringContaining('mail-card: expected a received card then a sent card between the person’s message and the reply')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ cards: [{ ...MAIL.cards[0], markup: true }, MAIL.cards[1]] }))).toEqual([
+      expect.stringContaining('mail-card: expected bodies are plain text')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ seen: [...MAIL.seen, ...MAIL.seen] }))).toEqual([
+      expect.stringContaining('mail-card: expected showing the received card marks it seen once')
+    ])
   })
 })
 

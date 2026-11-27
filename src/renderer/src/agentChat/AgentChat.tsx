@@ -1,4 +1,4 @@
-import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
@@ -14,9 +14,8 @@ import type { ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
-import { useAgentChat } from './useAgentChat'
+import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
 import { ChatImagesContext, useChatImages, type ChatImages } from './useChatImages'
-import { withoutTodoCalls } from './todoPanelModel'
 import '../agents/chatView.css'
 import './agentChat.css'
 import '../agents/chatThreads.css'
@@ -85,6 +84,7 @@ function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
+  const transcript = useMailTranscript(folder, chatId, state.items)
   const images = useChatImages(stageImage)
   const command = useChatCommand()
   const agents = useChatRail(chatId)
@@ -111,7 +111,7 @@ function ChatView({
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
           <RevealThreadContext.Provider value={reveal}>
-            <Messages state={state} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
+            <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
           </RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
@@ -188,10 +188,9 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   )
 }
 
-function Messages({ state, folder, agentLabel, imageSrc }: {
-  state: ChatState; folder: string | null; agentLabel: string; imageSrc: ChatImageSrc
+function Messages({ state, transcript, folder, agentLabel, imageSrc }: {
+  state: ChatState; transcript: readonly TranscriptLine[]; folder: string | null; agentLabel: string; imageSrc: ChatImageSrc
 }): JSX.Element {
-  const items = useMemo(() => withoutTodoCalls(state.items), [state.items])
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -206,15 +205,15 @@ function Messages({ state, folder, agentLabel, imageSrc }: {
     observer.observe(content.current)
     observer.observe(viewport.current)
     return () => observer.disconnect()
-  }, [state.items, state.streaming])
+  }, [transcript, state.streaming])
   return (
     <div className="agent-chat-scroll glass-strong" ref={viewport} tabIndex={0} aria-label="Chat messages" onScroll={(event) => {
       const node = event.currentTarget
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 32
     }}>
       <div ref={content}>
-        {state.items.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={items} imageSrc={imageSrc} status={state.status} />
+        {state.items.length === 0 && transcript.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>

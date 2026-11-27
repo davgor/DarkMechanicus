@@ -6,6 +6,8 @@ import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeChats } from '../__mocks__/fakeChats'
+import { FakeChatMail, mailEntry } from '../__mocks__/fakeChatMail'
+import { createAgentMailStore } from '../agents/useAgentMail'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { fakeOrchestration } from './__mocks__/fakeOrchestration'
@@ -651,5 +653,36 @@ describe('EpicAgentPanel: one push subscription per GUI chat', () => {
     await waitFor(() => expect(backend.agentChat.subscribers()).toBe(planners.length + 1 + 1))
     const reads = (backend.agentChat.callsOf('snapshot') as [{ chatId: string }][]).map(([request]) => request.chatId)
     expect(new Set(reads)).toEqual(new Set(['chat_orch', ...planners.map((chat) => chat.id)]))
+  })
+})
+
+describe('EpicAgentPanel: mail cards are read by the open chat only', () => {
+  it('reads and marks seen the selected chat’s mail, never a rail row’s', async () => {
+    const planner = chatRecord({
+      id: 'chat_plan', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+    })
+    const backend = backendWith()
+    snapshotsByChat(backend, {
+      chat_orch: snapshot({ items }),
+      chat_plan: snapshot({ status: 'exited', todos: [{ threadId: null, phases: threeOfSeven }] })
+    })
+    const mail = new FakeChatMail()
+    backend.chats.mail = mail
+    for (const chatId of ['chat_orch', 'chat_plan']) {
+      mail.put({ folder: FOLDER, chatId, unseenCount: 1 })
+      mail.setConversation(FOLDER, chatId, [mailEntry({ id: `mm_${chatId}`, acceptedAt: AT })])
+    }
+    const store = createAgentMailStore(mail)
+    store.track([FOLDER])
+    renderWorkspace(backend, { orchestration: fakeOrchestration({ chats: [orchestrator, planner] }), epicId: 'ep_1' }, store)
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    await within(ownRow(await within(rail).findByRole('treeitem', { name: 'Lexmechanic' }))).findByRole('img', { name: 'To-dos 3 of 7 done' })
+    await waitFor(() => expect(stage.querySelectorAll('.chat-mail')).toHaveLength(1))
+    const asked = (method: string): string[] => mail.calls.filter((call) => call.method === method)
+      .map(({ args: [request] }) => (typeof request === 'object' && request !== null && 'chatId' in request ? String(request.chatId) : ''))
+    expect(new Set(asked('conversation'))).toEqual(new Set(['chat_orch']))
+    expect(asked('markSeen')).toEqual(['chat_orch'])
+    expect(store.view(FOLDER, 'chat_plan').state).toMatchObject({ humanSeenSeq: 0, unseenCount: 1 })
   })
 })

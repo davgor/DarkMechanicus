@@ -58,9 +58,13 @@ interface TurnRowsProps {
   rows: readonly TreeRow[]
   status: AgentChatSnapshot['status'] | null
   renderRow(row: TreeRow): JSX.Element
+  /** What shows before a row and stays outside any fold (the mail cards placed before it); a folded turn shows its rows' ahead of its disclosure. */
+  before?(row: TreeRow): JSX.Element[]
 }
 
-export function TurnRows({ entries, rows, status, renderRow }: TurnRowsProps): JSX.Element {
+const NOTHING_BEFORE = (): JSX.Element[] => []
+
+export function TurnRows({ entries, rows, status, renderRow, before = NOTHING_BEFORE }: TurnRowsProps): JSX.Element {
   const placed = useMemo(() => placeRows(turnGroups(entries, status), rows), [entries, rows, status])
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const reveal = useContext(RevealThreadContext)
@@ -82,9 +86,9 @@ export function TurnRows({ entries, rows, status, renderRow }: TurnRowsProps): J
   return (
     <>
       {placed.flatMap(({ entry, rows: own }) => entry.kind === 'collapsed-work'
-        ? [<WorkDisclosure key={`work:${entry.id}`} work={entry} rows={own} open={open.has(entry.id)} toggle={() => toggle(entry.id)}
+        ? [...own.flatMap(before), <WorkDisclosure key={`work:${entry.id}`} work={entry} rows={own} open={open.has(entry.id)} toggle={() => toggle(entry.id)}
           renderRow={renderRow} />]
-        : own.map(renderRow))}
+        : own.flatMap((row) => [...before(row), renderRow(row)]))}
     </>
   )
 }
