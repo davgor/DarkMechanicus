@@ -329,14 +329,14 @@ interface DynamicTypeContext {
 }
 
 /** Why a proposed or retired type is refused: the typed cult error code and its reason. */
-export type DynamicTypeRefusal =
+type DynamicTypeRefusal =
   | 'invalid_input'
   | 'invalid_state'
   | 'worker_type_name_taken'
   | 'worker_type_limit'
   | 'worker_type_required'
   | 'worker_type_assigned'
-export type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; code: DynamicTypeRefusal; error: string }
+type DynamicTypeResult = { ok: true; type: RunWorkerType } | { ok: false; code: DynamicTypeRefusal; error: string }
 
 const BUILT_IN_IDS: ReadonlySet<string> = new Set<string>([...STANDARD_WORKER_TYPES, CUSTOM_WORKER_TYPE])
 const BUILT_IN_NAMES: ReadonlySet<string> = new Set(

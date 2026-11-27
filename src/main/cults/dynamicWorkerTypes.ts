@@ -20,12 +20,12 @@ export interface WorkerTypeDeps {
 }
 
 /** The caller as the dispatcher resolved it from its bound grant: always the run's live Magos here. */
-export interface WorkerTypeCaller {
+interface WorkerTypeCaller {
   run: CultRunView
   member: CultMemberView
 }
 
-export interface WorkerTypeInput {
+interface WorkerTypeInput {
   displayName: string
   description: string
   mission: string
