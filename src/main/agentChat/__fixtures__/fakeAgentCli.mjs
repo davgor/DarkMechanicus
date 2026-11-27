@@ -367,10 +367,11 @@ function nameChat() {
 }
 
 /**
- * Runs `call <command> <args>` through the instructions' `dm` line with this run's own grant; answers its JSON, which
- * on a refusal (the CLI's, a failed start or unreadable output) always carries `error.code` and `error.message`.
+ * Runs `call <command> <args>` through a `dm` command line with this run's own grant and cwd; answers the CLI's raw
+ * stdout and its JSON, which on a refusal (the CLI's, a failed start or unreadable output) always carries
+ * `error.code` and `error.message`.
  */
-function dmCall(dm, command, args) {
+function runDm(dm, command, args) {
   return new Promise((resolveCall) => {
     const call = spawn(dm.command, [...dm.args, 'call', command, JSON.stringify(args)], {
       env: { ...process.env, ...dm.env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
@@ -379,15 +380,20 @@ function dmCall(dm, command, args) {
     let stderr = ''
     call.stdout.on('data', (chunk) => { stdout += chunk })
     call.stderr.on('data', (chunk) => { stderr += chunk })
-    call.on('error', (error) => resolveCall({ ok: false, error: { code: 'spawn_failed', message: error.message } }))
+    call.on('error', (error) => resolveCall({ stdout, reply: { ok: false, error: { code: 'spawn_failed', message: error.message } } }))
     call.on('close', (code) => {
       try {
-        resolveCall(JSON.parse(stdout))
+        resolveCall({ stdout, reply: JSON.parse(stdout) })
       } catch {
-        resolveCall({ ok: false, error: { code: `exit_${code}`, message: (stderr || stdout).trim() } })
+        resolveCall({ stdout, reply: { ok: false, error: { code: `exit_${code}`, message: (stderr || stdout).trim() } } })
       }
     })
   })
+}
+
+/** `runDm`'s JSON alone. */
+async function dmCall(dm, command, args) {
+  return (await runDm(dm, command, args)).reply
 }
 
 /**
@@ -409,6 +415,128 @@ async function mailPeer(prompt) {
   const sent = await dmCall(dm, 'send_agent_message', { to: peer.endpointId, clientMessageId: randomUUID(), body })
   if (!sent.ok) return `mail failed: send_agent_message ${sent.error.code}: ${sent.error.message}`
   return `mailed the ${role} at ${peer.endpointId}`
+}
+
+/** The callsign the `[browser]` scenario navigates as, as a worker labels its browser use. */
+const BROWSER_AS = 'Acolyte:DM-442'
+/** `[browser-loop]` reads this often, at most this many times. */
+const BROWSER_LOOP_MS = 300
+const BROWSER_LOOP_READS = 20
+
+/**
+ * A `[browser url=<u> cli=<path>]` keyword and its `-origin`, `-loop` and `-status` variants, or null. A value is one
+ * word or a double-quoted string, so a `cli=` path may contain spaces.
+ */
+function browserKeyword(prompt) {
+  const match = prompt.match(/\[browser(?:-(origin|loop|status))?((?:\s+[a-z]+=(?:"[^"]*"|[^\s"\]]+))*)\s*\]/)
+  if (match === null) return null
+  const options = Object.fromEntries([...match[2].matchAll(/([a-z]+)=(?:"([^"]*)"|([^\s"\]]+))/g)].map((option) => [option[1], option[2] ?? option[3]]))
+  return { variant: match[1] ?? 'browser', url: options.url, cli: options.cli }
+}
+
+/** The ref of the `browser_read {mode:'tree'}` line naming the fixture's `button "Change text"`, or undefined. */
+function changeTextRef(reply) {
+  const content = typeof reply.data?.content === 'string' ? reply.data.content : ''
+  return content.split(/\r?\n/).find((line) => line.includes('button "Change text"'))?.match(/\[(e\d{1,6})\]/)?.[1]
+}
+
+const browserFailure = (op, reply) => `browser failed: ${op} ${reply.error?.code}: ${reply.error?.message}`
+
+/** Each non-loop scenario's steps, given its `url=`: an op and its arguments, made from the previous step's reply. */
+const BROWSER_STEPS = {
+  status: () => [['browser_status', () => ({})]],
+  origin: (url) => [['browser_navigate', () => ({ url, as: BROWSER_AS })], ['browser_status', () => ({})]],
+  browser: (url) => [
+    ['browser_navigate', () => ({ url, as: BROWSER_AS })],
+    ['browser_read', () => ({ mode: 'tree' })],
+    ['browser_click', (tree) => ({ ref: changeTextRef(tree) })],
+    ['browser_read', () => ({ mode: 'text' })],
+    ['browser_screenshot', () => ({ label: 'fixture' })]
+  ]
+}
+
+/** Runs `steps` in order, never retried, stopping at the first refusal (or once the turn was stopped: null). */
+async function runBrowserSteps(steps, step) {
+  let previous = null
+  for (const [op, argsOf] of steps) {
+    const args = argsOf(previous)
+    if (op === 'browser_click' && args.ref === undefined) return 'browser failed: the tree read names no button "Change text"'
+    previous = await step(op, args)
+    if (previous === null) return null
+    if (!previous.ok) return browserFailure(op, previous)
+  }
+  return 'browser done'
+}
+
+/** `[browser-loop]`: a text read every BROWSER_LOOP_MS, at most BROWSER_LOOP_READS times, until one fails. */
+async function browserLoop(step, pause) {
+  for (let reads = 0; reads < BROWSER_LOOP_READS; reads++) {
+    if (reads > 0 && !(await pause(BROWSER_LOOP_MS))) return null
+    const read = await step('browser_read', { mode: 'text' })
+    if (read === null) return null
+    if (!read.ok) return `browser loop stopped: browser_read ${read.error?.code}\nbrowser done`
+  }
+  return `browser loop ended after ${BROWSER_LOOP_READS} reads\nbrowser done`
+}
+
+/**
+ * Runs a `[browser…]` scenario, as an agent drives the in-app browser: each step is one `dm call browser_*` through
+ * `process.execPath <cli>` with this run's own env (its grant and browser pipe) and cwd, run in order and never
+ * retried. `step(op, args)` runs and shows one call and answers its JSON, or null once the turn was stopped. Answers
+ * the turn's reply: `browser done`, after a `[browser-loop]` line naming the code its reads stopped on; or
+ * `browser failed: …` with the first refusal.
+ */
+async function browserScenario({ variant, url, cli }, step, pause) {
+  if (cli === undefined) return 'browser failed: the prompt names no cli='
+  if (variant === 'loop') return browserLoop(step, pause)
+  if (variant !== 'status' && url === undefined) return 'browser failed: the prompt names no url='
+  return runBrowserSteps(BROWSER_STEPS[variant](url), step)
+}
+
+/** Text with this run's grant token, if any, replaced: a tool result never shows it. */
+function withoutToken(text) {
+  const token = process.env.DM_SESSION_TOKEN
+  return token ? text.replaceAll(token, '[redacted]') : text
+}
+
+/**
+ * One browser step (`call`: its `index`, `op` and `args`) as protocol frames, from the `tool` golden of this turn: a
+ * `Bash` tool call `dm call <op> <json>` whose result is the CLI's stdout. Ids carry `T<N>_browser<index>`. OMP shows
+ * each step as its own assistant message (the call), then the call's execution.
+ */
+function browserStepFrames(turn, { index, op, args }, { stdout, isError }) {
+  const tag = `T${turn}_browser${index}`
+  const ids = (line) => line.replaceAll(`_T${turn}_read`, `_${tag}`).replaceAll(`msg_T${turn}_tool`, `msg_${tag}`).replaceAll(`uuid_T${turn}_`, `uuid_${tag}_`)
+  const frames = renumber(fixture('tool'), turn).map((line) => JSON.parse(ids(line)))
+  const input = { command: `dm call ${op} ${JSON.stringify(args)}` }
+  const result = withoutToken(stdout)
+  if (mode === 'claude') {
+    const [start, block, delta, assistant, user] = frames
+    const id = `toolu_${tag}`
+    block.event.content_block = { type: 'tool_use', id, name: 'Bash', input: {} }
+    delta.event.delta.partial_json = JSON.stringify(input)
+    assistant.message.content = [{ type: 'tool_use', id, name: 'Bash', input }]
+    user.message.content = [{ type: 'tool_result', tool_use_id: id, content: result, is_error: isError }]
+    return [start, block, delta, assistant, user].map((frame) => JSON.stringify(frame))
+  }
+  const byType = (type, event) => frames.find((frame) => frame.type === type && (event === undefined || frame.assistantMessageEvent?.type === event))
+  const id = `call_${tag}`
+  const toolCall = { type: 'toolCall', id, name: 'Bash', arguments: input }
+  const start = byType('message_update', 'toolcall_start')
+  start.assistantMessageEvent.block = { ...toolCall, arguments: {} }
+  const delta = byType('message_update', 'toolcall_delta')
+  delta.assistantMessageEvent.delta = JSON.stringify(input)
+  const end = byType('message_update', 'toolcall_end')
+  end.assistantMessageEvent.toolCall = toolCall
+  const messageEnd = byType('message_end')
+  messageEnd.message.content = [toolCall]
+  messageEnd.message.stopReason = 'toolUse'
+  const execution = { toolCallId: id, toolName: 'Bash', args: input }
+  return [
+    byType('message_start'), start, delta, end, messageEnd,
+    { type: 'tool_execution_start', ...execution },
+    { type: 'tool_execution_end', ...execution, result: { content: [{ type: 'text', text: result }], details: {} }, isError }
+  ].map((frame) => JSON.stringify(frame))
 }
 
 /** OMP's inbox delivery entry, as the Skitarii extension writes it (`resources/skitarii/extension/contextDelivery.ts`). */
@@ -534,6 +662,8 @@ class ProtocolReplay {
     const content = mode === 'claude' ? message.message?.content : message.message
     const prompt = typeof content === 'string' ? content : JSON.stringify(content)
     if (prompt?.includes('[crash]')) { crash(); this.stop(); return }
+    const browser = browserKeyword(promptText(content))
+    if (browser !== null) { this.browser(message, browser); return }
     const echo = receivedImages(message)
     const name = scenario(prompt, echo.length > 0)
     if (name === 'mail') { this.mail(message, prompt); return }
@@ -559,6 +689,37 @@ class ProtocolReplay {
     void mailPeer(prompt).then((text) => {
       if (this.active !== held) return
       this.active = { ...held, lines: withReply(lines.slice(accepted), text), waiting: null }
+      this.pump()
+    })
+  }
+
+  /**
+   * `[browser…]` on the text golden: OMP's prompt is acknowledged at once, then each `dm call browser_*` step shows as
+   * a `Bash` tool call once it returns (`browserScenario`), and the turn replies with the outcome. A turn stopped
+   * meanwhile runs no further step, ends the loop's wait and drops the late outcome.
+   */
+  browser(message, keyword) {
+    const lines = this.turnLines('text', message)
+    const turn = this.turn
+    const head = mode === 'omp' ? lines.findIndex((line) => JSON.parse(line).type === 'message_start') : 0
+    for (const line of lines.slice(0, head)) emit(line)
+    const held = { lines: [], index: 0, waiting: 'browser', promptId: message.id, tails: new Map() }
+    this.tailQueries.clear()
+    this.active = held
+    const dm = { command: process.execPath, args: [keyword.cli], env: {} }
+    let index = 0
+    const step = async (op, args) => {
+      if (this.active !== held) return null
+      const { stdout, reply } = await runDm(dm, op, args)
+      if (this.active !== held) return null
+      const frames = browserStepFrames(turn, { index: ++index, op, args }, { stdout: stdout.trim() || JSON.stringify(reply), isError: reply.ok !== true })
+      for (const line of frames) emit(line)
+      return reply
+    }
+    const pause = (ms) => new Promise((resolvePause) => { this.timer = setTimeout(() => resolvePause(this.active === held), ms) })
+    void browserScenario(keyword, step, pause).then((text) => {
+      if (text === null || this.active !== held) return
+      this.active = { ...held, lines: withReply(lines.slice(head), withoutToken(text)), waiting: null }
       this.pump()
     })
   }
