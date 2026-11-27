@@ -34,7 +34,7 @@ import { resolveHomeDir } from '../../core/repo/storageMode'
 import { startTelegram } from '../telegram'
 import { boundForgeRoot, currentForgeTransfer } from '../../core/repo/forgeBinding'
 import type { ChatRecord } from '../../shared/agents/chat'
-import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
+import type { AgentDownloadProgress, AgentId, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { isActiveRunState, isLeasedAttemptState } from '../../shared/domain/status'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
@@ -42,7 +42,8 @@ import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
 import type { PlannerAgents } from '../agents/plannerStart'
 import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
-import { createAgentContextDelivery, resumeContextChat, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
+import { createAgentContextDelivery, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
+import { resumeChatOnSurface } from '../agents/chatSurfaceStart'
 import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
 import type { ConversationReads } from '../agents/conversationTarget'
 import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
@@ -81,7 +82,7 @@ import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
-import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
+import { endingAgentChats, nativeTerminalStopConfirmation, releasingChatOwners, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
 import { restartMarkerHook, resumeAfterRestart } from '../agentChat/restartResume'
 import { setBeforeInstall } from '../autoUpdate'
 import { createWorktreeRoots } from '../magos/worktreeRoots'
@@ -362,8 +363,10 @@ interface ChatProcesses {
   agentChats: AgentChatSessions
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
-  /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
+  /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals and GUI processes stopped, its chat mailboxes suspended. */
   releaseFolder: (folder: string, forget: () => void | Promise<void>, relatedFolders?: readonly string[]) => Promise<void>
+  /** A removed agent's chats: their terminals and GUI processes stopped, their grants revoked. */
+  endAgent: (id: AgentId) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
   suspendChatMail(chat: ChatRecord): Promise<void>
@@ -520,7 +523,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, settings, 
   const chats = endingAgentChats(records, terminals, owners.agentChats)
   const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, agentChats: owners.agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat,
-    suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+    suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, ...ownerRelease(terminals, owners.agentChats, mailboxes, store) }
 }
 
 /** What owns a chat's live process (`wireAgentChats`): the terminals with their context delivery, and the GUI manager. */
@@ -534,9 +537,13 @@ function createChatOwners(
   gui: { claims: GuiClaimDeps; arbiter: ArbiterWiring; attention: AgentChatAttention }
 ): ChatOwners {
   let context: ContextTerminals | undefined
+  let agentChats: AgentChatSessions | undefined
   const owners = wireAgentChats({
     terminalsFactory: agentChatLive => {
-      context = createContextTerminals(store, { ...options, agentChatLive }, push)
+      context = createContextTerminals(store, { ...options, agentChatLive }, push, () => {
+        if (agentChats === undefined) throw new Error('The GUI chats were not created.')
+        return agentChats
+      })
       return context.terminals
     },
     agentChatsFactory: owned => createGuiChats(store, { grants: options.grants, folders: options.folders, reachFolders: options.reachFolders, agents: options.agents }, owned, gui.claims),
@@ -545,6 +552,7 @@ function createChatOwners(
     attention: gui.attention
   })
   if (context === undefined) throw new Error('The chat terminals were not created.')
+  agentChats = owners.agentChats
   return { ...context, owners }
 }
 
@@ -629,10 +637,13 @@ interface ContextTerminals extends Pick<ChatProcesses, 'terminals' | 'logins' | 
   boardTransport: BoardContextTransport
 }
 
-/** The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. */
+/**
+ * The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. Delivery
+ * wakes a chat on its stored surface (`resumeChatOnSurface`) through `agentChats`, the GUI manager built after the terminals.
+ */
 function createContextTerminals(
   store: ChatStore, options: Omit<Parameters<typeof createTerminalProcesses>[1], 'beforeContextPaste'>,
-  push: ReturnType<typeof createChatPush>
+  push: ReturnType<typeof createChatPush>, agentChats: () => Pick<AgentChatSessions, 'start'>
 ): ContextTerminals {
   const userData = app.getPath('userData')
   const deliveries = createConversationDeliveries({
@@ -644,7 +655,7 @@ function createContextTerminals(
   const { terminals, logins } = createTerminalProcesses(store, {
     ...options, beforeContextPaste: (chat, messageId, content) => contextDelivery.reserveBoardInput(chat, messageId, content)
   })
-  const resumeChat = (chat: ChatRecord): Promise<string | null> => resumeContextChat(terminals, chat)
+  const resumeChat = (chat: ChatRecord): Promise<string | null> => resumeChatOnSurface({ terminals, agentChats: agentChats() }, chat)
   const boardTransport: BoardContextTransport = {
     resolveFolder: (folder) => options.folders.trackedFolder(folder),
     getChat: (ref) => store.getChat(ref),
@@ -689,13 +700,22 @@ function createMailboxRecords(
   return { records, mailboxes }
 }
 
-/** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
-function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
-  return (folder, forget, relatedFolders = []) =>
-    terminals.releaseFolder(folder, async () => {
-      for (const path of [folder, ...relatedFolders]) await mailboxes.suspendFolder(path, store.listChats(path))
-      await forget()
-    }, relatedFolders)
+/**
+ * Both owners of the chats' processes released together (`releasingChatOwners`): a removed agent's, and an untracked
+ * folder's, whose chat mailboxes are then suspended before `forget`.
+ */
+function ownerRelease(
+  terminals: TerminalSessions, agentChats: AgentChatSessions, mailboxes: ChatMailboxes, store: ChatStore
+): Pick<ChatProcesses, 'releaseFolder' | 'endAgent'> {
+  const owners = releasingChatOwners(terminals, agentChats)
+  return {
+    endAgent: owners.endAgent,
+    releaseFolder: (folder, forget, relatedFolders = []) =>
+      owners.releaseFolder(folder, async () => {
+        for (const path of [folder, ...relatedFolders]) await mailboxes.suspendFolder(path, store.listChats(path))
+        await forget()
+      }, relatedFolders)
+  }
 }
 
 /** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */
@@ -1157,7 +1177,7 @@ function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistr
   return async () => { stopTelegram(); await closeStores() }
 }
 
-type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'contextDelivery' | 'suspendChatMail'> & {
+type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'agentChats' | 'contextDelivery' | 'suspendChatMail'> & {
   registry: FolderRegistry
   pool: WorkspacePool
   github: GithubBridge
@@ -1189,7 +1209,8 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
         return agent === null || agent.kind === 'custom' || agent.needsReview ? 'unchecked' :
           (await getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps())).state
       },
-      beforeArchive: options.suspendChatMail
+      beforeArchive: options.suspendChatMail,
+      onError: error => logger.error('Forge resolver start failed:', error)
     })
   })
 }
@@ -1220,14 +1241,14 @@ function forgeSetupChatOptions(
   }
 }
 
-type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agents' | 'folderDefaults' | 'terminals' | 'skills'> &
-  Pick<ChatProcesses, 'releaseFolder' | 'mail' | 'logins'> & {
+type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agents' | 'folderDefaults' | 'skills'> &
+  Pick<ChatProcesses, 'releaseFolder' | 'endAgent' | 'mail' | 'logins'> & {
     forge: ReturnType<typeof startForgeBridge>
     installer: ReturnType<typeof createInstaller>
   }
 
 function bridgeHandlers(options: BridgeHandlerOptions) {
-  const { registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills } = options
+  const { registry, pool, releaseFolder, endAgent, mail, agents, folderDefaults, forge, installer, logins, skills } = options
   const folderRunner = createGitRunner()
   return createDesktopHandlers({
     registry,
@@ -1246,9 +1267,9 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
     installAgent: (kind) => installer.download(kind),
     checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
     customAgents: createCustom(agents),
-    // Removing an agent kills its chats' terminals and its sign-in terminal.
+    // Removing an agent ends its chats' terminals and GUI processes, and its sign-in terminal.
     endAgentSessions: async (id) => {
-      await Promise.all([terminals.endAgent(id), logins.endAgent(id)])
+      await Promise.all([endAgent(id), logins.endAgent(id)])
     },
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
@@ -1303,7 +1324,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const settings = createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })
   const notifier = startNotifications(ipc, registry, pool, settings)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
-  const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({
+  const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail } = createChatProcesses({
     folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
@@ -1311,12 +1332,12 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   const github = startGithub(ipc)
-  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults, contextDelivery, suspendChatMail })
+  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agentChats, agents, folderDefaults, contextDelivery, suspendChatMail })
   verifySetup = forge.assertSetupLaunch
   const approvals = startLearningApprovals(ipc, registry, pool, startGit(forge, ipc, registry, github))
   const releasing: ChatProcesses['releaseFolder'] = (folder, forget, related = []) =>
     releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
-  const handlers = bridgeHandlers({ registry, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
+  const handlers = bridgeHandlers({ registry, pool, releaseFolder: releasing, endAgent, mail, agents, folderDefaults, forge, installer, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerSettingsIpc(ipc, createSettingsHandlers({
     settings,

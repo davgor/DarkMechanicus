@@ -33,7 +33,8 @@ describe('ChatHeader GUI switch', () => {
 
   it.each([
     ['Forge setup', chatRecord({ id: 'f', title: 'Set up', forgeSetup })],
-    ['tooling repair', chatRecord({ id: 'r', title: 'Repair', repairIncidentId: 'ti_1' })]
+    ['tooling repair', chatRecord({ id: 'r', title: 'Repair', repairIncidentId: 'ti_1' })],
+    ['Forge World merge resolver', chatRecord({ id: 'm', title: 'Resolve Forge World merge', forgeResolver: '/home/u/code/world' })]
   ])('renders no GUI switch for a %s chat', (_kind, terminalOnly) => {
     render(<ChatHeader chat={terminalOnly} agentName="Claude Code" fact="Running" surfaceTarget={target} />)
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy()

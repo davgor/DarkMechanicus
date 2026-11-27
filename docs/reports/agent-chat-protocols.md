@@ -74,6 +74,14 @@ Live terminal activity is not observable through the current PTY contract, so it
 
 After a confirmed stop, `gui` is persisted only if no terminal owner of the chat is still live: an earlier owner kept fenced by a failed cleanup makes the switch refuse `busy` with the surface unchanged and no push. Retry outcomes depend on `processTree.killPtyTree`: on POSIX a settled post-exit kill result is shared rather than repeated, and on Windows `endLeftovers` answers `true` once the PTY has exited. The manager tests inject `killTree`, so they prove the retry contract, not those platform kill results.
 
+The tree-kill retry is bounded (DM-1022): one PTY gets at most three `killPtyTree` calls in all (its stop or exit, then the retries above). Once the third has failed, the manager logs one error naming the chat and pid, asks for no further kill, and keeps the owner fenced, so the chat cannot start again in this app session; a revocation failure is still retried as before.
+
+### Shared launch, untrack and agent removal (DM-1022)
+
+Every launch goes through `chatSurfaceStart`: `launchChatOnSurface` (with `startChatOnSurface` as its message-only form) starts a chat with its kickoff on its stored surface, and `resumeChatOnSurface` wakes an existing chat with no kickoff for peer and board delivery, starting a GUI chat through the one GUI session manager and attaching a terminal chat as before. The Forge World merge resolver launches through `launchChatOnSurface`; its records (`forgeResolver`) are terminal-only like Forge setup and tooling repair, because the GUI launch gives no Forge World member reach or resolver context: the resolver stores `surface: 'terminal'` on its record before launching, the GUI start and `setSurface(ref, 'gui')` refuse it with `unsupported`, and the chat header offers no GUI switch for it. A kickoff the resolver already delivered is pasted again into its resumed terminal session.
+
+Untracking a folder (`releasingChatOwners(...).releaseFolder`) stops both owners: the terminals refuse the folders' starts and stop their PTYs, then `AgentChatSessions.releaseFolder` refuses GUI starts of the folders' chats, stops their processes and starts, and waits for process close and grant revocation before the untrack's `forget` runs; starts are let through again after it. Removing an agent (`endAgent`) stops its chats' terminals and GUI processes with their grants revoked, and its sign-in terminal.
+
 
 ## Claude host → CLI
 

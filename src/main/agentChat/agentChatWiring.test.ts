@@ -27,7 +27,7 @@ import { disposeBeforeQuit } from '../quitDisposal'
 import { gate, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { agentChatRig } from './__mocks__/agentChatRig'
 import { createAgentChatHandlers, registerAgentChatIpc } from './agentChatIpc'
-import { endingAgentChats, nativeTerminalStopConfirmation, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type ArbiterWiring } from './agentChatWiring'
+import { endingAgentChats, nativeTerminalStopConfirmation, releasingChatOwners, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type ArbiterWiring } from './agentChatWiring'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
@@ -423,6 +423,33 @@ describe('agent chat wiring: deletion', () => {
     held.open()
     await deleting
     expect(state.gui.children).toHaveLength(0)
+  })
+})
+
+describe('agent chat wiring: untrack and agent removal', () => {
+  it('untracking a folder stops its GUI process and its terminal, revokes both grants, then forgets it', async () => {
+    const state = open(), chat = state.gui.newChat(), terminalChat = state.terminalChat()
+    await state.wiring.agentChats.start(chat)
+    const { pty } = await startTerminal(state.terminals, terminalChat)
+    const pid = state.gui.children[0].pid!
+    const seen: unknown[] = []
+    await releasingChatOwners(state.terminals.sessions, state.wiring.agentChats).releaseFolder(state.gui.repo, async () => {
+      seen.push(alive(pid), state.gui.revoked, pty.kills, state.terminals.revoked.length)
+      await state.wiring.agentChats.start(chat).catch((error: Error) => seen.push(error.message))
+    })
+    expect(seen).toEqual([false, ['grant-1'], 1, 1, "The chat's folder is being untracked."])
+    // The fake PTY exits only when told; its kill and revocation, asked before `forget`, are what untrack waits for.
+    expect(state.wiring.agentChats.isLive(chat)).toBe(false)
+  })
+
+  it('removing an agent stops the GUI processes and terminals of its chats', async () => {
+    const state = open(), chat = state.gui.newChat(), terminalChat = state.terminalChat()
+    await state.wiring.agentChats.start(chat)
+    const { pty } = await startTerminal(state.terminals, terminalChat)
+    const pid = state.gui.children[0].pid!
+    await releasingChatOwners(state.terminals.sessions, state.wiring.agentChats).endAgent('claude')
+    expect([alive(pid), state.gui.revoked, pty.kills]).toEqual([false, ['grant-1'], 1])
+    expect(state.wiring.agentChats.isLive(chat)).toBe(false)
   })
 })
 

@@ -4,7 +4,7 @@ import { DomainError } from '../../core/errors'
 import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
-import type { AgentView } from '../../shared/desktop/api'
+import type { AgentId, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { ActivityBinding, ActivityBindings } from '../agents/activityBindings'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
@@ -60,7 +60,8 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
 }
 
 type ConfirmTerminalStop = (chat: ChatRecord) => Promise<boolean>
-type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
+/** What `start` answers: the chat's snapshot, or that its terminal owns it. */
+export type StartResult = AgentChatSnapshot | { code: 'busy_elsewhere' }
 export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
   send(ref: ChatRef, input: { text: string }): Promise<void>
@@ -77,6 +78,13 @@ export interface AgentChatSessions {
   stop(ref: ChatRef): Promise<void>
   /** Stops the GUI process (refusing new starts meanwhile), then runs `remove`, which deletes the record. */
   deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
+  /**
+   * Untrack: refuses every GUI start of the folders' chats, stops their processes and starts, waits until each process
+   * has closed and its grants are revoked, then runs `forget` (the untrack itself) before starts are let through again.
+   */
+  releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
+  /** Stops the GUI processes and starts of every chat of a removed agent, with their grants revoked. */
+  endAgent(id: AgentId): Promise<void>
   isLive(ref: ChatRef): boolean
   busy(): boolean
   dispose(): Promise<void>
@@ -185,6 +193,8 @@ class SessionManager {
   private readonly switching = new Set<string>()
   /** Surface requests awaiting confirmation: refuses duplicates without reserving either owner. */
   private readonly confirming = new Set<string>()
+  /** Folders being untracked (`releaseFolder`): no GUI chat of theirs may start until the untrack has finished. */
+  private readonly releasing = new Set<string>()
   private closing = false
   private disposing?: Promise<void>
 
@@ -370,6 +380,7 @@ class SessionManager {
   }
   private assertOpen(chat: ChatRecord): void {
     if (this.closing || this.deleting.has(chat.id)) throw new Error('The chat is stopping.')
+    if (chat.folder !== null && this.releasing.has(chat.folder)) throw new Error("The chat's folder is being untracked.")
     if (this.switching.has(chat.id)) throw new DomainError('busy', 'The chat is switching surfaces.')
   }
   private assertCurrent(entry: Entry): void {
@@ -769,11 +780,13 @@ class SessionManager {
   }
   /**
    * Forge setup keeps the terminal's setup-action gate, no-new-session rule and checkout verification; tooling repair
-   * keeps the terminal's live-caller handoff and repair-checkout verification.
+   * keeps the terminal's live-caller handoff and repair-checkout verification; a Forge World merge resolver keeps the
+   * terminal's member reach grants and resolver context, which this launch does not give.
    */
   private assertGuiCapable(chat: ChatRecord): void {
     if (chat.forgeSetup !== undefined) throw new DomainError('unsupported', 'Forge setup conversations run only in the terminal.')
     if (chat.repairIncidentId !== undefined) throw new DomainError('unsupported', 'Tooling repair conversations run only in the terminal.')
+    if (chat.forgeResolver !== undefined) throw new DomainError('unsupported', 'Forge World merge resolvers run only in the terminal.')
   }
   private assertSurfaceAllowed(chat: ChatRecord, surface: 'gui' | 'terminal'): void {
     this.assertOpen(chat)
@@ -851,6 +864,25 @@ class SessionManager {
     try { await this.stop(chat); await remove(); this.entries.delete(chat.id); this.callsignStates.delete(chat.id) }
     finally { this.deleting.delete(chat.id) }
   }
+  /** Stops the processes and starts of the chats `selects` picks, and waits for their close and revocation. */
+  private async stopWhere(selects: (chat: ChatRecord) => boolean): Promise<void> {
+    const stopping = [...new Set([...this.entries.values(), ...this.startingEntries.values()])].filter(entry => selects(entry.chat))
+    await Promise.all(stopping.map(entry => this.stopEntry(entry)))
+    await Promise.all(stopping.map(entry => entry.starting))
+  }
+  async releaseFolder(folder: string, forget: () => unknown, relatedFolders: readonly string[] = []): Promise<void> {
+    const affected = new Set([folder, ...relatedFolders])
+    for (const path of affected) this.releasing.add(path)
+    try {
+      await this.stopWhere(chat => chat.folder !== null && affected.has(chat.folder))
+      await forget()
+    } finally {
+      for (const path of affected) this.releasing.delete(path)
+    }
+  }
+  endAgent(id: AgentId): Promise<void> {
+    return this.stopWhere(chat => chat.agent === id)
+  }
   dispose(): Promise<void> {
     if (this.disposing) return this.disposing
     this.closing = true
@@ -879,6 +911,7 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
     send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
+    releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
     busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder) }
 }

@@ -22,9 +22,9 @@ interface ChatHeaderProps {
 
 const saveText = (chat: ChatRecord): string => (chat.allowSave && canSavePlans(chat.role) ? 'Allowed to save plans' : 'Does not save plans')
 
-/** Forge setup and tooling repair conversations run only in the terminal (main refuses their switch); other chats need a GUI protocol. */
+/** Forge setup, tooling repair and Forge World merge resolver chats run only in the terminal (main refuses their switch); other chats need a GUI protocol. */
 const canSwitchToGui = (chat: ChatRecord, agentKind: AgentView['kind'] | undefined): boolean =>
-  chat.forgeSetup === undefined && chat.repairIncidentId === undefined && GUI_PROTOCOL_KINDS.some(kind => kind === agentKind)
+  chat.forgeSetup === undefined && chat.repairIncidentId === undefined && chat.forgeResolver === undefined && GUI_PROTOCOL_KINDS.some(kind => kind === agentKind)
 
 /**
  * What the chat is: title, agent, the fact the view puts after it (the terminal's state), role. The agent
