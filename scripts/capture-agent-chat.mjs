@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 31 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 480_000
+/** A declared bound: 34 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 525_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -72,9 +72,10 @@ const BASE_FIELDS = [
   'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-/** States outside the epic workspace: the standalone chats, the settings form and the role picker. */
+/** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
-  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'settings-notifications', 'agent-role-picker'
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'settings-notifications',
+  'agent-role-picker', 'new-chat-picker'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -94,7 +95,7 @@ const alphaOf = (color) => {
 /** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
 const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
   && alphaOf(surface?.background) <= 0.72
-/** The agent-role-picker state's cards as the page measured them; empty when it reported none. */
+/** A role-picker state's cards as the page measured them; empty when it reported none. */
 const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
 /** The agent-composer state's composers, or none. */
 const composersOf = (o) => Array.isArray(o.composers) ? o.composers : []
@@ -130,6 +131,18 @@ const treeLevelChecks = AGENT_TREE_LEVELS.map(([name, level, parent]) => [
   (o) => { const where = placement(o, name); return where !== null && where.level === level && where.parent === parent },
   (o) => describePlacement(placement(o, name))
 ])
+
+/** What the role picker shows wherever it is captured: Magos checked first, both illustrated glass cards, nothing clipped. */
+const ROLE_PICKER_CHECKS = [
+  ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
+    === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
+  ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
+    && new Set(roleCards(o).map((card) => card.art)).size === 2
+    && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
+  (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
+  ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
+  ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)]
+]
 
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
@@ -203,15 +216,12 @@ const STATE_CHECKS = {
     ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
       (o) => JSON.stringify(o.glass?.transcript)]
   ],
-  'agent-role-picker': [
-    ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
-      === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
-    ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
-      && new Set(roleCards(o).map((card) => card.art)).size === 2
-      && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
-    (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
-    ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
-    ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)]
+  'agent-role-picker': ROLE_PICKER_CHECKS,
+  'new-chat-picker': [
+    ['the Start a new chat dialog shows the role picker above the First prompt field',
+      (o) => o.newChat?.title === 'Start a new chat' && o.newChat.pickerAbovePrompt === true, (o) => JSON.stringify(o.newChat)],
+    ['the dialog shows Start without scrolling', (o) => o.newChat?.scrolls === false],
+    ...ROLE_PICKER_CHECKS
   ],
   'agent-magos-decided': [
     ['the record reads Asked by Acolyte:DM-442 and Denied by the Magos with its reason',
@@ -249,6 +259,30 @@ const STATE_CHECKS = {
     ['Send is enabled with the images', (o) => composerButtons(composersOf(o)[0]) === 'send' && composersOf(o)[0]?.sendEnabled === true],
     ['the fifth image is refused inline', (o) => composersOf(o)[0]?.images?.alert === 'At most 4 images can go with one message.',
       (o) => JSON.stringify(composersOf(o)[0]?.images?.alert)]
+  ],
+  'question-multi': [
+    ['a docked multi-select question headed Question 1 of 2 with its legend', (o) => o.questionCard?.progress === 'Question 1 of 2'
+      && matches(o.questionCard?.legend, /\S/), (o) => JSON.stringify(o.questionCard)],
+    ['Lint and Unit tests checked among the checkboxes, reading 2 selected', (o) => o.questionCard?.checkboxes >= 2
+      && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
+    (o) => JSON.stringify(o.questionCard)],
+    ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'agent-transcript': [
+    ['a centred reading column at most 760 px wide', (o) => o.transcript?.columnWidth <= 760 && o.transcript.columnWidth >= 600
+      && o.transcript.columnOffset <= 1, (o) => JSON.stringify([o.transcript?.columnWidth, o.transcript?.columnOffset])],
+    ['the person’s message is a rounded bubble against the column’s right edge', (o) => parseFloat(o.transcript?.bubble?.radius) >= 12
+      && alphaOf(o.transcript.bubble.background) > 0 && near(o.transcript.bubble.rightGap, 0) && o.transcript.bubble.leftGap > 40,
+    (o) => JSON.stringify(o.transcript?.bubble)],
+    ['the reply is plain text across the column, with no bubble', (o) => alphaOf(o.transcript?.reply?.background) === 0
+      && o.transcript.reply.border === '0px' && near(o.transcript.reply.width, o.transcript.columnWidth), (o) => JSON.stringify(o.transcript?.reply)],
+    ['the reply’s action row holds Copy', (o) => JSON.stringify(o.transcript?.replyActions) === '["Copy"]',
+      (o) => JSON.stringify(o.transcript?.replyActions)],
+    ['the bubble’s Copy shows under keyboard focus', (o) => o.transcript?.bubbleCopy === 'Copy' && o.transcript.bubbleCopyFocused === true,
+      (o) => JSON.stringify([o.transcript?.bubbleCopy, o.transcript?.bubbleCopyFocused])],
+    ['the code block’s Copy sits in its top-right corner', (o) => o.transcript?.codeCopy === 'Copy'
+      && o.transcript.codeCopyCorner?.top <= 12 && o.transcript.codeCopyCorner.right <= 12,
+    (o) => JSON.stringify([o.transcript?.codeCopy, o.transcript?.codeCopyCorner])]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')

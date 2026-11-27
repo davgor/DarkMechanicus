@@ -49,6 +49,8 @@ const ROLE_CARDS = [
   { ...ROLE_CARD, name: 'Magos', checked: true, art: 'Magos: a hooded tech-priest with a cog halo' },
   { ...ROLE_CARD, name: 'Lexmechanic', checked: false, art: 'Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm' }
 ]
+/** The new-chat-picker state's dialog: its name, the picker above the First prompt field, and no scrolling. */
+const NEW_CHAT = { title: 'Start a new chat', pickerAbovePrompt: true, scrolls: false }
 const STANDALONE = { viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null }
 /** The agent-composer state's idle and busy composers, as Chromium reports the shipped styles. */
 const COMPOSER = {
@@ -72,6 +74,16 @@ const IMAGES_COMPOSER = {
 const imagesRecord = (patch = {}) => ready('agent-images', {
   viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, composers: [{ ...IMAGES_COMPOSER, ...patch }]
 })
+
+/** The agent-transcript state's layout, as Chromium reports the shipped styles at 1280×800. */
+const TRANSCRIPT = {
+  columnWidth: 760, columnOffset: 0,
+  bubble: { radius: '18px', background: 'rgb(48, 40, 35)', rightGap: 0, leftGap: 280 },
+  bubbleCopy: 'Copy', bubbleCopyFocused: true,
+  reply: { background: 'rgba(0, 0, 0, 0)', border: '0px', width: 760 },
+  replyActions: ['Copy'], codeCopy: 'Copy', codeCopyCorner: { top: 6, right: 6 }
+}
+const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
 
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
@@ -118,8 +130,15 @@ function passingChatStates() {
       treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
     'agent-composer': composerRecord(COMPOSERS),
-    'agent-images': imagesRecord()
+    'agent-images': imagesRecord(),
+    'agent-transcript': transcriptRecord()
   }
+}
+
+/** The question-multi state's docked card: the first of two questions, two options checked, Submit enabled. */
+const QUESTION = {
+  legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
+  checked: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true
 }
 
 /** A passing record for every state, as a full capture of the preview would report it. */
@@ -160,7 +179,9 @@ function passing() {
     'settings-notifications': ready('settings-notifications', {
       ...STANDALONE, settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
     }),
-    'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } })
+    'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
+    'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT }),
+    'question-multi': ready('question-multi', { questionCard: QUESTION })
   }
 }
 
@@ -195,21 +216,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 31 states once each, in capture order', () => {
+  it('lists the 34 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'settings-notifications',
-      'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'new-chat-picker',
+      'question-multi', 'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(31)
+    expect(new Set(STATES).size).toBe(34)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 480 s overall bound: 31 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 525 s overall bound: 34 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(480_000)
+    expect(OVERALL_LIMIT_MS).toBe(525_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -230,6 +251,31 @@ describe('capture-agent-chat: agent-images', () => {
       .toEqual(['agent-images: expected Send is enabled with the images'])
     expect(validateObservations('agent-images', imagesRecord({ images: { ...IMAGES_COMPOSER.images, alert: null } })))
       .toEqual(['agent-images: expected the fifth image is refused inline; got null'])
+  })
+})
+
+describe('capture-agent-chat: agent-transcript', () => {
+  it('passes a centred column, a right-hand bubble, a plain reply and every Copy in place', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord())).toEqual([])
+  })
+
+  it('fails a column wider than 760 px, a reply in a bubble and a bubble on the left', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord({ columnWidth: 860 })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected a centred reading column at most 760 px wide/),
+        expect.stringMatching(/^agent-transcript: expected the reply is plain text across the column/)])
+    expect(validateObservations('agent-transcript', transcriptRecord({ reply: { ...TRANSCRIPT.reply, background: 'rgb(33, 27, 24)' } })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected the reply is plain text across the column, with no bubble; got /)])
+    expect(validateObservations('agent-transcript', transcriptRecord({ bubble: { ...TRANSCRIPT.bubble, rightGap: 280, leftGap: 0 } })))
+      .toEqual([expect.stringMatching(/^agent-transcript: expected the person’s message is a rounded bubble against the column’s right edge/)])
+  })
+
+  it('fails a missing action row, a bubble Copy hidden under focus and a code Copy outside the corner', () => {
+    expect(validateObservations('agent-transcript', transcriptRecord({ replyActions: [] })))
+      .toEqual(['agent-transcript: expected the reply’s action row holds Copy; got []'])
+    expect(validateObservations('agent-transcript', transcriptRecord({ bubbleCopy: null })))
+      .toEqual(['agent-transcript: expected the bubble’s Copy shows under keyboard focus; got [null,true]'])
+    expect(validateObservations('agent-transcript', transcriptRecord({ codeCopyCorner: { top: 40, right: 6 } })))
+      .toEqual(['agent-transcript: expected the code block’s Copy sits in its top-right corner; got ["Copy",{"top":40,"right":6}]'])
   })
 })
 
@@ -433,6 +479,43 @@ describe('capture-agent-chat: agent-role-picker observations', () => {
     expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker: expected both cards are frosted glass'])
     expect(picker([magos, { ...lex, clipped: true }])).toEqual(['agent-role-picker: expected no card clips its text or leaves the window'])
     expect(validateObservations('agent-role-picker', ready('agent-role-picker', STANDALONE))).toHaveLength(4)
+  })
+})
+
+describe('capture-agent-chat: new-chat-picker observations', () => {
+  const dialog = (patch) => validateObservations('new-chat-picker',
+    ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT, ...patch }))
+
+  it('passes the New chat dialog with both role cards above the prompt', () => {
+    expect(dialog({})).toEqual([])
+  })
+
+  it('fails a picker below the prompt, a scrolling dialog, a missing dialog and the role picker checks', () => {
+    expect(dialog({ newChat: { ...NEW_CHAT, pickerAbovePrompt: false } })).toEqual([
+      'new-chat-picker: expected the Start a new chat dialog shows the role picker above the First prompt field; '
+        + 'got {"title":"Start a new chat","pickerAbovePrompt":false,"scrolls":false}'
+    ])
+    expect(dialog({ newChat: { ...NEW_CHAT, scrolls: true } })).toEqual(['new-chat-picker: expected the dialog shows Start without scrolling'])
+    expect(dialog({ newChat: null })).toHaveLength(2)
+    expect(dialog({ rolePicker: { cards: [{ ...ROLE_CARDS[0], clipped: true }, ROLE_CARDS[1]] } })).toEqual([
+      'new-chat-picker: expected no card clips its text or leaves the window'
+    ])
+  })
+})
+
+describe('capture-agent-chat: question-multi observations', () => {
+  const question = (patch) => validateObservations('question-multi', ready('question-multi', { questionCard: { ...QUESTION, ...patch } }))
+
+  it('passes Question 1 of 2 with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
+    expect(question({})).toEqual([])
+  })
+
+  it('fails missing progress, another selection, a wrong count, a disabled Submit and no card', () => {
+    expect(question({ progress: null })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question headed Question 1 of 2/)])
+    expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
+    expect(question({ count: '1 selected' })).toHaveLength(1)
+    expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
+    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(3)
   })
 })
 

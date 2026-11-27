@@ -513,17 +513,18 @@ interface FirstPromptRequest {
   agent: string
 }
 
-/** The first-prompt popup; Start creates the chat (in its folder, or project-less) and opens it. */
+/** The first-prompt popup; Start creates the chat (in its folder, as the chosen role, or project-less) and opens it. */
 function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; request: FirstPromptRequest; onClose(): void }): JSX.Element {
   const { actions } = shell
   const { folder, agent } = request
   return (
     <FirstPromptDialog
+      roles={folder !== null}
       onClose={onClose}
-      onSubmit={async (prompt) =>
+      onSubmit={async (prompt, role = 'orchestrator') =>
         (folder === null
           ? await actions.summonChat(agent, prompt)
-          : await actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+          : await actions.createChat(folder, { agent, model: null, role, allowSave: true, firstPrompt: prompt })) !== null
       }
     />
   )

@@ -1,11 +1,12 @@
 /**
  * The transcript a chat stored before chats became terminals, read-only: what was said, what was run, the
  * approval requests with the decision stored for each, the sign-ins that were lost and the subagent threads.
- * Nothing here can be answered or sent. Only text from the agent goes through the Markdown renderer; everything
- * else is plain text.
+ * Nothing here can be answered or sent; a message can only be copied. Only text from the agent goes through the
+ * Markdown renderer; everything else is plain text.
  */
 import { memo, useMemo, type ReactNode } from 'react'
 import { IDLE_STOP_CODE, type ErrorProblem } from '../../../shared/agents/chat'
+import { CopyButton } from '../agentChat/CopyButton'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalRecord } from './ApprovalRecord'
 import { decisionText, problemNotice, resetText, STOPPED_TEXT, type TranscriptEntry } from './chatViewModel'
@@ -13,13 +14,29 @@ import { ThreadBlock } from './ThreadBlock'
 import { transcriptTree, type TreeRow } from './threadModel'
 import { ToolCallRow } from './ToolCallRow'
 
-function Message({ who, children }: { who: 'You' | 'Assistant'; children: ReactNode }): JSX.Element {
+interface MessageProps {
+  who: 'You' | 'Assistant'
+  /** The stored, already-masked text: the person's words, or the agent's raw Markdown. Copy writes exactly this. */
+  text: string
+  children: ReactNode
+}
+
+/**
+ * One message, laid out like a chat client: the person's as a right-aligned bubble whose Copy shows on hover or
+ * keyboard focus, the agent's as plain full-width text with an action row under it. The speaker is named for
+ * assistive technology only.
+ */
+function Message({ who, text, children }: MessageProps): JSX.Element {
+  const user = who === 'You'
   return (
-    <li className={`chat-msg chat-msg-${who === 'You' ? 'user' : 'assistant'}`}>
-      <article aria-label={who}>
-        <p className="chat-msg-who">{who}</p>
+    <li className={`chat-msg chat-msg-${user ? 'user' : 'assistant'}`}>
+      <article aria-label={who} className={user ? 'chat-bubble' : undefined}>
+        <p className="chat-msg-who sr-only">{who}</p>
         {children}
       </article>
+      <div className="chat-msg-actions">
+        <CopyButton text={text} title="Copy message" />
+      </div>
     </li>
   )
 }
@@ -93,13 +110,13 @@ function EntryRow({ entry, answer, folder, agentName }: RowProps): JSX.Element |
   switch (entry.kind) {
     case 'user_message':
       return (
-        <Message who="You">
+        <Message who="You" text={entry.text}>
           <p className="chat-user-text">{entry.text}</p>
         </Message>
       )
     case 'assistant_text':
       return (
-        <Message who="Assistant">
+        <Message who="Assistant" text={entry.text}>
           <Markdown source={entry.text} />
         </Message>
       )
