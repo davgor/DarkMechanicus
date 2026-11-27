@@ -647,6 +647,8 @@ class SessionManager {
       else this.settleRequest(entry, event)
     }
     this.storeToolImages(entry, result.blobs)
+    // A submitted ask form's answer to OMP's next request of it (`ompAskForm.ts`).
+    this.write(entry, result.lines)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)

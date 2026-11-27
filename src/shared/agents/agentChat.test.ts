@@ -64,6 +64,42 @@ describe('agent chat contract', () => {
   })
 })
 
+describe('agent chat form prompts', () => {
+
+  it('carries every field of one ask as a form prompt with bounded fields, options and defaults', () => {
+    const field = { id: 'databases', title: 'Which databases?', multi: true, text: 'other' as const,
+      options: [{ id: 'option_0', label: 'SQLite', preselected: true }, { id: 'option_1', label: 'Postgres', description: 'Server' }] }
+    const form = { ...prompt, kind: 'question' as const, options: [], form: { fields: [field, { id: 'note', title: 'Anything else?', multi: false, text: 'only' as const, options: [], defaultText: 'No' }] } }
+    expect(pendingPromptSchema.parse(form)).toEqual(form)
+    const invalid = [
+      { ...form, form: { fields: [] } },
+      { ...form, form: { fields: Array.from({ length: 21 }, (_, index) => ({ ...field, id: `f${index}` })) } },
+      { ...form, form: { fields: [{ ...field, options: Array.from({ length: 51 }, (_, index) => ({ id: `option_${index}`, label: 'x' })) }] } },
+      { ...form, form: { fields: [{ ...field, text: 'free' }] } },
+      { ...form, form: { fields: [{ ...field, id: '' }] } },
+      { ...form, form: { fields: [{ ...field, title: 'a'.repeat(2_001) }] } },
+      { ...form, form: { fields: [{ ...field, extra: true }] } },
+      { ...form, form: { fields: [field], extra: true } },
+      { ...prompt, form: { fields: [field] } }
+    ]
+    expect(invalid.map(value => pendingPromptSchema.safeParse(value).success)).toEqual(invalid.map(() => false))
+  })
+
+  it('takes a form answer as every field at once, beside the old single and multi answers', () => {
+    const answer = { ...ref, promptId: 'p', fields: [{ fieldId: 'databases', optionIds: ['option_0', 'option_1'] }, { fieldId: 'note', optionIds: [], text: 'No' }] }
+    expect(agentChatAnswerSchema.parse(answer)).toEqual(answer)
+    expect(agentChatAnswerSchema.parse({ ...ref, promptId: 'p', optionId: 'option_0' })).toEqual({ ...ref, promptId: 'p', optionId: 'option_0' })
+    const invalid = [
+      { ...answer, fields: [] }, { ...answer, optionId: 'option_0' }, { ...answer, text: 'top-level text' },
+      { ...answer, fields: Array.from({ length: 21 }, (_, index) => ({ fieldId: `f${index}`, optionIds: [] })) },
+      { ...answer, fields: [{ fieldId: '', optionIds: [] }] }, { ...answer, fields: [{ fieldId: 'f', optionIds: [''] }] },
+      { ...answer, fields: [{ fieldId: 'f', optionIds: [], text: 'a'.repeat(20_001) }] },
+      { ...answer, fields: [{ fieldId: 'f', optionIds: [], label: 'SQLite' }] }
+    ]
+    expect(invalid.map(value => agentChatAnswerSchema.safeParse(value).success)).toEqual(invalid.map(() => false))
+  })
+})
+
 describe('agent chat images', () => {
   const ids = ['ci_01m8ec59dbq52ydhsy6ry7knhv', 'ci_01m8ec42c2xgm8dptjcywxm0fx', 'ci_01m7x2qsm36jdzebeysf4mgna8', 'ci_01m7x2qsm33eckprx1gjn0y5zs', 'ci_01m8drz8d8qqz934xa0c2vjy63']
 
