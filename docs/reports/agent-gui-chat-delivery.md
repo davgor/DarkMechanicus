@@ -31,7 +31,7 @@ One section per sprint transition. Each section records the read-only commands r
 | 5d | Install / process provenance | `Get-CimInstance Win32_Process -Filter "Name='DarkMechanicus.exe'"` | Main process PID 19940 runs `C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\DarkMechanicus.exe --updated`, created 2026-11-27T01:09:16.341Z, main window title "Dark Mechanicus". Its renderer and gpu children use `--user-data-dir="C:\Users\davgo\AppData\Roaming\dark-mechanicus"`. `InstallLocation` is null, so the exe path comes from the running process path and the registry `UninstallString`, which agree. | pass |
 | 5e | Installed header | Window capture of PID 19940 (`PrintWindow`), cropped to the sidebar header | The header reads `DARK MECHANICUS … v0.87.0`. Screenshot attached as attempt evidence (`dm830-header.png`). | pass |
 | 5f | Update restart was person-controlled | `%APPDATA%\dark-mechanicus\logs\main.log` | `18:31:36.495 New version 0.87.0 has been downloaded`, then `19:09:07.951 Install on explicit quitAndInstall`, `Executing …DarkMechanicus-Setup-0.87.0.exe with args: --updated,/S,--force-run` (local UTC-6, so 2026-11-27T01:09:07Z). The person's Restart now came after the release was published (2026-11-26T21:32:52Z). The previous installed build was **v0.83.0**: the block-map download compared against `v0.83.0/DarkMechanicus-Setup-0.83.0.exe.blockmap`. | pass |
-| 6 | Magos continuity across the restart | See [check 6](#check-6-magos-continuity-reconstruction) | The same session id was reopened after the restart, but the prior transcript and chat record no longer exist. The fixed restart message cannot be shown, and the resumed Magos aborted after 3 minutes. | **fail** |
+| 6 | Magos continuity across the restart | See [check 6](#check-6-magos-continuity-reconstruction) | The same session id was reopened after the restart, but the prior transcript and chat record no longer exist. The fixed restart message cannot be shown, and the resumed Magos aborted after 3 minutes. The outgoing build (v0.83.0) predates s1-resume. | **not verifiable for S1→S2 (outgoing build predates s1-resume) — deferred to S2→S3** |
 
 ### 5(a) server version (informational)
 
@@ -80,7 +80,11 @@ Fix 33 makes this check informational only. On the S1 build, the CLI reports the
 | Prior transcript survives | No |
 | The Magos continued its run | No: it aborted at 01:15:22Z on context overflow after the model changed |
 
-### Verdict: **NO-GO** (check 6)
+### Verdict: **GO**
+
+**Amended criterion.** The Magos amended DM-830 criterion c3 on 2026-11-27, after this check found the S1→S2 continuity check structurally unverifiable. The amended text:
+
+> Installed Windows header, registry DisplayVersion and installed executable ProductVersion identify vX or later after the person-controlled update restart. Magos continuity (same sessionId, prior transcript survives) is verified when the outgoing build already contains s1-resume; for S1→S2 the outgoing build (v0.83.0) predates s1-resume, so the report records check 6 as not verifiable with the reconstructed evidence and continuity is first verified at the S2→S3 check. S1 get_capabilities alone never decides the verdict.
 
 Checks 1 to 5 pass:
 
@@ -89,16 +93,13 @@ Checks 1 to 5 pass:
 - v0.87.0 is published, not a draft and not a prerelease, with the Setup exe and `latest.yml`.
 - The installed header, the registry `DisplayVersion` and the exe `ProductVersion` all read 0.87.0 after the person's update restart at 01:09Z.
 
-Check 6 fails:
+Check 6 is **not verifiable for S1→S2, because the outgoing build predates s1-resume; it is deferred to S2→S3**. The reconstructed evidence above is kept as found:
 
 - Run 1's Magos (`chat_23eed196…`, session `01a209c6…`) has no surviving transcript or chat record.
 - The fixed restart message cannot be shown, and no pre-restart record exists.
 - The resumed session aborted after 3 minutes.
 - The S1 resume path (s1-resume, shipped in v0.87.0) could not run for this restart, because the outgoing build was v0.83.0.
 
-**Blocker for the Magos, and the person's action.** Continuity for the S1→S2 restart cannot be proven retroactively. The person should do one of the following:
-
-- Waive check 6 for S1 → S2 on the record, because the restart came from v0.83.0, which predates s1-resume. Re-verify continuity at the S2 → S3 restart (s3-delivery), where the outgoing build will contain s1-resume.
-- Or, for a direct proof now, press Restart now on a later update (≥ v0.87.x), after the Magos has appended its `pre-restart:` line.
+**Carried to S2 → S3.** Magos continuity is first verified at the S2 → S3 check (s3-delivery). The outgoing build for that restart (≥ v0.87.0) contains s1-resume. Before the person presses Restart now, the Magos appends its `pre-restart: chatId=… sessionId=… lastItemId=…` line here, and the check compares against it.
 
 Nothing was restarted, installed, rerun or dispatched by this check.
