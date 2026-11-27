@@ -344,7 +344,10 @@ function nameChat() {
   call.on('exit', (code) => { if (code !== 0) process.stderr.write(`fake-agent name_chat exited ${code}: ${stderr}\n`) })
 }
 
-/** Runs `call <command> <args>` through the instructions' `dm` line with this run's own grant; answers its JSON. */
+/**
+ * Runs `call <command> <args>` through the instructions' `dm` line with this run's own grant; answers its JSON, which
+ * on a refusal (the CLI's, a failed start or unreadable output) always carries `error.code` and `error.message`.
+ */
 function dmCall(dm, command, args) {
   return new Promise((resolveCall) => {
     const call = spawn(dm.command, [...dm.args, 'call', command, JSON.stringify(args)], {
@@ -377,12 +380,12 @@ async function mailPeer(prompt) {
   const dm = instructionsDm()
   if (dm === null) return 'mail failed: the instructions give no dm command line'
   const listed = await dmCall(dm, 'list_agent_peers', { epicId, role })
-  if (!listed.ok) return `mail failed: list_agent_peers ${listed.error?.code}: ${listed.error?.message}`
+  if (!listed.ok) return `mail failed: list_agent_peers ${listed.error.code}: ${listed.error.message}`
   const [peer] = listed.data.peers
   if (peer === undefined) return `mail failed: no ${role} peer in ${epicId}`
   const body = `Fake coordination mail for the ${role}.`
   const sent = await dmCall(dm, 'send_agent_message', { to: peer.endpointId, clientMessageId: randomUUID(), body })
-  if (!sent.ok) return `mail failed: send_agent_message ${sent.error?.code}: ${sent.error?.message}`
+  if (!sent.ok) return `mail failed: send_agent_message ${sent.error.code}: ${sent.error.message}`
   return `mailed the ${role} at ${peer.endpointId}`
 }
 
@@ -402,7 +405,7 @@ async function deliverInbox() {
   if (dm === null) return
   const read = await dmCall(dm, 'read_agent_inbox', {})
   if (!read.ok) {
-    process.stderr.write(`fake-agent read_agent_inbox failed: ${read.error?.code}: ${read.error?.message}\n`)
+    process.stderr.write(`fake-agent read_agent_inbox failed: ${read.error.code}: ${read.error.message}\n`)
     return
   }
   const { messages, nextCursor } = read.data

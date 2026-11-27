@@ -2521,24 +2521,36 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
-/**
- * The steps to run: `--steps`, else every step but the polish, image and coord ones (only OMP_STEPS for `--agent
- * omp`); unknown ones are refused, as are Claude-only ones with the omp fake and coord ones with the claude fake. A
- * list that neither starts the app nor names `ready` gets `ready` first.
- */
-function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].coord))
-  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
-  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, coord ones with the claude fake. */
+function refuseOtherKind(keys, agent) {
   const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].coord)]
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
   if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
   const coord = agent === 'claude' ? keys.filter((key) => STEPS[key].coord) : []
   if (coord.length > 0) throw new Error(`${coord.join(', ')} drive the omp fake: leave out --agent claude.`)
+}
+
+/**
+ * The steps to run: `--steps`, else every step but the polish, image and coord ones (only OMP_STEPS for `--agent
+ * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
+ * nor names `ready` gets `ready` first.
+ */
+function stepKeys(requested, agent) {
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].coord))
+  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
+  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+  refuseOtherKind(keys, agent)
   return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
 }
 
 /** `--agent`, else `omp` when a coord step is named (the coord steps run Skitarii chats), else `claude`. */
+function agentOf(argv, requested) {
+  const coord = requested?.split(',').some((key) => STEPS[key]?.coord) ?? false
+  const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : coord ? 'omp' : 'claude'
+  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  return agent
+}
+
 export function parseArgs(argv) {
   const value = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined)
   const out = value('--out')
@@ -2547,9 +2559,7 @@ export function parseArgs(argv) {
   }
   if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
   const requested = value('--steps')
-  const coord = requested?.split(',').some((key) => STEPS[key]?.coord) ?? false
-  const agent = argv.includes('--agent') ? value('--agent') : coord ? 'omp' : 'claude'
-  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  const agent = agentOf(argv, requested)
   const exe = value('--exe')
   return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys: stepKeys(requested, agent) }
 }
