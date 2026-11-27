@@ -3,9 +3,10 @@
  * the sprint asks, a release and the installed app). Git verification is asynchronous and the store is not, so the
  * command reads the delivery context (`deliveryContextOf`), asks git (`verifyDelivery`) outside any transaction, and
  * then `recordDelivery` re-applies every refusal inside the transaction, because the run may have changed during the
- * await, before it stores the verdict in `delivery_checks`.
+ * await, before it stores the verdict in `delivery_checks`. The person may instead waive a sprint's check at the
+ * desktop (`waiveDelivery`), which no agent role can do.
  */
-import type { RecordDeliveryInput } from '../../shared/domain/api'
+import type { RecordDeliveryInput, WaiveDeliveryInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef, SprintDelivery } from '../../shared/domain/bundle'
 import { isActiveRunState } from '../../shared/domain/status'
 import type { DeliveryCheckView } from '../../shared/domain/views'
@@ -99,9 +100,32 @@ export function deliveryContextOf(ctx: Ctx, input: Pick<RecordDeliveryInput, 'ru
   return { run, delivery, increment: { commit: increment.increment.commit } }
 }
 
-function insertDeliveryCheck(ctx: Ctx, run: RunRow, input: RecordDeliveryInput, verdict: DeliveryVerdict): string {
+/** Stores a delivery record as the run's next number and returns its view. */
+function insertDeliveryRecord(
+  ctx: Ctx,
+  run: RunRow,
+  record: { sprintId: string; kind: DeliveryCheckView['kind']; commit: string | null; releaseTag: string | null; verdict: unknown }
+): DeliveryCheckView {
   const id = ctx.ids.next('deliveryCheck')
   const last = ctx.db.get<{ number: number | null }>('SELECT MAX(number) AS number FROM delivery_checks WHERE run_id = ?', run.id)
+  ctx.db.run(
+    `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    run.id,
+    (last?.number ?? 0) + 1,
+    record.sprintId,
+    record.kind,
+    record.commit,
+    record.releaseTag,
+    toJson(record.verdict),
+    ctx.session.label,
+    ctx.clock.nowIso()
+  )
+  return loadDeliveryChecks(ctx, run.id).find((item) => item.id === id) ?? fail('internal', `Delivery check ${id} was not stored.`)
+}
+
+function insertDeliveryCheck(ctx: Ctx, run: RunRow, input: RecordDeliveryInput, verdict: DeliveryVerdict): DeliveryCheckView {
   // The caller's own observations go after the server's checks; a skipped entry counts as not passed.
   const caller = (input.checks ?? []).map((check) => ({ name: check.name, status: check.status, detail: check.detail ?? '' }))
   const unpassed = caller.filter((check) => check.status !== 'passed')
@@ -111,20 +135,7 @@ function insertDeliveryCheck(ctx: Ctx, run: RunRow, input: RecordDeliveryInput, 
     releaseVersion: verdict.releaseVersion,
     installedVersion: verdict.installedVersion
   }
-  ctx.db.run(
-    `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
-     VALUES (?, ?, ?, ?, 'check', ?, ?, ?, ?, ?)`,
-    id,
-    run.id,
-    (last?.number ?? 0) + 1,
-    input.sprintId,
-    input.commit,
-    input.releaseTag ?? null,
-    toJson(stored),
-    ctx.session.label,
-    ctx.clock.nowIso()
-  )
-  return id
+  return insertDeliveryRecord(ctx, run, { sprintId: input.sprintId, kind: 'check', commit: input.commit, releaseTag: input.releaseTag ?? null, verdict: stored })
 }
 
 /**
@@ -139,13 +150,42 @@ export function recordDelivery(ctx: Ctx, input: RecordDeliveryInput, verified: V
       fail('conflict', 'The sprint\'s accepted increment changed during verification. Record the delivery again.', { sprintId: input.sprintId })
     }
     verified.assertCurrent?.()
-    const id = insertDeliveryCheck(ctx, run, input, verified.verdict)
-    const view = loadDeliveryChecks(ctx, run.id).find((item) => item.id === id) ?? fail('internal', `Delivery check ${id} was not stored.`)
+    const view = insertDeliveryCheck(ctx, run, input, verified.verdict)
     appendEvent(ctx, {
       kind: 'run.delivery_recorded',
       epicId: run.epic_id,
       runId: run.id,
       payload: { deliveryCheckId: view.id, sprintId: view.sprintId, passed: view.passed }
+    })
+    enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
+    return view
+  })
+}
+
+/** The most characters a waiver's reason keeps once trimmed. */
+const WAIVER_REASON_MAX = 2000
+
+/**
+ * Desktop only (`checkpoint.approve`, human-only; there is no MCP tool): the person waives a sprint's delivery check
+ * with a reason, for example when a docs-only sprint produced no release. The same run, sprint, declared-delivery and
+ * passed-checkpoint refusals as `recordDelivery` apply, on a run this machine owns. A waiver releases the sprint's
+ * `delivery_pending` hold for good.
+ */
+export function waiveDelivery(ctx: Ctx, input: WaiveDeliveryInput): DeliveryCheckView {
+  requireCapability(ctx.session, 'checkpoint.approve')
+  const reason = input.reason.trim()
+  if (reason === '' || reason.length > WAIVER_REASON_MAX) {
+    fail('invalid_input', `A waiver needs a reason of 1 to ${WAIVER_REASON_MAX} characters.`, { field: 'reason' })
+  }
+  return withIdempotency(ctx, { command: 'waiveDelivery', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
+    const run = requireOwnedRun(ctx, input.runId)
+    deliveringSprint(run, loadBundle(ctx, run.revision_id), input.sprintId)
+    const view = insertDeliveryRecord(ctx, run, { sprintId: input.sprintId, kind: 'waiver', commit: null, releaseTag: null, verdict: { reason } })
+    appendEvent(ctx, {
+      kind: 'run.delivery_waived',
+      epicId: run.epic_id,
+      runId: run.id,
+      payload: { deliveryCheckId: view.id, sprintId: view.sprintId, reason }
     })
     enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
     return view

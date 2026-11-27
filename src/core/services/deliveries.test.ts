@@ -1,6 +1,7 @@
 /**
- * `record_delivery` against a real temporary repository: a two-sprint plan whose first sprint declares a delivery, the
- * first sprint squashed onto the epic branch and approved, then delivered to `origin/main` and tagged as a release.
+ * `record_delivery` and the person's `waiveDelivery` against a real temporary repository: a two-sprint plan whose
+ * first sprint declares a delivery, the first sprint squashed onto the epic branch and approved, then delivered to
+ * `origin/main` and tagged as a release.
  */
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -14,7 +15,7 @@ import type { Workspace } from '../workspace'
 import { clearOutbox, eventKinds, issued, lastEventPayload, pendingOutbox } from '../../test/execution'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
-import { deliveryContextOf, recordDelivery } from './deliveries'
+import { deliveryContextOf, recordDelivery, waiveDelivery } from './deliveries'
 
 const EPIC_BRANCH = 'epic/x'
 const VERSION = '1.2.3'
@@ -31,6 +32,8 @@ interface Delivered {
   runId: string
   epicId: string
   sprints: [string, string]
+  /** Sprint 2's work ticket, which the delivery hold keeps from being claimed. */
+  nextWork: string
   /** Sprint 1's increment, squashed onto the epic branch. */
   increment: string
   /** The commit on origin/main and the release tag: the increment plus the release's package.json. */
@@ -138,7 +141,7 @@ async function deliveredSprint(scene: Scene, options: { advance: boolean; delive
   const release = repo.rev('HEAD')
   repo.git('update-ref', 'refs/remotes/origin/main', release)
   repo.git('tag', TAG, release)
-  return { runId: run.id, epicId: planned.epicId, sprints: [named(sprints[0]), named(sprints[1])], increment, release }
+  return { runId: run.id, epicId: planned.epicId, sprints: [named(sprints[0]), named(sprints[1])], nextWork: planned.work[1], increment, release }
 }
 
 function input(delivered: Delivered, overrides: Partial<RecordDeliveryInput> = {}): RecordDeliveryInput {
@@ -303,5 +306,99 @@ describe('recordDelivery refuses', () => {
       message: 'Sprint 1 has no accepted acceptance-node attempt with a passing increment.'
     })
     expect(storedRows(orchestrator)).toBe(0)
+  })
+})
+
+describe('waiveDelivery releases the hold', () => {
+  const scene = useScene()
+
+  it('lets the person waive with a reason, which releases the hold on the next sprint and shows in the run', async () => {
+    const { orchestrator, desktop } = scene()
+    const delivered = await deliveredSprint(scene(), { advance: true })
+    const held = await orchestrator.getReadyTickets({ runId: delivered.runId })
+    expect(held.ready.map((ticket) => ticket.ticketId)).not.toContain(delivered.nextWork)
+    expect(held.blocked.find((ticket) => ticket.ticketId === delivered.nextWork)?.blockers).toContainEqual({
+      kind: 'delivery_pending',
+      sprintId: delivered.sprints[0],
+      ordinal: 1
+    })
+    const failed = await orchestrator.recordDelivery(input(delivered, { checks: [{ name: 'gh release run', status: 'failed' }] }))
+    expect(failed.passed).toBe(false)
+    const waiver = await desktop.waiveDelivery({ runId: delivered.runId, sprintId: delivered.sprints[0], reason: '  Docs-only sprint: no release.  ' })
+    expect(waiver).toMatchObject({
+      runId: delivered.runId,
+      sprintId: delivered.sprints[0],
+      number: 2,
+      kind: 'waiver',
+      commit: null,
+      releaseTag: null,
+      reason: 'Docs-only sprint: no release.',
+      passed: true,
+      recordedBy: 'desktop session'
+    })
+    const released = await orchestrator.getReadyTickets({ runId: delivered.runId })
+    expect(released.ready.map((ticket) => ticket.ticketId)).toContain(delivered.nextWork)
+    expect(released.blocked.flatMap((ticket) => ticket.blockers).filter((blocker) => blocker.kind === 'delivery_pending')).toEqual([])
+    const run = await desktop.getRun({ runId: delivered.runId })
+    expect(run?.deliveries.map((item) => [item.number, item.kind, item.passed, item.reason])).toEqual([
+      [1, 'check', false, null],
+      [2, 'waiver', true, 'Docs-only sprint: no release.']
+    ])
+    expect(eventKinds(desktop.ctx(), 'run.delivery')).toEqual(['run.delivery_recorded', 'run.delivery_waived'])
+    expect(lastEventPayload(desktop.ctx(), 'run.delivery_waived')).toEqual({
+      deliveryCheckId: waiver.id,
+      sprintId: delivered.sprints[0],
+      reason: 'Docs-only sprint: no release.'
+    })
+  })
+})
+
+describe('waiveDelivery stores each waiver once', () => {
+  const scene = useScene()
+
+  it('stores a waiver once per idempotency key and enqueues the run history', async () => {
+    const { desktop } = scene()
+    const delivered = await deliveredSprint(scene(), { advance: true })
+    const ctx = desktop.ctx()
+    clearOutbox(ctx)
+    const request = { runId: delivered.runId, sprintId: delivered.sprints[0], reason: 'Not updating this time.', idempotencyKey: 'waive-1' }
+    const first = waiveDelivery(ctx, request)
+    expect(waiveDelivery(ctx, request)).toEqual(first)
+    expect(storedRows(desktop)).toBe(1)
+    expect(pendingOutbox(ctx)).toEqual([`run_history:${delivered.epicId}:${delivered.runId}`])
+  })
+})
+
+describe('waiveDelivery refuses', () => {
+  const scene = useScene()
+
+  it('refuses every agent role with unauthorized, and an empty or overlong reason', async () => {
+    const { desktop, harness, repo } = scene()
+    const delivered = await deliveredSprint(scene(), { advance: true })
+    const waive = { runId: delivered.runId, sprintId: delivered.sprints[0], reason: 'Shipped by hand.' }
+    for (const role of ['orchestrator', 'worker', 'reviewer', 'planner', 'reader'] as const) {
+      const agent = harness.open(role, { root: repo.root, git: createGitAdapter(repo.root) })
+      expect(await codeOf(agent.waiveDelivery(waive))).toBe('unauthorized')
+      expect(() => waiveDelivery(agent.ctx(), waive)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    }
+    expect(await codeOf(desktop.waiveDelivery({ ...waive, reason: '' }))).toBe('invalid_input')
+    expect(await codeOf(desktop.waiveDelivery({ ...waive, reason: '   ' }))).toBe('invalid_input')
+    expect(await codeOf(desktop.waiveDelivery({ ...waive, reason: 'x'.repeat(2001) }))).toBe('invalid_input')
+    expect(() => waiveDelivery(desktop.ctx(), { ...waive, reason: ' \n ' })).toThrow(expect.objectContaining({ code: 'invalid_input' }))
+    expect(storedRows(desktop)).toBe(0)
+    expect((await desktop.waiveDelivery({ ...waive, reason: 'x'.repeat(2000) })).reason).toHaveLength(2000)
+  })
+
+  it('refuses before the checkpoint, a sprint without a delivery, outside the plan, and a run this machine does not own', async () => {
+    const { desktop } = scene()
+    const delivered = await deliveredSprint(scene(), { advance: false })
+    const waive = { runId: delivered.runId, sprintId: delivered.sprints[0], reason: 'Shipped by hand.' }
+    expect(await codeOf(desktop.waiveDelivery(waive))).toBe('unauthorized_transition')
+    expect(await codeOf(desktop.waiveDelivery({ ...waive, sprintId: delivered.sprints[1] }))).toBe('invalid_input')
+    const unknown = delivered.sprints[1].replace(/.$/, (last) => (last === '0' ? '1' : '0'))
+    expect(await codeOf(desktop.waiveDelivery({ ...waive, sprintId: unknown }))).toBe('not_found')
+    desktop.ctx().db.run("UPDATE runs SET owner_machine_id = 'elsewhere' WHERE id = ?", delivered.runId)
+    expect(await codeOf(desktop.waiveDelivery(waive))).toBe('run_not_owned')
+    expect(storedRows(desktop)).toBe(0)
   })
 })

@@ -90,6 +90,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   carryForwardTicket: 'attempt.carry_forward',
   recordRowCheck: 'run.row_check',
   recordDelivery: 'run.delivery',
+  // The person's waiver of a delivery check: human-only, so no agent role or MCP tool can lift the hold.
+  waiveDelivery: 'checkpoint.approve',
   pauseRun: 'run.control',
   resumeRun: 'run.control',
   cancelRun: 'run.control',

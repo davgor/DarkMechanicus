@@ -43,7 +43,8 @@ export const CAPABILITIES = [
   'run.pause_signed_out',
   'run.resume_signed_out',
   'run.row_check',
-  // Recording a sprint's delivery check (`record_delivery`). A person waives a delivery at the desktop instead.
+  // Recording a sprint's delivery check (`record_delivery`). A person waives a delivery at the desktop instead
+  // (`waiveDelivery`, under the human-only `checkpoint.approve`).
   'run.delivery',
   'attempt.claim',
   'attempt.heartbeat',

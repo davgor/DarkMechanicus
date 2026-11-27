@@ -115,6 +115,7 @@ const PROBES: Record<CommandName, unknown> = {
     checks: [{ name: 'probe', status: 'passed' }]
   },
   recordDelivery: { runId: RUN, sprintId: probeId('sprint'), commit: 'abcdef1' },
+  waiveDelivery: { runId: RUN, sprintId: probeId('sprint'), reason: 'No release this sprint' },
   pauseRun: { runId: RUN },
   resumeRun: { runId: RUN },
   cancelRun: { runId: RUN },
@@ -323,7 +324,8 @@ describe('COMMAND_CAPABILITIES', () => {
       'resolveEpicConflict',
       'retireLearning',
       'revokeGrant',
-      'switchStorageMode'
+      'switchStorageMode',
+      'waiveDelivery'
     ])
   })
 })

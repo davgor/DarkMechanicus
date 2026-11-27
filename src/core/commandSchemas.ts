@@ -482,6 +482,12 @@ export const COMMAND_SCHEMAS = {
     checks: rowCheckEntries.optional(),
     idempotencyKey
   }),
+  waiveDelivery: z.strictObject({
+    runId: stableId,
+    sprintId: stableId,
+    reason: z.string().trim().min(1).max(2000),
+    idempotencyKey
+  }),
   pauseRun: z.strictObject({ runId: stableId, reason: note.optional() }),
   resumeRun: runRef,
   cancelRun: z.strictObject({ runId: stableId, reason: note.optional() }),
