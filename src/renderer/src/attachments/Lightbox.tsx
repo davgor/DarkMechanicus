@@ -27,7 +27,7 @@ export function useBrokenIds(): [BrokenIds, (id: string) => void] {
   return [broken, onBroken]
 }
 
-export interface PictureProps<T extends LightboxItem> {
+interface PictureProps<T extends LightboxItem> {
   item: T
   /** The address of the image's bytes, a `dm-…:` scheme URL by id; never a path. */
   srcOf(item: T): string
@@ -92,7 +92,7 @@ function useFocusOnOpen(target: RefObject<HTMLButtonElement>): void {
   }, [target])
 }
 
-export interface LightboxProps<T extends LightboxItem> {
+interface LightboxProps<T extends LightboxItem> {
   items: readonly T[]
   index: number
   srcOf(item: T): string

@@ -4,7 +4,7 @@ import { Lightbox, Picture, useBrokenIds, type LightboxItem } from '../attachmen
 import './chatImages.css'
 
 /** An image a transcript item names: one the person sent (PNG or JPEG) or one a tool returned (also WebP). */
-export type TranscriptImageRef = NonNullable<Extract<ChatItem, { kind: 'tool_call' }>['images']>[number]
+type TranscriptImageRef = NonNullable<Extract<ChatItem, { kind: 'tool_call' }>['images']>[number]
 
 /** The address of a transcript image's bytes; a GUI chat answers `chatImageUrl(folderKey, chatId, ref.id)`. */
 export type ChatImageSrc = (ref: TranscriptImageRef) => string
