@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { AsyncResource } from 'node:async_hooks'
 import { EventEmitter } from 'node:events'
 import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
@@ -13,6 +13,19 @@ import { inThreadLane, type SyncLane } from './syncLane'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
 import { readInstalledApp } from '../../core/installedApp'
+import type * as InstalledApp from '../../core/installedApp'
+
+const installedApp = vi.hoisted(() => ({ fail: false }))
+vi.mock('../../core/installedApp', async (importOriginal) => {
+  const actual = await importOriginal<typeof InstalledApp>()
+  return {
+    ...actual,
+    recordInstalledApp: (...args: Parameters<typeof actual.recordInstalledApp>) => {
+      if (installedApp.fail) throw new Error('database is locked')
+      actual.recordInstalledApp(...args)
+    }
+  }
+})
 
 const harness = new Set<ReturnType<typeof createHarness>>()
 const closers = new Set<() => Promise<unknown>>()
@@ -126,6 +139,34 @@ it('records an unpackaged desktop as unpackaged when it opens an initialized pro
   await expect(worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })).resolves.toMatchObject({ ok: true })
   const ctx = h.open('desktop').ctx()
   expect(readInstalledApp(ctx)).toMatchObject({ version: '1.0.0-test', packaged: false, machineId: ctx.machineId })
+})
+
+it('keeps opening and serving its project when the installed app cannot be recorded', async () => {
+  const h = fixture()
+  installedApp.fail = true
+  onTestFinished(() => { installedApp.fail = false })
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  onTestFinished(() => warn.mockRestore())
+  // A project initialized through the owner is observed after the command; that observation fails, the command stands.
+  const initializing = owner(h.homeDir, 1)
+  await expect(initializing.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Unrecorded' } }))
+    .resolves.toMatchObject({ ok: true, result: { binding: expect.any(String) } })
+  await expect(initializing.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined }))
+    .resolves.toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop' } } } })
+  await expect(initializing.close()).resolves.toMatchObject({ ok: true })
+  // A new owner observes on open and fails; it is open and bound all the same, so every later request is served.
+  const reopened = owner(h.homeDir, 2)
+  const opened = await reopened.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+  expect(opened).toMatchObject({ ok: true, result: { value: true, binding: expect.any(String) } })
+  if (!opened.ok) throw new Error(opened.error.message)
+  await expect(reopened.work(h.root, { kind: 'command', name: 'getCapabilities', input: undefined }, opened.result.binding))
+    .resolves.toMatchObject({ ok: true, result: { value: { server: { name: 'darkmechanicus-desktop' } } } })
+  await expect(reopened.sync(h.root, 'heartbeat', opened.result.binding)).resolves.toMatchObject({ ok: true })
+  expect(warn.mock.calls).toEqual([
+    [expect.stringContaining('The installed app could not be recorded')],
+    [expect.stringContaining('The installed app could not be recorded')]
+  ])
+  expect(readInstalledApp(h.open('desktop').ctx())).toBeNull()
 })
 
 it('answers a heartbeat on an uninitialized folder without reconciling, and refuses a sync once closed', async () => {

@@ -79,6 +79,8 @@ interface WorkerOptions {
   ownerPid: number
   /** The sync lane. The utility entry passes its worker thread; an in-process host reconciles on a second connection of its own thread. */
   lane?: SyncLane
+  /** Where a best-effort step reports its failure; the utility has no Electron logger, so its console by default. */
+  warn?: (message: string) => void
 }
 
 type WorkerPort = Pick<Electron.ParentPort, 'on' | 'postMessage'>
@@ -172,9 +174,10 @@ class WorkspaceOwner {
       this.closeWorkspace()
       throw new DomainError('conflict', 'The Forge binding changed while opening the project.', { bindingChanged: true })
     }
-    if (fresh) this.observeInstalledApp(this.workspace)
     this.path = path
     this.binding = identity(path, home, this.reads)
+    // Observed only once the owner is fully open, so its failure can never leave a session without its binding.
+    if (fresh) this.observeInstalledApp(this.workspace)
     return this.workspace
   }
 
@@ -192,20 +195,27 @@ class WorkspaceOwner {
     }
     const workspace = this.workspace ?? this.open(path)
     const value = await runWorkspaceOperation(workspace, work, home)
-    // A project initialized or moved by this owner gets the observation its open could not make.
-    if (storageCommand(work)) this.observeInstalledApp(workspace)
     const after = identity(path, home, this.reads)
     if (this.binding !== after && !storageCommand(work)) {
       throw new DomainError('conflict', 'The project storage changed while this operation ran. Refresh to confirm its result.', { bindingChanged: true, completion: 'stale' })
     }
     this.binding = after
+    // A project initialized or moved by this owner gets the observation its open could not make.
+    if (storageCommand(work)) this.observeInstalledApp(workspace)
     return { value, binding: after }
   }
 
-  /** The desktop's own observation of the installed build, which no agent session can write (`installedApp.ts`). */
+  /**
+   * The desktop's own observation of the installed build, which no agent session can write (`installedApp.ts`).
+   * Best-effort: a failed observation is reported and the owner keeps serving its project.
+   */
   private observeInstalledApp(workspace: Workspace): void {
-    const { version, packaged } = this.options
-    if (workspace.isInitialized()) recordInstalledApp(workspace.ctx(), { version, packaged })
+    const { version, packaged, warn = console.warn } = this.options
+    try {
+      if (workspace.isInitialized()) recordInstalledApp(workspace.ctx(), { version, packaged })
+    } catch (error) {
+      warn(`The installed app could not be recorded for ${workspace.repoRoot}: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   private assertBinding(path: string, actual: string, expected: string | undefined): void {
