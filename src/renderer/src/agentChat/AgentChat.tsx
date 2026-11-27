@@ -10,7 +10,7 @@ import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { ChatComposer } from './ChatComposer'
 import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
-import type { ChatImageSrc } from './ChatImages'
+import { ChatEvidenceProvider, useChatEvidence, type ChatEpic, type ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
@@ -40,6 +40,8 @@ interface Props {
   revealThreadId?: string | null
   /** Called once the requested thread was revealed. */
   onRevealed?(): void
+  /** The epic the chat works in, whose images it may attach as evidence; none outside an epic. */
+  epic?: ChatEpic
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -81,11 +83,13 @@ function useChatCommand(): ChatCommand {
 const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
 function ChatView({
-  folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed
+  folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
+  epic
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
   const images = useChatImages(stageImage)
+  const evidence = useChatEvidence({ folder, chatId, api, items: state.items, epic })
   const command = useChatCommand()
   const agents = useChatRail(chatId)
   const agentsOpen = !agents.state.collapsed
@@ -110,9 +114,9 @@ function ChatView({
       <ChatImagesContext.Provider value={images}><div className="agent-chat-body">
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
-          <RevealThreadContext.Provider value={reveal}>
+          <RevealThreadContext.Provider value={reveal}><ChatEvidenceProvider value={evidence}>
             <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
-          </RevealThreadContext.Provider>
+          </ChatEvidenceProvider></RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
           <TodoCard chatId={chatId} state={state} />

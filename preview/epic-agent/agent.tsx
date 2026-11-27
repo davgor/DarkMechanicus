@@ -187,6 +187,24 @@ function verifiedTree(): ChatItem[] {
 
 const treeSnapshot = (): AgentChatSnapshot => ({ ...scenarios.tree.snapshot, items: verifiedTree() })
 
+/**
+ * A busy turn (no `Worked for` fold) with the person's screenshot and a capture from the Acolyte:DM-1 thread, which
+ * main bound to DM-1's attempt: the person's image goes to the epic, the capture to DM-1.
+ */
+function evidenceSnapshot(): AgentChatSnapshot {
+  const at = '2026-11-24T08:00:00.000Z'
+  const shot = (id: string, width: number, height: number) => [{ id, mime: 'image/png' as const, width, height, bytes: 48_000 }]
+  const items: ChatItem[] = [
+    { id: 'ask', at, kind: 'user_message', text: 'The banner overlaps the header at this width.', images: shot('ci_01m8e000000000000000000031', 1440, 900) },
+    { id: 'spawn-dm1', at, kind: 'tool_call', name: 'Task', input: { description: 'Add retry banner' }, status: 'running', resultSummary: null },
+    { id: 'th-dm1', at, kind: 'thread', parentItemId: 'spawn-dm1', label: 'Acolyte:DM-1 Add retry banner', state: 'running',
+      callsign: { role: 'Acolyte', ticketKey: 'DM-1', ordinal: null, purpose: 'Add retry banner', ticketVerified: true } },
+    { id: 'dm1-shot', at, kind: 'tool_call', threadId: 'th-dm1', name: 'Screenshot', input: { url: 'http://localhost:5173/' }, status: 'completed',
+      resultSummary: 'Captured the fixed banner', images: shot('ci_01m8e000000000000000000032', 1280, 800) }
+  ]
+  return { ...scenarios.tree.snapshot, status: 'busy', items }
+}
+
 /** The sample saved plan plus DM-1 and DM-2 in sprint 1: the tree scenario's Acolytes name these keys. */
 function planWithTreeTickets(): PlanView {
   const base = bundle()
@@ -733,6 +751,18 @@ const STATES: Record<string, StateDef> = {
       await until(() => loadedImage($('[role="dialog"] img.attachment-lightbox-image')), 'the lightbox with the full image loaded')
     }
   },
+  'agent-image-evidence': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, evidenceSnapshot()),
+    reach: async () => {
+      await openAgentTab()
+      const toggle = await until(() => $('[aria-label="Thread: Acolyte:DM-1"] button'), 'the Acolyte:DM-1 thread')
+      if (toggle.getAttribute('aria-expanded') === 'false') click(toggle)
+      await until(() => [...document.querySelectorAll('.chat-images img')].filter(loadedImage).length === 2, 'both thumbnails loaded')
+      await clickWhenPresent(() => buttonNamed('Attach Image from agent, 1280x800 as evidence to DM-1'), 'the capture’s Attach as evidence')
+      await until(() => $('.ew-toast'), 'the toast confirming the attach')
+    }
+  },
   'mail-card': {
     mount: 'mail',
     seed: (context) => {
@@ -1074,6 +1104,8 @@ function chatImageObservations(): Record<string, unknown> | null {
       loaded: loadedImage(picture),
       width: picture.closest('.chat-image-thumb')?.getBoundingClientRect().width ?? null
     })),
+    // Attach as evidence, by each button's accessible name: inside an epic only.
+    evidence: [...document.querySelectorAll<HTMLElement>('.chat-image-evidence')].map((button) => button.getAttribute('aria-label')),
     viewer: dialog === null ? null : {
       name: dialog.getAttribute('aria-label'),
       scheme: full instanceof HTMLImageElement ? new URL(full.src).protocol : null,
@@ -1081,6 +1113,11 @@ function chatImageObservations(): Record<string, unknown> | null {
       closeFocused: document.activeElement === buttonNamed('Close', dialog)
     }
   }
+}
+
+/** The epic workspace's toast and the Attach as evidence requests that reached the fake main. */
+function evidenceObservations(context: Seeded | null): Record<string, unknown> {
+  return { toast: text($('.ew-toast span')), requests: context === null ? [] : context.backend.agentChat.callsOf('attachEvidence') }
 }
 
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
@@ -1123,6 +1160,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     agentTabs: agentTabsObservations(),
     workedFor: workedForObservations(),
     chatImages: chatImageObservations(),
+    evidence: evidenceObservations(context),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }

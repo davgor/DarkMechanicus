@@ -116,7 +116,14 @@ const THUMBS = [
 ]
 const VIEWER = { name: 'Image from agent, 1440x900', scheme: 'dm-chat-image:', loaded: true, closeFocused: true }
 const imageRecord = (state, thumbs = THUMBS, viewer = state === 'agent-image-viewer' ? VIEWER : null) =>
-  ready(state, { ...STANDALONE, chatImages: { thumbs, viewer } })
+  ready(state, { ...STANDALONE, chatImages: { thumbs, evidence: [], viewer } })
+/** The agent-image-evidence state: the epic's chat with the person's image and the DM-1 thread's capture, attached to DM-1. */
+const EVIDENCE_BUTTONS = ['Attach Image from you, 1440x900 as evidence to the epic', 'Attach Image from agent, 1280x800 as evidence to DM-1']
+const EVIDENCE_REQUEST = { folder: '/home/u/code/darkmechanicus', chatId: 'fixture-magos', imageId: 'ci_01m8e000000000000000000032', epicId: 'ep_1', ticketId: 'tk_1' }
+const evidenceRecord = (patch = {}) => ready('agent-image-evidence', {
+  chatImages: { thumbs: [], evidence: EVIDENCE_BUTTONS, viewer: null },
+  evidence: { toast: 'Attached the image to DM-1 as evidence.', requests: [[EVIDENCE_REQUEST]] }, ...patch
+})
 
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
@@ -168,6 +175,7 @@ function passingChatStates() {
     'agent-worked-for': workedForRecord(),
     'agent-image-result': imageRecord('agent-image-result'),
     'agent-image-viewer': imageRecord('agent-image-viewer'),
+    'agent-image-evidence': evidenceRecord(),
     'mail-card': mailRecord()
   }
 }
@@ -264,22 +272,23 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 40 states once each, in capture order', () => {
+  it('lists the 41 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
-      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
-      'epic-agent-tabs', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
+      'agent-image-evidence', 'mail-card', 'epic-agent-tabs', 'settings-notifications', 'delivery-editor', 'delivery-pending',
+      'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(40)
+    expect(new Set(STATES).size).toBe(41)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 615 s overall bound: 40 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 630 s overall bound: 41 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(615_000)
+    expect(OVERALL_LIMIT_MS).toBe(630_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -298,6 +307,22 @@ describe('capture-agent-chat: epic-agent-tabs', () => {
     expect(validateObservations('epic-agent-tabs', tabsRecord({ aboveChat: false }))).toHaveLength(1)
     expect(validateObservations('epic-agent-tabs', tabsRecord({ activeJoined: false }))).toHaveLength(1)
     expect(validateObservations('epic-agent-tabs', ready('epic-agent-tabs'))).toHaveLength(2)
+  })
+})
+
+describe('capture-agent-chat: agent-image-evidence', () => {
+  it('passes both thumbnails offering their targets, one request for the capture on DM-1 and the confirming toast', () => {
+    expect(validateObservations('agent-image-evidence', evidenceRecord())).toEqual([])
+  })
+
+  it('fails a missing button, the capture sent to the epic and no toast', () => {
+    expect(validateObservations('agent-image-evidence', evidenceRecord({ chatImages: { thumbs: [], evidence: EVIDENCE_BUTTONS.slice(1), viewer: null } })))
+      .toEqual([expect.stringMatching(/^agent-image-evidence: expected the person’s image offers the epic and the DM-1 thread’s capture its ticket; got /)])
+    const { ticketId: _dropped, ...toEpic } = EVIDENCE_REQUEST
+    expect(validateObservations('agent-image-evidence', evidenceRecord({ evidence: { toast: null, requests: [[toEpic]] } }))).toEqual([
+      expect.stringMatching(/^agent-image-evidence: expected the click asks main once for the capture on DM-1; got /),
+      'agent-image-evidence: expected a toast confirms with the ticket key; got null'
+    ])
   })
 })
 
