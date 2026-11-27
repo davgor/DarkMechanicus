@@ -243,6 +243,16 @@ function useChatMailEntries(folder: string | null, chatId: string): readonly Cha
 }
 
 /**
+ * The open chat's transcript stream: its items without to-do calls, with its mail cards placed by time. Only the
+ * chat's own open view (`AgentChat`) calls this, so opening the transcript is what reads mail and marks it seen;
+ * rail rows, feeds and cards that only follow the chat through `useAgentChat` never read or mark mail.
+ */
+export function useMailTranscript(folder: string | null, chatId: string, items: ChatItem[]): readonly TranscriptLine[] {
+  const mail = useChatMailEntries(folder, chatId)
+  return useMemo(() => withMail(withoutTodoCalls(items), mail), [items, mail])
+}
+
+/**
  * Subscribe before reading; replay pushes over each in-flight snapshot in arrival order. Every view of one chat shares
  * one push subscription. With `autoStart: false` the hook only reads: a stopped chat stays stopped, so a second view of
  * the same chat never starts it.
@@ -280,10 +290,5 @@ export function useAgentChat(
   const setSurface = useCallback((surface: AgentChatSnapshot['surface']) =>
     load(() => api.setSurface({ ...identity, surface }), true), [api, identity, load])
 
-  const mail = useChatMailEntries(folder, chatId)
-  const current = view.identity === identity ? view.state : null
-  const items = current?.items
-  const transcript = useMemo(() => withMail(withoutTodoCalls(items ?? []), mail), [items, mail])
-
-  return { state: current ?? agentChatState(), transcript, start, send, stageImage, interrupt, answer, setSurface }
+  return { state: view.identity === identity ? view.state : agentChatState(), start, send, stageImage, interrupt, answer, setSurface }
 }

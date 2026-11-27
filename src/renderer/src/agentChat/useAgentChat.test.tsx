@@ -11,7 +11,7 @@ import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import { AgentMailContext, createAgentMailStore, type AgentMailStore } from '../agents/useAgentMail'
 import { ClockContext, type Clock } from '../epic/clock'
-import { useAgentChat, type TranscriptLine } from './useAgentChat'
+import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
 import { showsTodoCard } from './todoPanelModel'
 
 const ref = { folder: 'C:\\project', chatId: 'chat-one' }
@@ -640,14 +640,20 @@ const shown = (line: TranscriptLine): string => line.kind === 'mail'
   ? `✉ ${line.mail.from.label} → ${line.mail.to.label}`
   : line.id
 
+/** What the open chat view (`AgentChat`) uses: the chat's state, and its transcript with mail cards. */
+function useOpenChat(options: Parameters<typeof useAgentChat>[0]) {
+  const chat = useAgentChat(options)
+  return { ...chat, transcript: useMailTranscript(options.folder, options.chatId, chat.state.items) }
+}
+
 describe('Skitarii mail cards in the transcript', () => {
   it('interleaves each chat’s own received and sent mail with its items by time, storing none of it', async () => {
     const { mail, wrapper } = mailPage()
     const api = new FakeAgentChat()
     api.snapshotResult = { ok: true, data: snapshot({ items }) }
     const scheduler = new ManualScheduler()
-    const forPlanner = renderHook(() => useAgentChat({ ...planner, api, scheduler }), { wrapper })
-    const forMagos = renderHook(() => useAgentChat({ ...orchestrator, api, scheduler }), { wrapper })
+    const forPlanner = renderHook(() => useOpenChat({ ...planner, api, scheduler }), { wrapper })
+    const forMagos = renderHook(() => useOpenChat({ ...orchestrator, api, scheduler }), { wrapper })
     await settle()
 
     expect(forPlanner.result.current.transcript.map(shown)).toEqual(['u1', '✉ Lexmechanic → Magos', 'a1', '✉ Magos → Lexmechanic'])
@@ -663,7 +669,7 @@ describe('Skitarii mail cards in the transcript', () => {
     const api = new FakeAgentChat()
     api.snapshotResult = { ok: true, data: snapshot({ items }) }
     const scheduler = new ManualScheduler()
-    renderHook(() => useAgentChat({ ...planner, api, scheduler }), { wrapper })
+    renderHook(() => useOpenChat({ ...planner, api, scheduler }), { wrapper })
     await settle()
 
     const marks = (): unknown[][] => mail.calls.filter((call) => call.method === 'markSeen').map((call) => call.args)
@@ -680,11 +686,28 @@ describe('Skitarii mail cards in the transcript', () => {
     const api = new FakeAgentChat()
     api.snapshotResult = { ok: true, data: snapshot({ items }) }
     const scheduler = new ManualScheduler()
-    const claude = renderHook(() => useAgentChat({ folder: planner.folder, chatId: 'claude-chat', api, scheduler }), { wrapper })
-    const bare = renderHook(() => useAgentChat({ ...planner, api, scheduler }))
+    const claude = renderHook(() => useOpenChat({ folder: planner.folder, chatId: 'claude-chat', api, scheduler }), { wrapper })
+    const bare = renderHook(() => useOpenChat({ ...planner, api, scheduler }))
     await settle()
     expect(claude.result.current.transcript.map(shown)).toEqual(['u1', 'a1'])
     expect(bare.result.current.transcript.map(shown)).toEqual(['u1', 'a1'])
     expect(mail.calls.map((call) => call.method).filter((method) => method !== 'snapshot')).toEqual(['conversation'])
+  })
+})
+
+describe('views that only follow a chat', () => {
+  it('reads no mail and marks nothing seen for a view that only follows the chat (a rail row, a feed, a changes card)', async () => {
+    const { mail, store, wrapper } = mailPage()
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ items }) }
+    const scheduler = new ManualScheduler()
+    const row = renderHook(() => useAgentChat({ ...planner, api, scheduler }, { autoStart: false }), { wrapper })
+    renderHook(() => useAgentChat({ ...orchestrator, api, scheduler }), { wrapper })
+    await settle()
+    act(() => mail.put({ ...orchestrator, pendingCount: 1 }, true))
+    await settle()
+    expect(row.result.current.state.items).toEqual(items)
+    expect(mail.calls.map((call) => call.method).filter((method) => method !== 'snapshot')).toEqual([])
+    expect(store.view(planner.folder, planner.chatId).state).toMatchObject({ humanSeenSeq: 0, unseenCount: 1 })
   })
 })

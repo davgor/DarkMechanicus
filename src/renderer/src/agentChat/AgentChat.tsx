@@ -12,7 +12,7 @@ import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
-import { useAgentChat, type TranscriptLine } from './useAgentChat'
+import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
 import { ChatImagesContext, useChatImages, type ChatImages } from './useChatImages'
 import '../agents/chatView.css'
 import './agentChat.css'
@@ -81,7 +81,8 @@ const ORDINARY_CHAT: RailChat = { role: 'worker' }
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed
 }: Props): JSX.Element {
-  const { state, transcript, send, stageImage, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
+  const { state, send, stageImage, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
+  const transcript = useMailTranscript(folder, chatId, state.items)
   const images = useChatImages(stageImage)
   const command = useChatCommand()
   const agents = useChatRail(chatId)
