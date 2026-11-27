@@ -23,13 +23,13 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'settings-notifications'
+  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 24 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 375_000
+/** A declared bound: 27 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 420_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -67,13 +67,17 @@ export function electronEnv(env) {
 const BASE_FIELDS = [
   'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
-  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed', 'errors'
+  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed',
+  'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications'])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
-const PLAN_STATES = new Set(['graph', 'header-long'])
+/** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
+const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
 const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
+/** The seeded Sprint 1 delivery check's failure, as the delivery states report their first failed check. */
+const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
@@ -186,7 +190,20 @@ const STATE_CHECKS = {
       && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
   ],
   'settings-notifications': [['the controls have accessible names', (o) => Array.isArray(o.settingsControls)
-    && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]]
+    && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]],
+  'delivery-editor': [
+    ['the acceptance node editor shows the Sprint delivery region', (o) => o.sprintDeliveryRegion === true]
+  ],
+  'delivery-pending': [
+    ['the run bar reads Sprint 1 delivery to main: the latest check failed',
+      (o) => o.deliveryLine === 'Sprint 1 delivery to main: the latest check failed', (o) => JSON.stringify(o.deliveryLine)],
+    [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ],
+  'delivery-checkpoint': [
+    ['the gate’s Delivery on approval note holds Sprint 3', (o) => matches(o.deliveryApproval, /^After approval, Sprint 3 claims wait /)],
+    ['the Previous sprint delivery region', (o) => o.previousDelivery === true],
+    [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ]
 }
 
 /** What every epic state must show, and the agent states besides: [description, applies, check]. */

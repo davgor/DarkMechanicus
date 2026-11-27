@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { SprintDelivery } from '../../../shared/domain/bundle'
 import type { CheckResult, DeliveryCheckView } from '../../../shared/domain/views'
 import { installDomShims } from './__mocks__/domShims'
-import { FakeBackend, scenario } from './__mocks__/fakeBackend'
+import { FakeBackend, deliveryScenario, scenario } from './__mocks__/fakeBackend'
 import { bundle, iso, runView, savedPlan, sprint } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { allowSlowRendering } from './__mocks__/testTiming'
@@ -99,6 +99,14 @@ describe('Run bar: Sprint delivery line', () => {
     cleanup()
     renderWorkspace(new FakeBackend())
     expect(within(await screen.findByLabelText('Run')).queryByRole('group', { name: 'Sprint delivery' })).toBeNull()
+  })
+
+  it('shows the capture seed: Sprint 1 held by its failed installed-version check', async () => {
+    renderWorkspace(new FakeBackend(deliveryScenario('run')))
+    const line = await deliveryLine()
+    expect(line.getByText('Sprint 1 delivery to main: the latest check failed')).toBeTruthy()
+    const failed = within(line.getByRole('list', { name: 'Delivery checks' })).getAllByRole('listitem').filter((item) => item.className === 'is-failed')
+    expect(failed.map((item) => item.textContent)).toEqual(['✗Installed app version0.49.0 is older than 0.50.0'])
   })
 })
 
