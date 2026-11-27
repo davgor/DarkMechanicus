@@ -32,6 +32,7 @@ const PINNED_PREFIXES = {
   hostCatalog: 'hc',
   comment: 'cm',
   rowCheck: 'rk',
+  deliveryCheck: 'dv',
   grant: 'gr',
   savePermission: 'sv',
   kanbanCard: 'kc',

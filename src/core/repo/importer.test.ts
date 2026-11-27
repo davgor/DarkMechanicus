@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, rmdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { makeBundle, sid, tid } from '../../test/bundles'
-import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertOutbox, insertReport, insertRowCheck, insertRun, T0 } from '../../test/repoFixtures'
+import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertDeliveryCheck, insertOutbox, insertReport, insertRowCheck, insertRun, T0 } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -31,7 +31,7 @@ import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
 import { ownedPaths } from './paths'
 import { getStorageStatus } from './storage'
-import { buildEpicStateRecord, epicStateRecord, parseRecord, trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
+import { buildEpicStateRecord, buildRunHistoryRecord, epicStateRecord, parseRecord, trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
 import { hasValidatedRepositoryCache } from './validatedCache'
 
 const EPIC = idOf('epic', 1)
@@ -1468,6 +1468,54 @@ describe('reconcileRepository row checks', () => {
     const before = dumpDomain(target.db)
     const result = reconcileRepository(deps)
     expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${RUN}/run.json`, message: `Row check ${RK1} already belongs to another run.` }])
+    expect(dumpDomain(target.db)).toEqual(before)
+  })
+})
+
+describe('reconcileRepository delivery checks', () => {
+  const DV1 = idOf('deliveryCheck', 1)
+  const DV2 = idOf('deliveryCheck', 2)
+  const DELIVERY_COLUMNS =
+    'SELECT id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at FROM delivery_checks ORDER BY number'
+
+  function exportDeliveryChecks(source: RepoEnv): void {
+    insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+    expect(flush(source).failed).toBe(0)
+  }
+
+  it('imports a check and a waiver of a run exactly as they were recorded, and re-imports without change', () => {
+    const source = buildSource()
+    insertDeliveryCheck(source.db, { id: DV1, runId: RUN, sprintId: sid(1), number: 1 })
+    insertDeliveryCheck(source.db, { id: DV2, runId: RUN, sprintId: sid(1), number: 2, kind: 'waiver' })
+    exportDeliveryChecks(source)
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [EPIC, RUN], rejected: [], conflicts: [] })
+    expect(target.db.all(DELIVERY_COLUMNS)).toEqual(source.db.all(DELIVERY_COLUMNS))
+    expect(target.db.all<{ kind: string }>(DELIVERY_COLUMNS).map((row) => row.kind)).toEqual(['check', 'waiver'])
+    // The importer expires a foreign machine's open leases, so only the delivery records are compared on re-export.
+    expect(buildRunHistoryRecord(target.db, RUN).deliveryChecks).toEqual(buildRunHistoryRecord(source.db, RUN).deliveryChecks)
+    expect(buildRunHistoryRecord(target.db, RUN).deliveryChecks).toHaveLength(2)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [], rejected: [] })
+    expect(target.db.all(DELIVERY_COLUMNS)).toEqual(source.db.all(DELIVERY_COLUMNS))
+  })
+
+  it('rejects a run that lists a delivery check another run already owns, and changes nothing', () => {
+    const source = buildSource()
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    const other = idOf('run', 2)
+    insertRun(target.db, { id: other, epicId: EPIC, revisionId: R2, state: 'completed' })
+    insertDeliveryCheck(target.db, { id: DV1, runId: other, sprintId: sid(1), number: 1 })
+    insertDeliveryCheck(source.db, { id: DV1, runId: RUN, sprintId: sid(1), number: 1 })
+    exportDeliveryChecks(source)
+    copyTracked(source, target)
+    const before = dumpDomain(target.db)
+    const result = reconcileRepository(deps)
+    expect(result.rejected).toEqual([
+      { path: `.darkmechanicus/history/${RUN}/run.json`, message: `Delivery check ${DV1} already belongs to another run.` }
+    ])
     expect(dumpDomain(target.db)).toEqual(before)
   })
 })

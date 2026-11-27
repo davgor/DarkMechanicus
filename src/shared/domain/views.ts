@@ -319,6 +319,31 @@ export interface RowCheckView {
   createdAt: string
 }
 
+/**
+ * A sprint delivery record of a run: the server's check that a sprint's increment is delivered (on the target branch,
+ * released, installed), or a person's waiver of that check.
+ */
+export interface DeliveryCheckView {
+  id: string
+  runId: string
+  sprintId: string
+  /** Counts the delivery records of the run in the order they were recorded; the highest number is the latest. */
+  number: number
+  kind: 'check' | 'waiver'
+  commit: string | null
+  releaseTag: string | null
+  releaseVersion: string | null
+  installedVersion: string | null
+  checks: CheckResult[]
+  reasons: string[]
+  /** A waiver's reason; null for a check. */
+  reason: string | null
+  /** A check: at least one entry and every entry passed. A waiver: true. Derived on read, never stored. */
+  passed: boolean
+  recordedBy: string | null
+  createdAt: string
+}
+
 /** One dependency row of a sprint: its tickets and its latest check (null until one is recorded). */
 export interface RowView {
   sprintId: string

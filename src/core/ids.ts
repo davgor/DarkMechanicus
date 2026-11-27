@@ -22,6 +22,8 @@ export const ID_PREFIXES = {
   hostCatalog: 'hc',
   comment: 'cm',
   rowCheck: 'rk',
+  /** A sprint delivery check or person waiver (`delivery_checks`). */
+  deliveryCheck: 'dv',
   grant: 'gr',
   savePermission: 'sv',
   kanbanCard: 'kc',
