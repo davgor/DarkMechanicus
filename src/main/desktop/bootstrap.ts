@@ -629,13 +629,18 @@ function skitariiModels(sessions: AgentChatSessions, agents: Pick<AgentRegistry,
  * Serves `agentChat:*` over the one GUI session manager, and Skitarii model catalogs (`agentChat:models`) from a live
  * chat's session or the registered OMP executable (`models`, shared with Start run's worker catalog). Only an explicit
  * `agentChat:setSurface` from the app window may stop a live terminal, after the native confirmation modal to that
- * window; no other path passes one.
+ * window; no other path passes one. Evidence from a chat's images goes through the folder's own desktop workspace.
  */
 function startAgentChats(
   ipc: Pick<IpcMain, 'handle'>,
   registry: Pick<FolderRegistry, 'resolve'>,
   sessions: AgentChatSessions,
-  models: OmpModels
+  { models, store, workspaces, chatImages }: {
+    models: OmpModels
+    store: Pick<ChatStore, 'getChat'>
+    workspaces: Pick<WorkspacePool, 'get' | 'background'>
+    chatImages: Pick<ChatImages, 'read'>
+  }
 ): void {
   const confirmTerminalStop = nativeTerminalStopConfirmation<WebContents, BrowserWindow>({
     windowFor: (sender) => {
@@ -646,6 +651,7 @@ function startAgentChats(
   })
   const handlers = createAgentChatHandlers({
     registry, sessions, confirmTerminalStop, models,
+    evidence: { chats: store, chatImages, workspace: folder => desktopWorkspace(registry, workspaces, folder) },
     onUnexpectedError: (error) => {
       logger.error('Agent chat request failed:', error)
     }
@@ -1391,7 +1397,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const ompModels = skitariiModels(agentChats, agents, store)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat, ompModels })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  startAgentChats(ipc, registry, agentChats, ompModels)
+  startAgentChats(ipc, registry, agentChats, { models: ompModels, store, workspaces: pool, chatImages })
   startRestartResume({ registry, pool, store, terminals, agentChats })
   const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }

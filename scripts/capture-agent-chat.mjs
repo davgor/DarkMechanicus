@@ -24,14 +24,14 @@ export const STATES = Object.freeze([
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
-  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
+  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 39 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 600_000
+/** A declared bound: 40 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 615_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -122,7 +122,10 @@ const IMAGE_THUMBS = [
   ['you', 'Image from you, 1280x800', true], ['you', 'Image from you, 1024x768 (image missing)', false],
   ['tool', 'Image from agent, 1440x900', true]
 ]
-/** What both image-result states show: thumbnails under the bubble and the tool card, lazy dm-chat-image: pictures, ≤160 px. */
+/**
+ * What both image-result states show: thumbnails under the bubble and the tool card, lazy dm-chat-image: pictures, ≤160 px,
+ * and, in a chat outside any epic, no Attach as evidence.
+ */
 const IMAGE_RESULT_CHECKS = [
   ['two thumbnails under the person’s bubble, the gone one a placeholder, and one under the tool card',
     (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.under, thumb.name, thumb.loaded])) === JSON.stringify(IMAGE_THUMBS),
@@ -131,7 +134,9 @@ const IMAGE_RESULT_CHECKS = [
     && thumbsOf(o).filter((thumb) => thumb.loaded).every((thumb) => thumb.scheme === 'dm-chat-image:' && thumb.lazy === true),
   (o) => JSON.stringify(thumbsOf(o).map((thumb) => [thumb.scheme, thumb.lazy]))],
   ['every thumbnail at most 160 px wide', (o) => thumbsOf(o).length === 3 && thumbsOf(o).every((thumb) => thumb.width > 0 && thumb.width <= 160),
-    (o) => JSON.stringify(thumbsOf(o).map((thumb) => thumb.width))]
+    (o) => JSON.stringify(thumbsOf(o).map((thumb) => thumb.width))],
+  ['no Attach as evidence outside an epic', (o) => Array.isArray(o.chatImages?.evidence) && o.chatImages.evidence.length === 0,
+    (o) => JSON.stringify(o.chatImages?.evidence)]
 ]
 
 /**
@@ -345,6 +350,15 @@ const STATE_CHECKS = {
     ['the lightbox shows the agent’s image loaded from dm-chat-image:, its Close focused', (o) => o.chatImages?.viewer?.name === 'Image from agent, 1440x900'
       && o.chatImages.viewer.scheme === 'dm-chat-image:' && o.chatImages.viewer.loaded === true && o.chatImages.viewer.closeFocused === true,
     (o) => JSON.stringify(o.chatImages?.viewer)]
+  ],
+  'agent-image-evidence': [
+    ['the person’s image offers the epic and the DM-1 thread’s capture its ticket', (o) => JSON.stringify(o.chatImages?.evidence) === JSON.stringify([
+      'Attach Image from you, 1440x900 as evidence to the epic', 'Attach Image from agent, 1280x800 as evidence to DM-1'
+    ]), (o) => JSON.stringify(o.chatImages?.evidence)],
+    ['the click asks main once for the capture on DM-1', (o) => Array.isArray(o.evidence?.requests) && o.evidence.requests.length === 1
+      && o.evidence.requests[0]?.[0]?.imageId === 'ci_01m8e000000000000000000032' && o.evidence.requests[0][0].epicId === 'ep_1'
+      && o.evidence.requests[0][0].ticketId === 'tk_1', (o) => JSON.stringify(o.evidence?.requests)],
+    ['a toast confirms with the ticket key', (o) => o.evidence?.toast === 'Attached the image to DM-1 as evidence.', (o) => JSON.stringify(o.evidence?.toast)]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')

@@ -31,7 +31,8 @@ function liveRig() {
     run: (launch, timeoutMs, maxOutputChars) => { runs.push(launch); return runProcess(launch, timeoutMs, maxOutputChars) },
     platform: process.platform, env: r.env
   })
-  const handlers = createAgentChatHandlers({ registry: { resolve: path => path === r.repo ? path : null }, sessions: r.sessions, confirmTerminalStop: async () => false, models })
+  const evidence = { chats: r.store, chatImages: r.chatImages, workspace: () => { throw new Error('No evidence is attached in these tests.') } }
+  const handlers = createAgentChatHandlers({ registry: { resolve: path => path === r.repo ? path : null }, sessions: r.sessions, confirmTerminalStop: async () => false, models, evidence })
   return { ...r, models, handlers, runs }
 }
 
