@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass',
+  'agent-glass', 'agent-role-picker',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 28 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 435_000
+/** A declared bound: 29 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 450_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -72,7 +72,8 @@ const BASE_FIELDS = [
   'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications'])
+/** States outside the epic workspace: the standalone chat, the settings form and the role picker. */
+const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'settings-notifications', 'agent-role-picker'])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
 const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
@@ -91,6 +92,8 @@ const alphaOf = (color) => {
 /** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
 const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
   && alphaOf(surface?.background) <= 0.72
+/** The agent-role-picker state's cards as the page measured them; empty when it reported none. */
+const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -191,6 +194,16 @@ const STATE_CHECKS = {
       (o) => JSON.stringify(o.glass?.card)],
     ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
       (o) => JSON.stringify(o.glass?.transcript)]
+  ],
+  'agent-role-picker': [
+    ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
+      === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
+    ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
+      && new Set(roleCards(o).map((card) => card.art)).size === 2
+      && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
+    (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
+    ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
+    ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)]
   ],
   'agent-magos-decided': [
     ['the record reads Asked by Acolyte:DM-442 and Denied by the Magos with its reason',

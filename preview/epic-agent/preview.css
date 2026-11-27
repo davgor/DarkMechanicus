@@ -3,3 +3,4 @@
 .preview-chat { height: 100vh; display: flex; flex-direction: column; }
 .preview-chat > * { flex: 1; min-height: 0; }
 .preview-settings { height: 100vh; overflow: auto; padding: 16px 24px; }
+.preview-roles { height: 100vh; display: grid; place-items: center; padding: 24px; overflow: auto; background: var(--agent-backdrop); }
