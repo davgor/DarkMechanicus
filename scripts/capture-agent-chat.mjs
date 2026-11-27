@@ -24,14 +24,14 @@ export const STATES = Object.freeze([
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
-  'agent-transcript', 'agent-image-result', 'agent-image-viewer',
+  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 37 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 570_000
+/** A declared bound: 38 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 585_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -75,8 +75,8 @@ const BASE_FIELDS = [
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
-  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'agent-image-result',
-  'agent-image-viewer', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-images', 'agent-transcript', 'agent-worked-for',
+  'agent-image-result', 'agent-image-viewer', 'settings-notifications', 'agent-role-picker', 'new-chat-picker'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -317,6 +317,15 @@ const STATE_CHECKS = {
     ['the code block’s Copy sits in its top-right corner', (o) => o.transcript?.codeCopy === 'Copy'
       && o.transcript.codeCopyCorner?.top <= 12 && o.transcript.codeCopyCorner.right <= 12,
     (o) => JSON.stringify([o.transcript?.codeCopy, o.transcript?.codeCopyCorner])]
+  ],
+  'agent-worked-for': [
+    ['a folded “Worked for 28m 51s” turn, then an opened “Worked for 4m 05s” turn',
+      (o) => JSON.stringify(o.workedFor?.toggles) === '[["Worked for 28m 51s",false],["Worked for 4m 05s",true]]',
+      (o) => JSON.stringify(o.workedFor?.toggles)],
+    ['the folded row is followed by its final reply', (o) => o.workedFor?.afterFolded === 'Assistant', (o) => JSON.stringify(o.workedFor?.afterFolded)],
+    ['the opened turn lists its tool cards in order, and no tool card shows outside it',
+      (o) => JSON.stringify(o.workedFor?.openedTools) === '["Tool call: Read","Tool call: Edit","Tool call: Bash"]' && o.workedFor.toolsOutside === 0,
+      (o) => JSON.stringify([o.workedFor?.openedTools, o.workedFor?.toolsOutside])]
   ],
   'agent-image-result': [...IMAGE_RESULT_CHECKS, ['no lightbox open', (o) => o.chatImages?.viewer === null]],
   'agent-image-viewer': [
