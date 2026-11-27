@@ -90,8 +90,10 @@ class UtilityOwner implements OwnerTransport {
   }
 }
 
-export function openUtilityWorkspace(generation: number, home: string, version: string): OwnerTransport {
-  const child = utilityProcess.fork(join(__dirname, 'workspaceOwner.js'), [String(generation), String(process.pid), home, version], {
+/** `packaged` is Electron's `app.isPackaged`; the utility has no `app` module, so it travels as an argument. */
+export function openUtilityWorkspace(generation: number, home: string, version: string, packaged: boolean): OwnerTransport {
+  const args = [String(generation), String(process.pid), home, version, packaged ? 'packaged' : 'unpackaged']
+  const child = utilityProcess.fork(join(__dirname, 'workspaceOwner.js'), args, {
     serviceName: 'Dark Mechanicus project'
   })
   return new UtilityOwner(child, generation)

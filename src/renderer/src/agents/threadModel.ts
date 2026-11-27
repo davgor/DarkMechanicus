@@ -9,7 +9,11 @@
  * for the person may be inside: a thread whose spawning call is not in its own thread's rows is shown
  * where the thread item was stored, and entries that name a thread that has no thread item are shown as
  * a block of their own, labelled by the request's `threadLabel` when there is one.
+ *
+ * A thread item stored before callsigns existed (or forged with a root role) is named the Servitor the
+ * agent tree shows for it, from the same shared ordinals main reserves, so both name it alike from the start.
  */
+import { servitorOrdinals, subagentCallsign } from '../../../shared/agents/callsign'
 import type { ChatItem } from '../../../shared/agents/chat'
 import type { PillState } from '../components/StatePill'
 import { transcriptRows, type TranscriptRowModel } from './approvalModel'
@@ -61,6 +65,20 @@ function withLostThreads(entries: readonly TranscriptEntry[]): TranscriptEntry[]
   return out
 }
 
+/**
+ * The entries with each unstamped thread item named by the Servitor ordinal it holds. Numbered over the whole
+ * chat: a view of one thread's subset names its legacy threads from the full list first, as the agent tree does.
+ */
+export function withLegacyNames(entries: readonly TranscriptEntry[]): readonly TranscriptEntry[] {
+  const threads = entries.filter((entry): entry is ThreadItem => entry.kind === 'thread')
+  if (threads.every((thread) => subagentCallsign(thread.callsign) !== null)) return entries
+  const ordinals = servitorOrdinals(threads)
+  return entries.map((entry) => entry.kind !== 'thread' || subagentCallsign(entry.callsign) !== null ? entry : {
+    ...entry,
+    callsign: { role: 'Servitor', ticketKey: null, ordinal: ordinals.get(entry.id) ?? null, purpose: null, ticketVerified: false }
+  })
+}
+
 function groupByThread(rows: readonly TranscriptRowModel[]): Scopes {
   const scopes = new Map<string | undefined, TranscriptRowModel[]>()
   for (const row of rows) {
@@ -102,7 +120,7 @@ function rowsOf(scopes: Scopes, scope: string | undefined): TreeRow[] {
 
 /** The entries as the rows of the chat's own thread, each carrying the thread blocks under it. */
 export function transcriptTree(entries: readonly TranscriptEntry[]): TreeRow[] {
-  return rowsOf(groupByThread(transcriptRows(withLostThreads(entries))), undefined)
+  return rowsOf(groupByThread(transcriptRows(withLostThreads(withLegacyNames(entries)))), undefined)
 }
 
 /** A thread's state in words, with the state color it shares with the rest of the app. */

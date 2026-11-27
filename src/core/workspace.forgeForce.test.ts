@@ -64,7 +64,7 @@ it.each(['repo', 'db'] as const)('force exports a %s project with old accepted h
   await expect(dest.heartbeatAttempt({ attemptId: f.claimed.attempt.id, claimToken: f.claimed.packet.claimToken })).rejects.toMatchObject({ code: 'stale_claim' })
   const note = 'Forge World: https://github.com/test/world.git\nProject folder: Project\n'
   writeFileSync(join(h.root, FORGE_POINTER), note)
-  bindForge(h.homeDir, h.root, f.member, note)
+  bindForge(h.homeDir, h.root, { member: f.member, note })
   await expect(f.agent.heartbeatAttempt({ attemptId: f.claimed.attempt.id, claimToken: f.claimed.packet.claimToken })).rejects.toThrow('Reconnect')
   rmSync(join(h.root, FORGE_POINTER))
   await expect(f.agent.heartbeatAttempt({ attemptId: f.claimed.attempt.id, claimToken: f.claimed.packet.claimToken })).rejects.toThrow('Reconnect')

@@ -306,6 +306,53 @@ export function insertRowCheck(db: Db, input: RowCheckRowInput): void {
   )
 }
 
+interface DeliveryCheckRowInput {
+  id: string
+  runId: string
+  sprintId: string
+  number?: number
+  kind?: 'check' | 'waiver'
+  commit?: string | null
+  releaseTag?: string | null
+  verdict?: unknown
+  recordedBy?: string | null
+  createdAt?: string
+}
+
+/** What a check and a waiver store when a test names nothing else. */
+const DELIVERY_DEFAULTS = {
+  check: {
+    commit: 'abcdef0123456789abcdef0123456789abcdef01',
+    releaseTag: 'v1.2.0',
+    verdict: { checks: [{ name: 'on target branch', status: 'passed', detail: '' }], reasons: [], releaseVersion: '1.2.0', installedVersion: '1.2.0' },
+    recordedBy: 'server'
+  },
+  waiver: { commit: null, releaseTag: null, verdict: { reason: 'Released by hand.' }, recordedBy: 'desktop' }
+}
+
+/**
+ * A delivery record as it is stored (default: a passing check numbered 1 at a commit and release). A waiver's
+ * default verdict is a reason and it names no commit or release.
+ */
+export function insertDeliveryCheck(db: Db, input: DeliveryCheckRowInput): void {
+  const kind = input.kind ?? 'check'
+  const row = { number: 1, createdAt: T0, ...DELIVERY_DEFAULTS[kind], ...input }
+  db.run(
+    `INSERT INTO delivery_checks (id, run_id, number, sprint_id, kind, commit_ref, release_tag, verdict_json, recorded_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    row.id,
+    row.runId,
+    row.number,
+    row.sprintId,
+    kind,
+    row.commit,
+    row.releaseTag,
+    JSON.stringify(row.verdict),
+    row.recordedBy,
+    row.createdAt
+  )
+}
+
 export function insertTicketStatus(db: Db, input: { ticketId: string; epicId: string; status?: string }): void {
   db.run(
     'INSERT INTO ticket_status (ticket_id, epic_id, status, revision, updated_at) VALUES (?, ?, ?, 1, ?)',

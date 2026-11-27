@@ -137,10 +137,9 @@ for (const [index, id] of ['chat_magos', 'a1', 'a2', 'a3', 'a4'].entries()) term
 const click = (element: Element | null | undefined): void => (element as HTMLElement | null)?.click()
 const byLabel = (label: string): Element | null => document.querySelector(`[aria-label="${label}"]`)
 const buttonNamed = (text: string): Element | undefined => [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === text)
+// The preview's ES2022 lib predates Promise.withResolvers, so the executor form stays here.
 function tick(ms = 200): Promise<void> {
-  const { promise, resolve } = Promise.withResolvers<void>()
-  setTimeout(resolve, ms)
-  return promise
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
 }
 
 /** Real DOM clicks to reach the state. */

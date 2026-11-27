@@ -228,7 +228,7 @@ The app raises an OS notification when an approval or a question needs you (one 
 
 ### The epic's Agent tab
 
-An epic's workspace has a bold **Agent** tab. Its centre shows the selected agent's chat; its right rail (**Agents**) shows:
+An epic's workspace has a bold **Agent** tab, first in its View group (**Agent**, **Graph**, **List**, **Scorecard**) and marked with a still frame of the plan graph's mascot. Switching views keeps the selected agent and thread for when you return. Its centre shows the selected agent's chat; its right rail (**Agents**) shows:
 
 - **The named agent tree:** every chat bound to the epic as a root (the active run's Magos first, then the newest), and each root's subagents nested under it by callsign, with their state, elapsed time, needs-you marks and, when the agent has a to-do list, a short **closed/total** to-dos label. Selecting a subagent shows its thread read-only.
 - **Changes:** the files the selected agent wrote or edited through its file tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`, Skitarii `edit`/`write`). Edits made through a shell command are not listed. Clicking a file in the folder opens **Source control** at that file.

@@ -45,9 +45,10 @@ function fingerprint(bundle: PlanBundle, ticket: TicketContent): string {
   return contentHash(automatic ? { ...work, title: '' } : work)
 }
 
-function settingsOf(sprint: SprintDef): string {
-  const { goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint } = sprint
-  return contentHash({ goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint })
+/** A sprint's settings as one hash. `delivery` is undefined when absent and canonical JSON drops it, so a sprint without one hashes as before. */
+export function settingsOf(sprint: SprintDef): string {
+  const { goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint, delivery } = sprint
+  return contentHash({ goal, entryCriteria, exitCriteria, concurrencyCap, checkpoint, delivery })
 }
 
 function prerequisitesOf(bundle: PlanBundle, ticketId: string): string[] {

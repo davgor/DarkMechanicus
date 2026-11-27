@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Callsign } from '../../../shared/agents/callsign'
 import type { ChatItem } from '../../../shared/agents/chat'
+import { RevealThreadContext, type RevealThread } from './revealThread'
 import { ThreadBlock } from './ThreadBlock'
 
 afterEach(cleanup)
@@ -32,7 +33,7 @@ describe('ThreadBlock heading', () => {
     expect(block.textContent).not.toContain('Explore')
   })
 
-  it('falls back to the label only for a thread stored before callsigns', () => {
+  it('falls back to the label only for a thread with no callsign (a lost thread with no stamped request)', () => {
     const block = show(thread())
 
     expect(block.querySelector('.chat-thread-label')?.textContent).toBe('Explore')
@@ -51,5 +52,40 @@ describe('ThreadBlock heading', () => {
 
     expect(block.querySelector('.chat-thread-label')?.textContent).toBe('Servitor-3')
     expect(block.textContent).not.toContain('Magos')
+  })
+})
+
+describe('ThreadBlock reveal', () => {
+  const toggle = (): HTMLElement => screen.getByRole('button', { name: /Explore/ })
+
+  function block(reveal: RevealThread, key: string): JSX.Element {
+    return (
+      <RevealThreadContext.Provider value={reveal}>
+        <ol><ThreadBlock key={key} node={{ item: thread(), rows: [] }} renderRow={() => null} /></ol>
+      </RevealThreadContext.Provider>
+    )
+  }
+
+  it('does not reveal again when remounted under the nonce it already handled', () => {
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const reveal: RevealThread = { path: new Set(['th_1']), target: 'th_1', nonce: 4, handled: new Map() }
+      const view = render(block(reveal, 'first'))
+      expect(toggle().getAttribute('aria-expanded')).toBe('true')
+      expect(scroll).toHaveBeenCalledTimes(1)
+      fireEvent.click(toggle())
+      expect(toggle().getAttribute('aria-expanded')).toBe('false')
+
+      view.rerender(block(reveal, 'remounted'))
+      expect(toggle().getAttribute('aria-expanded')).toBe('false')
+      expect(scroll).toHaveBeenCalledTimes(1)
+
+      view.rerender(block({ ...reveal, nonce: 5 }, 'remounted'))
+      expect(toggle().getAttribute('aria-expanded')).toBe('true')
+      expect(scroll).toHaveBeenCalledTimes(2)
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
   })
 })

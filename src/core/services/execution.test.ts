@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AttemptDecision, AttemptEvidence, AttemptFailure, AttemptOutputs, WorkerInfo } from '../../shared/domain/views'
-import { makeBundle, tid } from '../../test/bundles'
+import { makeBundle, sid, tid } from '../../test/bundles'
 import {
   attemptRow,
   claim,
@@ -13,6 +13,7 @@ import {
   startedRun,
   ticketStatus
 } from '../../test/execution'
+import { idOf, insertDeliveryCheck, T0 } from '../../test/repoFixtures'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { toJson } from '../db/database'
 import { DomainError } from '../errors'
@@ -24,6 +25,7 @@ import {
   expireLeases,
   guardUnique,
   listAttempts,
+  loadDeliveryChecks,
   loadRunContext,
   runExecution
 } from './execution'
@@ -125,6 +127,55 @@ describe('loadRunContext', () => {
     expect(context.bundle).toEqual(bundle)
     expect(context.attempts.map((row) => row.id)).toEqual([first, second])
     expect(context.retryGrants).toEqual({ [tid(2)]: 2 })
+  })
+})
+
+describe('loadDeliveryChecks', () => {
+  const sprintId = sid(1)
+  const passing = { name: 'on target branch', status: 'passed', detail: '' }
+
+  it("reads a run's checks and waivers in number order and derives passed on read", () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const failed = { name: 'installed', status: 'failed', detail: 'installed 1.1.0' }
+    const reasons = ['Installed 1.1.0 is older than 1.2.0.']
+    const insert = (n: number, extra: { kind?: 'waiver'; verdict?: unknown } = {}): void =>
+      insertDeliveryCheck(ctx.db, { id: idOf('deliveryCheck', n), runId, sprintId, number: n, ...extra })
+    insert(4, { kind: 'waiver' })
+    insert(1, { verdict: { checks: [passing, failed], reasons, releaseVersion: '1.2.0', installedVersion: '1.1.0' } })
+    insert(2, { verdict: { checks: [], reasons: ['No release found.'], releaseVersion: null, installedVersion: null } })
+    insert(3)
+    const views = loadDeliveryChecks(ctx, runId)
+    expect(views.map((view) => [view.number, view.kind, view.passed])).toEqual([
+      [1, 'check', false],
+      [2, 'check', false],
+      [3, 'check', true],
+      [4, 'waiver', true]
+    ])
+    expect(views[0]).toEqual({
+      id: idOf('deliveryCheck', 1),
+      runId,
+      sprintId,
+      number: 1,
+      kind: 'check',
+      commit: 'abcdef0123456789abcdef0123456789abcdef01',
+      releaseTag: 'v1.2.0',
+      releaseVersion: '1.2.0',
+      installedVersion: '1.1.0',
+      checks: [passing, failed],
+      reasons,
+      reason: null,
+      passed: false,
+      recordedBy: 'server',
+      createdAt: T0
+    })
+    expect(views[3]).toMatchObject({ commit: null, releaseTag: null, checks: [], reasons: [], reason: 'Released by hand.', recordedBy: 'desktop' })
+  })
+
+  it('returns nothing for a run without delivery checks', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    expect(loadDeliveryChecks(ctx, runId)).toEqual([])
   })
 })
 

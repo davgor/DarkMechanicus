@@ -16,6 +16,7 @@ import type {
   AttemptFailure,
   AttemptOutputs,
   AttemptView,
+  DeliveryCheckView,
   HostCatalog,
   RowCheckView,
   SprintIncrement,
@@ -101,6 +102,29 @@ export interface RowCheckRow {
   created_at: string
 }
 
+/** One row of the `delivery_checks` table. */
+interface DeliveryCheckRow {
+  id: string
+  run_id: string
+  number: number
+  sprint_id: string
+  kind: 'check' | 'waiver'
+  commit_ref: string | null
+  release_tag: string | null
+  verdict_json: string
+  recorded_by: string | null
+  created_at: string
+}
+
+/** The stored `verdict_json` of a delivery record: a check's fields, or a waiver's `reason`. */
+interface DeliveryVerdict {
+  checks?: DeliveryCheckView['checks']
+  reasons?: string[]
+  releaseVersion?: string | null
+  installedVersion?: string | null
+  reason?: string
+}
+
 export interface RunContext {
   run: RunRow
   bundle: PlanBundle
@@ -109,6 +133,8 @@ export interface RunContext {
   retryGrants: Record<string, number>
   /** Every row check of the run, in the order they were recorded. */
   rowChecks: RowCheckView[]
+  /** Every delivery check and waiver of the run, in number order. */
+  deliveries: DeliveryCheckView[]
 }
 
 /** Columns reported by SQLite when `attempts_one_open_per_ticket` rejects a second open attempt. */
@@ -192,6 +218,39 @@ function loadRowChecks(ctx: Ctx, runId: string): RowCheckView[] {
   return ctx.db.all<RowCheckRow>('SELECT * FROM row_checks WHERE run_id = ? ORDER BY number', runId).map(rowCheckView)
 }
 
+/**
+ * A delivery check passed when it has at least one entry and every entry passed; a waiver always counts as passed.
+ * `passed` is derived here, never stored.
+ */
+function deliveryCheckView(row: DeliveryCheckRow): DeliveryCheckView {
+  const verdict = parseJson<DeliveryVerdict>(row.verdict_json, {})
+  const checks = row.kind === 'check' ? (verdict.checks ?? []) : []
+  return {
+    id: row.id,
+    runId: row.run_id,
+    sprintId: row.sprint_id,
+    number: row.number,
+    kind: row.kind,
+    commit: row.commit_ref,
+    releaseTag: row.release_tag,
+    releaseVersion: verdict.releaseVersion ?? null,
+    installedVersion: verdict.installedVersion ?? null,
+    checks,
+    reasons: verdict.reasons ?? [],
+    reason: row.kind === 'waiver' ? (verdict.reason ?? '') : null,
+    passed: row.kind === 'waiver' || (checks.length > 0 && checks.every((check) => check.status === 'passed')),
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at
+  }
+}
+
+/** Every delivery check and waiver of a run, in the order they were recorded. */
+export function loadDeliveryChecks(ctx: Ctx, runId: string): DeliveryCheckView[] {
+  return ctx.db
+    .all<DeliveryCheckRow>('SELECT * FROM delivery_checks WHERE run_id = ? ORDER BY number', runId)
+    .map(deliveryCheckView)
+}
+
 export function requireRun(ctx: Ctx, runId: string): RunRow {
   return ctx.db.get<RunRow>('SELECT * FROM runs WHERE id = ?', runId) ?? fail('not_found', `Run ${runId} not found.`, { runId })
 }
@@ -229,7 +288,8 @@ export function loadRunContext(ctx: Ctx, runId: string): RunContext {
     bundle: loadBundle(ctx, run.revision_id),
     attempts: ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', runId),
     retryGrants: Object.fromEntries(grants.map((grant) => [grant.ticket_id, grant.extra])),
-    rowChecks: loadRowChecks(ctx, runId)
+    rowChecks: loadRowChecks(ctx, runId),
+    deliveries: loadDeliveryChecks(ctx, runId)
   }
 }
 
@@ -253,7 +313,8 @@ export function executionOf(context: RunContext): ExecutionSnapshot {
     runState: context.run.state,
     attempts: context.attempts.map(snapshotOf),
     retryGrants: context.retryGrants,
-    rowChecks: context.rowChecks
+    rowChecks: context.rowChecks,
+    deliveries: context.deliveries
   })
 }
 

@@ -2,6 +2,8 @@
  * Builds the Linear transfer packet of one saved plan revision: the epic as a project, each sprint as a
  * milestone, each ticket as an issue in execution order, and the dependencies as relations. Pure: the
  * caller loads the epic, the saved bundle and the ticket statuses, and an agent writes the packet to Linear.
+ * The caller also passes the packet hash (`contentHash` from `../canonical`), so a renderer fixture that builds
+ * a sample packet never reaches `node:crypto`.
  */
 import type { Criterion, PlanBundle, SprintDef, TicketContent, TicketPriority } from '../../shared/domain/bundle'
 import type { WorkStatus } from '../../shared/domain/status'
@@ -15,7 +17,6 @@ import {
   type LinearRelationItem,
   type LinearTransferPacket
 } from '../../shared/domain/transfer'
-import { contentHash } from '../canonical'
 import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket } from '../plan/acceptance'
 import { planRows, prerequisitesOf, sortedSprints } from '../plan/graph'
 
@@ -28,6 +29,9 @@ export interface LinearPacketInput {
   /** DM status by ticket id; a ticket with no entry counts as not completed. */
   ticketStatuses: Readonly<Record<string, WorkStatus>>
 }
+
+/** A packet before its hash. */
+type LinearPacketBody = Omit<LinearTransferPacket, 'packetHash'>
 
 /** Linear's limit on a project summary. */
 export const LINEAR_SUMMARY_MAX = 255
@@ -192,9 +196,9 @@ function buildRelations(bundle: PlanBundle, issues: LinearIssueItem[]): LinearRe
   return relations
 }
 
-export function buildLinearPacket(input: LinearPacketInput): LinearTransferPacket {
+export function buildLinearPacket(input: LinearPacketInput, hash: (body: LinearPacketBody) => string): LinearTransferPacket {
   const issues = buildIssues(input)
-  const body: Omit<LinearTransferPacket, 'packetHash'> = {
+  const body: LinearPacketBody = {
     format: LINEAR_TRANSFER_FORMAT,
     version: LINEAR_TRANSFER_VERSION,
     epicId: input.epic.id,
@@ -204,5 +208,5 @@ export function buildLinearPacket(input: LinearPacketInput): LinearTransferPacke
     issues,
     relations: buildRelations(input.bundle, issues)
   }
-  return { ...body, packetHash: contentHash(body) }
+  return { ...body, packetHash: hash(body) }
 }

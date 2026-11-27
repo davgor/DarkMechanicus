@@ -378,6 +378,7 @@ function scheduledResolverFixture() {
     folderDefaults: { get: () => 'claude' },
     registry: { list: () => [] },
     checkAuth: async (id: string) => id === 'claude' ? 'signed_out' as const : signedIn ? 'signed_in' as const : 'unknown' as const,
+    agentChats: { start: async () => { throw new Error('A resolver never starts on the GUI.') } },
     terminals: {
       isRunning: (id: string) => live.has(id),
       start: async (ref: { folder: string | null; id: string }) => {

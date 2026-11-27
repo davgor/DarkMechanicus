@@ -5,9 +5,11 @@ import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { CheckpointView, FollowUpProposal, PlanView, RunView, SprintReportView } from '../../../shared/domain/views'
 import { Markdown } from '../markdown/Markdown'
 import {
+  deliveryNotes,
   gateView,
   reportView,
   type CriterionLine,
+  type DeliveryNotes,
   type GateRow,
   type GateView,
   type IncrementSection,
@@ -147,6 +149,24 @@ function Checks({ report }: { report: ReportSections }): JSX.Element | null {
   )
 }
 
+/** The previous sprint's delivery: its latest named checks and any person-owned waiver; nothing without either. */
+function PreviousDelivery({ notes }: { notes: DeliveryNotes }): JSX.Element | null {
+  if (notes.previous === null && notes.waiver === null) {
+    return null
+  }
+  return (
+    <section className="cp-section" aria-label="Previous sprint delivery">
+      <h3 className="ew-eyebrow">PREVIOUS SPRINT DELIVERY</h3>
+      {notes.waiver === null ? null : (
+        <p className="cp-delivery-waiver">
+          Waived by the person{notes.waiver === '' ? '.' : `: ${notes.waiver}`}
+        </p>
+      )}
+      {notes.previous === null ? null : <CheckList label="Delivery checks" checks={notes.previous} />}
+    </section>
+  )
+}
+
 /** Why an increment did not pass, one failed line per reason. */
 function IncrementReasons({ reasons }: { reasons: string[] }): JSX.Element | null {
   if (reasons.length === 0) {
@@ -267,6 +287,8 @@ interface SprintReportProps {
   scorecard: { source: ReportScoreSource; target: ScorecardTarget; run: RunView; bundle: PlanBundle | null }
   /** The report's Improvement tab (a measured report, or one with a retro): the report it chains and who may plan its corrective work. */
   improvement?: Pick<ImprovementProps, 'report' | 'epicTitle' | 'epicCompleted' | 'corrections'>
+  /** The checkpoint's view of the previous sprint's delivery; the completed epic's overview has none. */
+  delivery?: DeliveryNotes
 }
 
 /** A report has an Improvement tab when it was measured (its findings) or carries a retro (its experiments). */
@@ -318,6 +340,7 @@ export function SprintReport(props: SprintReportProps): JSX.Element {
             ))}
             <Changes changes={report.changes} />
             <Checks report={report} />
+            {props.delivery === undefined ? null : <PreviousDelivery notes={props.delivery} />}
             <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
             <EpicOutcome outcome={report.outcome} />
             <FollowUps proposals={report.followUps} adder={props.followUps} />
@@ -338,6 +361,7 @@ export function SprintReport(props: SprintReportProps): JSX.Element {
 function Report(props: CheckpointScreenProps): JSX.Element {
   const source = props.checkpoint.report
   const scorecard = { source: props.scores, run: props.run, bundle: props.bundle }
+  const delivery = deliveryNotes({ checkpoint: props.checkpoint, run: props.run, bundle: props.bundle })
   if (source === null) {
     // Nothing is frozen before the report: its Scorecard is the sprint's live, provisional grade.
     const target: ScorecardTarget = { runId: props.checkpoint.runId, sprintId: props.checkpoint.sprintId, report: null }
@@ -345,7 +369,12 @@ function Report(props: CheckpointScreenProps): JSX.Element {
       <article className="cp-report" aria-label="Sprint report">
         <ReportTabs
           label="Sprint report"
-          report={<p className="ew-muted">No sprint report yet. The orchestrator writes it when the sprint&apos;s required work is done.</p>}
+          report={
+            <>
+              <p className="ew-muted">No sprint report yet. The orchestrator writes it when the sprint&apos;s required work is done.</p>
+              <PreviousDelivery notes={delivery} />
+            </>
+          }
           scorecard={<ReportScorecard {...scorecard} target={target} onSelectTicket={props.onSelectTicket} />}
         />
       </article>
@@ -366,6 +395,7 @@ function Report(props: CheckpointScreenProps): JSX.Element {
       scorecard={{ ...scorecard, target }}
       improvement={hasImprovement(source) ? { report: source, epicTitle: props.bundle?.epic.title ?? '', epicCompleted: false, corrections: props.corrections } : undefined}
       onSelectTicket={props.onSelectTicket}
+      delivery={delivery}
     />
   )
 }
@@ -424,6 +454,7 @@ function Conditions({ conditions }: { conditions: GateRow[] }): JSX.Element {
 function Gate(props: CheckpointScreenProps): JSX.Element {
   const panel = redraftPanel(props.draft, props.run, props.checkpoint.sprintId)
   const gate = gateView({ checkpoint: props.checkpoint, run: props.run, bundle: props.bundle, redraft: panel })
+  const approvalNote = deliveryNotes({ checkpoint: props.checkpoint, run: props.run, bundle: props.bundle }).approval
   const [refusal, setRefusal] = useState<RedraftRefusal | null>(null)
   const reportId = props.checkpoint.report?.id ?? ''
   const approve = (): void => {
@@ -439,6 +470,11 @@ function Gate(props: CheckpointScreenProps): JSX.Element {
       <span className="ew-eyebrow">CHECKPOINT GATE</span>
       <h2 className="cp-gate-title">{gate.title}</h2>
       <Conditions conditions={gate.conditions} />
+      {approvalNote === null ? null : (
+        <p className="cp-delivery-note" aria-label="Delivery on approval">
+          {approvalNote}
+        </p>
+      )}
       {panel === null ? null : <RedraftSection panel={panel} />}
       {refusal === null ? null : <RefusalAlert refusal={refusal} onDismiss={() => setRefusal(null)} />}
       <GateActions gate={gate} screen={props} onApprove={approve} />

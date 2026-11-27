@@ -3,11 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CommandName } from '../../shared/domain/api'
 import { defaultCapabilityProfile } from '../../shared/domain/bundle'
 import type { SessionRole } from '../../shared/domain/views'
-import { createHarness, type Harness } from '../../test/workspaceHarness'
+import { createHarness, type Harness, TEST_STORAGE } from '../../test/workspaceHarness'
 import { capabilitiesForRole, HUMAN_ONLY_CAPABILITIES } from '../authz'
 import { DomainError } from '../errors'
 import { encodeBase32, ID_PREFIXES, type IdKind } from '../ids'
-import type { Workspace } from '../workspace'
+import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../workspace'
 import { COMMAND_CAPABILITIES } from './capabilities'
 
 function probeId(kind: IdKind): string {
@@ -133,6 +133,8 @@ const PROBES: Record<CommandName, unknown> = {
     commit: 'abcdef1',
     checks: [{ name: 'probe', status: 'passed' }]
   },
+  recordDelivery: { runId: RUN, sprintId: probeId('sprint'), commit: 'abcdef1' },
+  waiveDelivery: { runId: RUN, sprintId: probeId('sprint'), reason: 'No release this sprint' },
   pauseRun: { runId: RUN },
   resumeRun: { runId: RUN },
   cancelRun: { runId: RUN },
@@ -341,7 +343,8 @@ describe('COMMAND_CAPABILITIES', () => {
       'resolveEpicConflict',
       'retireLearning',
       'revokeGrant',
-      'switchStorageMode'
+      'switchStorageMode',
+      'waiveDelivery'
     ])
   })
 })
@@ -361,5 +364,45 @@ describe('transfer capabilities', () => {
       'desktop',
       'orchestrator'
     ])
+  })
+})
+
+describe('get_capabilities server', () => {
+  let harness: Harness
+  const opened: Workspace[] = []
+
+  beforeAll(() => {
+    harness = createHarness()
+  })
+
+  afterAll(() => {
+    // Windows cannot delete a folder holding an open database file.
+    for (const workspace of opened) workspace.close()
+    harness.cleanup()
+  })
+
+  function openWith(serverInfo: OpenWorkspaceOptions['serverInfo']): Workspace {
+    const workspace = openWorkspace({
+      repoRoot: harness.root, homeDir: harness.homeDir, role: 'reader', label: 'server probe', transport: 'in_process',
+      git: harness.git, clock: harness.clock, ...(serverInfo === undefined ? {} : { serverInfo }), ...TEST_STORAGE
+    })
+    opened.push(workspace)
+    return workspace
+  }
+
+  it('reports the packaged app as packaged', async () => {
+    const workspace = openWith({ name: 'darkmechanicus-cli', version: '9.8.7', packaged: true })
+    expect((await workspace.getCapabilities()).server).toEqual({ name: 'darkmechanicus-cli', version: '9.8.7', packaged: true })
+  })
+
+  it('reports an unpackaged build as not packaged', async () => {
+    const workspace = openWith({ name: 'darkmechanicus', version: '1.0.0', packaged: false })
+    expect((await workspace.getCapabilities()).server).toEqual({ name: 'darkmechanicus', version: '1.0.0', packaged: false })
+  })
+
+  it('defaults packaged to false when the server did not say', async () => {
+    expect((await openWith({ name: 'darkmechanicus', version: '1.0.0' }).getCapabilities()).server.packaged).toBe(false)
+    expect((await harness.open('reader').getCapabilities()).server).toEqual({ name: 'darkmechanicus-test', version: '0.0.0-test', packaged: false })
+    expect((await openWith(undefined).getCapabilities()).server).toEqual({ name: 'darkmechanicus', version: '0.0.0', packaged: false })
   })
 })

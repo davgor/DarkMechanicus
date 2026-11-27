@@ -1,4 +1,3 @@
-import React from 'react'
 import atlas from '../../src/renderer/src/assets/mascot/atlas.json'
 import saluteImage from '../../src/renderer/src/assets/mascot/salute.png'
 import typeImage from '../../src/renderer/src/assets/mascot/type.png'

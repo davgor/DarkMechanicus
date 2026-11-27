@@ -464,6 +464,8 @@ const DESKTOP_COMMANDS = [
   'cancelRun',
   'takeoverRun',
   'adoptRevision',
+  // The person's waiver of a sprint's delivery check (human-only; agents record checks with record_delivery instead).
+  'waiveDelivery',
   // SPACE measurement: the run's usage and budgets, the scorecard reads (core read models, unchanged), and the person's
   // own inputs. Ratings, rescue time and defect records are recorded only here; a budget is a draft edit `savePlan` freezes.
   'getRunMetrics',

@@ -66,6 +66,18 @@ describe('restart marker limits', () => {
     expect(takeRestartMarker(edge, NOW)?.fromVersion).toBe('0.83.0')
   })
 
+  it('a marker dated more than 1 minute in the future is null and deleted; one exactly 1 minute ahead is taken', () => {
+    const future = markerFile(), hour = markerFile(), edge = markerFile()
+    writeRestartMarker(future, marker({ writtenAt: new Date(NOW + 60_000 + 1).toISOString() }))
+    writeRestartMarker(hour, marker({ writtenAt: new Date(NOW + 60 * 60_000).toISOString() }))
+    writeRestartMarker(edge, marker({ writtenAt: new Date(NOW + 60_000).toISOString() }))
+    expect(takeRestartMarker(future, NOW)).toBeNull()
+    expect(existsSync(future)).toBe(false)
+    expect(takeRestartMarker(hour, NOW)).toBeNull()
+    expect(existsSync(hour)).toBe(false)
+    expect(takeRestartMarker(edge, NOW)?.fromVersion).toBe('0.83.0')
+  })
+
   it('writing refuses an invalid marker and writes nothing', () => {
     const file = markerFile()
     expect(() => writeRestartMarker(file, marker({ fromVersion: '1.0.0-test' }))).toThrow()

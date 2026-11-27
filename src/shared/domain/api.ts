@@ -21,6 +21,7 @@ import type {
   PlannedTestCase,
   ReasoningEffort,
   RelationKind,
+  SprintDelivery,
   TicketBudget,
   TicketKind,
   TicketPriority,
@@ -115,6 +116,7 @@ import type {
   CommentView,
   CriterionResult,
   DeleteEpicResultView,
+  DeliveryCheckView,
   DraftUpdateResultView,
   EpicConflictChoice,
   EpicDetailView,
@@ -204,6 +206,8 @@ export interface SprintInput {
   exitCriteria?: (CriterionInput | string)[]
   concurrencyCap?: number | null
   checkpoint?: { mode: CheckpointMode }
+  /** A structured delivery declaration; null clears the sprint's. */
+  delivery?: SprintDelivery | null
 }
 
 /** A ticket or sprint may be referenced by stable id or by a client-local ref declared in the same request. */
@@ -319,6 +323,29 @@ export interface RecordRowCheckInput {
   row: number
   commit: string
   checks: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
+  idempotencyKey?: string
+}
+
+/**
+ * An orchestrator's record of a sprint's delivery: the commit it says carries the sprint's increment onto the delivery
+ * target, and the release and installed version it observed. The server verifies every part against the repository;
+ * `checks` are the caller's own observations (for example `gh` run results), stored after the server's checks.
+ */
+export interface RecordDeliveryInput {
+  runId: string
+  sprintId: string
+  commit: string
+  releaseTag?: string
+  observedInstalledVersion?: string
+  checks?: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
+  idempotencyKey?: string
+}
+
+/** The person's waiver of a sprint's delivery check, with why (1 to 2,000 characters once trimmed). Desktop only. */
+export interface WaiveDeliveryInput {
+  runId: string
+  sprintId: string
+  reason: string
   idempotencyKey?: string
 }
 
@@ -737,6 +764,10 @@ export interface CommandApi {
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
   /** Carries `context` (for an orchestrator) only when the check did not pass. */
   recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
+  /** Verifies a sprint's delivery and stores the verdict; a failed verdict is stored, not thrown. */
+  recordDelivery(input: RecordDeliveryInput): Promise<DeliveryCheckView>
+  /** Desktop only: the person waives a sprint's delivery check with a reason, releasing its `delivery_pending` hold. */
+  waiveDelivery(input: WaiveDeliveryInput): Promise<DeliveryCheckView>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>

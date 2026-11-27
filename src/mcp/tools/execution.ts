@@ -186,7 +186,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'get_ready_tickets',
     description:
-      'Server-computed readiness for the active sprint: ready, blocked (blockers: prerequisite, row_check_failed, concurrency, retry_limit, lease_expired, run_state) and in-flight tickets, each with its row, plus the sprint\'s rows with their tickets and latest row check, and capacity. The acceptance node of a sprint is blocked until every other required ticket of that sprint is accepted, and lists them as its prerequisites. Only ready tickets can be claimed; readiness cannot be bypassed.',
+      'Server-computed readiness for the active sprint: ready, blocked (blockers: prerequisite, row_check_failed, delivery_pending, concurrency, retry_limit, lease_expired, run_state) and in-flight tickets, each with its row, plus the sprint\'s rows with their tickets and latest row check, and capacity. delivery_pending holds a sprint\'s claims until an earlier sprint that declares a delivery has a passing record_delivery check or the person waived it in the desktop app. The acceptance node of a sprint is blocked until every other required ticket of that sprint is accepted, and lists them as its prerequisites. Only ready tickets can be claimed; readiness cannot be bypassed.',
     kind: 'read',
     input: { runId },
     run: (api, input) => api.getReadyTickets(input)
@@ -312,6 +312,28 @@ const ATTEMPT_TOOLS = [
       idempotencyKey
     },
     run: (api, input) => api.recordRowCheck(input)
+  }),
+  defineTool({
+    name: 'record_delivery',
+    description:
+      'Records a check that a sprint\'s accepted increment was delivered, for a sprint that declares a delivery (target branch, release, verifyInstalled). Run it after the delivering sprint\'s checkpoint approval, once its increment is merged, released and installed, and after `git fetch origin --tags` so the server sees the target branch and tags. The server verifies the claim against the code repository itself, read-only: Delivered commit exists; On the target branch (origin/<target>); Carries the increment (directly or squash-merged); with release, Release tag (the tag contains the commit) and Release version (the tagged package.json version matches the tag); with verifyInstalled, Installed app version (the installed app runs that release or later, as the desktop app observed it on this machine, else as this session\'s server reports it). Add your own observations (for example gh run results) as checks; they are stored after the server\'s. A check that could not be made counts as failed, and a skipped entry is a failed one. A failed verdict is stored and returned, not thrown: fix the cause and record again, never rerun CI to get green. The newest check of the sprint decides; until one passes, the next sprint\'s claims are held (blocker delivery_pending). The person can waive the check in the desktop app. Refusals: unauthorized (not the orchestrator), run_not_owned, run_not_active (the run is not active, or completed with a sprint that is not its last), not_found (sprint not in the pinned plan), unauthorized_transition (the sprint has not passed its checkpoint), invalid_input (the sprint declares no delivery, a folder of repositories, or no accepted passing increment), conflict (the increment or code checkout changed during verification).',
+    kind: 'write',
+    input: {
+      runId,
+      sprintId,
+      commit: commitHash.describe('Commit hash (7 to 64 hex digits) on the target branch that carries the sprint\'s increment.'),
+      releaseTag: z.string().regex(/^v\d+\.\d+\.\d+$/).optional().describe('The release tag (vMAJOR.MINOR.PATCH) that contains the commit; needed when the sprint declares release.'),
+      observedInstalledVersion: z
+        .string()
+        .regex(/^\d+\.\d+\.\d+$/)
+        .optional()
+        .describe('The installed app version you observed (MAJOR.MINOR.PATCH); it must equal the version the server reads.'),
+      checks: rowCheckEntries
+        .optional()
+        .describe('Your own observations (for example the release workflow\'s gh run): name, status (passed, failed or skipped) and detail.'),
+      idempotencyKey
+    },
+    run: (api, input) => api.recordDelivery(input)
   })
 ]
 

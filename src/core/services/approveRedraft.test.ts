@@ -264,6 +264,24 @@ describe('approveWithRedraft and a report the adopted revision makes stale', () 
   })
 })
 
+describe('approveWithRedraft and an unverified delivery of a passed sprint', () => {
+  it("names adopt when the draft drops a passed sprint's unverified delivery, and adopts nothing", () => {
+    const ctx = createTestCtx()
+    const bundle = makeBundle([[1], [2], [3]])
+    bundle.sprints[0] = { ...bundle.sprints[0], delivery: { target: 'main', release: true, verifyInstalled: false } }
+    const run = seedRun(ctx, { bundle, state: 'awaiting_checkpoint', activeSprint: 2 })
+    acceptTickets(ctx, run, [1, 2])
+    submitSprintReport(ctx, { runId: run.runId, sprintId: sid(2), report: { summary: 'Sprint 2 is over.' } })
+    const ops = [{ op: 'update_sprint' as const, sprint: sid(1), patch: { delivery: null } }]
+    const edited = updatePlanDraft(ctx, { epicId: run.epicId, ops })
+    const request = { runId: run.runId, expectedDraftRevision: edited.draftRevision }
+    const refused = errorOf(() => approveWithRedraft(withRole(ctx, 'desktop'), request, finalizer(ctx)))
+    expect(refused.code).toBe('conflict')
+    expect(refused.message).toContain("(adopt): Sprint 1's delivery is not verified: only the person can waive it")
+    expect(runRow(ctx, run.runId)).toMatchObject({ revision_id: run.revisionId, state: 'awaiting_checkpoint', active_sprint_id: sid(2) })
+  })
+})
+
 describe('who may approve with redraft', () => {
   it.each(['orchestrator', 'planner', 'worker', 'reviewer'] as const)('refuses a %s session before saving anything', (role) => {
     const fixture = redrafted()
