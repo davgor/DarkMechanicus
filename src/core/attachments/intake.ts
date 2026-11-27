@@ -177,6 +177,34 @@ export function inspectImageBytes(bytes: Uint8Array): ImageInspection {
   return { mime, width, height }
 }
 
+/** The first chunk after the RIFF header names the WebP flavour: extended (VP8X), lossless (VP8L) or lossy (VP8). */
+function webpSize(bytes: Buffer): { width: number; height: number } {
+  const chunk = bytes.length >= 30 ? bytes.toString('latin1', 12, 16) : ''
+  if (chunk === 'VP8X') return { width: 1 + bytes.readUIntLE(24, 3), height: 1 + bytes.readUIntLE(27, 3) }
+  if (chunk === 'VP8L' && bytes[20] === 0x2f) {
+    const bits = bytes.readUInt32LE(21)
+    return { width: 1 + (bits & 0x3fff), height: 1 + ((bits >>> 14) & 0x3fff) }
+  }
+  if (chunk === 'VP8 ' && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+    return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff }
+  }
+  return fail('invalid_input', 'Image is not a valid WebP: no VP8X, VP8L or VP8 header with dimensions was found.')
+}
+
+/**
+ * `inspectImageBytes` for an image a tool returned, which may also be WebP (OMP's `read` returns it). Images the
+ * person sends stay PNG/JPEG only and go through `inspectImageBytes`.
+ */
+export function inspectToolImageBytes(bytes: Uint8Array): { mime: ImageMime | 'image/webp'; width: number; height: number } {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const webp = buffer.length >= 12 && buffer.toString('latin1', 0, 4) === 'RIFF' && buffer.toString('latin1', 8, 12) === 'WEBP'
+  if (!webp) return inspectImageBytes(buffer)
+  if (buffer.length > MAX_IMAGE_BYTES) tooLarge(buffer.length)
+  const { width, height } = webpSize(buffer)
+  checkDimensions(width, height)
+  return { mime: 'image/webp', width, height }
+}
+
 /**
  * Reads an agent-supplied image path. Refuses (invalid_input) a path outside every allowed root,
  * a symbolic link, a non-regular file, and anything `inspectImageBytes` refuses.

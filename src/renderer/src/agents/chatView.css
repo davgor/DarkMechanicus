@@ -126,14 +126,22 @@
   outline-offset: -2px;
 }
 
+/* The reading column: centred, about as wide as the composer under it. */
 .chat-rows {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 860px;
+  max-width: 760px;
   margin: 0 auto;
   padding: 0;
   list-style: none;
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .chat-msg > article {
@@ -152,17 +160,42 @@
   text-transform: uppercase;
 }
 
-.chat-msg-user > article {
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+/* The person's message: a rounded bubble on the right. The agent's reply has no bubble and runs the full column. */
+.chat-msg-user {
+  align-items: flex-end;
+}
+
+.chat-bubble {
+  box-sizing: border-box;
+  max-width: min(80%, 560px);
+  padding: 10px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  background: var(--panel-3);
 }
 
 .chat-user-text {
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+/* The action row under a message. It sits on the transcript's own surface; the person's shows on hover or focus. */
+.chat-msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: -8px;
+}
+
+.chat-msg-user > .chat-msg-actions {
+  margin: 0 -4px 0 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.chat-msg-user:hover > .chat-msg-actions,
+.chat-msg-user:focus-within > .chat-msg-actions {
+  opacity: 1;
 }
 
 /* ---------- Tool calls ---------- */

@@ -179,6 +179,27 @@ function namedApproval(): AgentChatSnapshot {
   }
 }
 
+/** The first of two questions in one multi-select ask, docked over the conversation. */
+function multiQuestion(): AgentChatSnapshot {
+  return {
+    ...scenarios.empty.snapshot,
+    items: conversation,
+    status: 'busy',
+    pending: {
+      id: 'question-multi-1', kind: 'question', title: 'Which checks should the worker run before it submits?',
+      detail: 'Choose every check that applies.', threadId: null,
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+      options: [
+        { id: 'option_0', label: 'Lint', description: 'ESLint over the changed files' },
+        { id: 'option_1', label: 'Typecheck', description: 'Both tsconfig projects' },
+        { id: 'option_2', label: 'Unit tests', description: 'Vitest for the touched files' },
+        { id: 'option_3', label: 'Build' },
+        { id: 'text', label: 'Other' }
+      ]
+    }
+  }
+}
+
 function magosDecided(): AgentChatSnapshot {
   return {
     ...scenarios.empty.snapshot,
@@ -193,6 +214,20 @@ function magosDecided(): AgentChatSnapshot {
 function todosSnapshot(): AgentChatSnapshot {
   const bash: ChatItem = { id: 'todo-bash', at: AT, kind: 'tool_call', name: 'Bash', input: { command: 'npm test' }, status: 'running', resultSummary: null }
   return { ...scenarios.todos.snapshot, items: [...conversation, bash] }
+}
+
+/** The agent-transcript state's conversation: the person's question, then a finished reply holding a ts code block. */
+function transcriptSnapshot(): AgentChatSnapshot {
+  const items: ChatItem[] = [
+    { id: 'tr-user', at: AT, kind: 'user_message', text: 'Can you add a retry to the fetch helper and tell me how to test it?' },
+    {
+      id: 'tr-reply', at: AT, kind: 'assistant_text',
+      text: '**Done** — the helper now retries twice before it gives up:\n\n```ts\nexport async function fetchWithRetry(url: string, tries = 3): Promise<Response> {\n'
+        + '  for (let attempt = 1; ; attempt++) {\n    try {\n      return await fetch(url)\n    } catch (error) {\n      if (attempt >= tries) throw error\n'
+        + '    }\n  }\n}\n```\n\nRun `npm test` to check it.'
+    }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 }
 
 const relay = (event: AgentChatEvent): AgentChatEvent => ({ ...event, folder: FOLDER.path, chatId: ORCHESTRATOR.id })
@@ -357,6 +392,19 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
     }
   },
+  'question-multi': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, multiQuestion()),
+    reach: async () => {
+      await openAgentTab()
+      const card = await until(() => $('.agent-prompt-multi'), 'the docked multi-select question')
+      for (const label of ['Lint', 'Unit tests']) {
+        click(await until(() => [...card.querySelectorAll('label.agent-prompt-check')]
+          .find((row) => text(row.querySelector('.agent-prompt-check-label')) === label)?.querySelector('input') ?? null, `the ${label} checkbox`))
+      }
+      await until(() => text($('.agent-prompt-count')) === '2 selected', '2 selected')
+    }
+  },
   'agent-magos-decided': {
     mount: 'epic',
     seed: (context) => snapshot(context, magosDecided()),
@@ -505,6 +553,17 @@ const STATES: Record<string, StateDef> = {
         && buttonNamed('Stop', $('[aria-label="Busy Magos"]')!), 'an enabled Send beside the idle draft and Stop on the busy chat')
     }
   },
+  'agent-transcript': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: transcriptSnapshot() } },
+    reach: async () => {
+      const copy = await until(() => buttonNamed('Copy', $('.chat-msg-user') ?? document.createElement('div')), 'the person’s bubble with its Copy')
+      await until(() => $('.chat-msg-assistant .chat-msg-actions .copy-button') && $('.chat-msg-assistant .md-code-copy'), 'the reply’s action row and code Copy')
+      // Keyboard focus, as Tab would leave it: the bubble's Copy shows without a pointer over it.
+      copy.focus()
+      await until(() => getComputedStyle($('.chat-msg-user > .chat-msg-actions')!).opacity === '1', 'the bubble’s Copy revealed by focus')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -596,6 +655,23 @@ function deliveryObservations(): Record<string, unknown> {
   }
 }
 
+/** The docked multi-select question: its legend, progress, checked option labels, count and Submit; null without one. */
+function questionObservations(): Record<string, unknown> | null {
+  const form = $('.agent-prompt .agent-prompt-multi')
+  if (form === null) return null
+  const rows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')]
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  return {
+    legend: text(form.querySelector('legend')),
+    progress: text($('.agent-prompt .agent-prompt-progress')),
+    checkboxes: rows.length,
+    checked: rows.filter((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked === true)
+      .map((row) => text(row.querySelector('.agent-prompt-check-label'))),
+    count: text(form.querySelector('.agent-prompt-count')),
+    submitEnabled: submit === null ? null : !submit.matches(':disabled')
+  }
+}
+
 /** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
 function glassObservations(): Record<string, unknown> | null {
   const stage = $('section.eap')
@@ -682,6 +758,42 @@ function composerObservations(): Record<string, unknown>[] {
   })
 }
 
+/** The agent-transcript state's layout: the reading column, the person's bubble, the plain reply and the Copy buttons. */
+function transcriptObservations(): Record<string, unknown> | null {
+  const rows = $('.chat-rows')
+  const bubble = $('.chat-msg-user > article')
+  const reply = $('.chat-msg-assistant > article')
+  const block = $('.chat-msg-assistant .md-code-block')
+  if (rows === null || bubble === null || reply === null || block === null) return null
+  const column = rows.getBoundingClientRect()
+  const holder = rows.parentElement!.getBoundingClientRect()
+  const bubbleBox = bubble.getBoundingClientRect()
+  const replyStyle = getComputedStyle(reply)
+  const visible = (button: HTMLElement | null): string | null => {
+    if (button === null) return null
+    let element: HTMLElement | null = button
+    for (; element !== null; element = element.parentElement) if (getComputedStyle(element).opacity === '0') return null
+    return text(button)
+  }
+  const codeCopy = $('.md-code-copy', block)
+  const codeBox = block.getBoundingClientRect()
+  const copyBox = codeCopy?.getBoundingClientRect() ?? null
+  return {
+    columnWidth: column.width,
+    columnOffset: Math.abs((column.left - holder.left) - (holder.right - column.right)),
+    bubble: {
+      radius: getComputedStyle(bubble).borderTopLeftRadius, background: getComputedStyle(bubble).backgroundColor,
+      rightGap: column.right - bubbleBox.right, leftGap: bubbleBox.left - column.left
+    },
+    bubbleCopy: visible($('.chat-msg-user .copy-button')),
+    bubbleCopyFocused: document.activeElement === $('.chat-msg-user .copy-button'),
+    reply: { background: replyStyle.backgroundColor, border: replyStyle.borderTopWidth, width: reply.getBoundingClientRect().width },
+    replyActions: [...document.querySelectorAll<HTMLElement>('.chat-msg-assistant > .chat-msg-actions .copy-button')].map(visible),
+    codeCopy: visible(codeCopy),
+    codeCopyCorner: copyBox === null ? null : { top: copyBox.top - codeBox.top, right: codeBox.right - copyBox.right }
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -706,6 +818,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
+    questionCard: questionObservations(),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),
@@ -716,6 +829,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     composers: composerObservations(),
+    transcript: transcriptObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
