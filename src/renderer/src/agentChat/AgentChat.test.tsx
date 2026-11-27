@@ -71,12 +71,15 @@ it('renders user/assistant roles, live Markdown, thinking and exactly one commit
   expect(screen.getAllByText('streamed reply')).toHaveLength(1)
 })
 
-it('renders a running tool, updates it in place and opens the subagent thread', async () => {
+it('renders a running tool, updates it in place, folds the ended turn and opens the subagent thread', async () => {
   const view = await mount('tool')
-  const tool = screen.getByRole('listitem', { name: 'Tool call: Read' })
-  expect(tool.textContent).toMatch(/running/i)
+  expect(screen.getByRole('listitem', { name: 'Tool call: Read' }).textContent).toMatch(/running/i)
   view.commit()
+  // The commit ends the turn: its work folds behind one disclosure until it is opened.
+  expect(screen.queryByRole('listitem', { name: 'Tool call: Read' })).toBe(null)
+  fireEvent.click(screen.getByRole('button', { name: /^Worked for/ }))
   expect(screen.getAllByRole('listitem', { name: 'Tool call: Read' })).toHaveLength(1)
+  const tool = screen.getByRole('listitem', { name: 'Tool call: Read' })
   fireEvent.click(within(tool).getByRole('button'))
   expect(tool.textContent).toContain('Read 120 lines')
   const thread = screen.getByRole('listitem', { name: 'Thread: Acolyte:DM-785' })

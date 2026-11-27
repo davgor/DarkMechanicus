@@ -552,8 +552,8 @@ describe('agent chat preload bridge', () => {
     const state = open()
     const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(AGENT_CHAT_CHANNELS\.([A-Za-z]+)/g)].map(match => AGENT_CHAT_CHANNELS[match[1] as keyof typeof AGENT_CHAT_CHANNELS]).sort()
     const listened = [...preload.matchAll(/ipcRenderer\.on\(AGENT_CHAT_CHANNELS\.([A-Za-z]+)/g)].map(match => AGENT_CHAT_CHANNELS[match[1] as keyof typeof AGENT_CHAT_CHANNELS])
-    // Contract channels whose main handlers land later: stageImage with the image store, attachEvidence with evidence.
-    const notYetHandled: readonly string[] = [AGENT_CHAT_CHANNELS.stageImage, AGENT_CHAT_CHANNELS.attachEvidence]
+    // Contract channels whose main handlers land later: attachEvidence with evidence.
+    const notYetHandled: readonly string[] = [AGENT_CHAT_CHANNELS.attachEvidence]
     expect(invoked.filter(channel => !notYetHandled.includes(channel))).toEqual([...state.listeners.keys()].sort())
     expect([...invoked, ...listened].sort()).toEqual(Object.values(AGENT_CHAT_CHANNELS).sort())
     expect(listened).toEqual([AGENT_CHAT_CHANNELS.event])
