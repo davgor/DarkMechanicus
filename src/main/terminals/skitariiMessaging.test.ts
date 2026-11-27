@@ -895,6 +895,27 @@ describe('Skitarii mail in the extension entry', () => {
   })
 })
 
+describe('the cult status writer in the extension entry', () => {
+  const count = async (path: string) => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, path)
+    const { pi, handlers } = fakePi()
+    await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
+    return ['session_start', 'agent_start', 'tool_execution_start', 'agent_end', 'session_shutdown'].map((event) => handlers.get(event)?.length ?? 0)
+  }
+
+  it('adds its session start, turn start, tool start and turn end hooks for a cult member only', async () => {
+    // The mascot's, the mail watcher's, the human wait's and the cult control watcher's, as before the writer.
+    expect(await count(descriptor)).toEqual([4, 3, 1, 3, 5])
+    const memberDescriptor = await writeDmClientDescriptor({
+      userData: join(root, 'userData'), chatId: CHAT, generation: GENERATION, folder, platform: process.platform, cultRole: 'acolyte',
+      cli: { command: process.execPath, args: [join(root, `app ${AWKWARD}`, 'out', 'main', 'cli.js'), '--repo', folder], env: { ELECTRON_RUN_AS_NODE: '1' } }
+    })
+    // One more of each turn hook; the writer keeps nothing to shut down.
+    expect(await count(memberDescriptor)).toEqual([5, 4, 2, 4, 5])
+  })
+})
+
 // --- dm_call ----------------------------------------------------------------------------------------------------------
 
 /** The JSON a successful dm_call result carries after its fixed note. */
