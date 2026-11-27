@@ -1,11 +1,14 @@
-import { useId } from 'react'
-import type { AgentModels } from '../../../shared/agents/models'
+import { useCallback, useId } from 'react'
+import type { AgentChatModelChoice } from '../../../shared/agents/agentChat'
+import type { ThinkingLevel } from '../../../shared/agents/chat'
 import { pickChatAgent } from '../../../shared/agents/pickChatAgent'
 import { AGENT_DEFINITIONS, AGENT_KINDS } from '../../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
+import { ModelPicker } from '../agentChat/ModelPicker'
 import { Button } from '../components/Button'
 import { agentVersionLabel, signInLabel } from './agentText'
 import { SignInOffer } from './SignInPrompt'
+import type { AgentModelChoice } from './useAgentModelChoice'
 
 type Statuses = Readonly<Partial<Record<AgentId, AgentAuthStatus>>>
 
@@ -114,29 +117,66 @@ export function AgentChoice(props: AgentChoiceProps): JSX.Element {
   )
 }
 
-interface ModelChoiceProps {
-  models: AgentModels
-  /** The listed model picked, or the text typed (`useAgentModelChoice`). */
-  value: string
-  /** The typed model may go on a command line; one that may not says so. */
-  valid: boolean
-  onChange(model: string): void
+interface CatalogModelChoiceProps {
+  /** The tracked folder the chat starts in (null when none is known yet); main checks it with the catalog request. */
+  folder: string | null
+  /** A Skitarii (OMP) agent, whose catalog is listed (`agentChat:models`). */
+  agent: AgentId
+  /** The model chosen (`provider/id`), or null for Default. */
+  model: string | null
+  thinking: ThinkingLevel | null
+  /** A model and its effort; null and null for Default. */
+  onChange(model: string | null, thinking: ThinkingLevel | null): void
+  label?: string
 }
 
 /**
- * Step two: the chosen agent's model as the app knows it without asking the agent (`agentModels`). Claude Code
- * picks from its curated aliases; Autonomous and OMP take a typed id (empty for its default; OMP's catalog is served
- * on `agentChat:models`); the rest start on the model their CLI picks. The CLI's own `/model` changes it once the chat runs.
+ * A Skitarii chat's model and effort before the chat exists, chosen from the agent's OMP catalog with the composer's
+ * picker (`ModelPicker`: the latest model of each line, More models and Effort), plus Default, which leaves both to
+ * the person's OMP configuration.
  */
-export function ModelChoice({ models, value, valid, onChange }: ModelChoiceProps): JSX.Element {
+export function CatalogModelChoice({ folder, agent, model, thinking, onChange, label = 'Model' }: CatalogModelChoiceProps): JSX.Element {
+  const labelId = useId()
+  const load = useCallback(() => window.dm.agentChat.models({ folder, agentId: agent }), [folder, agent])
+  const choose = (choice: AgentChatModelChoice): Promise<{ ok: true; data: null }> => {
+    onChange(`${choice.provider}/${choice.modelId}`, choice.effort ?? null)
+    return Promise.resolve({ ok: true, data: null })
+  }
+  return (
+    <div className="chat-field model-choice" role="group" aria-labelledby={labelId}>
+      <span id={labelId} className="field-label">{label}</span>
+      <ModelPicker key={agent} state={{ model, thinking, status: 'idle' }} load={load} choose={choose} onDefault={() => onChange(null, null)} />
+      <span className="field-hint">Default starts on the model and effort set in OMP.</span>
+    </div>
+  )
+}
+
+interface ModelChoiceProps {
+  /** The agent and model being picked (`useAgentModelChoice`). */
+  choice: AgentModelChoice
+  /** The tracked folder the chat starts in; null when the dialog does not know it. */
+  folder: string | null
+}
+
+/**
+ * Step two: the chosen agent's model as the app knows it (`agentModels`). Claude Code picks from its curated aliases;
+ * Autonomous takes a typed id (empty for its default); OMP picks from its own catalog (`CatalogModelChoice`), with an
+ * effort; the rest start on the model their CLI picks. The CLI's own `/model` changes it once the chat runs.
+ */
+export function ModelChoice({ choice, folder }: ModelChoiceProps): JSX.Element {
+  const { models, value, valid } = choice
   const id = useId()
+  if (models.kind === 'catalog' && choice.agent !== null) {
+    return <CatalogModelChoice folder={folder} agent={choice.agent} model={choice.model} thinking={choice.thinking}
+      onChange={(model, thinking) => choice.chooseModel(model ?? '', thinking)} />
+  }
   return (
     <div className="chat-field">
       <label className="field-label" htmlFor={id}>
         Model
       </label>
       {models.kind === 'list' ? (
-        <select id={id} className="connect-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        <select id={id} className="connect-select" value={value} onChange={(event) => choice.chooseModel(event.target.value)}>
           {models.models.map((model) => (
             <option key={model.id} value={model.id}>
               {model.label}
@@ -144,26 +184,7 @@ export function ModelChoice({ models, value, valid, onChange }: ModelChoiceProps
           ))}
         </select>
       ) : null}
-      {models.kind === 'free' || models.kind === 'catalog' ? (
-        <>
-          <input
-            id={id}
-            className="input mono"
-            value={value}
-            placeholder="Default"
-            spellCheck={false}
-            aria-invalid={!valid}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          {valid ? (
-            <span className="field-hint">Leave it empty for the agent’s default model, or type an id such as provider/model.</span>
-          ) : (
-            <p role="alert" className="form-error">
-              A model id holds only letters, digits and . _ / + -, and cannot start with one of the symbols.
-            </p>
-          )}
-        </>
-      ) : null}
+      {models.kind === 'free' ? <TypedModel id={id} value={value} valid={valid} onChange={(model) => choice.chooseModel(model)} /> : null}
       {models.kind === 'cli' ? (
         <>
           <select id={id} className="connect-select">
@@ -173,5 +194,22 @@ export function ModelChoice({ models, value, valid, onChange }: ModelChoiceProps
         </>
       ) : null}
     </div>
+  )
+}
+
+/** An agent without a model list (Autonomous): a typed id, empty for its default, refused when it may not go on a command line. */
+function TypedModel({ id, value, valid, onChange }: { id: string; value: string; valid: boolean; onChange(model: string): void }): JSX.Element {
+  return (
+    <>
+      <input id={id} className="input mono" value={value} placeholder="Default" spellCheck={false} aria-invalid={!valid}
+        onChange={(event) => onChange(event.target.value)} />
+      {valid ? (
+        <span className="field-hint">Leave it empty for the agent’s default model, or type an id such as provider/model.</span>
+      ) : (
+        <p role="alert" className="form-error">
+          A model id holds only letters, digits and . _ / + -, and cannot start with one of the symbols.
+        </p>
+      )}
+    </>
   )
 }

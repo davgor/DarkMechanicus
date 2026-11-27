@@ -6,7 +6,7 @@
  * trust); otherwise the workspace stays on the epic, and the shell opens a chat or the add-agent pane
  * only when the person follows a link.
  */
-import type { ChatRecord } from '../../../shared/agents/chat'
+import type { ChatRecord, ThinkingLevel } from '../../../shared/agents/chat'
 import type { StartOrchestratorResult, StartTransferChatResult } from '../../../shared/agents/chatApi'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import type { RunView } from '../../../shared/domain/views'
@@ -17,6 +17,8 @@ import { epicChats } from './epicAgentsView'
 export interface StartRunChoice {
   agent: AgentId
   model: string | null
+  /** A Skitarii model's effort, chosen with it from the catalog; absent for the default. */
+  thinking?: ThinkingLevel
   /** The person's additional instructions for a run's orchestrator, trimmed and not blank; absent when none were typed. */
   instructions?: string
 }

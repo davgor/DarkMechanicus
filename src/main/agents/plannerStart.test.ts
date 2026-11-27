@@ -13,7 +13,7 @@ const planner: ChatRecord = {
   createdAt: at, updatedAt: at, sessionId: null, surface: 'gui', epicId: 'ep_1'
 }
 
-function deps(options: { signedIn?: boolean; create?: () => Promise<ChatRecord>; started?: string; remove?: () => Promise<void> } = {}) {
+function deps(options: { signedIn?: boolean; create?: () => Promise<ChatRecord>; started?: string; remove?: () => Promise<void>; checkModel?: () => Promise<void> } = {}) {
   const status = { state: options.signedIn === false ? 'signed_out' : 'signed_in' } as AgentAuthStatus
   return {
     epics: { getEpic: vi.fn(() => Promise.resolve({ id: 'ep_1', title: 'Retry\nbanner' } as EpicDetailView)) },
@@ -25,6 +25,7 @@ function deps(options: { signedIn?: boolean; create?: () => Promise<ChatRecord>;
     },
     terminals: { start: vi.fn() },
     agentChats: { start: vi.fn(() => Promise.resolve({ status: options.started ?? 'idle' } as unknown as AgentChatSnapshot)) },
+    checkModel: vi.fn(options.checkModel ?? (() => Promise.resolve())),
     onError: vi.fn()
   }
 }
@@ -37,6 +38,23 @@ describe('startPlannerChat', () => {
     expect(await startPlannerChat(d, request)).toEqual({ chat: planner, problem: null })
     expect(d.chats.createChat).toHaveBeenCalledWith(expect.objectContaining({ folder: '/repo', agent: 'claude', role: 'planner', allowSave: true, epicId: 'ep_1', title: 'Planner · Retry banner' }))
     expect(d.agentChats.start).toHaveBeenCalledWith(planner, { firstMessage: expect.stringContaining('Epic: Retry banner (ep_1)') })
+    const [created] = d.chats.createChat.mock.calls[0] as unknown as [object]
+    expect(created).toMatchObject({ model: null })
+    expect(created).not.toHaveProperty('thinking')
+  })
+
+  it('stores the chosen model and thinking level on the planner chat once the picked agent takes them', async () => {
+    const d = deps()
+    const choice = { ...request, model: 'anthropic/claude-sonnet-5-5', thinking: 'low' as const }
+    expect(await startPlannerChat(d, choice)).toEqual({ chat: planner, problem: null })
+    expect(d.checkModel.mock.calls).toEqual([['claude', choice]])
+    expect(d.chats.createChat).toHaveBeenCalledWith(expect.objectContaining({ role: 'planner', model: 'anthropic/claude-sonnet-5-5', thinking: 'low' }))
+  })
+
+  it('creates nothing when the picked agent cannot start on the chosen model', async () => {
+    const d = deps({ checkModel: () => Promise.reject(new DomainError('invalid_input', 'anthropic/nope is not in this agent\'s model catalog.')) })
+    await expect(startPlannerChat(d, { ...request, model: 'anthropic/nope' })).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(d.chats.createChat).not.toHaveBeenCalled()
   })
 
   it('refuses with no_agent and creates nothing when no connected agent is signed in', async () => {

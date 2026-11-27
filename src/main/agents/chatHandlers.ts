@@ -16,7 +16,7 @@ import { z } from 'zod'
 import { boardContextText, type BoardContextBody } from '../../../resources/skitarii/extension/contextDelivery'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { attachmentRef, commentBody, LIMITS, parseInput, stableId } from '../../core/schemas'
-import { CHAT_ROLES, chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
+import { CHAT_ROLES, chatIdSchema, thinkingLevelSchema, type ChatRecord } from '../../shared/agents/chat'
 import type {
   BoundThread,
   ChatPushEvent,
@@ -52,6 +52,8 @@ import { findTransferChat, startTransferChat, transferPrompt, type TransferReads
 import { startPlannerChat, type PlannerAgents } from './plannerStart'
 import { startChatOnSurface } from './chatSurfaceStart'
 import type { AgentChatSessions } from '../agentChat/agentChatSessions'
+import type { OmpModels } from '../agentChat/ompModels'
+import { checkModelChoice } from './modelChoice'
 import type { TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
@@ -61,6 +63,8 @@ const MAX_MODEL_LENGTH = 200
 /** A folder as the renderer names it; bounded by the Windows long-path maximum. */
 export const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
 const modelSchema = z.string().min(1).max(MAX_MODEL_LENGTH)
+/** A Skitarii chat's thinking level, one of OMP's own words; `checkModelChoice` checks it against the model. */
+const thinkingSchema = thinkingLevelSchema.nullable().optional()
 const refShape = { folder: folderSchema.nullable(), chatId: chatIdSchema }
 const firstPromptSchema = z.string().min(1).max(32_000).refine((text) => text.trim().length > 0, 'First prompt must not be blank').optional()
 
@@ -69,6 +73,7 @@ const createSchema = z.strictObject({
   agent: agentIdSchema,
   role: z.enum(CHAT_ROLES),
   model: modelSchema.nullable().optional(),
+  thinking: thinkingSchema,
   allowSave: z.boolean().optional(),
   title: z.string().max(LIMITS.title).optional(),
   firstPrompt: firstPromptSchema
@@ -86,7 +91,8 @@ const startTransferSchema = z.strictObject({
   folder: folderSchema,
   epicId: stableId,
   agent: agentIdSchema,
-  model: modelSchema.nullable().optional()
+  model: modelSchema.nullable().optional(),
+  thinking: thinkingSchema
 })
 /** The person's additional instructions from Play or Start run, appended to the kickoff: as long as a first prompt, and not blank. */
 const instructionsSchema = z.string().max(32_000).refine((text) => text.trim().length > 0, 'Additional instructions must not be blank').optional()
@@ -106,12 +112,13 @@ const startKanbanCardSchema = z.strictObject({
   cardId: cardIdSchema,
   agent: agentIdSchema,
   model: modelSchema.nullable().optional(),
+  thinking: thinkingSchema,
   instructions: instructionsSchema
 })
 const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
 const epicIdSchema = stableId.regex(/^ep_/)
-const startPlannerSchema = z.strictObject({ folder: folderSchema, epicId: epicIdSchema })
+const startPlannerSchema = z.strictObject({ folder: folderSchema, epicId: epicIdSchema, model: modelSchema.nullable().optional(), thinking: thinkingSchema })
 const ticketIdSchema = stableId.regex(/^tk_/)
 const conversationTargetSchema = z.union([
   z.strictObject({ epicId: epicIdSchema, ticketId: ticketIdSchema.optional() }),
@@ -179,6 +186,8 @@ interface ChatHandlerDeps {
   onUnexpectedError?: (error: unknown) => void
   /** Writes a Skitarii Magos's worker-model catalog for Start run (`workerCatalog.ts`); without it none is written. */
   workerCatalog?: WorkerCatalog
+  /** The Skitarii catalogs a new chat's model and thinking level are checked against (`checkModelChoice`); without them a Skitarii chat starts only on its default. */
+  models?: Pick<OmpModels, 'catalogModels'>
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
@@ -256,6 +265,7 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
+  await checkModelChoice(deps, request.agent, request)
   const { runs, chats, terminals, agentChats, onUnexpectedError, workerCatalog } = deps
   const started = await startOrchestratorRun({
     runs, chats, terminals, agentChats,
@@ -273,6 +283,7 @@ async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<Sta
   const request = parseInput(startTransferSchema, input, 'transfer chat request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
+  await checkModelChoice(deps, request.agent, request)
   const { transfers, chats, terminals, agentChats, onUnexpectedError } = deps
   const started = await startTransferChat({ transfers, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
@@ -287,8 +298,11 @@ async function startPlanner(deps: ChatHandlerDeps, input: unknown): Promise<Star
   const folder = chatFolder(deps, request.folder)
   const { chats, terminals, agentChats, onUnexpectedError } = deps
   const started = await startPlannerChat(
-    { epics: deps.runs, agents: deps.plannerAgents, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) },
-    { epicId: request.epicId, folder }
+    {
+      epics: deps.runs, agents: deps.plannerAgents, chats, terminals, agentChats, checkModel: (agent, choice) => checkModelChoice(deps, agent, choice),
+      ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError })
+    },
+    { ...request, folder }
   )
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
@@ -301,6 +315,7 @@ async function startCard(deps: ChatHandlerDeps, input: unknown): Promise<StartKa
   const request = parseInput(startKanbanCardSchema, input, 'Kanban card request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
+  await checkModelChoice(deps, request.agent, request)
   const { kanban, chats, terminals, agentChats, onUnexpectedError } = deps
   const started = await startKanbanCard({ cards: kanban, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
@@ -350,10 +365,11 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 async function createChat(deps: ChatHandlerDeps, input: unknown): Promise<ChatRecord> {
   const request = parseInput(z.union([createSchema, summonSchema]), input, 'new chat')
   connectedAgent(deps.agents, request.agent)
-  const chat =
-    request.folder === null
-      ? await deps.chats.createChat({ ...request, role: 'orchestrator', allowSave: true })
-      : await deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
+  const target = request.folder === null
+    ? { ...request, role: 'orchestrator' as const, allowSave: true }
+    : { ...request, folder: chatFolder(deps, request.folder) }
+  await checkModelChoice(deps, request.agent, request)
+  const chat = await deps.chats.createChat(target)
   chatsChanged(deps, chat)
   return chat
 }

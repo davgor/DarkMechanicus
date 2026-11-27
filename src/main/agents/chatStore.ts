@@ -46,7 +46,7 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -245,6 +245,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     folder: location.folder,
     agent: input.agent,
     model: input.model,
+    ...(input.thinking == null ? {} : { thinking: input.thinking }),
     role: input.role,
     allowSave: input.allowSave,
     title: input.title ?? DEFAULT_TITLE,

@@ -108,6 +108,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
       agent,
       role: 'orchestrator',
       model: request.model ?? null,
+      ...(request.thinking == null ? {} : { thinking: request.thinking }),
       allowSave: true,
       title: orchestratorTitle(epic.title),
       runId: run.id,

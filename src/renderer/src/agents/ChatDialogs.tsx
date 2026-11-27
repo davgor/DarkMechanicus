@@ -1,26 +1,40 @@
 import { useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { ChatRecord } from '../../../shared/agents/chat'
+import type { ChatRecord, ThinkingLevel } from '../../../shared/agents/chat'
+import type { AgentId } from '../../../shared/desktop/api'
 import { AgentRolePicker } from '../agentRoles/AgentRolePicker'
 import type { AgentRole } from '../agentRoles/agentRoles'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { Field } from '../components/Field'
 import { MAX_TITLE } from '../home/newEpic'
+import { CatalogModelChoice } from './NewChatFields'
+
+/** The model and effort a Skitarii chat starts on; null and null for Default. */
+export interface StartingModel {
+  model: string | null
+  thinking: ThinkingLevel | null
+}
 
 interface FirstPromptDialogProps {
-  /** Called with the role only when `roles` shows the picker; a project-less chat's role is decided by main. */
-  onSubmit(prompt: string, role?: AgentRole): Promise<boolean>
+  /**
+   * Called with the role only when `roles` shows the picker (a project-less chat's role is decided by main), and then
+   * with the model too when `catalog` shows the model choice.
+   */
+  onSubmit(prompt: string, role?: AgentRole, model?: StartingModel): Promise<boolean>
   onClose(): void
   /** Asks for the role above the prompt: Magos (orchestrator, today's default) or Lexmechanic (planner). */
   roles?: boolean
+  /** A Skitarii agent's chat in a folder (with `roles`): its model and effort are chosen from its OMP catalog (`CatalogModelChoice`). */
+  catalog?: { folder: string; agent: AgentId }
 }
 
 /** Nothing is created until Start succeeds. Failed creation leaves the original text here. */
-export function FirstPromptDialog({ onSubmit, onClose, roles = false }: FirstPromptDialogProps): JSX.Element {
+export function FirstPromptDialog({ onSubmit, onClose, roles = false, catalog }: FirstPromptDialogProps): JSX.Element {
   const formId = useId()
   const [prompt, setPrompt] = useState('')
   const [role, setRole] = useState<AgentRole>('orchestrator')
+  const [model, setModel] = useState<StartingModel>({ model: null, thinking: null })
   const [busy, setBusy] = useState(false)
   const submitting = useRef(false)
   const close = (): void => { if (!submitting.current) onClose() }
@@ -30,7 +44,8 @@ export function FirstPromptDialog({ onSubmit, onClose, roles = false }: FirstPro
     submitting.current = true
     setBusy(true)
     try {
-      if (await (roles ? onSubmit(prompt, role) : onSubmit(prompt))) onClose()
+      const submitted = !roles ? onSubmit(prompt) : catalog === undefined ? onSubmit(prompt, role) : onSubmit(prompt, role, model)
+      if (await submitted) onClose()
     } finally {
       submitting.current = false
       setBusy(false)
@@ -50,6 +65,8 @@ export function FirstPromptDialog({ onSubmit, onClose, roles = false }: FirstPro
     >
       <form id={formId} className="form" onSubmit={(event) => void submit(event)}>
         {roles ? <div className="first-prompt-roles"><AgentRolePicker initial="orchestrator" onChoose={setRole} onSelect={setRole} /></div> : null}
+        {roles && catalog !== undefined && <CatalogModelChoice folder={catalog.folder} agent={catalog.agent} model={model.model} thinking={model.thinking}
+          onChange={(next, thinking) => setModel({ model: next, thinking })} />}
         <Field label="First prompt" rows={roles ? 4 : 6} maxLength={32_000} value={prompt} onChange={setPrompt} />
       </form>
     </Dialog>

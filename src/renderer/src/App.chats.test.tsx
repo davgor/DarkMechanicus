@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { chatModelOptions } from '../../shared/agents/models'
+import hostCatalog from '../../main/agentChat/__fixtures__/omp/models.json'
 import { AppHarness } from './__mocks__/appHarness'
+import type { FakeAgentChat } from './__mocks__/fakeAgentChat'
 import { agentView, chatRecord, folderView } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
 import { FakeChatMail } from './__mocks__/fakeChatMail'
@@ -166,6 +169,48 @@ describe('App new chat roles', () => {
     await submitFirstPrompt()
     expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'claude', model: null, role: 'planner', allowSave: true, firstPrompt: FIRST_PROMPT }]])
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('App new chat: a Skitarii model and effort', () => {
+  function connectSkitarii(): FakeAgentChat {
+    h.dm.agents = [agentView({ kind: 'omp' })]
+    h.dm.agentStatuses.omp = { state: 'signed_in', reason: 'x' }
+    const api = h.dm.agentChat as FakeAgentChat
+    api.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    return api
+  }
+
+  it('creates the Magos on the catalog model and effort chosen: Sonnet 5.5, Low', async () => {
+    const api = connectSkitarii()
+    await clickNewChat()
+    const dialog = within(screen.getByRole('dialog', { name: 'Start a new chat' }))
+    expect(api.callsOf('models')).toEqual([[{ folder: '/a', agentId: 'omp' }]])
+    fireEvent.click(dialog.getByRole('radio', { name: 'Magos' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Model: Default' }))
+    const menu = within(dialog.getByRole('menu', { name: 'Model and effort' }))
+    fireEvent.click(menu.getAllByRole('menuitemradio').find((entry) => entry.querySelector('.model-picker-name')?.textContent === 'Sonnet 5.5')!)
+    fireEvent.click(within(menu.getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'Low' }))
+    await settle()
+    expect(dialog.getByRole('button', { name: 'Model: Sonnet 5.5 · Low' })).toBeTruthy()
+    await submitFirstPrompt()
+    expect(h.dm.chats.callsOf('create')).toEqual([[{
+      folder: '/a', agent: 'omp', model: 'anthropic/claude-sonnet-5-5', thinking: 'low', role: 'orchestrator', allowSave: true, firstPrompt: FIRST_PROMPT
+    }]])
+  })
+
+  it('leaves model and thinking unset on Default', async () => {
+    connectSkitarii()
+    await clickNewChat()
+    await submitFirstPrompt()
+    expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'omp', model: null, role: 'orchestrator', allowSave: true, firstPrompt: FIRST_PROMPT }]])
+  })
+
+  it('asks no model of a Claude Code chat here', async () => {
+    connectClaude()
+    await clickNewChat()
+    expect(screen.queryByRole('button', { name: /^Model: / })).toBeNull()
+    expect((h.dm.agentChat as FakeAgentChat).callsOf('models')).toEqual([])
   })
 })
 

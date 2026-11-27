@@ -237,3 +237,12 @@
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
+
+/* The same picker as a start form's Model field (New chat, Start run, the Lexmechanic card): a bordered control. */
+.model-choice .model-picker-chip {
+  height: 32px;
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 13px;
+}

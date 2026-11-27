@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { StartKanbanCardResult } from '../../../shared/agents/chatApi'
 import { errorMessage } from '../api/dm'
 import { unwrapChat } from '../agents/chatCalls'
-import { useAgentModelChoice } from '../agents/useAgentModelChoice'
+import { startModel, useAgentModelChoice } from '../agents/useAgentModelChoice'
 import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
@@ -37,7 +37,7 @@ export function StartCardDialog({ folderPath, card, host, onStarted, onClose }: 
     setBusy(true)
     setProblem(null)
     try {
-      onStarted(await unwrapChat(window.dm.chats.startKanbanCard({ folder: folderPath, cardId: card.id, agent, model: choice.model, ...instructionsOf(instructions) })))
+      onStarted(await unwrapChat(window.dm.chats.startKanbanCard({ folder: folderPath, cardId: card.id, agent, ...startModel(choice), ...instructionsOf(instructions) })))
     } catch (error) {
       setProblem(errorMessage(error))
       setBusy(false)
@@ -56,6 +56,7 @@ export function StartCardDialog({ folderPath, card, host, onStarted, onClose }: 
       <div className="form">
         <RunWithAgentSection
           {...host}
+          folderPath={folderPath}
           hint={`Dark Mechanicus starts the agent on “${card.title}” and sends it the card. It cannot save plans.`}
           choice={choice}
           instructions={instructions}
