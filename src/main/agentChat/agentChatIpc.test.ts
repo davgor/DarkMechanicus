@@ -14,6 +14,7 @@ import { AGENT_CHAT_CHANNELS, type AgentChatEvent } from '../../shared/agents/ag
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { AttachmentView, CommentView } from '../../shared/domain/views'
+import { webpBytes } from '../../test/images'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import type { ChatWindow } from '../agents/chatIpc'
 import { createChatStore } from '../agents/chatStore'
@@ -280,7 +281,8 @@ async function evidenceRig() {
   const chat = (fields: Partial<ChatRecord> = {}): ChatRecord =>
     store.createChat({ folder, agent: 'omp', model: null, role: 'worker', allowSave: false, title: 'Sign-in review', ...fields })
   const image = async (owner: ChatRecord) => (await chatImages.put({ folder: owner.folder, chatId: owner.id }, SWATCH)).id
-  return { desktop, upload, folder, epicId: epic.id, ticketId, attach, chat, image }
+  const toolImage = async (owner: ChatRecord, bytes: Buffer) => (await chatImages.putToolImage({ folder: owner.folder, chatId: owner.id }, bytes)).id
+  return { desktop, upload, folder, epicId: epic.id, ticketId, attach, chat, image, toolImage }
 }
 
 describe('agentChat:attachEvidence on a real folder workspace', () => {
@@ -332,6 +334,16 @@ describe('agentChat:attachEvidence refusals', () => {
     expect(codeOf(await ask(projectless, await r.image(projectless)))).toBe('unauthorized')
     expect(codeOf(await r.attach({ folder: null, chatId: projectless.id, imageId: foreign, epicId: r.epicId }))).toBe('invalid_input')
     expect(codeOf(await ask(bound, foreign))).toBe('not_found')
+    expect(r.upload).not.toHaveBeenCalled()
+    expect(await r.desktop.listComments({ epicId: r.epicId })).toEqual([])
+  })
+
+  it('refuses a WebP tool image as invalid_input before staging anything', async () => {
+    const r = await evidenceRig()
+    const bound = r.chat({ epicId: r.epicId })
+    const webp = await r.toolImage(bound, webpBytes(64, 64))
+    const refused = await r.attach({ folder: r.folder, chatId: bound.id, imageId: webp, epicId: r.epicId, ticketId: r.ticketId })
+    expect(refused).toEqual({ ok: false, error: expect.objectContaining({ code: 'invalid_input', message: 'Only PNG and JPEG images can be attached as evidence; this one is WebP.' }) })
     expect(r.upload).not.toHaveBeenCalled()
     expect(await r.desktop.listComments({ epicId: r.epicId })).toEqual([])
   })

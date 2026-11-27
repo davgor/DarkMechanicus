@@ -179,4 +179,17 @@ describe('ChatImages Attach as evidence', () => {
     expect(within(button.closest('li')!).getByRole('alert').textContent).toBe('That chat is not bound to this epic.')
     expect(toasts).toEqual([])
   })
+
+  it('offers no Attach as evidence for a WebP a tool returned, which attachments refuse', async () => {
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: agentChatScenarios['image-result'].snapshot }
+    render(<AgentChat folder="/repo" folderKey={FOLDER_KEY} chatId={CHAT_ID} agentLabel="Magos" api={api} scheduler={new ManualScheduler()}
+      epic={{ epicId: 'ep_1', tickets: TICKETS, confirm: () => undefined }} />)
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: /^Worked for/ }))
+    const tool = screen.getByRole('listitem', { name: 'Tool call: Read' })
+    expect(within(tool).getByRole('button', { name: 'Open Image from agent, 1440x900' })).toBeTruthy()
+    expect(within(tool).queryByRole('button', { name: /as evidence/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Attach Image from you, 1280x800 as evidence to the epic' })).toBeTruthy()
+  })
 })

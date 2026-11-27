@@ -130,8 +130,9 @@ async function attachChatImage(
 
 /**
  * The `attachEvidence` request: the chat must be one of the folder's chats bound to the epic (else `unauthorized`), and
- * the image one of that chat's own (else `not_found`). Attaches of one image to one target run one after another, so
- * a repeat finds the first one's comment.
+ * the image one of that chat's own (else `not_found`) and a PNG or JPEG, as attachments are (else `invalid_input`, before
+ * anything is staged). Attaches of one image to one target run one after another, so a repeat finds the first one's
+ * comment.
  */
 function evidenceAttacher(registry: Pick<FolderRegistry, 'resolve'>, evidence: EvidenceDeps): (input: unknown) => Promise<AttachedEvidence> {
   const attaching = new Map<string, Promise<unknown>>()
@@ -146,6 +147,7 @@ function evidenceAttacher(registry: Pick<FolderRegistry, 'resolve'>, evidence: E
     }
     const image = await evidence.chatImages.read({ folder, chatId: chat.id }, request.imageId)
     if (image === null) throw new DomainError('not_found', 'That image is not in this chat.')
+    if (image.mime === 'image/webp') throw new DomainError('invalid_input', 'Only PNG and JPEG images can be attached as evidence; this one is WebP.')
     const key = JSON.stringify([folder, chat.id, request.imageId, request.ticketId ?? request.epicId])
     const attach = (attaching.get(key) ?? Promise.resolve()).catch(() => undefined)
       .then(() => attachChatImage(workspace, chat, request, image.bytes))

@@ -157,7 +157,8 @@ export function ChatImages({ from, images, imageSrc }: ChatImagesProps): JSX.Ele
             <button type="button" className="chat-image-thumb" aria-label={`Open ${item.label}`} onClick={() => setOpenIndex(index)}>
               <Picture item={item} srcOf={srcOf} broken={broken} onBroken={onBroken} className="chat-image-picture" loading="lazy" />
             </button>
-            <AttachEvidence imageId={item.id} label={item.label} />
+            {/* Attachments are PNG or JPEG only (decision 0006): a WebP a tool returned is not offered. */}
+            {item.ref.mime !== 'image/webp' && <AttachEvidence imageId={item.id} label={item.label} />}
           </li>
         ))}
       </ul>
