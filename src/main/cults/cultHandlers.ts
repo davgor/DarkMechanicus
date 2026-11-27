@@ -12,7 +12,7 @@ import { fail } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
 import { chatIdSchema } from '../../shared/agents/chat'
 import { ARCHETYPE_INFO, CULT_ARCHETYPES, CUSTOM_WORKER_TYPE, STANDARD_WORKER_TYPES, WORKER_TYPE_INFO } from '../../shared/cults/archetypes'
-import type { CultInput, CultMemberView, CultPetitionView, CultView } from '../../shared/cults/cult'
+import type { CultInput, CultMemberView, CultPetitionView, CultRunView, CultView } from '../../shared/cults/cult'
 import {
   CULT_EVENT_CHANNEL,
   type CultCatalogView,
@@ -22,6 +22,7 @@ import {
   type CultRunDetail,
   type RunWorkerTypeDetail
 } from '../../shared/cults/cultApi'
+import { shrineKind } from '../../shared/cults/shrine'
 import { MAX_CAP, MAX_SHUTDOWN_TIMING_MS, MIN_CAP, MIN_SHUTDOWN_TIMING_MS, MIN_TIME_LIMIT_MS } from '../../shared/cults/runState'
 import type { CommandResult } from '../../shared/desktop/api'
 import { answer } from '../agents/chatHandlers'
@@ -75,7 +76,7 @@ const overridesSchema = z.strictObject({
 const pipelineSchema = z.strictObject({ afterSeq: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(500) })
 
 export interface CultHandlerDeps {
-  cults: Pick<CultStore, 'getCult' | 'listCults' | 'createCult' | 'updateCult' | 'listRuns' | 'getRun' | 'listMembers' | 'listPetitions' | 'slotCoverage' | 'listWorkerTypes' | 'listReports' | 'latestSynthesis'>
+  cults: Pick<CultStore, 'getCult' | 'listCults' | 'createCult' | 'updateCult' | 'listRuns' | 'getRun' | 'listMembers' | 'listPetitions' | 'slotCoverage' | 'listWorkerTypes' | 'listReports' | 'latestSynthesis' | 'latestShrineEvent'>
   supervisor: Pick<CultSupervisor, 'start' | 'pause' | 'resume' | 'stop' | 'killNow' | 'raiseCap' | 'decidePetition' | 'dismissAcolyte' | 'endRun' | 'on' | 'snapshot'>
   launcher: Pick<CultLauncher, 'deleteCult'>
   /** The Folders registry only: a sanctum is never a folder the renderer may name. */
@@ -177,6 +178,14 @@ function synthesisOf(cults: Cults, runId: string): CultRunDetail['synthesis'] {
   return { draftRevision: synthesis.draftRevision, accepted, rejected: synthesis.recommendations.length - accepted, recordedAt: synthesis.recordedAt }
 }
 
+/** The run's published Shrine with who published it and when it last changed; null before any publish. */
+function shrineOf(cults: Cults, run: CultRunView): CultRunDetail['shrine'] {
+  const kind = run.shrinePath === null ? null : shrineKind(run.shrinePath)
+  if (run.shrinePath === null || run.shrineRevision === null || kind === null) return null
+  const last = cults.latestShrineEvent(run.id)
+  return { path: run.shrinePath, revision: run.shrineRevision, kind, publishedBy: last?.memberName ?? null, updatedAt: last?.at ?? run.startedAt }
+}
+
 /** A run snapshot as the renderer sees it: members with their type origin and report state, coverage, created types and synthesis. */
 function runDetail(deps: Pick<CultHandlerDeps, 'cults'>, snapshot: CultRunSnapshot): CultRunDetail {
   const { run } = snapshot
@@ -191,7 +200,8 @@ function runDetail(deps: Pick<CultHandlerDeps, 'cults'>, snapshot: CultRunSnapsh
       slots: slots.filter((slot) => slot.required && slot.reportCount === 0).map((slot) => slot.slotId),
       workerTypes: workerTypes.filter((type) => type.requiredForConclusion && type.state === 'active' && type.reportCount === 0).map((type) => type.id)
     },
-    synthesis: synthesisOf(cults, run.id)
+    synthesis: synthesisOf(cults, run.id),
+    shrine: shrineOf(cults, run)
   }
 }
 

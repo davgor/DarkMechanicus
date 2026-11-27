@@ -23,6 +23,7 @@ import { newCultId } from './cultRecords'
 import type { CultStore } from './cultStore'
 import { requireRunningRun, type CultSupervisor } from './cultSupervisor'
 import type { PlanForgeCouncil } from './planForgeCouncil'
+import type { CultShrines } from './cultShrine'
 import { createWorkerType, listWorkerTypes, requireSummonableType, retireWorkerType, type WorkerTypeDeps } from './dynamicWorkerTypes'
 import { cheapest, type CultModelOption, TIER_RANK } from './ompModels'
 
@@ -43,6 +44,8 @@ export interface CultCommandDeps {
   sendOrder: (order: CultOrderSend) => Promise<string[]>
   /** The Plan Forge council (DM-738): the conclusion gate, state and synthesis of the runs it governs. */
   council?: Pick<PlanForgeCouncil, 'governs' | 'status' | 'assertConclusion' | 'recordSynthesis'>
+  /** The run Shrines (DM-632): `cult_publish_shrine` is `operation_unavailable` without them. */
+  shrines?: Pick<CultShrines, 'publish'>
   /** The target revision a specialist saw when it reported; null when the run has no target. */
   targetRevision?: (run: CultRunView) => Promise<string | null>
   now?: () => string
@@ -239,6 +242,12 @@ function recordSynthesis(deps: CultCommandDeps, { run, member }: Caller, args: C
   return deps.council.recordSynthesis(run, member, args)
 }
 
+/** A member publishes one file of the run's work dir as its Shrine; main checks it (`cultShrine.ts`). */
+function publishShrine(deps: CultCommandDeps, { run, member }: Caller, args: { path: string }) {
+  if (deps.shrines === undefined) throw new NamingControlError('operation_unavailable')
+  return deps.shrines.publish(run, member, args.path)
+}
+
 const HANDLERS: Readonly<Record<CultOperation['op'], Handler>> = {
   cult_status: status,
   cult_summon_acolyte: summon,
@@ -251,7 +260,8 @@ const HANDLERS: Readonly<Record<CultOperation['op'], Handler>> = {
   cult_create_worker_type: createWorkerType,
   cult_list_worker_types: listWorkerTypes,
   cult_retire_worker_type: retireWorkerType,
-  cult_record_synthesis: recordSynthesis
+  cult_record_synthesis: recordSynthesis,
+  cult_publish_shrine: publishShrine
 }
 
 /** The pipe dispatcher for cult operations; any other operation is not its to serve. */

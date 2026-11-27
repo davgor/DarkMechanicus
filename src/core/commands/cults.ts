@@ -4,7 +4,7 @@ import { DomainError } from '../errors'
 import {
   cultAcolytesResultSchema, cultConcludeRunResultSchema, cultConcludeServiceResultSchema, cultDismissResultSchema,
   cultOrderAllResultSchema, cultPetitionResultSchema, cultStatusResultSchema, cultSummonResultSchema,
-  cultRetireWorkerTypeResultSchema, cultSynthesisResultSchema, cultWorkerTypeResultSchema, cultWorkerTypesResultSchema, type CultOperation, type CultOperationName
+  cultRetireWorkerTypeResultSchema, cultShrineResultSchema, cultSynthesisResultSchema, cultWorkerTypeResultSchema, cultWorkerTypesResultSchema, type CultOperation, type CultOperationName
 } from '../../shared/cults/cultControl'
 import type { z } from 'zod'
 import type { CommandTable, WorkspaceCore } from './types'
@@ -85,5 +85,10 @@ export const cultCommands = {
     schema: COMMAND_SCHEMAS.cultRecordSynthesis,
     mutates: false,
     run: (core, input) => relay(core, op('cult_record_synthesis', input), cultSynthesisResultSchema)
+  },
+  cultPublishShrine: {
+    schema: COMMAND_SCHEMAS.cultPublishShrine,
+    mutates: false,
+    run: (core, input) => relay(core, op('cult_publish_shrine', input), cultShrineResultSchema)
   }
 } satisfies Partial<CommandTable>

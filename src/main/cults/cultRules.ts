@@ -47,7 +47,8 @@ export const CULT_TOOLS = {
   createWorkerType: 'cult_create_worker_type',
   listWorkerTypes: 'cult_list_worker_types',
   retireWorkerType: 'cult_retire_worker_type',
-  recordSynthesis: 'cult_record_synthesis'
+  recordSynthesis: 'cult_record_synthesis',
+  shrine: 'cult_shrine'
 } as const
 
 /** The epic a Plan Forge cult works on, with its revisions as read when the member started. */
@@ -104,6 +105,11 @@ function magosLimits(run: CultRunContext): string[] {
   ]
 }
 
+/** Every member may show the run's work on its Shrine. */
+function shrineLine(): string {
+  return `Shrine: show what the run makes with \`${T.shrine}\` and the path of one png, jpg, jpeg, svg or html file in this folder (at most 10 MiB); editing that file updates the Shrine.`
+}
+
 function magosAuthority(): string[] {
   return [
     `Saving and other folders: petition before saving a plan or touching another folder (\`${T.petition}\` kind`,
@@ -112,7 +118,8 @@ function magosAuthority(): string[] {
     'Folder work: split it by file. Give each acolyte its own files, so no two acolytes edit the same file.',
     `Coordination: talk to your acolytes over the Skitarii mailbox. Use \`${T.orderAll}\` for an order every acolyte`,
     'must follow: it sends one message to each live acolyte at once. Use `send_agent_message` for an order to one',
-    `acolyte. \`${T.listAcolytes}\` and \`${T.status}\` show who serves and how much time is left.`
+    `acolyte. \`${T.listAcolytes}\` and \`${T.status}\` show who serves and how much time is left.`,
+    shrineLine()
   ]
 }
 
@@ -235,6 +242,7 @@ export function acolyteRules(run: CultRunContext, member: { name: string; worker
     ...(run.target === null ? [] : planForgeAcolyte(run.target)),
     '',
     'Report to your Magos over the Skitarii mailbox, and edit only the files your Magos assigned to you.',
+    shrineLine(),
     'You do not summon acolytes, petition or save plans.',
     `Conclude when ordered: when your Magos orders you to conclude, finish within ${formatDuration(run.acolyteGraceMs)},`,
     `send your final report with \`${T.concludeService}\`, tell your Magos, and stop.`

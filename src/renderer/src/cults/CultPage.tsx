@@ -19,6 +19,7 @@ import { MemberInspector, RosterStrip } from './CultRoster'
 import { activeRunOf, rosterOf, type RosterMember } from './cultPageModel'
 import { PastRunsDrawer } from './PastRunsDrawer'
 import { PetitionBanners } from './PetitionBanners'
+import { ShrinePanel } from './ShrinePanel'
 import { useChamberLog, useCultEntry } from './useCultPage'
 import './cultPage.css'
 
@@ -148,10 +149,11 @@ interface RoomProps {
   onSelectMember(id: string): void
 }
 
-/** The chamber for the active run, fed what its snapshots tell; the viewscreen is left for the shrine ticket. */
+/** The chamber for the active run, fed what its snapshots tell; its viewscreen shows the run's Shrine, live (compact). */
 function RoomScene({ run, roster, selectedMemberId, onSelectMember }: RoomProps): JSX.Element {
   const events = useChamberLog(run)
   const members = useMemo(() => chamberMembers(roster), [roster])
   const seed = useMemo(() => [...run.run.id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 7), [run.run.id])
-  return <CultChamber events={events} seed={seed} members={members} selectedMemberId={selectedMemberId} onSelectMember={onSelectMember} />
+  return <CultChamber events={events} seed={seed} members={members} selectedMemberId={selectedMemberId} onSelectMember={onSelectMember}
+    viewscreen={<ShrinePanel runId={run.run.id} shrine={run.shrine} compact />} />
 }

@@ -60,6 +60,7 @@ const PROBES: Record<CommandName, unknown> = {
   },
   cultListWorkerTypes: undefined,
   cultRetireWorkerType: { workerTypeId: 'dyn_1', reason: 'Probe reason.' },
+  cultPublishShrine: { path: 'shrine.html' },
   cultRecordSynthesis: { draftRevision: 1, recommendations: [{ workerType: 'security', recommendation: 'Probe.', decision: 'accepted', reason: 'Probe.' }] },
   getCapabilities: undefined,
   getProject: undefined,

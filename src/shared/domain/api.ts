@@ -482,6 +482,8 @@ export interface CommandApi {
   cultRetireWorkerType(input: CultRetireWorkerTypeArgs): Promise<{ retired: string }>
   /** Magos (Plan Forge): its synthesis of the reports for its latest draft edit, before it concludes. */
   cultRecordSynthesis(input: CultRecordSynthesisArgs): Promise<{ draftRevision: number; accepted: number; rejected: number }>
+  /** Magos or acolyte: shows one png, jpg, jpeg, svg or html file of the run's work dir (at most 10 MiB) on its Shrine. */
+  cultPublishShrine(input: { path: string }): Promise<{ shrinePath: string; kind: 'image' | 'html'; revision: string }>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>

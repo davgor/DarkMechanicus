@@ -3,7 +3,8 @@
  * handlers validate it and drive the real supervisor, store and launcher, and every run change reaches the windows as a
  * `cults:event` snapshot. Magos commands go through the real control pipe, as a member's `dm` sends them.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createDesktopClient } from '../../core/desktop/desktopClient'
 import type { NamingOperation, NamingReply } from '../../shared/agents/chatNaming'
@@ -19,6 +20,7 @@ import { createCultDispatcher, planTargetRevision } from './cultCommands'
 import { cultControlPath } from './cultControl'
 import { announcingDispatcher, createCultHandlers, forwardCultEvents, registerCultIpc } from './cultHandlers'
 import { createCultLedger } from './cultLedger'
+import { createCultShrines, type CultShrines } from './cultShrine'
 import { createCultSupervisor, type CultSupervisor } from './cultSupervisor'
 import { parseOmpModels } from './ompModels'
 
@@ -39,6 +41,8 @@ interface Fixture {
   stopForwarding: () => void
   /** Whether the supervisor hears member exits: off, a relaunch looks to it like the same member launching again. */
   hearing: { exits: boolean }
+  /** The run Shrines on the real file watch, as `startCults` wires them, with their reconcile on the run's fake clock. */
+  shrines: CultShrines
 }
 
 let f: Fixture
@@ -70,8 +74,9 @@ beforeEach(async () => {
   const h = await cultHarness({ now: () => new Date(BASE + clock.now).toISOString(), exitOnKill: true })
   const hearing = { exits: true }
   const supervisor = supervisorOver(h, clock, hearing)
+  const shrines = createCultShrines({ cults: h.cults, supervisor, clock: { after: (callback, ms) => clock.after(callback, ms) } })
   const dispatch = announcingDispatcher(createCultDispatcher({
-    supervisor, cults: h.cults, council: h.council, models: async () => MODELS,
+    supervisor, cults: h.cults, council: h.council, shrines, models: async () => MODELS,
     sendOrder: (order) => h.pool.get(order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(h.cults, (folder, epicId) => h.pool.get(folder).getEpic({ epicId }))
   }), supervisor)
@@ -90,10 +95,11 @@ beforeEach(async () => {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send: (channel: string, event: unknown) => channel === CULT_EVENT_CHANNEL && pushed.push(event as CultPushEvent) }
   }
-  f = { h, supervisor, clock, pipe, channels, pushed, hearing, stopForwarding: forwardCultEvents(services, () => [window]) }
+  f = { h, supervisor, clock, pipe, channels, pushed, hearing, shrines, stopForwarding: forwardCultEvents(services, () => [window]) }
 })
 
 afterEach(async () => {
+  f.shrines.dispose()
   f.stopForwarding()
   await f.pipe.close()
   await f.supervisor.dispose()
@@ -399,5 +405,53 @@ describe('cults IPC: Magos-created types and reports (c8)', () => {
     expect(f.h.cults.listWorkerTypes(run.id).map((type) => type.id)).toEqual(['dyn_1'])
     expect(f.h.cults.getCult(cult.id)?.slots).toEqual(cult.slots)
     expect(f.h.cults.listMembers(run.id).map((member) => [member.workerType, member.runWorkerTypeId])).toEqual([[null, null]])
+  })
+})
+
+describe('cults IPC: the live Shrine (DM-632)', () => {
+  /** A member command through the pipe that is refused, with its code. */
+  async function refusedCode(member: { chatId: string }, op: string, args: object): Promise<string> {
+    const token = ptyOf(f.h, member).spec.env['DM_SESSION_TOKEN']!
+    const reply: NamingReply = await createDesktopClient({ env: { DM_DESKTOP_PIPE: f.pipe.address, DM_SESSION_TOKEN: token } }).request({ op, args } as NamingOperation)
+    return reply.ok ? 'accepted' : reply.error.code
+  }
+
+  it('a Magos and an acolyte publish through cult_publish_shrine; each publish and each edit reaches cults:event with a new revision', async () => {
+    const { run, magos } = await startedRun()
+    const page = join(run.workDir, 'shrine.html')
+    writeFileSync(page, '<h1>Gerry, day 1</h1>')
+    expect(await command(magos, 'cult_publish_shrine', { path: 'shrine.html' })).toEqual({ shrinePath: page, kind: 'html', revision: '1' })
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, revision: '1', kind: 'html', publishedBy: 'Magos Ferrum' })
+
+    writeFileSync(page, '<h1>Gerry, day 2: a new leaf</h1>')
+    // The watch's reconcile runs on the run clock: the edit is told whether or not the OS delivered its event.
+    f.clock.advance(0)
+    await f.shrines.settled()
+    expect(lastSnapshot(run.id)?.shrine?.revision).toBe('2')
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, publishedBy: 'Magos Ferrum' })
+
+    await command(magos, 'cult_summon_acolyte', { mission: 'Paint Gerry.', name: 'Acolyte Brass' })
+    const brass = (await data(invoke<CultRunDetail[]>('runs', run.cultId)))[0]!.members.find((member) => member.displayName === 'Acolyte Brass')!
+    writeFileSync(join(run.workDir, 'gerry.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    expect(await command(brass, 'cult_publish_shrine', { path: 'gerry.svg' })).toMatchObject({ kind: 'image', revision: '3' })
+    expect(lastSnapshot(run.id)?.shrine).toMatchObject({ kind: 'image', revision: '3', publishedBy: 'Acolyte Brass' })
+  })
+
+  it('refuses an unsafe candidate over the pipe with shrine_refused, and records nothing', async () => {
+    const { run, magos } = await startedRun()
+    writeFileSync(join(run.workDir, 'notes.txt'), 'plain')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: 'notes.txt' })).toBe('shrine_refused')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: '../../outside.png' })).toBe('shrine_refused')
+    expect(await refusedCode(magos, 'cult_publish_shrine', { path: 'a.png', runId: run.id })).toBe('invalid_request')
+    expect(f.h.cults.getRun(run.id)?.shrinePath).toBeNull()
+  })
+
+  it('stops watching the Shrine when the run ends', async () => {
+    const { run, magos } = await startedRun()
+    writeFileSync(join(run.workDir, 'shrine.png'), 'png')
+    await command(magos, 'cult_publish_shrine', { path: 'shrine.png' })
+    expect(f.shrines.watching(run.id)).toBe(true)
+    await data(invoke('killNow', run.id))
+    expect(f.shrines.watching(run.id)).toBe(false)
   })
 })
