@@ -937,14 +937,15 @@ async function stream(session, signal) {
 /** The tool card's state; an ended turn folds its work behind a `Worked for` row, so a missing card opens the newest folded row. */
 function toolCard(_h, name, state) {
   const section = document.querySelector('section.agent-chat')
-  const card = section?.querySelector(`.chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
+  if (!section) return { ok: false, section: false }
+  const card = section.querySelector(`.chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
   if (!card) {
-    const folded = [...(section?.querySelectorAll('.chat-work-toggle[aria-expanded="false"]') ?? [])].at(-1)
-    folded?.click()
-    return { ok: false, found: false, opened: folded?.textContent ?? null }
+    const folded = [...section.querySelectorAll('.chat-work-toggle[aria-expanded="false"]')].at(-1)
+    if (folded) folded.click()
+    return { ok: false, found: false, opened: Boolean(folded) }
   }
-  const pill = card.querySelector('[data-state]')
-  return { ok: pill?.getAttribute('data-state') === state, found: true, state: pill?.getAttribute('data-state') ?? null, pill: pill?.textContent ?? null }
+  const actual = card.querySelector('[data-state]')?.getAttribute('data-state') ?? null
+  return { ok: actual === state, found: true, state: actual }
 }
 
 /** Step 3: `[tool]` shows a tool card that finishes. */
