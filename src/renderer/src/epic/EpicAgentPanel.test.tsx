@@ -403,4 +403,25 @@ describe('EpicAgentPanel: needs you header and pushes', () => {
     expect(within(rail).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
     expect(header(rail)).not.toContain('needs you')
   })
+
+  it('badges an unwatched chat’s row for its subagent’s prompt and never counts prompts queued behind a shown head', async () => {
+    const planner = chatRecord({
+      id: 'chat_plan', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+    })
+    const backend = backendWith()
+    backend.agentChat.attentionResult = { ok: true, data: [
+      { ...prompt('th_9', 'off'), chatId: 'chat_plan', promptId: 'p_plan' },
+      prompt('th_1', 'deciding'),
+      { ...prompt('th_1', 'off'), promptId: 'p_queued', shown: false }
+    ] }
+    openAgent(backend, [orchestrator, planner])
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    const lexmechanic = await within(rail).findByRole('treeitem', { name: 'Lexmechanic' })
+    expect(await within(lexmechanic).findByRole('button', { name: 'Lexmechanic needs you' })).toBeTruthy()
+    const worker = await within(rail).findByRole('treeitem', { name: 'Acolyte:DM-201' })
+    expect(within(worker).getByRole('img', { name: 'Magos deciding' })).toBeTruthy()
+    expect(within(worker).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
+    expect(header(rail)).toMatch(/^1 needs you/)
+  })
 })
