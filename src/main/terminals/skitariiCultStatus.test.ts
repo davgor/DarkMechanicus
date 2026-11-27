@@ -2,9 +2,10 @@
  * The member's cult status writer (`resources/skitarii/extension/cultStatus.ts`) on a scratch userData, read back by
  * main's real activity tracker (`src/main/cults/memberActivity.ts`) on a fake clock.
  */
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { closeSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   attachCultStatus,
@@ -56,6 +57,9 @@ function member() {
 }
 
 const onDisk = (): unknown => JSON.parse(readFileSync(statusPath(), 'utf8'))
+/** The writer's paths relative to the chat folder, so the expected calls read the same on every platform. */
+const inChat = (path: string): string => relative(chatDir(), path)
+const busy = (code: string): Error => Object.assign(new Error(`${code}: rename refused`), { code })
 
 describe('cult status writer', () => {
   it('writes idle at session start and working at turn start, in a 0600 file with nothing beside it', async () => {
@@ -67,7 +71,8 @@ describe('cult status writer', () => {
     emit('agent_start', MAIN)
     await writer.write('working')
     expect(onDisk()).toEqual({ state: 'working' })
-    expect(statSync(statusPath()).mode & 0o777).toBe(0o600)
+    // Windows keeps no POSIX mode bits: a file there reads back as 0666 whatever mode it was written with.
+    if (process.platform !== 'win32') expect(statSync(statusPath()).mode & 0o777).toBe(0o600)
     expect(readdirSync(chatDir())).toEqual([CULT_STATUS_FILE])
   })
 
@@ -86,7 +91,7 @@ describe('cult status writer', () => {
   })
 
   it('ignores a subagent\'s and an unidentified session\'s events', async () => {
-    const io = { writeFile: vi.fn(async () => {}), rename: vi.fn(async () => {}) }
+    const io = { writeFile: vi.fn(async () => {}), rename: vi.fn(async () => {}), pause: vi.fn(async () => {}) }
     const { pi, emit } = fakePi()
     attachCultStatus(pi, cultStatusWriter(env(), io)!)
     for (const event of ['session_start', 'agent_start', 'tool_execution_start', 'agent_end']) {
@@ -106,10 +111,11 @@ describe('cult status writes', () => {
     const first = new Promise<void>((resolve) => { release = resolve })
     const io = {
       writeFile: vi.fn(async (path: string, text: string, options: { mode: number }) => {
-        calls.push(`write ${path.slice(chatDir().length)} ${text} ${options.mode.toString(8)}`)
+        calls.push(`write ${inChat(path)} ${text} ${options.mode.toString(8)}`)
         if (calls.length === 1) await first
       }),
-      rename: vi.fn(async (from: string, to: string) => { calls.push(`rename ${from.slice(chatDir().length)} ${to.slice(chatDir().length)}`) })
+      rename: vi.fn(async (from: string, to: string) => { calls.push(`rename ${inChat(from)} ${inChat(to)}`) }),
+      pause: vi.fn(async () => {})
     }
     const writer = cultStatusWriter(env(), io, 42)!
     void writer.write('working')
@@ -118,13 +124,17 @@ describe('cult status writes', () => {
     release()
     await last
     expect(calls).toEqual([
-      '/.cult-status.json.42.tmp {"state":"working"} 600', '/.cult-status.json.42.tmp /cult-status.json',
-      '/.cult-status.json.42.tmp {"state":"idle"} 600', '/.cult-status.json.42.tmp /cult-status.json'
+      '.cult-status.json.42.tmp {"state":"working"} 600', '.cult-status.json.42.tmp cult-status.json',
+      '.cult-status.json.42.tmp {"state":"idle"} 600', '.cult-status.json.42.tmp cult-status.json'
     ].map((line, i) => (i % 2 === 0 ? `write ${line}` : `rename ${line}`)))
   })
 
   it('writes again after a failed write', async () => {
-    const io = { writeFile: vi.fn().mockRejectedValueOnce(new Error('EACCES')).mockResolvedValue(undefined), rename: vi.fn(async () => {}) }
+    const io = {
+      writeFile: vi.fn().mockRejectedValueOnce(new Error('EACCES')).mockResolvedValue(undefined),
+      rename: vi.fn(async () => {}),
+      pause: vi.fn(async () => {})
+    }
     const writer = cultStatusWriter(env(), io)!
     await writer.write('working')
     await writer.write('working')
@@ -136,6 +146,57 @@ describe('cult status writes', () => {
     expect(cultStatusWriter({})).toBeNull()
     expect(cultStatusWriter({ [DM_CLIENT_DESCRIPTOR_ENV]: 'rel/launch-1.json' })).toBeNull()
     expect(cultStatusWriter({ [DM_CLIENT_DESCRIPTOR_ENV]: '/u/agents/omp/chat/dm-client/launch-1.txt' })).toBeNull()
+  })
+})
+
+describe('a busy rename onto the status file', () => {
+  it('asks again after a 50 ms pause each time Windows refuses it as busy, then renames', async () => {
+    const io = {
+      writeFile: vi.fn(async () => {}),
+      rename: vi.fn().mockRejectedValueOnce(busy('EPERM')).mockRejectedValueOnce(busy('EBUSY')).mockResolvedValue(undefined),
+      pause: vi.fn(async () => {})
+    }
+    const writer = cultStatusWriter(env(), io)!
+    await writer.write('working')
+    expect(io.rename).toHaveBeenCalledTimes(3)
+    expect(io.pause.mock.calls).toEqual([[50], [50]])
+    await writer.write('working')
+    expect(io.writeFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up after ten busy refusals, or at once on any other error, and writes again on the next event', async () => {
+    const io = { writeFile: vi.fn(async () => {}), rename: vi.fn().mockRejectedValue(busy('EACCES')), pause: vi.fn(async () => {}) }
+    const writer = cultStatusWriter(env(), io)!
+    await writer.write('working')
+    expect([io.rename.mock.calls.length, io.pause.mock.calls.length]).toEqual([10, 9])
+    io.rename.mockReset().mockRejectedValueOnce(busy('ENOENT')).mockResolvedValue(undefined)
+    await writer.write('working')
+    expect([io.rename.mock.calls.length, io.pause.mock.calls.length]).toEqual([1, 9])
+    await writer.write('working')
+    expect([io.writeFile.mock.calls.length, io.rename.mock.calls.length]).toEqual([3, 2])
+  })
+
+  it('replaces the status file while main holds it open to read it', async () => {
+    writeFileSync(statusPath(), JSON.stringify({ state: 'idle' }))
+    // As main's activity tracker does each poll. Windows may refuse a rename onto the open file; it is closed after
+    // the first rename asked, whatever that rename answered, so a refused one succeeds when asked again.
+    let reader: number | null = openSync(statusPath(), 'r')
+    const closeReader = (): void => {
+      if (reader !== null) closeSync(reader)
+      reader = null
+    }
+    const io = {
+      writeFile: (path: string, text: string, options: { mode: number }) => writeFile(path, text, options),
+      rename: (from: string, to: string) => rename(from, to).finally(closeReader),
+      pause: async () => {}
+    }
+    try {
+      await cultStatusWriter(env(), io)!.write('working')
+    } finally {
+      closeReader()
+    }
+    expect(onDisk()).toEqual({ state: 'working' })
+    expect(readdirSync(chatDir())).toEqual([CULT_STATUS_FILE])
   })
 })
 
