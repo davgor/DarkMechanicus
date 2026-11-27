@@ -303,4 +303,13 @@ describe('the chat composer card', () => {
     expect(rules.get('.chat-composer-send')?.['border-radius']).toBe('50%')
     expect(rules.get('.chat-composer-stop')?.['border-radius']).toBe('8px')
   })
+
+  it('draws one focus ring: the card edge, with the field\'s own :focus-visible outline beating the global ring', () => {
+    const rules = rulesOf(SHEETS['./agentChat/chatComposer.css'] ?? '')
+    expect(rules.get('.chat-composer.glass:focus-within')?.['border-color']).toBe('var(--ring)')
+    // The global `:focus-visible` ring loads after this sheet; only a selector at least as specific as
+    // `.chat-composer-input:focus-visible` removes it from the field.
+    expect(rules.get('.chat-composer-input:focus-visible')?.outline).toBe('none')
+    expect(rules.get('.chat-composer-input')?.outline).toBeUndefined()
+  })
 })

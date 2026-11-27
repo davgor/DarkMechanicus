@@ -34,13 +34,20 @@
   margin: 0;
   padding: 4px 0;
   border: 0;
-  outline: none;
   background: transparent;
   color: var(--ink);
   font: inherit;
   line-height: 1.5;
   resize: none;
   overflow-y: hidden;
+}
+
+/*
+ * The card's :focus-within edge is the field's one focus ring. This sheet loads before styles.css, so a plain
+ * `outline: none` here lost to the global :focus-visible ring and drew a second ring inside the card.
+ */
+.chat-composer-input:focus-visible {
+  outline: none;
 }
 
 .chat-composer-input::placeholder {
