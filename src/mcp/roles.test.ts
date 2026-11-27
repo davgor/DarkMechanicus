@@ -68,6 +68,10 @@ const READ_TOOLS = [
 /** Every role may comment. */
 const COMMENT_TOOLS = ['ask_human', 'add_comment', 'add_kanban_message', 'name_chat']
 
+/** browser.drive: only orchestrators and workers drive their GUI chat's in-app browser. */
+const BROWSER_READ_TOOLS = ['browser_status', 'browser_read']
+const BROWSER_TOOLS = [...BROWSER_READ_TOOLS, 'browser_navigate', 'browser_click', 'browser_type', 'browser_press', 'browser_screenshot']
+
 /** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
 const ATTACHMENT_WRITE_TOOLS = ['add_attachment']
 
@@ -151,7 +155,8 @@ const ORCHESTRATOR_TOOLS = [
   'record_attempt_metrics',
   'record_run_metrics',
   // Later statuses and results of retro experiments (report.submit).
-  'record_experiment_event'
+  'record_experiment_event',
+  ...BROWSER_TOOLS
 ]
 
 const WORKER_TOOLS = [
@@ -165,7 +170,8 @@ const WORKER_TOOLS = [
   'heartbeat_kanban_card',
   'submit_kanban_card',
   'fail_kanban_card',
-  'record_attempt_metrics'
+  'record_attempt_metrics',
+  ...BROWSER_TOOLS
 ]
 const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, ...MAIL_TOOLS, 'accept_attempt', 'reject_attempt', 'record_run_metrics']
 
@@ -203,11 +209,11 @@ describe('tools/list per role', () => {
     })
   })
 
-  it.each(LISTINGS)('lists every read-only tool to the $role (allowSave $allowSave)', async ({ role, allowSave }) => {
+  it.each(LISTINGS)('lists every read-only tool to the $role (allowSave $allowSave)', async ({ role, allowSave, tools: granted }) => {
     await withRig(serverFor(role, allowSave), createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const readOnly = tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name)
-      expect(readOnly.sort()).toEqual([...READ_TOOLS, ...MAIL_READ_TOOLS].sort())
+      expect(readOnly.sort()).toEqual([...READ_TOOLS, ...MAIL_READ_TOOLS, ...BROWSER_READ_TOOLS.filter((name) => granted.includes(name))].sort())
     })
   })
 
@@ -216,6 +222,26 @@ describe('tools/list per role', () => {
       const kanban = (await rig.client.listTools()).tools.map((tool) => tool.name).filter((name) => name.includes('kanban'))
       expect(kanban.filter((name) => /play|approve|kick/.test(name))).toEqual([])
       expect(kanban.length).toBeGreaterThan(0)
+    })
+  })
+})
+
+describe('the browser tools', () => {
+  it.each(['planner', 'reviewer', 'reader'] as const)('lists none to a %s, and refuses a direct call before the command runs', async (role) => {
+    const api = createStubApi()
+    await withRig(serverFor(role, true), api, async (rig) => {
+      const listed = (await rig.client.listTools()).tools.map((tool) => tool.name)
+      expect(listed.filter((name) => name.startsWith('browser_'))).toEqual([])
+      const outcome = await callTool(rig, 'browser_status', {})
+      expect(outcome.payload).toMatchObject({ ok: false, error: { code: 'unauthorized', details: { role, capability: 'browser.drive', tool: 'browser_status' } } })
+    })
+    expect(api.calls).toEqual([])
+  })
+
+  it.each(['orchestrator', 'worker'] as const)('lists all seven to a %s', async (role) => {
+    await withRig(serverFor(role, false), createStubApi(), async (rig) => {
+      const listed = (await rig.client.listTools()).tools.map((tool) => tool.name)
+      expect(listed.filter((name) => name.startsWith('browser_')).sort()).toEqual([...BROWSER_TOOLS].sort())
     })
   })
 })
