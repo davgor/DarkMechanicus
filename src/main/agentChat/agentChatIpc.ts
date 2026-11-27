@@ -128,10 +128,39 @@ async function attachChatImage(
   return { commentId: comment.id, attachmentId: staged.id }
 }
 
+/**
+ * The `attachEvidence` request: the chat must be one of the folder's chats bound to the epic (else `unauthorized`), and
+ * the image one of that chat's own (else `not_found`). Attaches of one image to one target run one after another, so
+ * a repeat finds the first one's comment.
+ */
+function evidenceAttacher(registry: Pick<FolderRegistry, 'resolve'>, evidence: EvidenceDeps): (input: unknown) => Promise<AttachedEvidence> {
+  const attaching = new Map<string, Promise<unknown>>()
+  return async (input) => {
+    const request = parseInput(agentChatAttachEvidenceSchema, input, 'agent chat evidence request')
+    const folder = chatFolder({ registry }, request.folder)
+    const workspace = evidence.workspace(folder)
+    // A project-less chat is not in any folder's records, so naming it with a folder finds nothing.
+    const chat = evidence.chats.getChat({ folder, id: request.chatId })
+    if (chat === null || !(await boundToEpic(chat, request.epicId, workspace))) {
+      throw new DomainError('unauthorized', 'That chat is not bound to this epic.')
+    }
+    const image = await evidence.chatImages.read({ folder, chatId: chat.id }, request.imageId)
+    if (image === null) throw new DomainError('not_found', 'That image is not in this chat.')
+    const key = JSON.stringify([folder, chat.id, request.imageId, request.ticketId ?? request.epicId])
+    const attach = (attaching.get(key) ?? Promise.resolve()).catch(() => undefined)
+      .then(() => attachChatImage(workspace, chat, request, image.bytes))
+    attaching.set(key, attach)
+    try {
+      return await attach
+    } finally {
+      if (attaching.get(key) === attach) attaching.delete(key)
+    }
+  }
+}
+
 export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): AgentChatHandlers<S> {
   const { registry, sessions } = deps
-  // Attaches of one image to one target run one after another, so a repeat finds the first one's comment.
-  const attaching = new Map<string, Promise<unknown>>()
+  const attachEvidence = evidenceAttacher(registry, deps.evidence)
   return {
     start: input => answer(deps, async () => {
       const result = await sessions.start(chatRequest(registry, agentChatStartSchema, input).ref)
@@ -168,27 +197,7 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       const { ref, request } = chatRequest(registry, agentChatStageImageSchema, input)
       return { image: await sessions.stageImage(ref, Buffer.from(request.data, 'base64')) }
     }),
-    attachEvidence: input => answer(deps, async () => {
-      const request = parseInput(agentChatAttachEvidenceSchema, input, 'agent chat evidence request')
-      const folder = chatFolder({ registry }, request.folder)
-      const workspace = deps.evidence.workspace(folder)
-      // A project-less chat is not in any folder's records, so naming it with a folder finds nothing.
-      const chat = deps.evidence.chats.getChat({ folder, id: request.chatId })
-      if (chat === null || !(await boundToEpic(chat, request.epicId, workspace))) {
-        throw new DomainError('unauthorized', 'That chat is not bound to this epic.')
-      }
-      const image = await deps.evidence.chatImages.read({ folder, chatId: chat.id }, request.imageId)
-      if (image === null) throw new DomainError('not_found', 'That image is not in this chat.')
-      const key = JSON.stringify([folder, chat.id, request.imageId, request.ticketId ?? request.epicId])
-      const attach = (attaching.get(key) ?? Promise.resolve()).catch(() => undefined)
-        .then(() => attachChatImage(workspace, chat, request, image.bytes))
-      attaching.set(key, attach)
-      try {
-        return await attach
-      } finally {
-        if (attaching.get(key) === attach) attaching.delete(key)
-      }
-    }),
+    attachEvidence: input => answer(deps, () => attachEvidence(input)),
     models: input => answer(deps, () => {
       const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
       const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)

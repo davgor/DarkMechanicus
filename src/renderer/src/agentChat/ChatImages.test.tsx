@@ -115,36 +115,36 @@ describe('ChatImages lightbox', () => {
   })
 })
 
-describe('ChatImages Attach as evidence', () => {
-  const stampFor = (ticketKey: string, ticketVerified: boolean) => ({ role: 'Acolyte' as const, ticketKey, ordinal: null, purpose: null, ticketVerified })
-  const shot = (id: string) => [{ id, mime: 'image/png' as const, width: 800, height: 600, bytes: 4_096 }]
-  /** A busy chat (no `Worked for` fold): the person's image, a capture in a thread bound to DM-7, and one in a thread only labelled DM-8. */
-  const epicItems: ChatItem[] = [
-    { id: 'ask', at: '2026-11-24T08:00:00.000Z', kind: 'user_message', text: 'Here is the bug.', images: shot('ci_01m8e000000000000000000021') },
-    { id: 'spawn-7', at: '2026-11-24T08:00:01.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Fix the form' }, status: 'running', resultSummary: null },
-    { id: 'th-7', at: '2026-11-24T08:00:02.000Z', kind: 'thread', parentItemId: 'spawn-7', label: 'Acolyte:DM-7 Fix the form', state: 'running', callsign: stampFor('DM-7', true) },
-    { id: 'shot-7', at: '2026-11-24T08:00:03.000Z', kind: 'tool_call', threadId: 'th-7', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000022') },
-    { id: 'spawn-8', at: '2026-11-24T08:00:04.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Look around' }, status: 'running', resultSummary: null },
-    { id: 'th-8', at: '2026-11-24T08:00:05.000Z', kind: 'thread', parentItemId: 'spawn-8', label: 'Acolyte:DM-8 Look around', state: 'running', callsign: stampFor('DM-8', false) },
-    { id: 'shot-8', at: '2026-11-24T08:00:06.000Z', kind: 'tool_call', threadId: 'th-8', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000023') }
-  ]
-  const TICKETS = [{ id: 'tk_7', key: 'DM-7' }, { id: 'tk_8', key: 'DM-8' }]
+const stampFor = (ticketKey: string, ticketVerified: boolean) => ({ role: 'Acolyte' as const, ticketKey, ordinal: null, purpose: null, ticketVerified })
+const shot = (id: string) => [{ id, mime: 'image/png' as const, width: 800, height: 600, bytes: 4_096 }]
+/** A busy chat (no `Worked for` fold): the person's image, a capture in a thread bound to DM-7, and one in a thread only labelled DM-8. */
+const epicItems: ChatItem[] = [
+  { id: 'ask', at: '2026-11-24T08:00:00.000Z', kind: 'user_message', text: 'Here is the bug.', images: shot('ci_01m8e000000000000000000021') },
+  { id: 'spawn-7', at: '2026-11-24T08:00:01.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Fix the form' }, status: 'running', resultSummary: null },
+  { id: 'th-7', at: '2026-11-24T08:00:02.000Z', kind: 'thread', parentItemId: 'spawn-7', label: 'Acolyte:DM-7 Fix the form', state: 'running', callsign: stampFor('DM-7', true) },
+  { id: 'shot-7', at: '2026-11-24T08:00:03.000Z', kind: 'tool_call', threadId: 'th-7', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000022') },
+  { id: 'spawn-8', at: '2026-11-24T08:00:04.000Z', kind: 'tool_call', name: 'Task', input: { description: 'Look around' }, status: 'running', resultSummary: null },
+  { id: 'th-8', at: '2026-11-24T08:00:05.000Z', kind: 'thread', parentItemId: 'spawn-8', label: 'Acolyte:DM-8 Look around', state: 'running', callsign: stampFor('DM-8', false) },
+  { id: 'shot-8', at: '2026-11-24T08:00:06.000Z', kind: 'tool_call', threadId: 'th-8', name: 'Screenshot', input: {}, status: 'completed', resultSummary: 'Captured', images: shot('ci_01m8e000000000000000000023') }
+]
+const TICKETS = [{ id: 'tk_7', key: 'DM-7' }, { id: 'tk_8', key: 'DM-8' }]
 
-  async function mountEpicChat(epic: boolean): Promise<{ api: FakeAgentChat; toasts: string[] }> {
-    const api = new FakeAgentChat()
-    const toasts: string[] = []
-    api.snapshotResult = { ok: true, data: { ...agentChatScenarios['image-result'].snapshot, status: 'busy', items: epicItems } }
-    render(<AgentChat folder="/repo" folderKey={FOLDER_KEY} chatId={CHAT_ID} agentLabel="Magos" api={api} scheduler={new ManualScheduler()}
-      {...(epic ? { epic: { epicId: 'ep_1', tickets: TICKETS, confirm: (text: string) => { toasts.push(text) } } } : {})} />)
-    await settle()
-    // Each subagent thread shows its own items once opened.
-    for (const name of ['Thread: Acolyte:DM-7', 'Thread: Acolyte:DM-8']) {
-      const toggle = within(screen.getByRole('listitem', { name })).getAllByRole('button')[0]
-      if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle)
-    }
-    return { api, toasts }
+/** The chat above, inside an epic (or not), with both threads opened; the toasts it confirmed are collected. */
+async function mountEpicChat(epic: boolean): Promise<{ api: FakeAgentChat; toasts: string[] }> {
+  const api = new FakeAgentChat()
+  const toasts: string[] = []
+  api.snapshotResult = { ok: true, data: { ...agentChatScenarios['image-result'].snapshot, status: 'busy', items: epicItems } }
+  render(<AgentChat folder="/repo" folderKey={FOLDER_KEY} chatId={CHAT_ID} agentLabel="Magos" api={api} scheduler={new ManualScheduler()}
+    {...(epic ? { epic: { epicId: 'ep_1', tickets: TICKETS, confirm: (text: string) => { toasts.push(text) } } } : {})} />)
+  await settle()
+  for (const name of ['Thread: Acolyte:DM-7', 'Thread: Acolyte:DM-8']) {
+    const toggle = within(screen.getByRole('listitem', { name })).getAllByRole('button')[0]
+    if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle)
   }
+  return { api, toasts }
+}
 
+describe('ChatImages Attach as evidence', () => {
   it('is absent outside an epic, beside thumbnails that still open', async () => {
     await mountEpicChat(false)
     expect(screen.getAllByRole('button', { name: /^Open Image from/ }).length).toBeGreaterThan(0)

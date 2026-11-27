@@ -246,44 +246,44 @@ describe('agent chat images over IPC', () => {
   })
 })
 
-describe('agentChat:attachEvidence on a real folder workspace', () => {
-  let harness: Harness | undefined
-  let userData: string | undefined
-  afterEach(() => {
-    harness?.cleanup()
-    if (userData !== undefined) rmSync(userData, { recursive: true, force: true })
-    harness = userData = undefined
+let harness: Harness | undefined
+let userData: string | undefined
+afterEach(() => {
+  harness?.cleanup()
+  if (userData !== undefined) rmSync(userData, { recursive: true, force: true })
+  harness = userData = undefined
+})
+
+/** A saved epic with one ticket in a temp repository, its desktop workspace, and the app's chat and image stores. */
+async function evidenceRig() {
+  const h = harness = createHarness()
+  const data = userData = mkdtempSync(join(tmpdir(), 'dm-evidence-'))
+  const orchestrator = h.open('orchestrator')
+  await orchestrator.initializeRepository({ name: 'evidence-repo' })
+  const epic = await orchestrator.createEpic({ title: 'Sign-in' })
+  const draft = await orchestrator.updatePlanDraft({ epicId: epic.id, ops: [{ op: 'add_ticket', ref: 'one', sprint: '1', ticket: { title: 'Fix the form' } }] })
+  await orchestrator.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+  const ticketId = draft.refMap['one'] ?? ''
+  const desktop = h.open('desktop', { transport: 'desktop' })
+  const upload = vi.spyOn(desktop, 'uploadAttachment')
+  const chatImages = createChatImages({ root: join(data, 'chat-images') })
+  const store = createChatStore({ root: join(data, 'chats'), images: chatImages })
+  const folder = h.root
+  const handlers = createAgentChatHandlers({
+    registry: { resolve: path => (path === folder ? folder : null) },
+    sessions: {} as AgentChatSessions, confirmTerminalStop: async () => false, models: {} as OmpModels,
+    evidence: { chats: store, chatImages, workspace: path => { expect(path).toBe(folder); return desktop } }
   })
+  const listeners = new Map<string, Listener>()
+  registerAgentChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: APP_URL }), handlers, event => event.sender)
+  const attach = async (request: Record<string, unknown>) => (await listeners.get(AGENT_CHAT_CHANNELS.attachEvidence)!(TRUSTED, request)) as CommandResult<{ commentId: string; attachmentId: string }>
+  const chat = (fields: Partial<ChatRecord> = {}): ChatRecord =>
+    store.createChat({ folder, agent: 'omp', model: null, role: 'worker', allowSave: false, title: 'Sign-in review', ...fields })
+  const image = async (owner: ChatRecord) => (await chatImages.put({ folder: owner.folder, chatId: owner.id }, SWATCH)).id
+  return { desktop, upload, folder, epicId: epic.id, ticketId, attach, chat, image }
+}
 
-  /** A saved epic with one ticket in a temp repository, its desktop workspace, and the app's chat and image stores. */
-  async function evidenceRig() {
-    const h = harness = createHarness()
-    const data = userData = mkdtempSync(join(tmpdir(), 'dm-evidence-'))
-    const orchestrator = h.open('orchestrator')
-    await orchestrator.initializeRepository({ name: 'evidence-repo' })
-    const epic = await orchestrator.createEpic({ title: 'Sign-in' })
-    const draft = await orchestrator.updatePlanDraft({ epicId: epic.id, ops: [{ op: 'add_ticket', ref: 'one', sprint: '1', ticket: { title: 'Fix the form' } }] })
-    await orchestrator.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
-    const ticketId = draft.refMap['one'] ?? ''
-    const desktop = h.open('desktop', { transport: 'desktop' })
-    const upload = vi.spyOn(desktop, 'uploadAttachment')
-    const chatImages = createChatImages({ root: join(data, 'chat-images') })
-    const store = createChatStore({ root: join(data, 'chats'), images: chatImages })
-    const folder = h.root
-    const handlers = createAgentChatHandlers({
-      registry: { resolve: path => (path === folder ? folder : null) },
-      sessions: {} as AgentChatSessions, confirmTerminalStop: async () => false, models: {} as OmpModels,
-      evidence: { chats: store, chatImages, workspace: path => { expect(path).toBe(folder); return desktop } }
-    })
-    const listeners = new Map<string, Listener>()
-    registerAgentChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: APP_URL }), handlers, event => event.sender)
-    const attach = async (request: Record<string, unknown>) => (await listeners.get(AGENT_CHAT_CHANNELS.attachEvidence)!(TRUSTED, request)) as CommandResult<{ commentId: string; attachmentId: string }>
-    const chat = (fields: Partial<ChatRecord> = {}): ChatRecord =>
-      store.createChat({ folder, agent: 'omp', model: null, role: 'worker', allowSave: false, title: 'Sign-in review', ...fields })
-    const image = async (owner: ChatRecord) => (await chatImages.put({ folder: owner.folder, chatId: owner.id }, SWATCH)).id
-    return { desktop, upload, folder, epicId: epic.id, ticketId, attach, chat, image }
-  }
-
+describe('agentChat:attachEvidence on a real folder workspace', () => {
   it('stores the image as one evidence attachment claimed by one comment on the bound ticket; a repeat returns that comment', async () => {
     const r = await evidenceRig()
     const bound = r.chat({ epicId: r.epicId })
@@ -315,7 +315,9 @@ describe('agentChat:attachEvidence on a real folder workspace', () => {
     const [comment] = await r.desktop.listComments({ epicId: r.epicId })
     expect(comment).toMatchObject({ ticketId: null, attachments: [{ label: `Chat image ${imageId}`, purpose: 'evidence' }] })
   })
+})
 
+describe('agentChat:attachEvidence refusals', () => {
   it('refuses an unbound epic, a project-less chat and another chat’s image, attaching nothing', async () => {
     const r = await evidenceRig()
     const bound = r.chat({ epicId: r.epicId })
