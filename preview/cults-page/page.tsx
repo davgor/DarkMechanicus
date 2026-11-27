@@ -83,7 +83,7 @@ const CHRONICLE = 'Day 1: the council met. <script>alert("x")</script> <b>Not bo
 
 function pastRuns(): CultRunDetail[] {
   return [
-    runDetail({ id: 'run_0', state: 'ended', endReason: 'completed', startedAt: '2026-11-26T09:00:00.000Z', endedAt: '2026-11-26T10:32:15.000Z', runningSince: null, chronicle: CHRONICLE }),
+    { ...runDetail({ id: 'run_0', state: 'ended', endReason: 'completed', startedAt: '2026-11-26T09:00:00.000Z', endedAt: '2026-11-26T10:32:15.000Z', runningSince: null, chronicle: CHRONICLE }), members: members('2026-11-26T09:00:00.000Z') },
     runDetail({ id: 'run_m', state: 'ended', endReason: 'killed', startedAt: '2026-11-25T14:00:00.000Z', endedAt: '2026-11-25T14:03:40.000Z', runningSince: null })
   ]
 }
@@ -129,7 +129,7 @@ dm.folders = [alpha]
 window.dm = dm
 cults.cults = [cultView({ name: 'Shrine Builders', archetype: 'research_creative', charter: 'Build the Gerry Shrine: a plan, its tickets and the review of each, before the window closes.' })]
 cults.runsByCult = { cult_1: state === 'idle' ? pastRuns() : [activeRun(), ...pastRuns()] }
-cults.pipelines = { run_1: pipelineEntries() }
+cults.pipelines = { run_1: pipelineEntries(), run_0: pipelineEntries().slice(1, 6) }
 const names = ['Magos Vettius', ...ACOLYTES.map(([name]) => name)]
 dm.chats.chats = ['chat_magos', 'a1', 'a2', 'a3', 'a4'].map((id, index) => chatRecord({ id, folder: WORK, agent: 'omp', role: index === 0 ? 'orchestrator' : 'worker', title: names[index], cultRunId: 'run_1', cultRole: index === 0 ? 'magos' : 'acolyte' }))
 for (const [index, id] of ['chat_magos', 'a1', 'a2', 'a3', 'a4'].entries()) terminals.screens[id] = SCREEN(names[index])
@@ -142,11 +142,8 @@ function tick(ms = 200): Promise<void> {
   return new Promise((resolve) => { setTimeout(resolve, ms) })
 }
 
-/** Real DOM clicks to reach the state. */
-async function drive(): Promise<void> {
-  await tick(600)
-  click(byLabel('Runs of Shrine Builders'))
-  if (state === 'idle') click(document.querySelector('.cult-overrides > summary'))
+/** The inspector and watch states: an acolyte opened from the roster, and its watch tab. */
+async function driveMember(): Promise<void> {
   if (state === 'inspector' || state === 'watch') {
     click(document.querySelector('.cult-chip[data-member-id="a1"]'))
     await tick()
@@ -156,21 +153,33 @@ async function drive(): Promise<void> {
     await tick(500)
     click(byLabel('Close inspector'))
   }
-  if (state === 'past' || state === 'pipeline-past') click(buttonNamed('Past runs'))
+}
+
+/** The pipeline states: the live tab with the order's recipients expanded, or a past run's pipeline opened. */
+async function drivePipeline(): Promise<void> {
   if (state === 'pipeline-past') {
+    click(buttonNamed('Past runs'))
     await tick()
     click(document.querySelector('.cult-past-pipeline-toggle > summary'))
+    return
   }
-  if (state === 'pipeline' || state === 'pipeline-top') {
-    click(buttonNamed('Pipeline'))
-    await tick(500)
-    click(document.querySelector('.cult-pipe-recipients > summary'))
-    await tick()
-  }
+  click(buttonNamed('Pipeline'))
+  await tick(500)
+  click(document.querySelector('.cult-pipe-recipients > summary'))
+  await tick()
   // The person scrolls down to the newest entry, or up, where the timeline stops following and offers Jump to newest.
   const list = document.querySelector('.cult-pipeline-list')
-  if (state === 'pipeline') list?.scrollTo({ top: list.scrollHeight })
-  if (state === 'pipeline-top') list?.scrollTo({ top: 0 })
+  list?.scrollTo({ top: state === 'pipeline-top' ? 0 : list.scrollHeight })
+}
+
+/** Real DOM clicks to reach the state. */
+async function drive(): Promise<void> {
+  await tick(600)
+  click(byLabel('Runs of Shrine Builders'))
+  if (state === 'idle') click(document.querySelector('.cult-overrides > summary'))
+  await driveMember()
+  if (state === 'past') click(buttonNamed('Past runs'))
+  if (state.startsWith('pipeline')) await drivePipeline()
   if (state === 'shrine-enlarged') click(document.querySelector('.cc-viewscreen-window .shrine-enlarge'))
   await document.fonts.ready
   // The chamber's join beams fade before the capture.

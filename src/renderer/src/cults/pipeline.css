@@ -55,6 +55,8 @@
   position: absolute;
   right: 16px;
   bottom: 12px;
+  background: var(--panel);
+  box-shadow: 0 2px 8px var(--overlay);
 }
 
 .cult-pipe-entry {
