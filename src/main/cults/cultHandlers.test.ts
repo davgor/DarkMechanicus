@@ -541,3 +541,51 @@ describe('cults IPC: the live Shrine (DM-632)', () => {
     expect(f.shrines.watching(run.id)).toBe(false)
   })
 })
+
+describe('cults IPC: folders, slot holders, retired types and the synthesis in run details', () => {
+  const OPTIONAL = { displayName: 'Archivist', description: 'Keeps the records.', mission: 'Catalogue every finding.', rationale: 'No record keeper.', requiredForConclusion: false }
+
+  it('refuses a folder cult with no folder, and founds a sanctum cult with none', async () => {
+    expect(await invoke('create', definition({ folderPath: null }))).toMatchObject({ ok: false, error: { code: 'invalid_input', message: 'A folder cult needs a tracked folder.' } })
+    expect(f.h.cults.listCults()).toEqual([])
+    expect(await createdCult({ scope: 'sanctum', folderPath: null })).toMatchObject({ scope: 'sanctum', folderPath: null })
+  })
+
+  it('marks a roster slot holder definition_slot and a retired Magos-created type retired', async () => {
+    const { cult, run, magos } = await startedRun({ archetype: 'custom', slots: [{ id: 'scribe', workerType: 'custom', label: 'Scribe', mission: 'Write.', required: false }] })
+    await command(magos, 'cult_summon_acolyte', { name: 'Acolyte Scribe', mission: 'Write it down.', slotId: 'scribe' })
+    await command(magos, 'cult_create_worker_type', OPTIONAL)
+    await command(magos, 'cult_retire_worker_type', { workerTypeId: 'dyn_1', reason: 'The scribe keeps the records.' })
+    const [detail] = await data(invoke<CultRunDetail[]>('runs', cult.id))
+    expect(detail!.members.find((member) => member.displayName === 'Acolyte Scribe')).toMatchObject({ slotId: 'scribe', typeOrigin: 'definition_slot' })
+    expect(detail!.workerTypes).toEqual([expect.objectContaining({ id: 'dyn_1', state: 'retired', assignedChatIds: [] })])
+    expect(detail!.missing.workerTypes).toEqual([])
+    expect(lastSnapshot(run.id)?.workerTypes[0]?.state).toBe('retired')
+  })
+
+  it('counts the accepted and rejected recommendations of a Plan Forge run\'s latest synthesis', async () => {
+    const epic = await desk().createEpic({ title: 'Target plan' })
+    const { cult, magos } = await startedRun({ archetype: 'plan_forge', targetEpicId: epic.id, defaultCap: 6 })
+    const recommendation = (workerType: string, decision: string) => ({ workerType, recommendation: `Advice of ${workerType}.`, decision, reason: 'Weighed.' })
+    await command(magos, 'cult_record_synthesis', { draftRevision: 2, recommendations: [recommendation('security', 'accepted'), recommendation('quality', 'rejected'), recommendation('ui_ux', 'rejected')] })
+    const [detail] = await data(invoke<CultRunDetail[]>('runs', cult.id))
+    expect(detail!.synthesis).toEqual({ draftRevision: 2, accepted: 1, rejected: 2, recordedAt: expect.any(String) })
+  })
+
+  it('announces no run change for a command from a chat that is no member, and still answers it', async () => {
+    const changed: string[] = []
+    const dispatch = announcingDispatcher(async () => ({ applied: true }), { memberOf: () => null, changed: (runId) => void changed.push(runId) })
+    const context = { binding: { chatId: 'ch_outsider' } } as Parameters<typeof dispatch>[1]
+    expect(await dispatch({ op: 'cult_status', args: {} } as NamingOperation, context)).toEqual({ applied: true })
+    expect(changed).toEqual([])
+  })
+})
+
+describe('cults IPC: a Shrine recorded without its publish event', () => {
+  it('shows it with no publisher, last changed when the run started', async () => {
+    const { cult, run } = await startedRun()
+    f.h.appDb.run("UPDATE cult_runs SET shrine_path = ?, shrine_revision = '1' WHERE id = ?", join(run.workDir, 'shrine.png'), run.id)
+    const [detail] = await data(invoke<CultRunDetail[]>('runs', cult.id))
+    expect(detail!.shrine).toEqual({ path: join(run.workDir, 'shrine.png'), revision: '1', kind: 'image', publishedBy: null, updatedAt: run.startedAt })
+  })
+})

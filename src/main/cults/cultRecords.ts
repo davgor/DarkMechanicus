@@ -301,11 +301,12 @@ export function toEventView(row: EventRow): CultEventView {
 
 /** Appends one pipeline event at the run's next sequence number. */
 export function insertEvent(db: Db, event: NewEvent): CultEventView {
+  // An aggregate without GROUP BY always yields exactly one row.
   const next = db.get<{ seq: number }>(
     'SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM cult_events WHERE run_id = ?',
     event.runId
-  )
-  const seq = next?.seq ?? 1
+  )!
+  const seq = next.seq
   const data = event.data == null ? null : JSON.stringify(event.data)
   db.run(
     'INSERT INTO cult_events (run_id, seq, at, member_name, kind, summary, data) VALUES (?, ?, ?, ?, ?, ?, ?)',

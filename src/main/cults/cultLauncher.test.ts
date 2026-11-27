@@ -17,7 +17,7 @@ import { eventually, settle } from '../terminals/__mocks__/terminalSessionsRig'
 import type { FakePty } from '../terminals/__mocks__/fakePtyHost'
 import { CHARTER, CHEAPEST, cultHarness, disposeCultHarness, folderCultInput, MAGOS_MODEL, ptyOf as ptyIn, type CultHarness } from './__mocks__/cultRig'
 import { cultControlPath } from './cultControl'
-import { EXIT_KEYS_AFTER_MS, GRACEFUL_EXIT_MS } from './cultLauncher'
+import { createCultLauncher, EXIT_KEYS_AFTER_MS, GRACEFUL_EXIT_MS, type CultLauncher } from './cultLauncher'
 
 let h: CultHarness
 
@@ -276,5 +276,102 @@ describe('cult launcher: ending a member', () => {
     await h.launcher.endMember(abrupt.chat.id, { graceful: false })
     expect(ptyOf(abrupt.chat).written).not.toContain('\x04')
     expect(ptyOf(abrupt.chat).kills).toBe(1)
+  })
+})
+
+/** A launcher over the harness's pieces with some dependencies replaced, for failures the real ones never produce. */
+function launcherWith(overrides: Partial<Parameters<typeof createCultLauncher>[0]>): CultLauncher {
+  return createCultLauncher({
+    cults: h.cults, folders: { resolve: (path) => (h.rig.tracked.has(path) ? path : null) }, sanctums: h.sanctums, chats: h.records,
+    terminals: h.rig.sessions, control: h.control, workspaceFor: (folder) => h.pool.get(folder), closeWorkspace: (folder) => h.pool.close(folder),
+    cheapestModel: async () => CHEAPEST, userData: h.rig.userData, dmHome: h.dmHome, ...overrides
+  })
+}
+
+function endRun(runId: string): void {
+  h.cults.transitionRun(runId, { type: 'shutdown', reason: 'stopped' })
+  h.cults.transitionRun(runId, { type: 'finish' })
+}
+
+describe('cult launcher: refusals', () => {
+  it('refuses an unknown cult, and a folder cult that has no folder, starting nothing', async () => {
+    const cult = h.cults.createCult(folderCult())
+
+    await expect(h.launcher.launch('ct_00000000000000000000000000')).rejects.toMatchObject({ code: 'not_found', message: 'No cult ct_00000000000000000000000000.' })
+    await expect(h.launcher.prepareWorkspace({ ...cult, folderPath: null })).rejects.toMatchObject({ code: 'invalid_state', message: 'Cult Order of the Cog has no folder.' })
+    expect(h.rig.host.spawns).toHaveLength(0)
+  })
+
+  it('refuses an acolyte of a roster slot the cult lacks, or of a worker type the run lacks, adding no member', async () => {
+    const { run } = await h.launcher.launch(h.cults.createCult(folderCult()).id)
+
+    await expect(h.launcher.startAcolyte(run, { mission: 'x', slotId: 'astropath' })).rejects.toMatchObject({ code: 'invalid_input', message: 'The cult has no roster slot astropath.' })
+    await expect(h.launcher.startAcolyte(run, { mission: 'x', runWorkerTypeId: 'wt_missing' })).rejects.toMatchObject({ code: 'invalid_input', message: 'The run has no worker type wt_missing.' })
+    expect(h.cults.listMembers(run.id).map((member) => member.role)).toEqual(['magos'])
+  })
+})
+
+describe('cult launcher: the Magos', () => {
+  it('runs on the cheapest model when the cult names none', async () => {
+    const { magos } = await h.launcher.launch(h.cults.createCult(folderCult({ magosModelId: null })).id)
+
+    expect(magos.chat.model).toBe(CHEAPEST)
+    expect(magos.member.model).toBe(CHEAPEST)
+  })
+
+  it('ends the run as failed with the reason when the Magos cannot start', async () => {
+    const cult = h.cults.createCult(folderCult())
+    h.rig.host.failNextSpawn(new Error('posix_spawnp failed.'))
+
+    await expect(h.launcher.launch(cult.id)).rejects.toMatchObject({ code: 'internal_error', message: 'The Magos did not start: posix_spawnp failed.' })
+    const [run] = h.cults.listRuns(cult.id)
+    expect(run).toMatchObject({ state: 'ended', endReason: 'failed' })
+    expect(h.cults.pageEvents(run!.id).events.find((event) => event.kind === 'ended')?.summary).toBe('The Magos did not start: posix_spawnp failed.')
+  })
+
+  it('ends the run as failed with the default summary when binding throws a non-error', async () => {
+    const cult = h.cults.createCult(folderCult())
+    const launcher = launcherWith({ bindTarget: () => Promise.reject('target gone') })
+
+    await expect(launcher.launch(cult.id)).rejects.toBe('target gone')
+    const [run] = h.cults.listRuns(cult.id)
+    expect(run).toMatchObject({ state: 'ended', endReason: 'failed' })
+    expect(h.cults.pageEvents(run!.id).events.find((event) => event.kind === 'ended')?.summary).toBe('Run ended (failed).')
+    expect(h.rig.host.spawns).toHaveLength(0)
+  })
+})
+
+describe('cult launcher: reruns and deletion', () => {
+  it('reuses a sanctum and its db project for the next run', async () => {
+    const cult = h.cults.createCult(sanctumCult())
+    const first = await h.launcher.launch(cult.id)
+    const projectFile = join(dbProjectDir(first.run.workDir, h.dmHome), 'project.json')
+    const project = readFileSync(projectFile, 'utf8')
+    endRun(first.run.id)
+    const second = await h.launcher.launch(cult.id)
+
+    expect(second.run.workDir).toBe(first.run.workDir)
+    expect(second.run.state).toBe('running')
+    expect(readFileSync(projectFile, 'utf8')).toBe(project)
+  })
+
+  it('deletes a cult whose member chat is already gone', async () => {
+    const cult = h.cults.createCult(folderCult())
+    const { run, magos } = await h.launcher.launch(cult.id)
+    endRun(run.id)
+    await h.records.deleteChat(magos.chat)
+
+    await h.launcher.deleteCult(cult.id)
+    expect(h.cults.getCult(cult.id)).toBeNull()
+  })
+
+  it('keeps the cult when deleting a member chat fails for another reason', async () => {
+    const cult = h.cults.createCult(folderCult())
+    const { run } = await h.launcher.launch(cult.id)
+    endRun(run.id)
+    const launcher = launcherWith({ chats: { createChat: h.records.createChat, deleteChat: () => Promise.reject(new Error('disk full')) } })
+
+    await expect(launcher.deleteCult(cult.id)).rejects.toThrow('disk full')
+    expect(h.cults.getCult(cult.id)).not.toBeNull()
   })
 })

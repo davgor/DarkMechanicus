@@ -6,14 +6,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DomainError } from '../../core/errors'
 import type { CultMemberView, CultRunView } from '../../shared/cults/cult'
-import { DEFAULT_ACOLYTE_GRACE_MS, DEFAULT_MAGOS_WINDOW_MS, remainingMs } from '../../shared/cults/runState'
+import { DEFAULT_ACOLYTE_GRACE_MS, DEFAULT_MAGOS_WINDOW_MS, remainingMs, type RunState } from '../../shared/cults/runState'
 import { eventually, FakeClock, settle } from '../terminals/__mocks__/terminalSessionsRig'
 import { ompFilePaths } from '../terminals/ompSession'
 import { cultHarness, disposeCultHarness, folderCultInput, ptyOf, type CultHarness } from './__mocks__/cultRig'
 import { cultControlPath } from './cultControl'
 import { createCultLedger, type CultLedger, type LeftoverProcesses } from './cultLedger'
-import { createCultSupervisor, CULT_CHANGED, type CultRunSnapshot, type CultSupervisor } from './cultSupervisor'
+import { createCultSupervisor, CULT_CHANGED, requireRunningRun, type CultRunSnapshot, type CultSupervisor } from './cultSupervisor'
 import { MAX_TIMEOUT_MS, type SupervisorClock } from './runTimer'
 
 const BASE = Date.parse('2026-11-26T09:00:00.000Z')
@@ -64,7 +65,9 @@ function rigLeftovers(h: CultHarness, reaped: number[]): LeftoverProcesses {
   }
 }
 
-function supervisorOver(fixture: Omit<Fixture, 'supervisor' | 'snapshots'>): CultSupervisor {
+type SupervisorDeps = Parameters<typeof createCultSupervisor>[0]
+
+function supervisorOver(fixture: Omit<Fixture, 'supervisor' | 'snapshots'>, overrides: Partial<SupervisorDeps> = {}): CultSupervisor {
   const { h } = fixture
   return createCultSupervisor({
     cults: h.cults, launcher: h.launcher, control: h.control, ledger: fixture.ledger,
@@ -83,7 +86,8 @@ function supervisorOver(fixture: Omit<Fixture, 'supervisor' | 'snapshots'>): Cul
     userData: h.rig.userData,
     clock: fixture.supervisorClock,
     activityClock: { now: () => new Date(BASE + fixture.activityClock.now).toISOString(), after: (callback, ms) => fixture.activityClock.after(callback, ms) },
-    onError: (error) => fixture.errors.push(error)
+    onError: (error) => fixture.errors.push(error),
+    ...overrides
   })
 }
 
@@ -104,6 +108,12 @@ afterEach(async () => {
   await settle()
   await disposeCultHarness(f.h)
 })
+
+/** Replaces the fixture's supervisor with one over `overrides`; the fixture's teardown disposes it. */
+async function superviseWith(overrides: Partial<SupervisorDeps>): Promise<void> {
+  await f.supervisor.dispose()
+  f.supervisor = supervisorOver(f, overrides)
+}
 
 /** Moves run time on by `ms`, then lets the work the timers started settle. */
 async function advance(ms: number): Promise<void> {
@@ -522,5 +532,426 @@ describe('cult supervisor: member activity', () => {
     await settle()
     expect(f.supervisor.snapshot(run.id).members[0]!.activity).toBeNull()
     expect(f.clock.pending).toBe(0)
+  })
+})
+
+/** A promise the test opens when it chooses. */
+function gate(): { wait: Promise<void>; open: () => void } {
+  let open: () => void = () => {}
+  const wait = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  return { wait, open }
+}
+
+function shutdownSteps(runId: string): string[] {
+  return f.h.cults.pageEvents(runId).events.filter((event) => event.kind === 'shutdown_step').map((event) => event.summary)
+}
+
+describe('cult supervisor: refusals', () => {
+  it('refuses a run it does not know or no longer supervises, and an unknown petition', async () => {
+    await expect(f.supervisor.pause('cr_missing')).rejects.toMatchObject({ code: 'not_found' })
+    const { run } = await startRun()
+    await f.supervisor.killNow(run.id)
+
+    await expect(f.supervisor.resume(run.id)).rejects.toMatchObject({ code: 'invalid_state', message: expect.stringMatching(/not supervised/) })
+    await expect(f.supervisor.decidePetition('cp_missing', true)).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it.each([
+    ['starting', 'invalid_state'],
+    ['paused', 'run_paused'],
+    ['shutting_down', 'run_ending'],
+    ['ended', 'run_ending']
+  ])('refuses a member command while the run is %s with %s', (state, code) => {
+    expect(() => requireRunningRun({ state: state as RunState })).toThrow(expect.objectContaining({ code }))
+  })
+
+  it('refuses to dismiss the Magos, and an acolyte being dismissed is no member any more', async () => {
+    const { run, magos } = await startRun()
+    await expect(f.supervisor.dismissAcolyte(run.id, magos.chatId)).rejects.toMatchObject({ code: 'invalid_input' })
+    const acolyte = await summon(run.id, 'Acolyte Leaving')
+    expect(f.supervisor.memberOf(acolyte.chatId)).toMatchObject({ run: { id: run.id }, member: { role: 'acolyte' } })
+
+    const dismissing = f.supervisor.dismissAcolyte(run.id, acolyte.chatId)
+    await controlled(acolyte, 'shutdown')
+    expect(running(acolyte)).toBe(true)
+    expect(f.supervisor.memberOf(acolyte.chatId)).toBeNull()
+    ptyOf(f.h, acolyte).exit()
+    await dismissing
+    expect(running(magos)).toBe(true)
+  })
+
+  it('answers a conclusion of a run already stopping with its snapshot, without a second shutdown', async () => {
+    const { run } = await startRun()
+    await f.supervisor.stop(run.id)
+
+    expect((await f.supervisor.concludeRun(run.id)).run).toMatchObject({ state: 'shutting_down', endReason: 'stopped' })
+    expect(f.h.cults.pageEvents(run.id).events.filter((event) => event.kind === 'shutdown_started')).toHaveLength(1)
+  })
+
+  it('leaves a petition pending when the store refuses its approval, with nothing applied or told', async () => {
+    const { run, magos } = await startRun({ defaultCap: 24 })
+    const more = f.supervisor.petition(run.id, { kind: 'acolytes', additional: 1, reason: 'More hands.' }, magos.chatId)
+
+    await expect(f.supervisor.decidePetition(more.id, true)).rejects.toMatchObject({ code: 'capacity_exceeded' })
+    expect(f.h.cults.getPetition(more.id)!.state).toBe('pending')
+    expect(actionsOf(magos)).toEqual([])
+  })
+
+  it('marks an acolyte that did not start as left, and refuses its summon', async () => {
+    const { run } = await startRun()
+    f.h.rig.host.failNextSpawn(new Error('posix_spawnp failed.'))
+
+    await expect(summon(run.id, 'Acolyte Stillborn')).rejects.toMatchObject({ code: 'internal_error', message: expect.stringContaining('Acolyte Stillborn did not start') })
+    expect(f.h.cults.listMembers(run.id).find((member) => member.displayName === 'Acolyte Stillborn')!.state).toBe('left')
+    expect(runOf(run.id).state).toBe('running')
+  })
+})
+
+describe('cult supervisor: the Magos concluding and leaving', () => {
+  it.each([
+    ['a running run: its shutdown starts, completed', false, 'completed'],
+    ['a run already stopping: it stays stopped', true, 'stopped']
+  ])('the Magos concludes %s', async (_name, stopFirst, reason) => {
+    const { run, magos } = await startRun()
+    if (stopFirst) await f.supervisor.stop(run.id)
+
+    const concluding = f.supervisor.concludeMember(run.id, magos.chatId)
+    await controlled(magos, 'shutdown')
+    ptyOf(f.h, magos).exit()
+    expect(await concluding).toMatchObject({ state: 'concluded' })
+    await eventually(() => runOf(run.id).state === 'ended', 'the run to end')
+    expect(runOf(run.id).endReason).toBe(reason)
+    expect(f.h.cults.pageEvents(run.id).events.filter((event) => event.kind === 'shutdown_started')).toHaveLength(1)
+  })
+
+  it('fails a run whose Magos exits before it is watched, leaving no timer', async () => {
+    f.h.rig.host.onSpawn = (pty) => {
+      queueMicrotask(() => pty.exit({ exitCode: 1, signal: null }))
+    }
+    const { run } = await startRun()
+
+    await eventually(() => runOf(run.id).state === 'ended', 'the run to fail')
+    expect(runOf(run.id).endReason).toBe('failed')
+    expect(f.supervisor.busy()).toBe(false)
+    expect(f.clock.pending).toBe(0)
+  })
+
+  it('with its Magos gone mid-shutdown: refuses a decision, skips the Magos at the window, and the backstop ends the rest', async () => {
+    const { run, magos } = await startRun({}, { acolyteGraceMs: 30 * SECOND, magosWindowMs: 30 * SECOND })
+    const acolyte = await summon(run.id, 'Acolyte Last')
+    const pending = f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId)
+    await f.supervisor.stop(run.id)
+    ptyOf(f.h, magos).exit()
+    await eventually(() => f.h.cults.listMembers(run.id)[0]!.state === 'left', 'the Magos to leave')
+
+    await expect(f.supervisor.decidePetition(pending.id, true)).rejects.toMatchObject({ code: 'invalid_state', message: expect.stringMatching(/no running Magos/) })
+    await advance(60 * SECOND)
+    expect(runOf(run.id).state).toBe('shutting_down')
+    await advance(60 * SECOND)
+    await eventually(() => runOf(run.id).state === 'ended', 'the backstop')
+    expect(runOf(run.id).endReason).toBe('stopped')
+    expect([running(acolyte), ptyOf(f.h, acolyte).kills]).toEqual([false, 1])
+    expect(shutdownSteps(run.id)).toEqual([
+      'The acolyte grace ended; the Magos has its window to write the chronicle and conclude.',
+      'The Magos window ended.',
+      'The backstop ended every member still running.'
+    ])
+    expect(f.h.cults.getPetition(pending.id)!.state).toBe('denied')
+  })
+})
+
+describe('cult supervisor: timers out of step', () => {
+  it('waits out a clock that fires early, and expires the run only at its limit', async () => {
+    let early = true
+    await superviseWith({
+      clock: {
+        now: f.supervisorClock.now,
+        after: (callback, ms) => {
+          const lead = early ? MINUTE : 0
+          early = false
+          return f.clock.after(callback, ms - lead)
+        }
+      }
+    })
+    const { run } = await startRun({ defaultTimeLimitMs: 60 * MINUTE })
+
+    await advance(59 * MINUTE)
+    expect(runOf(run.id).state).toBe('running')
+    await advance(MINUTE - 1)
+    expect(runOf(run.id).state).toBe('running')
+    await advance(1)
+    expect(runOf(run.id)).toMatchObject({ state: 'shutting_down', endReason: 'expired', accumulatedRunningMs: 60 * MINUTE })
+  })
+
+  it('ignores a limit timer that still fires after the run was paused', async () => {
+    await superviseWith({
+      clock: {
+        now: f.supervisorClock.now,
+        after: (callback, ms) => {
+          f.clock.after(callback, ms)
+          return () => {}
+        }
+      }
+    })
+    const { run } = await startRun({ defaultTimeLimitMs: 60 * MINUTE })
+    await advance(10 * MINUTE)
+    await f.supervisor.pause(run.id)
+
+    await advance(50 * MINUTE)
+    expect(runOf(run.id)).toMatchObject({ state: 'paused', accumulatedRunningMs: 10 * MINUTE })
+  })
+})
+
+describe('cult supervisor: shutdown timers after the end', () => {
+  it('lets a backstop that still fires after the run ended kill nothing and record no step', async () => {
+    await superviseWith({
+      clock: {
+        now: f.supervisorClock.now,
+        after: (callback, ms) => {
+          f.clock.after(callback, ms)
+          return () => {}
+        }
+      }
+    })
+    const { run, magos } = await startRun({}, { acolyteGraceMs: 30 * SECOND, magosWindowMs: 30 * SECOND })
+    await f.supervisor.stop(run.id)
+    ptyOf(f.h, magos).exit()
+    await f.supervisor.endRun(run.id)
+    expect(f.supervisor.busy()).toBe(false)
+
+    await advance(2 * MINUTE)
+    expect(shutdownSteps(run.id)).not.toContain('The backstop ended every member still running.')
+    expect(runOf(run.id)).toMatchObject({ state: 'ended', endReason: 'stopped' })
+    expect(ptyOf(f.h, magos).kills).toBe(0)
+  })
+})
+
+describe('cult supervisor: ending races', () => {
+  it('refuses a Stop that arrives while Kill now is ending the run, leaving no shutdown step or timer behind', async () => {
+    const held = gate()
+    let first = true
+    f.supervisor.onWakeClose(async () => {
+      if (!first) return
+      first = false
+      await held.wait
+    })
+    const { run } = await startRun()
+    const killing = f.supervisor.killNow(run.id)
+    await expect(f.supervisor.stop(run.id)).rejects.toMatchObject({ code: 'run_ending' })
+    held.open()
+    await killing
+
+    expect(runOf(run.id)).toMatchObject({ state: 'ended', endReason: 'killed' })
+    expect(f.clock.pending).toBe(0)
+    await advance(DEFAULT_ACOLYTE_GRACE_MS + DEFAULT_MAGOS_WINDOW_MS + MINUTE)
+    expect(shutdownSteps(run.id)).toEqual([])
+  })
+
+  it('ends a run once when its last member exits while its Stop is still closing the wake', async () => {
+    const held = gate()
+    f.supervisor.onWakeClose(() => held.wait)
+    const { run, magos } = await startRun()
+    const stopping = f.supervisor.stop(run.id)
+    await eventually(() => runOf(run.id).state === 'shutting_down', 'the shutdown to start')
+    ptyOf(f.h, magos).exit()
+    await eventually(() => runOf(run.id).state === 'ended', 'the run to end')
+
+    held.open()
+    expect((await stopping).run).toMatchObject({ state: 'ended', endReason: 'stopped' })
+    expect(f.h.cults.pageEvents(run.id).events.filter((event) => event.kind === 'ended')).toHaveLength(1)
+    expect(f.errors).toEqual([])
+    expect(f.clock.pending).toBe(0)
+  })
+})
+
+describe('cult supervisor: endRun', () => {
+  it('waits for a run already stopping to end', async () => {
+    const { run, magos } = await startRun()
+    await f.supervisor.stop(run.id)
+    const ending = f.supervisor.endRun(run.id)
+    ptyOf(f.h, magos).exit()
+
+    await ending
+    expect(runOf(run.id)).toMatchObject({ state: 'ended', endReason: 'stopped' })
+    expect(f.supervisor.busy()).toBe(false)
+  })
+
+  it('ends at once a run none of whose members runs any more', async () => {
+    const { run, magos } = await startRun()
+    f.hearing.on = false
+    ptyOf(f.h, magos).exit()
+
+    await f.supervisor.endRun(run.id)
+    expect(runOf(run.id)).toMatchObject({ state: 'ended', endReason: 'stopped' })
+    expect(f.supervisor.busy()).toBe(false)
+  })
+
+  it('keeps a stopped run\'s end when Kill now arrives while it is still settling', async () => {
+    const { run, magos } = await startRun()
+    await f.supervisor.stop(run.id)
+    ptyOf(f.h, magos).exit()
+    expect(runOf(run.id).state).toBe('ended')
+
+    const killed = await f.supervisor.killNow(run.id)
+    expect(killed.run).toMatchObject({ state: 'ended', endReason: 'stopped' })
+    await f.supervisor.endRun(run.id)
+    expect(f.supervisor.busy()).toBe(false)
+    expect(f.h.cults.pageEvents(run.id).events.filter((event) => event.kind === 'ended')).toHaveLength(1)
+  })
+})
+
+describe('cult supervisor: defaults', () => {
+  it('without an error sink or clocks of its own, a failing control write never stands in the way of a pause', async () => {
+    await superviseWith({
+      clock: undefined, activityClock: undefined, onError: undefined,
+      control: { send: async () => Promise.reject(new Error('The disk is full.')), clear: (chatId) => f.h.control.clear(chatId) }
+    })
+    const { run } = await startRun({ defaultTimeLimitMs: null })
+
+    expect((await f.supervisor.pause(run.id)).run.state).toBe('paused')
+    expect(f.supervisor.isWakeOpen(run.id)).toBe(false)
+    await f.supervisor.killNow(run.id)
+  })
+})
+
+/** The real chat grants, with `setChatGrantAllowSave` replaced. */
+function grantsWith(setChatGrantAllowSave: SupervisorDeps['grants']['setChatGrantAllowSave']): SupervisorDeps['grants'] {
+  return { ...f.h.grants, setChatGrantAllowSave }
+}
+
+describe('cult supervisor: upgrades out of step', () => {
+  it('takes back an upgrade whose decision lands after the run ended, and refuses the work queued behind it', async () => {
+    const held = gate()
+    const applied: boolean[] = []
+    await superviseWith({
+      grants: grantsWith(async (grantId, allowSave) => {
+        await f.h.grants.setChatGrantAllowSave(grantId, allowSave)
+        applied.push(allowSave)
+        if (allowSave) await held.wait
+      })
+    })
+    const { run, magos } = await startRun()
+    const save = f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId)
+    const cap = f.supervisor.petition(run.id, { kind: 'acolytes', additional: 1, reason: 'More.' }, magos.chatId)
+    const outcomes = Promise.allSettled([f.supervisor.decidePetition(save.id, true), f.supervisor.decidePetition(cap.id, true), f.supervisor.concludeRun(run.id)])
+    await eventually(() => applied.includes(true), 'Allow save to be applied')
+
+    await f.supervisor.killNow(run.id)
+    held.open()
+    const [saved, capped, concluded] = await outcomes
+    expect(saved).toMatchObject({ status: 'rejected', reason: { code: 'invalid_state', message: expect.stringMatching(/already denied/) } })
+    expect(capped).toMatchObject({ status: 'rejected', reason: { code: 'invalid_state', message: expect.stringMatching(/already denied/) } })
+    expect(concluded).toMatchObject({ status: 'rejected', reason: { code: 'run_ending' } })
+    expect(f.h.rig.store.getChat({ folder: run.workDir, id: magos.chatId })!.allowSave).toBe(false)
+    expect(f.ledger.grants()).toEqual([])
+    expect(runOf(run.id).cap).toBe(run.cap)
+  })
+
+  it('refuses a queued decision whose petition was deleted with its cult after the run ended', async () => {
+    const held = gate()
+    await superviseWith({
+      grants: grantsWith(async (grantId, allowSave) => {
+        await f.h.grants.setChatGrantAllowSave(grantId, allowSave)
+        if (allowSave) await held.wait
+      })
+    })
+    const { run, magos } = await startRun()
+    const save = f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId)
+    const cap = f.supervisor.petition(run.id, { kind: 'acolytes', additional: 1, reason: 'More.' }, magos.chatId)
+    const outcomes = Promise.allSettled([f.supervisor.decidePetition(save.id, true), f.supervisor.decidePetition(cap.id, true)])
+    await eventually(() => f.ledger.grants().length === 1, 'Allow save to be applied')
+
+    await f.supervisor.killNow(run.id)
+    f.h.cults.deleteCult(run.cultId)
+    held.open()
+    const [saved, capped] = await outcomes
+    expect(saved).toMatchObject({ status: 'rejected', reason: { code: 'not_found' } })
+    expect(capped).toMatchObject({ status: 'rejected', reason: { code: 'not_found', message: `No cult petition ${cap.id}.` } })
+    expect(f.ledger.grants()).toEqual([])
+  })
+})
+
+describe('cult supervisor: upgrade refusals and revocation failures', () => {
+  it('reports an Allow save it could not revoke at the end, and keeps it in the ledger for the next start', async () => {
+    const failure = new Error('The workspace is closed.')
+    await superviseWith({
+      grants: grantsWith(async (grantId, allowSave) => (allowSave ? f.h.grants.setChatGrantAllowSave(grantId, allowSave) : Promise.reject(failure)))
+    })
+    const { run, magos } = await startRun()
+    await f.supervisor.decidePetition(f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId).id, true)
+
+    await f.supervisor.killNow(run.id)
+    expect(f.errors).toContain(failure)
+    expect(f.ledger.grants()).toMatchObject([{ kind: 'allow_save', chatId: magos.chatId }])
+  })
+
+  it('needs nothing more for an Allow save whose grant is already gone at the end', async () => {
+    const gone = new DomainError('invalid_state', 'The grant was revoked.')
+    await superviseWith({
+      grants: grantsWith(async (grantId, allowSave) => (allowSave ? f.h.grants.setChatGrantAllowSave(grantId, allowSave) : Promise.reject(gone)))
+    })
+    const { run, magos } = await startRun()
+    await f.supervisor.decidePetition(f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId).id, true)
+
+    await f.supervisor.killNow(run.id)
+    expect(f.errors).not.toContain(gone)
+    expect(f.ledger.grants()).toEqual([])
+    expect(f.h.rig.store.getChat({ folder: run.workDir, id: magos.chatId })!.allowSave).toBe(false)
+  })
+
+  it('refuses Allow save for a Magos that holds no grant, leaving the petition pending', async () => {
+    await superviseWith({
+      chatStore: {
+        getChat: (ref) => {
+          const chat = f.h.rig.store.getChat(ref)
+          return chat === null ? null : { ...chat, grantIds: [] }
+        },
+        updateChat: (ref, patch) => f.h.rig.store.updateChat(ref, patch)
+      }
+    })
+    const { run, magos } = await startRun()
+    const save = f.supervisor.petition(run.id, { kind: 'allow_save', reason: 'Save.' }, magos.chatId)
+
+    await expect(f.supervisor.decidePetition(save.id, true)).rejects.toMatchObject({ code: 'invalid_state', message: expect.stringMatching(/holds no grant/) })
+    expect(f.h.cults.getPetition(save.id)!.state).toBe('pending')
+    expect(f.ledger.grants()).toEqual([])
+  })
+})
+
+describe('cult supervisor: folder access upgrades', () => {
+  it('revokes a folder grant the Magos terminal could not take, and refuses the approval', async () => {
+    const other = await otherFolder()
+    const sessions = f.h.rig.sessions
+    await superviseWith({
+      terminals: {
+        isRunning: (chatId) => sessions.isRunning(chatId),
+        attachGrant: () => false,
+        detachGrant: (chatId, grantId) => sessions.detachGrant(chatId, grantId),
+        onExit: (listener) => sessions.onExit(listener)
+      }
+    })
+    const { run, magos } = await startRun()
+    const access = f.supervisor.petition(run.id, { kind: 'folder_access', folderPath: other, reason: 'Read.' }, magos.chatId)
+
+    await expect(f.supervisor.decidePetition(access.id, true)).rejects.toMatchObject({ code: 'invalid_state', message: expect.stringMatching(/no longer running/) })
+    const issued = (await f.h.pool.get(other).listGrants()).filter((grant) => grant.label.endsWith('Cult folder access'))
+    expect(issued.map((grant) => grant.active)).toEqual([false])
+    expect(f.ledger.grants()).toEqual([])
+    expect(f.h.cults.getPetition(access.id)!.state).toBe('pending')
+  })
+
+  it('on startup revokes a folder access a crash left, and deletes its token file', async () => {
+    const other = await otherFolder()
+    const { run, magos } = await startRun()
+    const folderGrant = await approveFolderAccess(run, magos, other)
+    f.hearing.on = false
+
+    const restarted = supervisorOver({ ...f, hearing: { on: true }, ledger: createCultLedger({ userData: f.h.rig.userData }) })
+    await restarted.reconcileOnStartup()
+    expect(await grantOf(other, folderGrant.grantId)).toMatchObject({ active: false })
+    expect(existsSync(folderGrant.tokenFile!)).toBe(false)
+    expect(createCultLedger({ userData: f.h.rig.userData }).grants()).toEqual([])
   })
 })

@@ -380,3 +380,126 @@ describe('run-scoped worker types', () => {
     expect(again.store.pageEvents(run.id).events.map((event) => event.kind)).toContain('worker_type_retired')
   })
 })
+
+describe('refusals of what does not exist, and runs started from their defaults', () => {
+  it('refuses an unknown cult, run and petition with not_found, and reads an unknown petition as null', () => {
+    const h = fromV4()
+    expect(codeOf(() => h.store.startRun('ct_missing', { workDir: '/w' }))).toBe('not_found')
+    expect(codeOf(() => h.store.setChronicle('cr_missing', 'Nothing.'))).toBe('not_found')
+    expect(codeOf(() => h.store.decidePetition('cp_missing', { approve: true }))).toBe('not_found')
+    expect(h.store.getPetition('cp_missing')).toBeNull()
+    expect(h.store.listRuns()).toEqual([])
+  })
+
+  it('takes an explicit unlimited time limit over the cult default, and refuses a cap below the roster\'s required slots', () => {
+    const h = fromV4()
+    const delivery = h.store.createCult({ ...GENERAL, archetype: 'delivery' })
+    const refused = thrownBy(() => h.store.startRun(delivery.id, { workDir: '/w', cap: 2 }))
+    expect(refused).toMatchObject({ code: 'invalid_input', details: { issues: [expect.objectContaining({ code: 'cap_below_required' })] } })
+    expect(h.store.listRuns(delivery.id)).toEqual([])
+    expect(h.store.startRun(delivery.id, { workDir: '/w', timeLimitMs: null })).toMatchObject({ timeLimitMs: null, cap: 6 })
+  })
+
+  it('names a top-level input issue as input in its message', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(PLAN_FORGE).id, { workDir: '/w' })
+    h.store.addMember(run.id, { chatId: 'sec', role: 'acolyte', slotId: 'security' })
+    const both = { memberChatId: 'sec', slotId: 'security', runWorkerTypeId: 'dyn_1', text: 'Both.' }
+    expect(thrownBy(() => h.store.submitReport(run.id, both))).toMatchObject({ code: 'invalid_input', message: 'input: A report is of one slot or one run worker type.' })
+  })
+})
+
+describe('raising the cap and approving acolytes at the ceiling', () => {
+  it('raises the cap of a running or paused run only, naming the state it refuses', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    expect(thrownBy(() => h.store.raiseCap(run.id, 8))).toMatchObject({ code: 'invalid_state', message: 'Cannot raise the cap while the cult run is starting.' })
+    h.store.transitionRun(run.id, { type: 'started' })
+    h.store.transitionRun(run.id, { type: 'pause' })
+    expect(h.store.raiseCap(run.id, 8).cap).toBe(8)
+    h.store.transitionRun(run.id, { type: 'shutdown', reason: 'stopped' })
+    expect(thrownBy(() => h.store.raiseCap(run.id, 9))).toMatchObject({ code: 'invalid_state', message: 'Cannot raise the cap while the cult run is shutting down.' })
+    expect(h.store.getRun(run.id)?.cap).toBe(8)
+  })
+
+  it('refuses to approve an acolytes petition at the 24-acolyte ceiling with capacity_exceeded, leaving it pending', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w', cap: 24 })
+    const petition = h.store.createPetition(run.id, { kind: 'acolytes', additional: 2, reason: 'More hands.' })
+    expect(codeOf(() => h.store.decidePetition(petition.id, { approve: true }))).toBe('capacity_exceeded')
+    expect(h.store.getPetition(petition.id)).toMatchObject({ state: 'pending', granted: null })
+    expect(h.store.getRun(run.id)?.cap).toBe(24)
+  })
+})
+
+describe('the run Shrine record', () => {
+  it('has no publisher before a publish, and never bumps a Shrine the run no longer shows', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    expect(h.store.latestShrineEvent(run.id)).toBeNull()
+    expect(h.store.bumpShrine(run.id, '/w/shrine.html')).toBeNull()
+    h.store.recordShrine(run.id, { path: '/w/shrine.html', memberName: 'Magos Vettius' })
+    h.store.recordShrine(run.id, { path: '/w/gerry.svg', memberName: 'Acolyte Brass' })
+    expect(h.store.bumpShrine(run.id, '/w/shrine.html')).toBeNull()
+    expect(h.store.getRun(run.id)).toMatchObject({ shrinePath: '/w/gerry.svg', shrineRevision: '2' })
+    h.advance(MIN)
+    expect(h.store.bumpShrine(run.id, '/w/gerry.svg')?.shrineRevision).toBe('3')
+    expect(h.store.latestShrineEvent(run.id)).toEqual({ memberName: 'Acolyte Brass', at: new Date(T0 + MIN).toISOString() })
+  })
+})
+
+describe('member changes, worker types and reports of members that left', () => {
+  it('keeps a member\'s state when a change names none, and changes only what it names', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    h.store.addMember(run.id, { chatId: 'a', role: 'acolyte', mission: 'Sweep.', model: 'm1' })
+    expect(h.store.updateMember(run.id, 'a', { mission: 'Sweep the nave.' })).toMatchObject({ state: 'joining', mission: 'Sweep the nave.', model: 'm1', leftAt: null })
+    expect(h.store.pageEvents(run.id).events.map((event) => event.kind)).toEqual(['summoned'])
+  })
+
+  it('refuses a worker type proposed by a member that has left, and a report of a type the member does not hold', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    h.store.addMember(run.id, { chatId: 'mg', role: 'magos', displayName: 'Magos Vettius' })
+    h.store.addMember(run.id, { chatId: 'ar', role: 'acolyte', displayName: 'Acolyte Brass' })
+    h.store.createWorkerType(run.id, 'mg', TYPE)
+    expect(thrownBy(() => h.store.submitReport(run.id, { memberChatId: 'ar', runWorkerTypeId: 'dyn_1', text: 'Catalogued.' })))
+      .toMatchObject({ code: 'unauthorized', message: 'Acolyte Brass does not hold dyn_1.' })
+    h.store.updateMember(run.id, 'mg', { state: 'left' })
+    expect(thrownBy(() => h.store.createWorkerType(run.id, 'mg', { ...TYPE, displayName: 'Scribe' })))
+      .toMatchObject({ code: 'invalid_state', message: 'Magos Vettius has left the run.' })
+    expect(h.store.listWorkerTypes(run.id).map((type) => type.id)).toEqual(['dyn_1'])
+    expect(h.store.listReports(run.id)).toEqual([])
+  })
+})
+
+describe('Plan Forge target binding', () => {
+  it('binds a run to its target once and refuses a second binding with conflict, keeping the first', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(PLAN_FORGE).id, { workDir: '/w' })
+    const first = h.store.bindPlanTarget(run.id, { epicId: 'ep_target', savedRevision: 1, draftRevision: 2, eventSeq: 7 })
+    expect(codeOf(() => h.store.bindPlanTarget(run.id, { epicId: 'ep_target', savedRevision: 3, draftRevision: 4, eventSeq: 9 }))).toBe('conflict')
+    expect(h.store.getPlanBinding(run.id)).toEqual(first)
+  })
+})
+
+describe('denying a petition', () => {
+  it('denies a pending acolytes petition without raising the cap, with its petition_denied event', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    const petition = h.store.createPetition(run.id, { kind: 'acolytes', additional: 3, reason: 'More hands.' })
+    expect(h.store.decidePetition(petition.id, { approve: false }, 'Magos Vettius')).toMatchObject({ state: 'denied', granted: null })
+    expect(h.store.getRun(run.id)?.cap).toBe(6)
+    expect(h.store.pageEvents(run.id).events.at(-1)).toMatchObject({ kind: 'petition_denied', memberName: 'Magos Vettius', summary: `Petition ${petition.id} denied.` })
+  })
+})
+
+describe('a Shrine recorded without its publish event', () => {
+  it('bumps it with no member named, as a row written before shrine events were kept', () => {
+    const h = fromV4()
+    const run = h.store.startRun(h.store.createCult(GENERAL).id, { workDir: '/w' })
+    h.db.run("UPDATE cult_runs SET shrine_path = '/w/shrine.png', shrine_revision = '4' WHERE id = ?", run.id)
+    expect(h.store.bumpShrine(run.id, '/w/shrine.png')?.shrineRevision).toBe('5')
+    expect(h.store.pageEvents(run.id).events.at(-1)).toMatchObject({ kind: 'shrine_published', memberName: null, summary: 'Shrine updated to revision 5.' })
+  })
+})

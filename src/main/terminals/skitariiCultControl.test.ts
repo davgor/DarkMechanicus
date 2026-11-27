@@ -106,10 +106,23 @@ describe('parseCultControl', () => {
     ['endpoint id', doc([], { endpointId: 'me_x' })],
     ['another launch', doc([{ seq: 1, action: 'resume' }], { epoch: 'launch-0' })],
     ['no launch', JSON.stringify({ version: 1, chatId: CHAT, actions: [] })],
-    ['too large', doc([{ seq: 1, action: 'resume', pad: 'x'.repeat(70_000) }])]
+    ['too large', doc([{ seq: 1, action: 'resume', pad: 'x'.repeat(70_000) }])],
+    ['a list file', JSON.stringify([])],
+    ['a null entry', doc([null])],
+    ['a list petition', doc([{ seq: 1, action: 'petition', petition: [] }])],
+    ['approved as text', doc([{ seq: 1, action: 'petition', petition: { kind: 'allow_save', approved: 'yes' } }])]
   ]
   it.each(bad)('rejects %s', (_name, text) => {
     expect(() => parseCultControl(text, CHAT, EPOCH)).toThrow()
+  })
+})
+
+describe('parseCultControl refusals', () => {
+  it('names why a file is refused', () => {
+    expect(() => parseCultControl(JSON.stringify(null), CHAT, EPOCH)).toThrow('invalid cult control: file is not an object')
+    expect(() => parseCultControl(doc(['resume']), CHAT, EPOCH)).toThrow('invalid cult control: entry is not an object')
+    expect(() => parseCultControl(doc([{ seq: 1, action: 'petition', petition: { kind: 'acolytes', approved: 1 } }]), CHAT, EPOCH))
+      .toThrow('invalid cult control: petition approved is not a boolean')
   })
 })
 
@@ -153,7 +166,31 @@ describe('CultControlWatcher actions', () => {
     expect(h.calls).toEqual(['abort', 'shutdown'])
     expect(h.timers.live.size).toBe(0)
   })
+})
 
+describe('CultControlWatcher edge cases', () => {
+  it('says an approval without its grant or folder plainly, rather than inventing one', async () => {
+    const h = harness([
+      doc([
+        { seq: 1, action: 'petition', petition: { kind: 'acolytes', approved: true } },
+        { seq: 2, action: 'petition', petition: { kind: 'folder_access', approved: true } }
+      ])
+    ])
+    await h.watcher.tick()
+    expect(h.sent).toEqual([
+      [`${P}approved your petition: the cap rose by 0 acolytes.`, true],
+      [`${P}approved your petition for folder access: run dm --repo "" --token-file "" <command> to act in that folder for this run.`, true]
+    ])
+  })
+
+  it('polls on one timer however often it is started', () => {
+    const h = harness([])
+    h.watcher.start()
+    h.watcher.start()
+    expect(h.timers.live.size).toBe(1)
+    h.watcher.stop()
+    expect(h.timers.live.size).toBe(0)
+  })
 })
 
 describe('CultControlWatcher polling', () => {

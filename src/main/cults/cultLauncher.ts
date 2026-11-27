@@ -107,14 +107,10 @@ function folderWorkspace(deps: CultLauncherDeps, cult: CultView): string {
   return deps.folders.resolve(folder) ?? fail('unauthorized', `The folder ${folder} of cult ${cult.name} is not tracked by Dark Mechanicus.`)
 }
 
+/** A rerun's sanctum is already set up: initializing it again reports `alreadyInitialized` and reuses its db project. */
 async function sanctumWorkspace(deps: CultLauncherDeps, cult: CultView): Promise<string> {
   const sanctum = await deps.sanctums.create(cult.id)
-  try {
-    await deps.workspaceFor(sanctum).initializeRepository({ name: cult.name, mode: 'db' })
-  } catch (error) {
-    // Already set up by an earlier run: the same db-mode project serves this one.
-    if (!(error instanceof DomainError && error.code === 'already_initialized')) throw error
-  }
+  await deps.workspaceFor(sanctum).initializeRepository({ name: cult.name, mode: 'db' })
   return sanctum
 }
 

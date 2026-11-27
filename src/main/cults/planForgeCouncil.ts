@@ -93,9 +93,9 @@ function changedOutside(binding: PlanBinding, trace: PlanTrace, magos: ReadonlyS
 }
 
 /** True unless the synthesis is of the current draft revision, which a Magos edit wrote, and names every required type. */
-function synthesisMissing(synthesis: SynthesisView | null, required: readonly RequiredType[], trace: PlanTrace, magos: ReadonlySet<string>): boolean {
+function synthesisMissing(synthesis: SynthesisView | null, required: readonly RequiredType[], trace: PlanTrace, magos: ReadonlySet<string | null>): boolean {
   if (synthesis === null || synthesis.draftRevision !== trace.draftRevision) return true
-  const edited = trace.changes.some((change) => change.kind === 'draft.updated' && change.draftRevision === synthesis.draftRevision && magos.has(change.grantId ?? ''))
+  const edited = trace.changes.some((change) => change.kind === 'draft.updated' && change.draftRevision === synthesis.draftRevision && magos.has(change.grantId))
   const named = new Set(synthesis.recommendations.map((item) => item.workerType))
   return !edited || required.some((type) => !named.has(type.id))
 }

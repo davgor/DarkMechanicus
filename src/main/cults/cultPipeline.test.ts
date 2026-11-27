@@ -164,6 +164,75 @@ describe('cult pipeline: merged, named and ordered (c1)', () => {
   })
 })
 
+describe('cult pipeline: ties, long runs and members without a mailbox', () => {
+  it('orders arrivals of the same instant by id: events before messages, messages by id whichever inbox holds them', async () => {
+    rig.clock.advanceSeconds(1)
+    const first = acceptMessage(rig.mail, { senderEndpointId: rig.endpoints.magos, to: rig.endpoints.ferrum, clientMessageId: 'tie1', body: 'first' }).messageId
+    const second = acceptMessage(rig.mail, { senderEndpointId: rig.endpoints.ferrum, to: rig.endpoints.magos, clientMessageId: 'tie2', body: 'second' }).messageId
+    rig.cults.transitionRun(rig.run.id, { type: 'pause' })
+    const { entries } = await pageAll(50)
+    const tied = entries.slice(-3)
+    expect(new Set(tied.map((entry) => entry.at)).size).toBe(1)
+    expect(tied.map((entry) => entry.kind === 'message' ? entry.messageIds[0] : entry.eventKind)).toEqual(['paused', first, second])
+  })
+
+  it('reads every event of a run with more than one page of them', async () => {
+    for (let n = 0; n < 251; n += 1) {
+      rig.cults.transitionRun(rig.run.id, { type: 'pause' })
+      rig.cults.transitionRun(rig.run.id, { type: 'resume' })
+    }
+    const { entries } = await pageAll(1000)
+    expect(entries).toHaveLength(4 + 502)
+    expect(entries.filter((entry) => entry.eventKind === 'paused')).toHaveLength(251)
+    expect(entries.map((entry) => entry.seq)).toEqual(entries.map((_entry, index) => index + 1))
+  })
+
+  it('reads every message of an inbox with more than one page of them, without reading them again', async () => {
+    for (let n = 1; n <= 51; n += 1) send('magos', 'ferrum', `order ${n}`)
+    const { entries } = await pageAll(100)
+    expect(entries.filter((entry) => entry.kind === 'message').map((entry) => entry.text)).toEqual(Array.from({ length: 51 }, (_v, n) => `order ${n + 1}`))
+    expect(rig.reads.filter((endpoint) => endpoint === rig.endpoints.ferrum)).toHaveLength(2)
+    const again = await pageAll(100)
+    expect(again.entries).toEqual(entries)
+    expect(rig.reads.filter((endpoint) => endpoint === rig.endpoints.ferrum)).toHaveLength(3)
+  })
+})
+
+describe('cult pipeline: members without a mailbox and rows missing their records', () => {
+  it('shows a member without a mailbox by its events and reads no inbox for it', async () => {
+    rig.clock.advanceSeconds(1)
+    rig.cults.addMember(rig.run.id, { chatId: 'chat_ghost', role: 'acolyte', displayName: 'Acolyte Ghost' })
+    const { entries } = await pageAll(50)
+    expect(entries.at(-1)).toMatchObject({ kind: 'event', eventKind: 'summoned', sender: { chatId: 'chat_ghost', displayName: 'Acolyte Ghost' } })
+    expect(rig.reads).toHaveLength(4)
+    expect(rig.appDb.all('SELECT chat_id FROM cult_pipeline_cursors WHERE run_id = ? ORDER BY chat_id', rig.run.id)).toEqual(
+      ['chat_aurum', 'chat_ferrum', 'chat_magos', 'chat_vox'].map((chat_id) => ({ chat_id })))
+  })
+
+  it('answers a page after the end with no entries and the same cursor', async () => {
+    const { last } = await pageAll(50)
+    expect(await rig.pipeline.page(rig.run.id, { afterSeq: last, limit: 10 })).toEqual({ entries: [], nextAfterSeq: last, hasMore: false })
+  })
+
+  it('shows a row whose records are missing as it can: no sender, no recipient, an empty body or summary', async () => {
+    const { last } = await pageAll(50)
+    rig.appDb.run(
+      `INSERT INTO cult_pipeline (run_id, seq, at, event_seq, message_id, sender_chat_id, recipient_chat_id, in_reply_to, body)
+       VALUES (?, ?, 'x', NULL, 'mm_a', NULL, NULL, NULL, NULL), (?, ?, 'x', NULL, 'mm_b', 'chat_gone', 'chat_gone', 'mm_a', 'kept'), (?, ?, 'x', 999, NULL, NULL, NULL, NULL, NULL)`,
+      rig.run.id, last + 1, rig.run.id, last + 2, rig.run.id, last + 3
+    )
+    rig.appDb.run("INSERT INTO cult_events (run_id, seq, at, member_name, kind, summary, data) VALUES (?, 1000, 'x', ?, 'order_all', 'An order without its data.', NULL)", rig.run.id, NAMES.magos)
+    rig.appDb.run('INSERT INTO cult_pipeline (run_id, seq, at, event_seq) VALUES (?, ?, ?, 1000)', rig.run.id, last + 4, 'x')
+    const { entries } = await rig.pipeline.page(rig.run.id, { afterSeq: last, limit: 4 })
+    expect(entries.map(({ kind, eventKind, sender, recipients, messageIds, inReplyTo, text }) => ({ kind, eventKind, sender: sender?.chatId ?? null, recipients, messageIds, inReplyTo, text }))).toEqual([
+      { kind: 'message', eventKind: null, sender: null, recipients: [], messageIds: ['mm_a'], inReplyTo: null, text: '' },
+      { kind: 'message', eventKind: null, sender: null, recipients: [], messageIds: ['mm_b'], inReplyTo: 'mm_a', text: 'kept' },
+      { kind: 'event', eventKind: null, sender: null, recipients: [], messageIds: [], inReplyTo: null, text: '' },
+      { kind: 'event', eventKind: 'order_all', sender: 'chat_magos', recipients: [], messageIds: [], inReplyTo: null, text: 'An order without its data.' }
+    ])
+  })
+})
+
 describe('cult pipeline: bodies and unknown runs (c1, c3)', () => {
   it('returns a long body as a preview unless the whole body is asked for, as inert text', async () => {
     const body = `<script>alert(1)</script> ${'x'.repeat(PIPELINE_PREVIEW_CHARS)}`
@@ -224,6 +293,21 @@ describe('cult pipeline: order_all (c5)', () => {
       recipients: acolytes.map((key) => ({ chatId: `chat_${key}`, displayName: NAMES[key], role: 'acolyte' }))
     })
     expect(entries.filter((entry) => entry.kind === 'message').map(line)).toEqual([`message ${NAMES.vox} -> ${NAMES.magos}: Concluding.`])
+  })
+
+  it('shows an order whose messages were never read as its summary, naming a sender or recipient that is no member as such', async () => {
+    rig.clock.advanceSeconds(1)
+    rig.cults.recordOrder(rig.run.id, 'Magos Departed', { orderId: 'co_8', messageIds: [], recipients: [NAMES.ferrum, 'Acolyte Gone'] })
+    rig.clock.advanceSeconds(1)
+    rig.cults.recordOrder(rig.run.id, NAMES.magos, { orderId: 'co_9', messageIds: ['mm_never_read'], recipients: [NAMES.vox] })
+    const orders = (await pageAll(50)).entries.filter((entry) => entry.kind === 'order_all')
+    expect(orders).toEqual([
+      expect.objectContaining({
+        orderId: 'co_8', sender: null, messageIds: [], truncated: false, text: `Order to every acolyte (2): ${NAMES.ferrum}, Acolyte Gone`,
+        recipients: [{ chatId: 'chat_ferrum', displayName: NAMES.ferrum, role: 'acolyte' }, { chatId: '', displayName: 'Acolyte Gone', role: 'acolyte' }]
+      }),
+      expect.objectContaining({ orderId: 'co_9', sender: expect.objectContaining({ chatId: 'chat_magos' }), messageIds: ['mm_never_read'], text: `Order to every acolyte (1): ${NAMES.vox}` })
+    ])
   })
 })
 

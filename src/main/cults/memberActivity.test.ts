@@ -136,6 +136,28 @@ describe('member activity: tool targets', () => {
   })
 })
 
+describe('member activity: tool input variants', () => {
+  it('takes a file path from path, file_path, filePath or notebook_path, in that order', () => {
+    expect(reduceTarget('Read', { file_path: '/repo/src/a.ts' })).toBe('src/a.ts')
+    expect(reduceTarget('view', { filePath: 'C:\\repo\\lib\\b.ts' })).toBe('lib/b.ts')
+    expect(reduceTarget('notebook_edit', { notebook_path: '/nb/work/c.ipynb' })).toBe('work/c.ipynb')
+    expect(reduceTarget('edit', { path: '/x/first.ts', file_path: '/y/second.ts' })).toBe('x/first.ts')
+  })
+
+  it('takes a shell command from command, cmd or code, and a search from pattern or query', () => {
+    expect(reduceTarget('cmd', { cmd: 'dir /s' })).toBe('dir /s')
+    expect(reduceTarget('python', { code: 'print(1)\nprint(2)' })).toBe('print(1) print(2)')
+    expect(reduceTarget('web_search', { query: 'cult wake' })).toBe('cult wake')
+  })
+
+  it('gives no target for an input that is not an object or a value that is not a string', () => {
+    expect(reduceTarget('read', ['/repo/a.ts'])).toBe('')
+    expect(reduceTarget('read', null)).toBe('')
+    expect(reduceTarget('bash', { command: ['rm', '-rf'] })).toBe('')
+    expect(reduceTarget('grep', { pattern: 42 })).toBe('')
+  })
+})
+
 describe('member activity: working, throttling and lifetime', () => {
   it('takes working from cult-status.json over the transcript, and idle from a finished turn', () => {
     writeTranscript(MAGOS, [toolCall('read', { path: 'a/b/c.ts' }), { type: 'message', message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text' }] } }])
@@ -176,6 +198,97 @@ describe('member activity: working, throttling and lifetime', () => {
     const before = f.reads.length
     f.clock.advance(10 * ACTIVITY_THROTTLE_MS)
     expect(f.reads).toHaveLength(before)
+  })
+})
+
+describe('member activity: what the transcript and status say', () => {
+  it('keeps the last tool through entries that are not messages, other roles and an answer without blocks', () => {
+    writeTranscript(MAGOS, [
+      toolCall('read', { path: 'a/b.ts' }),
+      { type: 'message', message: { role: 'assistant', stopReason: 'stop', content: 'Done.' } },
+      { type: 'model_change', model: 'x' },
+      [1, 2],
+      'loose text',
+      { type: 'message', message: { role: 'bashExecution' } }
+    ])
+    f.tracker.track('run_1', MAGOS)
+    f.clock.advance(ACTIVITY_THROTTLE_MS)
+    expect(f.tracker.of(MAGOS)).toMatchObject({ working: false, tool: { name: 'read', target: 'a/b.ts' } })
+  })
+
+  it('counts a user message or a tool result after a finished turn as working, before any tool', () => {
+    writeTranscript(MAGOS, [{ type: 'message', message: { role: 'user', content: 'Begin.' } }])
+    writeTranscript(ACOLYTE, [
+      toolCall('bash', { command: 'ls' }),
+      { type: 'message', message: { role: 'assistant', stopReason: 'stop', content: [] } },
+      { type: 'message', message: { role: 'toolResult' } }
+    ])
+    f.tracker.track('run_1', MAGOS)
+    f.tracker.track('run_1', ACOLYTE)
+    f.clock.advance(ACTIVITY_THROTTLE_MS)
+    expect(f.tracker.of(MAGOS)).toMatchObject({ working: true, tool: null })
+    expect(f.tracker.of(ACOLYTE)).toMatchObject({ working: true, tool: { name: 'bash', target: 'ls' } })
+  })
+
+  it('takes idle from cult-status.json over a transcript still mid-turn', () => {
+    writeTranscript(MAGOS, [toolCall('bash', { command: 'npm test' })])
+    writeStatus(MAGOS, 'idle')
+    f.tracker.track('run_1', MAGOS)
+    f.clock.advance(ACTIVITY_THROTTLE_MS)
+    expect(f.tracker.of(MAGOS)).toMatchObject({ working: false, tool: { name: 'bash', target: 'npm test' } })
+  })
+
+  it('publishes a member with only cult-status.json, and nothing for a member with neither file', () => {
+    mkdirSync(dirname(ompFilePaths(f.userData, MAGOS).config), { recursive: true })
+    writeStatus(MAGOS, 'working')
+    f.tracker.track('run_1', MAGOS)
+    f.tracker.track('run_2', ACOLYTE)
+    f.clock.advance(ACTIVITY_THROTTLE_MS)
+    expect(f.tracker.of(MAGOS)).toMatchObject({ working: true, tool: null })
+    expect(f.tracker.of(ACOLYTE)).toBeNull()
+    expect(f.changes).toEqual(['run_1'])
+    expect(f.tracker.polling()).toBe(true)
+  })
+})
+
+describe('member activity: throttle and tracking', () => {
+  it('holds a change back when the wall clock says the last update was under 2 s ago', () => {
+    let wall = BASE
+    const changes: string[] = []
+    const tracker = createMemberActivity({ userData: f.userData, files: spyFiles([]), clock: { now: () => new Date(wall).toISOString(), after: (callback, ms) => f.clock.after(callback, ms) } })
+    tracker.onChange((runId) => changes.push(runId))
+    try {
+      writeTranscript(MAGOS, [toolCall('read', { path: 'a/one.ts' })])
+      tracker.track('run_1', MAGOS)
+      f.clock.advance(ACTIVITY_THROTTLE_MS)
+      writeTranscript(MAGOS, [toolCall('read', { path: 'a/two.ts' })])
+      // The timer fired again, but the wall clock was set back: only 500 ms have passed since the last update.
+      wall += 500
+      f.clock.advance(ACTIVITY_THROTTLE_MS)
+      expect(tracker.of(MAGOS)).toMatchObject({ tool: { target: 'a/one.ts' }, at: new Date(BASE).toISOString() })
+      wall += ACTIVITY_THROTTLE_MS
+      f.clock.advance(ACTIVITY_THROTTLE_MS)
+      expect(tracker.of(MAGOS)).toMatchObject({ tool: { target: 'a/two.ts' }, at: new Date(BASE + 500 + ACTIVITY_THROTTLE_MS).toISOString() })
+      expect(changes).toEqual(['run_1', 'run_1'])
+    } finally {
+      tracker.dispose()
+    }
+  })
+
+  it('keeps a member tracked twice as it was, and ending one run keeps another run\'s members', () => {
+    writeTranscript(MAGOS, [toolCall('read', { path: 'a/one.ts' })])
+    writeTranscript(ACOLYTE, [toolCall('bash', { command: 'ls' })])
+    f.tracker.track('run_1', MAGOS)
+    f.tracker.track('run_2', ACOLYTE)
+    f.clock.advance(ACTIVITY_THROTTLE_MS)
+    const before = f.tracker.of(MAGOS)
+    f.tracker.track('run_1', MAGOS)
+    expect(f.tracker.of(MAGOS)).toBe(before)
+
+    f.tracker.endRun('run_1')
+    expect(f.tracker.of(MAGOS)).toBeNull()
+    expect(f.tracker.of(ACOLYTE)?.tool).toEqual({ name: 'bash', target: 'ls' })
+    expect(f.tracker.polling()).toBe(true)
   })
 })
 

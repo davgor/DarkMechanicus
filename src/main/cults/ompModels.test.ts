@@ -151,6 +151,34 @@ describe('OMP missing or signed out lists nothing, with a reason and no fallback
     expect(list).toEqual({ options: [], reason: 'OMP is not connected, so no model can be offered.' })
     expect(launches).toEqual([])
   })
+
+  it.each<[string, ProcessOutcome, string]>([
+    ['times out', { kind: 'timed_out' }, 'OMP did not list its models in time.'],
+    ['fails to start with a code', { kind: 'spawn_failed', code: 'EACCES', message: 'denied' }, 'OMP did not start (EACCES).'],
+    ['fails to start without a code', { kind: 'spawn_failed', code: null, message: 'gone' }, 'OMP did not start.'],
+    ['lists only providers it is not signed in for', exited(JSON.stringify({ models: RECORDED.filter((model) => model.provider !== 'anthropic') })), 'OMP lists no usable model for the providers it is signed in for.']
+  ])('the models command %s: nothing, with its own reason', async (_name, models, reason) => {
+    const { list } = await listWith({ usage: exited(USAGE_JSON), models })
+
+    expect(list).toEqual({ options: [], reason })
+  })
+
+  it('refuses the models command when the OMP path stopped being a file after sign-in was checked', async () => {
+    const { launches, deps } = world({ usage: exited(USAGE_JSON), models: exited(MODELS_JSON) })
+    let inspections = 0
+    const list = await createOmpModelCatalog({ ompPath: () => OMP_PATH, deps: { ...deps, inspect: () => (++inspections === 1 ? 'ok' : 'not_a_file') } }).list()
+
+    expect(list.options).toEqual([])
+    expect(list.reason).toMatch(/\S/)
+    expect(launches.map((launch) => launch.args[0])).toEqual(['usage'])
+  })
+
+  it('leaves out an entry that is not a model and keeps the rest', () => {
+    const options = parseOmpModels(JSON.stringify({ models: [{ provider: 'anthropic', selector: 'anthropic/broken' }, 'text', ...RECORDED] }), ['anthropic']) ?? []
+
+    expect(options).toHaveLength(21)
+    expect(options.map((option) => option.id)).not.toContain('anthropic/broken')
+  })
 })
 
 describe('the catalog caches the list', () => {
@@ -172,5 +200,22 @@ describe('the catalog caches the list', () => {
     catalog.signInChanged('signed_out')
     expect((await catalog.list()).options).toEqual([])
     expect(launches).toHaveLength(5)
+  })
+
+  it('keeps the newest listing when an older one settles after it, and still drops it on a sign-in change', async () => {
+    const { launches, deps } = world({ usage: exited(USAGE_JSON), models: exited(MODELS_JSON) })
+    const catalog = createOmpModelCatalog({ ompPath: () => OMP_PATH, deps })
+
+    const [first, second] = await Promise.all([catalog.list(), catalog.refresh()])
+    expect(first.options).toHaveLength(21)
+    expect(second.options).toHaveLength(21)
+    expect(launches).toHaveLength(4)
+
+    catalog.signInChanged('signed_in')
+    await catalog.list()
+    expect(launches).toHaveLength(4)
+    catalog.signInChanged('signed_out')
+    await catalog.list()
+    expect(launches).toHaveLength(6)
   })
 })

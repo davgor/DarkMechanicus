@@ -409,6 +409,8 @@ function step(s: State, runId: string, summary: string): void {
 /** Starts the graceful shutdown; its steps are timed from now, on the run's own grace and window. */
 async function beginShutdown(s: State, runId: string, reason: ShutdownReason): Promise<CultRunSnapshot> {
   const entry = supervised(s, runId)
+  // Kill now, a failure or quit is already ending it: a shutdown now would leave its step timers behind the run.
+  if (entry.ending) fail('run_ending', 'The cult run is ending.')
   const run = s.deps.cults.transitionRun(runId, { type: 'shutdown', reason })
   cancelTimers(entry)
   const grace = run.acolyteGraceMs
@@ -635,11 +637,13 @@ async function stopAndWait(s: State, runId: string): Promise<void> {
     resolve()
   }
   s.events.on(CULT_CHANGED, check)
-  if (requireRun(s, runId).state !== 'shutting_down') await serialized(s, runId, () => beginShutdown(s, runId, 'stopped'))
+  const ending = supervised(s, runId).ending || requireRun(s, runId).state === 'shutting_down'
+  if (!ending) await serialized(s, runId, () => beginShutdown(s, runId, 'stopped'))
   if (s.runs.has(runId)) await ended
 }
 
-function serialized<T>(s: State, runId: string, work: () => Promise<T>): Promise<T> {
+/** Runs `work` in the run's queue; a run missing or not supervised here is a rejection, never a synchronous throw. */
+async function serialized<T>(s: State, runId: string, work: () => Promise<T>): Promise<T> {
   return queued(supervised(s, runId), work)
 }
 

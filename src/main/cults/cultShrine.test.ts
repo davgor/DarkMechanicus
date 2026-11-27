@@ -10,7 +10,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
 import type { CultMemberView, CultRunView } from '../../shared/cults/cult'
@@ -245,6 +245,34 @@ describe('the Shrine reconcile: an edit whose watch event is lost still bumps (c
   })
 })
 
+describe('the Shrine reconcile: a deleted or superseded file', () => {
+  it('bumps when the published file is deleted, so the view reloads to show it gone', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    rmSync(path)
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toEqual([f.run.id])
+    // Still gone at the next reconcile: nothing new to tell.
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+  })
+
+  it('tells nothing for a change of a file the run no longer records as its Shrine', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    // Recorded elsewhere (not through this service), so this watch is still live but no longer the run's Shrine.
+    f.store.recordShrine(f.run.id, { path: write(join(f.work, 'other.png')), memberName: 'Acolyte Brass' })
+    edit(path, '<h1>late edit</h1>')
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run()).toMatchObject({ shrinePath: join(f.work, 'other.png'), shrineRevision: '2' })
+    expect(f.changed).toEqual([])
+  })
+})
+
 describe('the Shrine watch stops (c3)', () => {
   it('watches only the latest published file: a republish closes the earlier watch', async () => {
     write(join(f.work, 'a.png'))
@@ -281,6 +309,17 @@ describe('the Shrine watch stops (c3)', () => {
     expect(f.watchers[0]!.closed).toBe(true)
     expect(f.clock.pending).toBe(0)
     expect(f.listeners.size).toBe(0)
+  })
+
+  it('publishes for a run that ended while the file was checked, but leaves no watch behind', async () => {
+    write(join(f.work, 'a.png'))
+    const stale = { ...f.store.transitionRun(f.run.id, { type: 'started' }) }
+    f.store.transitionRun(f.run.id, { type: 'shutdown', reason: 'stopped' })
+    f.store.transitionRun(f.run.id, { type: 'finish' })
+    expect(await f.shrines.publish(stale, MAGOS, 'a.png')).toEqual({ shrinePath: join(f.work, 'a.png'), kind: 'image', revision: '1' })
+    expect(f.shrines.watching(f.run.id)).toBe(false)
+    expect(f.watchers[0]!.closed).toBe(true)
+    expect(f.clock.pending).toBe(0)
   })
 })
 
@@ -323,5 +362,37 @@ describe('the real file watch', () => {
     }
     expect(shrines.watching(f.run.id)).toBe(false)
     expect(f.clock.pending).toBe(0)
+  })
+})
+
+describe('the Shrine on the system clock', () => {
+  it('runs on the system clock and swallows a failing check when no clock or error handler is given', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const watchers: { close(): void }[] = []
+    const shrines = createCultShrines({
+      cults: { ...f.store, bumpShrine: () => { throw new Error('database is locked') } },
+      supervisor: { on: () => () => {}, changed: (runId) => void f.changed.push(runId) },
+      watch: () => {
+        const watcher = { close: () => {} }
+        watchers.push(watcher)
+        return watcher
+      }
+    })
+    try {
+      const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+      await shrines.publish(run(), MAGOS, 'index.html')
+      edit(path, '<h1>edited</h1>')
+      await vi.advanceTimersByTimeAsync(0)
+      await shrines.settled()
+      expect(f.changed).toEqual([])
+      // The failed check left the watch reconciling.
+      expect(shrines.watching(f.run.id)).toBe(true)
+      expect(vi.getTimerCount()).toBe(1)
+      shrines.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      shrines.dispose()
+      vi.useRealTimers()
+    }
   })
 })
