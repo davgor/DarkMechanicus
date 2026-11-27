@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-role-picker', 'epic-agent-picker',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 30 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 465_000
+/** A declared bound: 31 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 480_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -92,8 +92,19 @@ const alphaOf = (color) => {
 /** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
 const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
   && alphaOf(surface?.background) <= 0.72
-/** The agent-role-picker state's cards as the page measured them; empty when it reported none. */
+/** The role picker's cards as the page measured them; empty when it reported none. */
 const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
+/** Each role card as [name, checked, disabled reason], for the epic Agent tab's picker states. */
+const cardStates = (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked, card.reason ?? null]))
+/** What every shown role picker must hold: two labelled illustrations, frosted cards and no clipped text. */
+const ROLE_CARD_CHECKS = [
+  ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
+    && new Set(roleCards(o).map((card) => card.art)).size === 2
+    && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
+  (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
+  ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
+  ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)]
+]
 /** The agent-composer state's composers, or none. */
 const composersOf = (o) => Array.isArray(o.composers) ? o.composers : []
 /** Which of Send and Stop a composer shows: `send`, `stop`, `both` or `none`. */
@@ -136,7 +147,16 @@ const STATE_CHECKS = {
     ['the Plan graph is present', (o) => o.planGraph === true],
     ['the long breadcrumb and title truncate', (o) => o.header?.crumbTruncated === true && o.header?.titleTruncated === true]
   ],
-  'agent-empty': [['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard]],
+  'agent-empty': [
+    ['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard],
+    ['the Magos card shows the active run’s reason and Lexmechanic is checked', (o) => cardStates(o)
+      === '[["Magos",false,"A run is active; its Magos is in the list"],["Lexmechanic",true,null]]', cardStates]
+  ],
+  'epic-agent-picker': [
+    ['the empty Agent tab’s radios are Magos (checked) then Lexmechanic, both enabled', (o) => cardStates(o)
+      === '[["Magos",true,null],["Lexmechanic",false,null]]', cardStates],
+    ...ROLE_CARD_CHECKS
+  ],
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
@@ -204,12 +224,7 @@ const STATE_CHECKS = {
   'agent-role-picker': [
     ['the radios are Magos (checked) then Lexmechanic', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))
       === '[["Magos",true],["Lexmechanic",false]]', (o) => JSON.stringify(roleCards(o).map((card) => [card.name, card.checked]))],
-    ['each card holds its own labelled illustration, at least 96 px square', (o) => roleCards(o).length === 2
-      && new Set(roleCards(o).map((card) => card.art)).size === 2
-      && roleCards(o).every((card) => matches(card.art, new RegExp(`^${card.name}: \\S`)) && card.artWidth >= 96 && card.artHeight >= 96),
-    (o) => JSON.stringify(roleCards(o).map((card) => [card.art, card.artWidth, card.artHeight]))],
-    ['both cards are frosted glass', (o) => roleCards(o).length === 2 && roleCards(o).every(frosted)],
-    ['no card clips its text or leaves the window', (o) => roleCards(o).length === 2 && roleCards(o).every((card) => card.clipped === false)]
+    ...ROLE_CARD_CHECKS
   ],
   'agent-magos-decided': [
     ['the record reads Asked by Acolyte:DM-442 and Denied by the Magos with its reason',

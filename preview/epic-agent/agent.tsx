@@ -114,7 +114,7 @@ async function clickWhenPresent(find: () => Element | null, label: string): Prom
  */
 async function openAgentTab(): Promise<void> {
   await clickWhenPresent(() => $('[role="group"][aria-label="View"] .ew-toggle-agent'), 'the Agent view button')
-  await until(() => $('aside[aria-label="Epic agents"]') ?? buttonNamed('Start planner'), 'the Agent stage')
+  await until(() => $('aside[aria-label="Epic agents"]') ?? $('.eap-empty .arp'), 'the Agent stage')
   const expand = buttonNamed('Expand Epic agents')
   if (expand !== null) click(expand)
 }
@@ -124,6 +124,10 @@ const selectNode = (name: string): Promise<void> =>
   clickWhenPresent(() => treeItem(name)?.querySelector(':scope > .at-row') ?? null, `the ${name} tree row`)
 
 const chatLoaded = (): Promise<unknown> => until(() => $('.agent-chat .chat-msg-who') ?? $('.agent-chat .chat-thread'), 'the chat transcript')
+
+/** The Magos and Lexmechanic cards, each with its art, are shown inside `scope`. */
+const roleCardsShown = (scope: string): boolean =>
+  document.querySelectorAll(`${scope} .arp [role="radio"]`).length === 2 && document.querySelectorAll(`${scope} .arp svg[role="img"]`).length === 2
 
 // ---------------------------------------------------------------------------------------------- seeds
 
@@ -203,7 +207,19 @@ const agentStates: Record<string, StateDef> = {
     seed: (context) => { context.chats.length = 0 },
     reach: async () => {
       await openAgentTab()
-      await until(() => buttonNamed('Start planner'), 'Start planner')
+      await until(() => roleCardsShown('.eap-empty'), 'the epic’s Magos and Lexmechanic cards')
+    }
+  },
+  'epic-agent-picker': {
+    mount: 'epic',
+    // A saved plan and no run yet: both role cards can start, in place of the old Start planner button.
+    seed: (context) => {
+      context.chats.length = 0
+      context.backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: null, checkpoint: null }))
+    },
+    reach: async () => {
+      await openAgentTab()
+      await until(() => roleCardsShown('.eap-empty'), 'the epic’s Magos and Lexmechanic cards')
     }
   },
   'agent-streaming': {
@@ -510,8 +526,7 @@ const STATES: Record<string, StateDef> = {
   'agent-role-picker': {
     mount: 'roles',
     reach: async () => {
-      await until(() => document.querySelectorAll('.arp [role="radio"]').length === 2 && document.querySelectorAll('.arp svg[role="img"]').length === 2,
-        'the Magos and Lexmechanic cards with their art')
+      await until(() => roleCardsShown('.preview-roles'), 'the Magos and Lexmechanic cards with their art')
     }
   },
   ...deliveryStates
@@ -619,7 +634,8 @@ function roleCardObservation(card: HTMLElement): Record<string, unknown> {
   const offscreen = box.left < 0 || box.top < 0 || box.right > window.innerWidth || box.bottom > window.innerHeight
   const style = getComputedStyle(card)
   return {
-    name: accessibleName(radio), checked: radio.getAttribute('aria-checked') === 'true', art: art.getAttribute('aria-label'),
+    name: accessibleName(radio), checked: radio.getAttribute('aria-checked') === 'true', reason: text($('.arc-reason', card)),
+    art: art.getAttribute('aria-label'),
     artWidth: artBox.width, artHeight: artBox.height, background: style.backgroundColor, backdropFilter: style.backdropFilter,
     overflowing, clipped: offscreen || overflowing.length > 0
   }

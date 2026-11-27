@@ -435,6 +435,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     actions: controller.actions,
     runner: controller.runner,
     reload: controller.reload,
+    openStartRun: () => controller.dispatch({ type: 'start_run_dialog', open: true }),
     now,
     scheduler: props.scheduler ?? browserScheduler,
     folder: props.folder,

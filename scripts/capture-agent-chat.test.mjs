@@ -46,8 +46,13 @@ const GLASS = {
 const ROLE_CARD = { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)', artWidth: 160, artHeight: 160, clipped: false }
 /** The agent-role-picker state's two cards, Magos checked, as the preview measures them. */
 const ROLE_CARDS = [
-  { ...ROLE_CARD, name: 'Magos', checked: true, art: 'Magos: a hooded tech-priest with a cog halo' },
-  { ...ROLE_CARD, name: 'Lexmechanic', checked: false, art: 'Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm' }
+  { ...ROLE_CARD, name: 'Magos', checked: true, reason: null, art: 'Magos: a hooded tech-priest with a cog halo' },
+  { ...ROLE_CARD, name: 'Lexmechanic', checked: false, reason: null, art: 'Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm' }
+]
+/** The agent-empty state's cards: its run is active, so Magos shows why it cannot start and Lexmechanic is checked. */
+const ACTIVE_RUN_CARDS = [
+  { ...ROLE_CARDS[0], checked: false, reason: 'A run is active; its Magos is in the list' },
+  { ...ROLE_CARDS[1], checked: true }
 ]
 const STANDALONE = { viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null }
 /** The agent-composer state's idle and busy composers, as Chromium reports the shipped styles. */
@@ -123,7 +128,8 @@ function passing() {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
       header: { ...HEADER, crumbTruncated: true, titleTruncated: true }
     }),
-    'agent-empty': ready('agent-empty', { railWidth: null, railRightOfStage: null }),
+    'agent-empty': ready('agent-empty', { railWidth: null, railRightOfStage: null, rolePicker: { cards: ACTIVE_RUN_CARDS } }),
+    'epic-agent-picker': ready('epic-agent-picker', { railWidth: null, railRightOfStage: null, rolePicker: { cards: ROLE_CARDS } }),
     'agent-streaming': ready('agent-streaming'),
     'agent-tool': ready('agent-tool', { treeRows: [row('Magos', true), row('Acolyte:DM-785')] }),
     'agent-approval': ready('agent-approval', { cardHeading: 'The agent wants to run: Run tests?' }),
@@ -185,21 +191,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 30 states once each, in capture order', () => {
+  it('lists the 31 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'settings-notifications',
-      'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'epic-agent-picker',
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(30)
+    expect(new Set(STATES).size).toBe(31)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 465 s overall bound: 30 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 480 s overall bound: 31 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(465_000)
+    expect(OVERALL_LIMIT_MS).toBe(480_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -404,6 +410,26 @@ describe('capture-agent-chat: agent-role-picker observations', () => {
     expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker: expected both cards are frosted glass'])
     expect(picker([magos, { ...lex, clipped: true }])).toEqual(['agent-role-picker: expected no card clips its text or leaves the window'])
     expect(validateObservations('agent-role-picker', ready('agent-role-picker', STANDALONE))).toHaveLength(4)
+  })
+})
+
+describe('capture-agent-chat: epic Agent tab pickers', () => {
+  const epicPicker = (state, cards) => validateObservations(state, ready(state, { railWidth: null, railRightOfStage: null, rolePicker: { cards } }))
+
+  it('passes the empty Agent tab’s enabled cards and the active run’s disabled Magos', () => {
+    expect(epicPicker('epic-agent-picker', ROLE_CARDS)).toEqual([])
+    expect(epicPicker('agent-empty', ACTIVE_RUN_CARDS)).toEqual([])
+  })
+
+  it('fails a disabled Magos on the empty tab, a missing reason with a run, no cards and clipped text', () => {
+    expect(epicPicker('epic-agent-picker', ACTIVE_RUN_CARDS)).toEqual([
+      'epic-agent-picker: expected the empty Agent tab’s radios are Magos (checked) then Lexmechanic, both enabled; '
+        + 'got [["Magos",false,"A run is active; its Magos is in the list"],["Lexmechanic",true,null]]'
+    ])
+    expect(epicPicker('agent-empty', ROLE_CARDS)).toHaveLength(1)
+    expect(epicPicker('epic-agent-picker', [])).toHaveLength(4)
+    expect(epicPicker('epic-agent-picker', [ROLE_CARDS[0], { ...ROLE_CARDS[1], clipped: true }]))
+      .toEqual(['epic-agent-picker: expected no card clips its text or leaves the window'])
   })
 })
 

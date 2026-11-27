@@ -62,7 +62,7 @@ function SavedButtons({ ws, actions }: { ws: WorkspaceHandle; actions: HeaderAct
         </button>
       ) : null}
       {actions.startRun ? (
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => ws.dispatch({ type: 'start_run_dialog', open: true })}>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={ws.openStartRun}>
           Start run
         </button>
       ) : null}
