@@ -113,6 +113,7 @@ const agentChat: AgentChatApi = {
       }
     }
   },
+  models: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.models, request),
   attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request),
   stageImage: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stageImage, request),
   attachEvidence: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attachEvidence, request)

@@ -35,6 +35,8 @@ export interface WorkspaceHandle {
   runner: Runner
   /** Reads the epic again. */
   reload(): void
+  /** Opens the Start run dialog, as the header's Start run does. */
+  openStartRun(): void
   now: number
   /** Timers for what the workspace polls (the run feed). */
   scheduler: Scheduler

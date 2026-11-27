@@ -32,6 +32,19 @@
   margin: 0;
 }
 
+/* The epic's role cards: as wide as the picker allows; a dialog holding them widens to fit both side by side. */
+.eap-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.dialog:has(.eap-picker) {
+  width: min(816px, 100%);
+}
+
 .eap-terminal h2 {
   margin: 0;
   overflow-wrap: anywhere;

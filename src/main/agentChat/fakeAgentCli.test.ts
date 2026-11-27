@@ -620,6 +620,18 @@ for (const [argv, env, mode, persona, stdout, code] of [
   })
 }
 
+it('the OMP persona prints its redacted catalog for `models --json` as OMP does without a session, and logs first', async () => {
+  const harness = launch(['models', '--json'], { DM_SESSION_TOKEN: grant })
+  expect(await harness.closed).toBe(0)
+  expect(harness.stderr).toBe('')
+  assertLog(harness, 'models', true)
+  const stored = JSON.parse(readFileSync(join(fixtures, 'omp', 'models.json'), 'utf8')) as { models: { provider: string; id: string; identity: unknown; thinking: { efforts: string[] } }[] }
+  const printed = JSON.parse(harness.stdout) as { models: Record<string, unknown>[] }
+  expect(printed.models).toHaveLength(29)
+  expect(printed.models).toEqual(stored.models.map(({ identity: _identity, thinking, ...model }) => ({ ...model, selector: `${model.provider}/${model.id}`, thinking: thinking.efforts })))
+  expect(JSON.parse(readFileSync(harness.logPath, 'utf8')).persona).toBe('omp')
+})
+
 it('the OMP persona records the GUI launch arguments without running them, streams one turn and logs its pid', async () => {
   const extra = ['--cwd', scratch, '--append-system-prompt', join(scratch, 'missing-instructions.md'), '--config', join(scratch, 'missing.yml'), '-e', join(scratch, 'missing.ts'), '--session-dir', join(scratch, 'sessions')]
   const harness = await initialize('omp', extra, cli, { DM_SESSION_TOKEN: grant, FAKE_AGENT_PERSONA: 'omp' })
