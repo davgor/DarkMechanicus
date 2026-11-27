@@ -112,7 +112,9 @@ const agentChat: AgentChatApi = {
       }
     }
   },
-  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request)
+  attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request),
+  stageImage: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stageImage, request),
+  attachEvidence: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attachEvidence, request)
 }
 
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
