@@ -59,9 +59,11 @@ describe('ShrinePanel content', () => {
     expect(frames()[0]).toBe(second)
   })
 
-  it('shows the empty state before any publish', () => {
-    render(<ShrinePanel runId={RUN} shrine={null} compact />)
-    expect(screen.getByRole('status').textContent).toContain('No offering yet')
+  it('shows the empty state before any publish, short in the viewscreen', () => {
+    const view = render(<ShrinePanel runId={RUN} shrine={null} />)
+    expect(screen.getByRole('status').textContent).toContain('No offering yet: no member has published to it.')
+    view.rerender(<ShrinePanel runId={RUN} shrine={null} compact />)
+    expect(screen.getByRole('status').textContent).toBe('No offering yet')
     expect(frames()).toHaveLength(0)
     expect(screen.queryByRole('button', { name: 'Enlarge' })).toBeNull()
   })

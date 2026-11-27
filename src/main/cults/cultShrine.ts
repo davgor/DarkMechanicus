@@ -174,11 +174,11 @@ export function createCultShrines(deps: CultShrineDeps): CultShrines {
     publish: (run, member, path) => publish(s, run, member, path),
     watching: (runId) => s.watches.has(runId),
     settled: async () => {
-      await Promise.all([...s.checks])
+      await Promise.all(s.checks)
     },
     dispose: () => {
       unsubscribe()
-      for (const runId of [...s.watches.keys()]) stop(s, runId)
+      for (const runId of s.watches.keys()) stop(s, runId)
     }
   }
 }

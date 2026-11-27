@@ -201,6 +201,9 @@ describe('the published Shrine, live (c3)', () => {
     expect(f.changed).toHaveLength(1)
   })
 
+})
+
+describe('the Shrine watch stops (c3)', () => {
   it('watches only the latest published file: a republish closes the earlier watch', async () => {
     write(join(f.work, 'a.png'))
     write(join(f.work, 'b.png'))

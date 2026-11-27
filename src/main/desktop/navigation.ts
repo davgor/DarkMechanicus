@@ -73,7 +73,7 @@ interface HardenableWebContents {
  * The only addresses a frame inside the app page may navigate to: a cult Shrine (`dm-shrine:`). A sandboxed Shrine page
  * may run script, but never takes its own frame to the network or anywhere else.
  */
-export function isAllowedFrameUrl(url: string): boolean {
+function isAllowedFrameUrl(url: string): boolean {
   try {
     return new URL(url).protocol === 'dm-shrine:'
   } catch {

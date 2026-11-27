@@ -428,7 +428,7 @@ describe('cults IPC: the live Shrine (DM-632)', () => {
     expect(lastSnapshot(run.id)?.shrine).toMatchObject({ path: page, publishedBy: 'Magos Ferrum' })
 
     await command(magos, 'cult_summon_acolyte', { mission: 'Paint Gerry.', name: 'Acolyte Brass' })
-    const brass = (await data(invoke<CultRunDetail>('runs', run.cultId)))[0]!.members.find((member) => member.displayName === 'Acolyte Brass')!
+    const brass = (await data(invoke<CultRunDetail[]>('runs', run.cultId)))[0]!.members.find((member) => member.displayName === 'Acolyte Brass')!
     writeFileSync(join(run.workDir, 'gerry.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
     expect(await command(brass, 'cult_publish_shrine', { path: 'gerry.svg' })).toMatchObject({ kind: 'image', revision: '3' })
     expect(lastSnapshot(run.id)?.shrine).toMatchObject({ kind: 'image', revision: '3', publishedBy: 'Acolyte Brass' })

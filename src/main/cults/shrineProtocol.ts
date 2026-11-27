@@ -35,7 +35,7 @@ export function parseShrineUrl(url: string): ShrineTarget | null {
 }
 
 /** The run's recorded Shrine content, or null when the run has none to serve. */
-export type ShrineLookup = (runId: string) => Promise<ShrineContent | null>
+type ShrineLookup = (runId: string) => Promise<ShrineContent | null>
 
 /** Reads a run's Shrine from the store's record: its path, checked again against its work dir. */
 export function createShrineLookup(getRun: (runId: string) => Pick<CultRunView, 'workDir' | 'shrinePath'> | null): ShrineLookup {

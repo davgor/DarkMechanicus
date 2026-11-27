@@ -47,18 +47,19 @@ function ShrineDetails({ shrine }: { shrine: CultShrineView }): JSX.Element {
   )
 }
 
-function EmptyShrine(): JSX.Element {
+/** Before any publish; the viewscreen is too small for more than the two words. */
+function EmptyShrine({ compact }: { compact: boolean }): JSX.Element {
   return (
     <div className="shrine-empty" role="status">
-      <span className="shrine-empty-title">Shrine</span>
-      <span>No offering yet: no member has published to it.</span>
+      {compact ? null : <span className="shrine-empty-title">Shrine</span>}
+      <span>{compact ? 'No offering yet' : 'No offering yet: no member has published to it.'}</span>
     </div>
   )
 }
 
 export function ShrinePanel({ runId, shrine, compact = false, onEnlarge }: ShrinePanelProps): JSX.Element {
   const [enlarged, setEnlarged] = useState(false)
-  if (shrine === null) return <section className="shrine-panel" data-compact={compact} aria-label="Shrine"><EmptyShrine /></section>
+  if (shrine === null) return <section className="shrine-panel" data-compact={compact} aria-label="Shrine"><EmptyShrine compact={compact} /></section>
   const enlarge = (): void => {
     setEnlarged(true)
     onEnlarge?.()

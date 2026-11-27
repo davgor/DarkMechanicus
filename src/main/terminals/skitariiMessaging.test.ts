@@ -1638,35 +1638,12 @@ describe('Skitarii cult tools', () => {
     const magos = fakePi()
     attachMessaging(magos.pi, createDmClient(realDeps()), fakeTimers(), role('magos'))
     expect(magos.tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling', ...MAGOS_CULT_TOOLS])
-    for (const name of Object.values(CULT_TOOLS)) {
-      if (name !== 'cult_conclude_service') expect(magos.tools.map((tool) => tool.name)).toContain(name)
-    }
+    for (const name of Object.values(CULT_TOOLS)) if (name !== 'cult_conclude_service') expect(magos.tools.map((tool) => tool.name)).toContain(name)
     const acolyte = fakePi()
     attachMessaging(acolyte.pi, createDmClient(realDeps()), fakeTimers(), role('acolyte'))
-    expect(magos.tools).toHaveLength(MAIL_TOOL_NAMES.length + 2 + 12)
     expect(acolyte.tools.map((tool) => tool.name).filter((name) => name.startsWith('cult_'))).toEqual(['cult_status', 'cult_conclude_service', 'cult_shrine'])
-    expect(acolyte.tools).toHaveLength(MAIL_TOOL_NAMES.length + 2 + 3)
+    expect([magos.tools.length, acolyte.tools.length]).toEqual([MAIL_TOOL_NAMES.length + 2 + 12, MAIL_TOOL_NAMES.length + 2 + 3])
     for (const tool of [...magos.tools, ...acolyte.tools]) expect(tool.parameters).toMatchObject({ type: 'object', additionalProperties: false })
-  })
-
-  it('cult_shrine publishes through the core cult_publish_shrine command for either role, and refuses bad arguments unsent (DM-632 c4)', async () => {
-    for (const r of ['magos', 'acolyte'] as const) {
-      const runs: { command: string; input: unknown }[] = []
-      const client = { ...createDmClient(realDeps()), run: async (command: string, input: unknown) => {
-        runs.push({ command, input })
-        return { ok: true as const, data: { shrinePath: '/w/shrine.html', kind: 'html', revision: '1' } }
-      } } as DmClient
-      const { pi, tools } = fakePi()
-      attachMessaging(pi, client, fakeTimers(), role(r))
-      const shrine = tools.find((tool) => tool.name === 'cult_shrine')!
-      expect(shrine.parameters).toMatchObject({ type: 'object', additionalProperties: false })
-      const result = await shrine.execute('c', { path: 'shrine.html' })
-      expect(result.isError).toBeUndefined()
-      expect(textOf(result).startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
-      expect((await shrine.execute('c', {})).isError).toBe(true)
-      expect((await shrine.execute('c', { path: 'a.png', runId: 'cr_1' })).isError).toBe(true)
-      expect(runs).toEqual([{ command: 'cult_publish_shrine', input: { path: 'shrine.html' } }])
-    }
   })
 
   it('reads the role from the launch descriptor main wrote for a member chat', async () => {
@@ -1699,6 +1676,28 @@ describe('Skitarii cult tools', () => {
     expect(refused.isError).toBe(true)
     expect((await tool('cult_dismiss_acolyte').execute('c', {})).isError).toBe(true)
     expect(runs).toHaveLength(CULT_CALLS.length)
+  })
+})
+
+describe('Skitarii cult_shrine (DM-632)', () => {
+  it('cult_shrine publishes through the core cult_publish_shrine command for either role, and refuses bad arguments unsent (DM-632 c4)', async () => {
+    for (const r of ['magos', 'acolyte'] as const) {
+      const runs: { command: string; input: unknown }[] = []
+      const client = { ...createDmClient(realDeps()), run: async (command: string, input: unknown) => {
+        runs.push({ command, input })
+        return { ok: true as const, data: { shrinePath: '/w/shrine.html', kind: 'html', revision: '1' } }
+      } } as DmClient
+      const { pi, tools } = fakePi()
+      attachMessaging(pi, client, fakeTimers(), { role: r, gate: { take: async () => false } })
+      const shrine = tools.find((tool) => tool.name === ('cult_shrine' as string))!
+      expect(shrine.parameters).toMatchObject({ type: 'object', additionalProperties: false })
+      const result = await shrine.execute('c', { path: 'shrine.html' })
+      expect(result.isError).toBeUndefined()
+      expect(textOf(result).startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
+      expect((await shrine.execute('c', {})).isError).toBe(true)
+      expect((await shrine.execute('c', { path: 'a.png', runId: 'cr_1' })).isError).toBe(true)
+      expect(runs).toEqual([{ command: 'cult_publish_shrine', input: { path: 'shrine.html' } }])
+    }
   })
 })
 

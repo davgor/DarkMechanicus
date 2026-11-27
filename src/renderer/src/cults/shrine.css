@@ -1,6 +1,8 @@
 /* The cult Shrine (ShrinePanel.tsx): sized by its container; compact is the chamber viewscreen's content-only mode. */
 .shrine-panel {
   position: relative;
+  /* The viewscreen's size varies with the room: compact text and controls scale with it. */
+  container-type: size;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -65,11 +67,23 @@
   align-self: flex-end;
 }
 
+/* The viewscreen is small: Enlarge is a corner tab over the content, faint until the screen is hovered or it has focus. */
 .shrine-panel[data-compact='true'] .shrine-enlarge {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  right: 2px;
+  bottom: 2px;
+  height: clamp(10px, 22cqh, 16px);
+  padding: 0 clamp(2px, 4cqw, 5px);
+  border-radius: 3px;
+  font-size: clamp(6px, 14cqh, 9px);
+  letter-spacing: 0.04em;
   background: var(--overlay);
+  opacity: 0.7;
+}
+
+.shrine-panel[data-compact='true']:hover .shrine-enlarge,
+.shrine-panel[data-compact='true'] .shrine-enlarge:focus-visible {
+  opacity: 1;
 }
 
 .shrine-empty {
@@ -83,6 +97,13 @@
   text-align: center;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* The viewscreen holds a line or two at most, however small the room makes it. */
+.shrine-panel[data-compact='true'] .shrine-empty {
+  padding: 1px;
+  font-size: clamp(6px, 20cqh, 11px);
+  line-height: 1.1;
 }
 
 .shrine-empty-title {

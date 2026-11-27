@@ -70,13 +70,18 @@ function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
   ipc.handle('app:getVersion', () => app.getVersion())
 }
 
+/** The app-owned schemes (stored images, cult Shrines) must be privileged before the app is ready; their handlers come later. */
+function registerAppSchemes(): void {
+  registerAttachmentScheme(protocol)
+  registerShrineScheme(protocol)
+}
+
 function startDesktop(): void {
   setupGlobalErrorLogging()
   // Theme colours must render as the exact sRGB values (see applyColorProfile).
   applyColorProfile(app.commandLine)
   // Must run before the app is ready; the protocol handler itself is registered in startDesktopBridge.
-  registerAttachmentScheme(protocol)
-  registerShrineScheme(protocol)
+  registerAppSchemes()
 
   app.whenReady().then(() => {
     app.dock?.setIcon(appIcon)
