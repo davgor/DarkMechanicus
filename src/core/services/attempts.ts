@@ -179,15 +179,24 @@ function indexAttempt(ctx: Ctx, run: RunRow, attemptId: string): AttemptRow {
   return row
 }
 
-/** A ticket held back by a failed row check says so, since "waiting for its prerequisites" alone would mislead. */
+/**
+ * A ticket held back by a failed row check or an unverified delivery says so, since "waiting for its prerequisites"
+ * alone would mislead.
+ */
 function rejectionMessage(rejection: Rejection, key: string, view: TicketExecutionView): string {
+  const parts = [rejection.message(key)]
   const held = view.blockers.find(
     (blocker): blocker is Extract<Blocker, { kind: 'row_check_failed' }> => blocker.kind === 'row_check_failed'
   )
-  if (held === undefined) {
-    return rejection.message(key)
+  if (held !== undefined) {
+    parts.push(`Row ${held.row} of a prerequisite's sprint failed its row check; record a passing check with record_row_check to release it.`)
   }
-  return `${rejection.message(key)} Row ${held.row} of a prerequisite's sprint failed its row check; record a passing check with record_row_check to release it.`
+  for (const blocker of view.blockers) {
+    if (blocker.kind === 'delivery_pending') {
+      parts.push(`Sprint ${blocker.ordinal}'s delivery is not verified yet: record a passing check with record_delivery, or the person waives it in the desktop app.`)
+    }
+  }
+  return parts.join(' ')
 }
 
 function claimableView(snapshot: ExecutionSnapshot, ticket: TicketContent): TicketExecutionView {

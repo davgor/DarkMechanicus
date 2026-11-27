@@ -4,10 +4,12 @@ import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
 import { indexBundle, sortedSprints, ticketLabel } from '../plan/graph'
+import { deliverySatisfied } from '../plan/readiness'
 import { ADOPTION_REASON_MIN, LIMITS } from '../schemas'
 import { maskSecretText } from '../storedSecrets'
 import { bindRepositoryBranches } from './epicBranches'
 import { appendEvent } from './events'
+import { loadDeliveryChecks } from './execution'
 import { enqueueOutbox } from './outbox'
 import { loadBundle, loadRun, requireOwnedRun, type RunRow } from './reports'
 
@@ -280,6 +282,31 @@ function assertNoClosedSprintRework(ctx: Ctx, input: Reconciliation & { activeSp
   }
 }
 
+/**
+ * The delivery hold of an earlier sprint is the person's to lift (by a waiver), so no adoption may drop or change
+ * the `delivery` of a sprint before the run's active one while that delivery is neither verified nor waived.
+ * Applies to approve-with-redraft too, which adopts through here.
+ */
+function assertNoDeliveryBypass(ctx: Ctx, input: Reconciliation): void {
+  const activeOrdinal = input.current.sprints.find((sprint) => sprint.id === input.run.active_sprint_id)?.ordinal
+  if (activeOrdinal === undefined) {
+    return
+  }
+  const deliveries = loadDeliveryChecks(ctx, input.run.id)
+  for (const sprint of sortedSprints(input.current)) {
+    if (sprint.ordinal >= activeOrdinal || sprint.delivery === undefined || deliverySatisfied(sprint.id, deliveries)) {
+      continue
+    }
+    const next = input.target.sprints.find((item) => item.id === sprint.id)?.delivery
+    if (next === undefined || contentHash(next) !== contentHash(sprint.delivery)) {
+      fail('conflict', `Sprint ${sprint.ordinal}'s delivery is not verified: only the person can waive it`, {
+        sprintId: sprint.id,
+        ordinal: sprint.ordinal
+      })
+    }
+  }
+}
+
 /** Same sprint id if it survives, else the same ordinal, else the last sprint. */
 function chooseActiveSprint(activeSprintId: string | null, current: PlanBundle, target: PlanBundle): string {
   const sprints = sortedSprints(target)
@@ -311,6 +338,7 @@ export function adoptRevision(
     const carryForward = new Set(input.carryForward ?? [])
     const activeSprintId = chooseActiveSprint(run.active_sprint_id, current, target)
     assertNoClosedSprintRework(ctx, { run, current, target, carryForward, activeSprintId })
+    assertNoDeliveryBypass(ctx, { run, current, target, carryForward })
     assertNoBudgetReset(ctx, { run, current, target, carryForward })
     const { kept, superseded } = reconcileAcceptances(ctx, { run, current, target, carryForward })
     const freshBudget = grantFreshBudgets(ctx, { run, current, target, carryForward })

@@ -392,7 +392,7 @@ export function runView(patch: Partial<RunView> = {}): RunView {
       execution('DM-304', 'sp_3', 'later_sprint')
     ],
     rows: [],
-    increments: [], activeSprintTierFacts: [],
+    increments: [], deliveries: [], activeSprintTierFacts: [],
     attempts: SAMPLE_ATTEMPTS,
     checkpoint: null,
     ...patch
