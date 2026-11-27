@@ -29,7 +29,7 @@ function coverageOf(run: CultRunDetail): Coverage[] {
 }
 
 /** What the conclusion waits for, naming each missing perspective; the synthesis once every required one reported. */
-export function councilStatus(run: CultRunDetail): string {
+function councilStatus(run: CultRunDetail): string {
   const missing = [...run.missing.slots, ...run.missing.workerTypes]
   if (missing.length > 0) return `Collecting: waiting for ${missing.join(', ')}`
   if (run.synthesis === null) return 'Resolving: every required perspective reported; the Magos has not recorded a synthesis'

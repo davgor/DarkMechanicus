@@ -58,7 +58,7 @@ export function rosterOf(run: CultRunDetail): RosterMember[] {
 }
 
 /** The controls the command bar shows for a run in this state (no run: Start). */
-export interface Controls {
+interface Controls {
   start: boolean
   pause: boolean
   resume: boolean

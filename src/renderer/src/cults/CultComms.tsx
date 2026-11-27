@@ -104,7 +104,7 @@ interface MemberTerminalProps {
 }
 
 /** A member's terminal: the Magos's interactive one, or an acolyte's watch-only one, headed by the member's name. */
-export function MemberTerminal({ folder, chatId, watchOnly, agentName, kit, scheduler }: MemberTerminalProps): JSX.Element {
+function MemberTerminal({ folder, chatId, watchOnly, agentName, kit, scheduler }: MemberTerminalProps): JSX.Element {
   const chat = useMemberChat(folder, chatId)
   if (chat.status === 'loading') return <p className="cult-empty-note" role="status">Opening terminal…</p>
   if (chat.status === 'error') return <p className="cult-refusal" role="alert">{chat.message}</p>

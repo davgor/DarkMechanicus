@@ -169,7 +169,7 @@ function timing(text: string, label: string): number | string {
 }
 
 /** The run's overrides as Start sends them, or the first reason one is refused. */
-export function parseOverrides(form: Overrides): Parsed {
+function parseOverrides(form: Overrides): Parsed {
   const limit = form.unlimited ? { ok: true as const, ms: null } : parseTimeLimit(form.timeLimit)
   if (!limit.ok) return { ok: false, error: limit.error }
   const cap = Number(form.cap)

@@ -630,15 +630,15 @@ describe('TerminalPane: a project-less Skitarii chat', () => {
   })
 })
 
+const ACOLYTE = chatRecord({ id: 'chat_w', folder: '/a', title: 'Acolyte Ferrum-3', agent: 'omp', role: 'worker', cultRunId: 'run_1', cultRole: 'acolyte' })
+
+async function watch(): Promise<void> {
+  terminals.screens.chat_w = 'snapshot'
+  render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} readOnly />)
+  await settle()
+}
+
 describe('TerminalPane readOnly (a watched cult acolyte)', () => {
-  const ACOLYTE = chatRecord({ id: 'chat_w', folder: '/a', title: 'Acolyte Ferrum-3', agent: 'omp', role: 'worker', cultRunId: 'run_1', cultRole: 'acolyte' })
-
-  async function watch(): Promise<void> {
-    terminals.screens.chat_w = 'snapshot'
-    render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} readOnly />)
-    await settle()
-  }
-
   it('shows the output, headed by the member’s name and labelled Watch only', async () => {
     await watch()
     expect(screen.getByRole('heading', { level: 1, name: 'Acolyte Ferrum-3' })).toBeTruthy()
@@ -666,6 +666,9 @@ describe('TerminalPane readOnly (a watched cult acolyte)', () => {
     expect(view.focused).toBe(0)
   })
 
+})
+
+describe('TerminalPane readOnly controls', () => {
   it('offers no inbox, GUI switch, earlier conversation or Start again for the watched member', async () => {
     terminals.outcomes.chat_w = { state: 'failed', message: 'It stopped.' }
     render(<TerminalPane folder="/a" chat={ACOLYTE} agentName="OMP" kit={kit} scheduler={scheduler} readOnly />)

@@ -115,6 +115,9 @@ describe('CultPage command bar', () => {
     expect((bar().getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+})
+
+describe('CultPage command bar while a run is live', () => {
   it('shows Pause, Stop, Kill now and the cap with Raise while running, with a live countdown', async () => {
     seed([running()])
     await show()
@@ -156,6 +159,9 @@ describe('CultPage command bar', () => {
     expect(timer()).toBe('Unlimited · 10m 30s elapsed')
   })
 
+})
+
+describe('CultPage ending a run', () => {
   it('asks before Kill now (destructive) and Stop (graceful shutdown), and Cancel sends nothing', async () => {
     seed([running()])
     await show()
@@ -223,6 +229,9 @@ describe('CultPage petition banners', () => {
     expect(cults.controls).toEqual([['decidePetition', 'pt_a', true, 2], ['decidePetition', 'pt_a', true, 1]])
   })
 
+})
+
+describe('CultPage petition decisions', () => {
   it('denies, and approves Allow save and folder access with no grant', async () => {
     const run = running()
     run.petitions = [petition({ id: 'pt_s', kind: 'allow_save' }), petition({ id: 'pt_f', kind: 'folder_access', folderPath: '/b', createdAt: '2026-11-27T12:01:00.000Z' })]
@@ -332,6 +341,9 @@ describe('CultPage comms pane', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Magos Vettius' })).toBeTruthy()
   })
 
+})
+
+describe('CultPage comms opened from the sidebar', () => {
   it('opens a member asked for from the sidebar: an acolyte in a watch tab, through the run’s sanctum work folder', async () => {
     const sanctum = '/Users/u/Library/Application Support/dark-mechanicus/sanctums/cult_1'
     seed([running({ workDir: sanctum })], cultView({ scope: 'sanctum', folderPath: null }))

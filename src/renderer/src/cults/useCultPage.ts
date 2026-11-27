@@ -99,7 +99,7 @@ function factsOf(run: CultRunDetail): RoomFacts {
 const EMPTY_FACTS: RoomFacts = { members: new Set(), working: new Set(), runState: { type: 'runState', runState: 'idle' }, petition: false }
 
 /** The events that take the chamber from what it showed to what the run is now. */
-export function roomEvents(before: RoomFacts, after: RoomFacts): ChamberEvent[] {
+function roomEvents(before: RoomFacts, after: RoomFacts): ChamberEvent[] {
   const joined = [...after.members].filter((id) => !before.members.has(id)).map((id): ChamberEvent => ({ type: 'memberJoined', id }))
   const left = [...before.members].filter((id) => !after.members.has(id)).map((id): ChamberEvent => ({ type: 'memberLeft', id }))
   const working = [...after.members].flatMap((id): ChamberEvent[] =>
