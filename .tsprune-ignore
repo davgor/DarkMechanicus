@@ -169,6 +169,7 @@ src/shared/domain/api.ts - HeartbeatKanbanCardInput
 src/shared/domain/api.ts - IncrementRef
 src/shared/domain/api.ts - KickBackKanbanCardInput
 src/shared/domain/api.ts - LaunchKanbanCardsInput
+src/shared/domain/api.ts - RecordDeliveryInput
 src/shared/domain/api.ts - RecordRowCheckInput
 src/shared/domain/api.ts - SprintInput
 src/shared/domain/api.ts - SprintReportInput

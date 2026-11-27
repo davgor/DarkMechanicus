@@ -89,6 +89,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   reconcileAttempt: 'attempt.reconcile',
   carryForwardTicket: 'attempt.carry_forward',
   recordRowCheck: 'run.row_check',
+  recordDelivery: 'run.delivery',
   pauseRun: 'run.control',
   resumeRun: 'run.control',
   cancelRun: 'run.control',

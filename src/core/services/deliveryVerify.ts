@@ -17,8 +17,11 @@ export interface DeliveryContext {
   delivery: SprintDelivery
   /** The sprint's passing increment on the epic branch. */
   increment: { commit: string }
-  /** The recording session's own build (serverInfo); null when unknown. */
-  installed: { version: string; packaged: boolean } | null
+  /**
+   * The installed build: the desktop's own observation on this machine when it recorded one, else the recording
+   * session's serverInfo; null when unknown. `source` names which, and is appended to the installed check's detail.
+   */
+  installed: { version: string; packaged: boolean; source?: string } | null
 }
 
 /** What the recorder says was delivered; every part is checked against the repository. */
@@ -274,6 +277,11 @@ function installedCheck(installed: DeliveryContext['installed'], releaseVersion:
   return check(NAME.installed, 'passed', `The installed app runs ${installed.version}, release ${releaseVersion} or later.`)
 }
 
+/** The installed check with the source of the installed build named in its detail. */
+function sourced(result: CheckResult, source: string | undefined): CheckResult {
+  return source === undefined ? result : { ...result, detail: `${result.detail} (source: ${source})` }
+}
+
 async function releaseChecks(git: GitAdapter, found: Commit | null, claim: DeliveryClaim): Promise<{ checks: CheckResult[]; version: string | null }> {
   const tag = await tagCheck(git, found, claim.releaseTag)
   const version = await versionCheck(git, claim.releaseTag)
@@ -290,7 +298,9 @@ export async function verifyDelivery(git: GitAdapter, context: DeliveryContext, 
   const checks = [exists.result, await targetCheck(git, exists.found, delivery.target), await carriesCheck(git, exists.found, context.increment.commit)]
   const release = delivery.release ? await releaseChecks(git, exists.found, claim) : { checks: [], version: null }
   checks.push(...release.checks)
-  const installed = delivery.verifyInstalled ? installedCheck(context.installed, release.version, claim.observedInstalledVersion) : null
+  const installed = delivery.verifyInstalled
+    ? sourced(installedCheck(context.installed, release.version, claim.observedInstalledVersion), context.installed?.source)
+    : null
   if (installed !== null) {
     checks.push(installed)
   }

@@ -103,6 +103,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   reconcileAttempt: true,
   carryForwardTicket: true,
   recordRowCheck: true,
+  recordDelivery: true,
   pauseRun: true,
   resumeRun: true,
   cancelRun: true,

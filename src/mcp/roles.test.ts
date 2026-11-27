@@ -131,6 +131,7 @@ const ORCHESTRATOR_TOOLS = [
   'reconcile_attempt',
   'carry_forward_ticket',
   'record_row_check',
+  'record_delivery',
   'submit_sprint_report',
   'redraft_next_sprint',
   'advance_sprint',

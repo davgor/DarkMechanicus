@@ -110,6 +110,21 @@ describe('dm --list and --describe', () => {
     expect(recorded.exits).toEqual([0])
   })
 
+  it('lists record_delivery with the orchestrator-only run.delivery capability', async () => {
+    const listed = recorder(['--list'])
+    await runCli(listed.host)
+    expect(payload(listed).data).toContainEqual(expect.objectContaining({ command: 'record_delivery', capability: 'run.delivery' }))
+    const described = recorder(['--describe', 'record_delivery'])
+    await runCli(described.host)
+    expect(payload(described).data).toMatchObject({
+      command: 'record_delivery',
+      alias: 'recordDelivery',
+      capability: 'run.delivery',
+      mutates: true,
+      input: { fields: ['checks', 'commit', 'idempotencyKey', 'observedInstalledVersion', 'releaseTag', 'runId', 'sprintId'] }
+    })
+  })
+
   it('refuses an unknown name with the usage exit code and writes nothing to stdout', async () => {
     const recorded = recorder(['--describe', 'frobnicate'])
     await runCli(recorded.host)

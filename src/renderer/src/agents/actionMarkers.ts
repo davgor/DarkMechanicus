@@ -116,6 +116,7 @@ const PHRASES: Readonly<Record<string, Phrases>> = {
   reconcile_attempt: { doing: 'reconciling {ticket}', done: 'reconciled {ticket}', failed: 'could not reconcile {ticket}' },
   carry_forward_ticket: { doing: 'carrying forward {ticket}', done: 'carried forward {ticket}', failed: 'could not carry forward {ticket}' },
   record_row_check: { doing: 'recording a row check', done: 'recorded a row check', failed: 'could not record a row check' },
+  record_delivery: { doing: 'recording a delivery check', done: 'recorded a delivery check', failed: 'could not record a delivery check' },
   get_ready_tickets: { doing: 'listing the ready tickets', done: 'listed the ready tickets', failed: 'could not list the ready tickets' },
   submit_sprint_report: { doing: 'filing the sprint report', done: 'sprint report filed', failed: 'sprint report refused' },
   get_checkpoint: { doing: 'reading the checkpoint', done: 'read the checkpoint', failed: 'could not read the checkpoint' },
