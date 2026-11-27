@@ -1,4 +1,5 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
@@ -9,6 +10,7 @@ import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import { ChatComposer } from './ChatComposer'
 import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
+import type { ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
@@ -90,6 +92,7 @@ function ChatView({
   const { reveal, show } = useThreadReveal(state, revealThreadId, onRevealed)
   const railId = useId()
   const busy = state.status === 'busy'
+  const imageSrc = useCallback<ChatImageSrc>((ref) => chatImageUrl(folderKey, chatId, ref.id), [folderKey, chatId])
   function stop(): void {
     if (busy) void command.run(interrupt)
   }
@@ -108,7 +111,7 @@ function ChatView({
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
           <RevealThreadContext.Provider value={reveal}>
-            <Messages state={state} folder={folder} agentLabel={agentLabel} />
+            <Messages state={state} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
           </RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
@@ -185,7 +188,9 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   )
 }
 
-function Messages({ state, folder, agentLabel }: { state: ChatState; folder: string | null; agentLabel: string }): JSX.Element {
+function Messages({ state, folder, agentLabel, imageSrc }: {
+  state: ChatState; folder: string | null; agentLabel: string; imageSrc: ChatImageSrc
+}): JSX.Element {
   const items = useMemo(() => withoutTodoCalls(state.items), [state.items])
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -209,7 +214,7 @@ function Messages({ state, folder, agentLabel }: { state: ChatState; folder: str
     }}>
       <div ref={content}>
         {state.items.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={items} status={state.status} />
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={items} imageSrc={imageSrc} status={state.status} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>

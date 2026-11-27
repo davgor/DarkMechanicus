@@ -1,5 +1,6 @@
 import { Fragment, memo, useMemo, useState } from 'react'
 import type { ChatItem } from '../../../shared/agents/chat'
+import { ChatImages, type ChatImageSrc } from '../agentChat/ChatImages'
 import { Icon } from '../components/Icon'
 import { StatePill } from '../components/StatePill'
 import { ActionMarker } from './ActionMarker'
@@ -28,7 +29,7 @@ function CallDetails({ call }: { call: ToolCallItem }): JSX.Element {
   )
 }
 
-function PlainCall({ call }: { call: ToolCallItem }): JSX.Element {
+function PlainCall({ call, imageSrc }: { call: ToolCallItem; imageSrc: ChatImageSrc | undefined }): JSX.Element {
   const [open, setOpen] = useState(false)
   const status = callStatus(call.status)
   return (
@@ -40,6 +41,7 @@ function PlainCall({ call }: { call: ToolCallItem }): JSX.Element {
         <StatePill state={status.state} label={status.label} />
       </button>
       {open ? <CallDetails call={call} /> : null}
+      {imageSrc && call.images ? <ChatImages from="agent" images={call.images} imageSrc={imageSrc} /> : null}
     </li>
   )
 }
@@ -47,9 +49,9 @@ function PlainCall({ call }: { call: ToolCallItem }): JSX.Element {
 /**
  * A tool call as one compact row (name, summary, status) that opens to its input and result; a call of the
  * Dark Mechanicus server is an action marker instead ("claimed DM-12"), which says what happened and opens
- * the ticket or epic it is about.
+ * the ticket or epic it is about. A GUI chat passes `imageSrc`, and the images a plain call returned show under it.
  */
-export const ToolCallRow = memo(function ToolCallRow({ call }: { call: ToolCallItem }): JSX.Element {
+export const ToolCallRow = memo(function ToolCallRow({ call, imageSrc }: { call: ToolCallItem; imageSrc?: ChatImageSrc }): JSX.Element {
   const marker = useMemo(() => actionMarker(call), [call])
-  return marker === null ? <PlainCall call={call} /> : <ActionMarker marker={marker} detail={failureDetail(call)} />
+  return marker === null ? <PlainCall call={call} imageSrc={imageSrc} /> : <ActionMarker marker={marker} detail={failureDetail(call)} />
 })

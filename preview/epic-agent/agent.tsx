@@ -110,6 +110,18 @@ async function clickWhenPresent(find: () => Element | null, label: string): Prom
   click(await until(find, label))
 }
 
+const loadedImage = (image: Element | null): boolean => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0
+
+/** The image-result transcript: the sent and the returned thumbnail loaded, and the gone file's placeholder in place. */
+const imageResultShown = (): boolean => [...document.querySelectorAll('.chat-images img')].filter(loadedImage).length === 2
+  && $('.chat-images .attachment-missing') !== null
+
+/** Opens the idle image-result turn, whose Read call is folded behind its `Worked for` row, and waits for its thumbnails. */
+async function reachImageResult(): Promise<void> {
+  await clickWhenPresent(() => $('.chat-work-toggle'), 'the turn’s Worked for row')
+  await until(imageResultShown, 'two loaded thumbnails and the missing image’s placeholder')
+}
+
 /** A screenshot-like PNG: a window of the given accent with a title bar and two text lines. */
 async function screenshot(accent: string, index: number): Promise<File> {
   const canvas = document.createElement('canvas')
@@ -656,6 +668,20 @@ const STATES: Record<string, StateDef> = {
       await until(() => document.querySelectorAll('.chat-work-rows [aria-label^="Tool call: "]').length === 3, 'the opened turn’s three tool cards')
     }
   },
+  'agent-image-result': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios['image-result'].snapshot } },
+    reach: reachImageResult
+  },
+  'agent-image-viewer': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios['image-result'].snapshot } },
+    reach: async () => {
+      await reachImageResult()
+      await clickWhenPresent(() => buttonNamed('Open Image from agent, 1440x900'), 'the tool image’s thumbnail')
+      await until(() => loadedImage($('[role="dialog"] img.attachment-lightbox-image')), 'the lightbox with the full image loaded')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -919,6 +945,33 @@ function workedForObservations(): Record<string, unknown> | null {
   }
 }
 
+/**
+ * The transcript's image thumbnails in document order (whose they are, name, scheme, lazy, loaded, box width) and the
+ * open lightbox, or null when the transcript shows none.
+ */
+function chatImageObservations(): Record<string, unknown> | null {
+  const pictures = [...document.querySelectorAll<HTMLElement>('.chat-images .chat-image-picture')]
+  if (pictures.length === 0) return null
+  const dialog = $('[role="dialog"].attachment-lightbox')
+  const full = dialog === null ? null : $('img.attachment-lightbox-image', dialog)
+  return {
+    thumbs: pictures.map((picture) => ({
+      under: picture.closest('.chat-msg-user') !== null ? 'you' : picture.closest('.chat-tool') !== null ? 'tool' : null,
+      name: picture instanceof HTMLImageElement ? picture.alt : picture.getAttribute('aria-label'),
+      scheme: picture instanceof HTMLImageElement ? new URL(picture.src).protocol : null,
+      lazy: picture instanceof HTMLImageElement && picture.loading === 'lazy',
+      loaded: loadedImage(picture),
+      width: picture.closest('.chat-image-thumb')?.getBoundingClientRect().width ?? null
+    })),
+    viewer: dialog === null ? null : {
+      name: dialog.getAttribute('aria-label'),
+      scheme: full instanceof HTMLImageElement ? new URL(full.src).protocol : null,
+      loaded: loadedImage(full),
+      closeFocused: document.activeElement === buttonNamed('Close', dialog)
+    }
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -956,6 +1009,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     composers: composerObservations(),
     transcript: transcriptObservations(),
     workedFor: workedForObservations(),
+    chatImages: chatImageObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
