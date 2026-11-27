@@ -10,6 +10,8 @@ export interface ChatRootInput {
   chat: Pick<ChatRecord, 'role' | 'runId'>
   /** Shown when the record grants no callsign, for example the agent's label. */
   fallbackName: string
+  /** Numbers a root that shares its callsign with an earlier root in the same view (`Lexmechanic-2`); else unnumbered. */
+  ordinal?: number
   secondary: string
   status: AgentStatus
   startedAt: number | null
@@ -48,7 +50,8 @@ export function chatAgentNodes({ root, items, savedTickets, needsYou = new Set()
 }
 
 function rootNode(root: ChatRootInput): AgentTreeNodeInput {
-  const callsign = rootCallsignOf(root.chat)
+  const granted = rootCallsignOf(root.chat)
+  const callsign = granted === null ? null : { ...granted, ordinal: root.ordinal ?? null }
   return {
     id: root.id,
     parentId: null,

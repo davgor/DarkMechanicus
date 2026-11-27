@@ -2,6 +2,7 @@
  * The epic's agents for the Agent stage: the chats bound to the epic as roots, and the subagent threads of each
  * loaded transcript nested under them. Pure, so the panel only renders what this derives.
  */
+import { rootCallsignOf } from '../../../shared/agents/callsign'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { RunView } from '../../../shared/domain/views'
@@ -56,10 +57,29 @@ function chatKindLabel(chat: ChatRecord, run: RunView | null): string {
 }
 
 /**
- * Roots named from their chat records (Magos only for a run's orchestrator, Lexmechanic for a planner, otherwise
- * the chat's title) and, under each root whose transcript is loaded, the subagents named from main's stamped
- * callsigns. A root's node id is its chat id; an id seen before is never listed again. A node id in `needsYou` (a
- * chat with a main-thread prompt, or a running thread with its own) gets the `needs_you` status.
+ * Each root chat's number among chats granted the same root callsign: the oldest keeps the bare callsign and each
+ * later one, by creation then id, is numbered from 2, so two planners read `Lexmechanic` and `Lexmechanic-2`.
+ */
+function rootOrdinals(chats: readonly ChatRecord[]): Map<string, number> {
+  const ordinals = new Map<string, number>()
+  const held = new Map<string, number>()
+  const oldestFirst = [...chats].sort((a, b) =>
+    a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  for (const chat of oldestFirst) {
+    const role = rootCallsignOf(chat)?.role
+    if (role === undefined) continue
+    const count = (held.get(role) ?? 0) + 1
+    held.set(role, count)
+    if (count > 1) ordinals.set(chat.id, count)
+  }
+  return ordinals
+}
+
+/**
+ * Roots named from their chat records (Magos only for a run's orchestrator, Lexmechanic for a planner, numbered when
+ * several chats share one, otherwise the chat's title) and, under each root whose transcript is loaded, the subagents
+ * named from main's stamped callsigns. A root's node id is its chat id; an id seen before is never listed again. A node
+ * id in `needsYou` (a chat with a main-thread prompt, or a running thread with its own) gets the `needs_you` status.
  */
 export interface EpicAgentNodesInput {
   chats: readonly ChatRecord[]
@@ -73,13 +93,17 @@ export interface EpicAgentNodesInput {
 export function epicAgentNodes({ chats, run, epicId, transcripts, savedTickets, needsYou }: EpicAgentNodesInput): AgentTreeNodeInput[] {
   const seen = new Set<string>()
   const nodes: AgentTreeNodeInput[] = []
-  for (const chat of epicChats(chats, run, epicId)) {
+  const bound = epicChats(chats, run, epicId)
+  const ordinals = rootOrdinals(bound)
+  for (const chat of bound) {
     const transcript = transcripts.get(chat.id)
+    const ordinal = ordinals.get(chat.id)
     const derived = chatAgentNodes({
       root: {
         id: chat.id,
         chat,
         fallbackName: chat.title,
+        ...(ordinal === undefined ? {} : { ordinal }),
         secondary: chatKindLabel(chat, run),
         status: needsYou?.has(chat.id) ? 'needs_you' : transcript?.busy ? 'running' : 'idle',
         startedAt: Date.parse(chat.createdAt),

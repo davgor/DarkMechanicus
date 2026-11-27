@@ -7,7 +7,7 @@ import {
   type ChatPushEvent,
   type ChatsApi
 } from '../shared/agents/chatApi'
-import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi } from '../shared/agents/agentChat'
+import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi, type AgentChatEvent } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
@@ -84,6 +84,16 @@ const chats: ChatsApi = {
   mail
 }
 
+/**
+ * Every agent-chat view shares one IPC listener, held while any view listens: each push is parsed once and handed to
+ * each view, so the channel's listener count stays at one however many chats are open.
+ */
+const agentChatListeners = new Set<(event: AgentChatEvent) => void>()
+function forwardAgentChatEvent(_event: Electron.IpcRendererEvent, event: unknown): void {
+  const parsed = agentChatEventSchema.safeParse(event)
+  if (parsed.success) for (const listener of [...agentChatListeners]) listener(parsed.data)
+}
+
 const agentChat: AgentChatApi = {
   start: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.start, request),
   send: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.send, request),
@@ -92,12 +102,15 @@ const agentChat: AgentChatApi = {
   setSurface: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setSurface, request),
   snapshot: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.snapshot, request),
   onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: unknown): void => {
-      const parsed = agentChatEventSchema.safeParse(event)
-      if (parsed.success) listener(parsed.data)
+    // A fresh wrapper per call, so one function subscribed twice is two subscriptions.
+    const subscription = (event: AgentChatEvent): void => listener(event)
+    if (agentChatListeners.size === 0) ipcRenderer.on(AGENT_CHAT_CHANNELS.event, forwardAgentChatEvent)
+    agentChatListeners.add(subscription)
+    return () => {
+      if (agentChatListeners.delete(subscription) && agentChatListeners.size === 0) {
+        ipcRenderer.removeListener(AGENT_CHAT_CHANNELS.event, forwardAgentChatEvent)
+      }
     }
-    ipcRenderer.on(AGENT_CHAT_CHANNELS.event, handler)
-    return () => ipcRenderer.removeListener(AGENT_CHAT_CHANNELS.event, handler)
   },
   attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request)
 }
