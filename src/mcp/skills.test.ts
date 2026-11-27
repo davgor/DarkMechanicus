@@ -230,6 +230,23 @@ describe('the worker-relay marker', () => {
   })
 })
 
+describe('the Skitarii worker-model catalog guidance', () => {
+  it('moved past 1.19.0 when a Skitarii Magos started registering the catalog the app wrote and spawning workers on their claimed model', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 20)).toBe(true)
+  })
+
+  it('tells a Skitarii Magos to register the written catalog and give the task tool the claimed model and effort, as verified on omp 18.20.2', () => {
+    expect(orchestratorFactBodies('orchestrator.register-host').join('\n')).toContain('`orchestrator.skitarii-worker-models`')
+    const body = orchestratorFactBodies('orchestrator.skitarii-worker-models').join('\n')
+    expect(body).toContain('`host-catalog.json`')
+    expect(body).toContain('`canSelectWorkerModel: true`')
+    expect(body).toContain('"model": "anthropic/claude-haiku-5-5:low"')
+    expect(body).toContain('`task.perCallModel: on`')
+    expect(body).toMatch(/register again with a new `catalogRevision`/)
+  })
+})
+
 /** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts (those whose id starts with `idPrefix`). */
 function orchestratorFactBodies(idPrefix = 'orchestrator.'): string[] {
   return BUILTIN_KNOWLEDGE.flatMap(({ path, source }) => {
