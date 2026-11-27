@@ -1,9 +1,10 @@
 /**
- * Captures the epic Agent tab's states unattended: `node scripts/capture-agent-chat.mjs --out <dir>` serves
- * `preview/epic-agent` with the repo's Vite, opens each `?state=` in the repo's own Electron (hidden windows, one
- * temporary profile) and writes `<state>.png` per state plus `observations.json`. Any launch failure, missed
- * deadline, page error, missing observation or empty/small capture fails the run with its reason; nothing is
- * reported as skipped. The Vite server, the Electron process tree and the temporary profile never outlive the run.
+ * Captures the epic Agent tab's states unattended: `node scripts/capture-agent-chat.mjs --out <dir>` builds
+ * `preview/epic-agent` once with the repo's Vite, serves the built page, opens each `?state=` in the repo's own
+ * Electron (hidden windows, one temporary profile) and writes `<state>.png` per state plus `observations.json`. Any
+ * launch failure, missed deadline, page error, missing observation or empty/small capture fails the run with its
+ * reason; nothing is reported as skipped. The preview server, the Electron process tree, the build and the temporary
+ * profile never outlive the run.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -30,7 +31,13 @@ export const STATES = Object.freeze([
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 41 states at up to 15 s each, plus the Vite and Electron start. */
+/**
+ * A declared bound for building the preview once, before the states' clock starts. A dev server transformed the page's
+ * module graph on demand inside the first state's deadline, so that state's time depended on the machine's load; the
+ * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
+ */
+export const BUILD_LIMIT_MS = 60_000
+/** A declared bound once the preview is built: 41 states at up to 15 s each, plus the preview server and Electron start. */
 export const OVERALL_LIMIT_MS = 630_000
 export const MIN_PNG_BYTES = 10 * 1024
 
@@ -477,14 +484,23 @@ function killTree(child) {
   else child.kill('SIGKILL')
 }
 
-async function startVite() {
-  const { createServer } = await import('vite')
-  const port = await freePort()
-  const server = await createServer({
+/** The preview's own Vite config, building `agent.html` into `outDir` outside the repo. */
+export function previewBuildConfig(outDir) {
+  return {
     configFile: join(PREVIEW, 'vite.config.ts'), root: PREVIEW, logLevel: 'error', clearScreen: false,
-    server: { host: '127.0.0.1', port, strictPort: true, hmr: false }
-  })
-  await server.listen()
+    build: { outDir, emptyOutDir: true, rollupOptions: { input: join(PREVIEW, 'agent.html') } }
+  }
+}
+
+async function buildPreview(outDir) {
+  const { build } = await import('vite')
+  await build(previewBuildConfig(outDir))
+}
+
+async function servePreview(outDir) {
+  const { preview } = await import('vite')
+  const port = await freePort()
+  const server = await preview({ ...previewBuildConfig(outDir), preview: { host: '127.0.0.1', port, strictPort: true } })
   return { server, base: `http://127.0.0.1:${port}/agent.html` }
 }
 
@@ -518,12 +534,14 @@ function runElectron({ base, out, userData, session, viewport }) {
   return promise
 }
 
-function overallLimit(session) {
+/** Rejects with `message` once `ms` pass, killing Electron's process tree; replaces any earlier phase's limit. */
+function phaseLimit(session, ms, message) {
   const { promise, reject } = Promise.withResolvers()
+  clearTimeout(session.timer)
   session.timer = setTimeout(() => {
     killTree(session.child)
-    reject(new Error(`The capture exceeded its ${OVERALL_LIMIT_MS / 1_000} s overall limit`))
-  }, OVERALL_LIMIT_MS)
+    reject(new Error(message))
+  }, ms)
   return promise
 }
 
@@ -536,16 +554,22 @@ async function main() {
   const { out, viewport } = parseArgs(process.argv.slice(2))
   mkdirSync(out, { recursive: true })
   const userData = mkdtempSync(join(tmpdir(), 'dm-capture-agent-chat-'))
+  const built = mkdtempSync(join(tmpdir(), 'dm-capture-agent-chat-build-'))
   const session = { child: null, timer: null, server: null }
   let records = {}
   let failures
   try {
+    const buildStarted = Date.now()
+    await Promise.race([buildPreview(built),
+      phaseLimit(session, BUILD_LIMIT_MS, `Building the preview exceeded its ${BUILD_LIMIT_MS / 1_000} s limit`)])
+    console.log(`Built the preview in ${Date.now() - buildStarted} ms`)
     const capture = (async () => {
-      const vite = await startVite()
-      session.server = vite.server
-      return runElectron({ base: vite.base, out, userData, session, viewport })
+      const served = await servePreview(built)
+      session.server = served.server
+      return runElectron({ base: served.base, out, userData, session, viewport })
     })()
-    records = await Promise.race([capture, overallLimit(session)])
+    records = await Promise.race([capture,
+      phaseLimit(session, OVERALL_LIMIT_MS, `The capture exceeded its ${OVERALL_LIMIT_MS / 1_000} s overall limit`)])
     failures = runFailures(records, viewport)
   } catch (error) {
     failures = [error instanceof Error ? error.message : String(error)]
@@ -554,6 +578,7 @@ async function main() {
     killTree(session.child)
     await session.server?.close()
     rmSync(userData, { recursive: true, force: true })
+    rmSync(built, { recursive: true, force: true })
   }
   report(out, records, failures)
   if (failures.length > 0) {

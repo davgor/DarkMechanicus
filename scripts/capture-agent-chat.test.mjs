@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
+  BUILD_LIMIT_MS,
   DEFAULT_VIEWPORT,
   MIN_PNG_BYTES,
   OVERALL_LIMIT_MS,
@@ -7,6 +10,7 @@ import {
   STATE_DEADLINE_MS,
   electronEnv,
   parseArgs,
+  previewBuildConfig,
   runFailures,
   validateCapture,
   validateObservations
@@ -290,6 +294,16 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
     expect(OVERALL_LIMIT_MS).toBe(630_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+
+  it('builds the preview once under its own 60 s bound, outside the states’ overall bound', () => {
+    expect(BUILD_LIMIT_MS).toBe(60_000)
+    const outDir = resolve('build-out')
+    const preview = fileURLToPath(new URL('../preview/epic-agent', import.meta.url))
+    expect(previewBuildConfig(outDir)).toMatchObject({
+      configFile: join(preview, 'vite.config.ts'), root: preview,
+      build: { outDir, emptyOutDir: true, rollupOptions: { input: join(preview, 'agent.html') } }
+    })
   })
 })
 
