@@ -76,7 +76,9 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
     }),
     answer: input => answer(deps, async () => {
       const { ref, request } = chatRequest(registry, agentChatAnswerSchema, input)
-      await sessions.answer(ref, { promptId: request.promptId, optionId: request.optionId, ...(request.text === undefined ? {} : { text: request.text }) })
+      const { promptId, text } = request
+      const choice = 'optionIds' in request ? { optionIds: request.optionIds } : { optionId: request.optionId }
+      await sessions.answer(ref, { promptId, ...choice, ...(text === undefined ? {} : { text }) })
       return null
     }),
     // The only call that passes a confirmation: an explicit request from the app window, answered in that window.

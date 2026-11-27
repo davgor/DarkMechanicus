@@ -275,19 +275,20 @@ export class OmpReducer {
     else this.state.skipped++
   }
   recordAnswer(held: OmpState['pending'][number], command: Extract<OmpCommand, { type: 'answer' }>): void {
+    const ids = 'optionIds' in command ? command.optionIds : [command.optionId]
     this.emit({ type: 'item', item: { kind: 'approval_decision', id: `omp:decision:${held.prompt.id}`, at: this.at,
       ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), requestId: held.prompt.id,
-      decision: held.prompt.kind === 'question' ? 'allow_once' : command.optionId as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' } })
+      decision: held.prompt.kind === 'question' ? 'allow_once' : ids[0] as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' } })
     if (held.prompt.kind === 'question' && !held.secret) this.emit({ type: 'item', item: {
       kind: 'user_message', id: `omp:answer:${held.prompt.id}`, at: this.at,
       ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}),
-      text: command.optionId === 'text' ? command.text! : held.prompt.options.find(option => option.id === command.optionId)!.label
+      text: held.prompt.options.filter(option => ids.includes(option.id)).map(option => option.id === 'text' ? command.text! : option.label).join(', ')
     } })
   }
   answer(command: Extract<OmpCommand, { type: 'answer' }>): ObjectValue | null {
     const held = this.state.pending[0]
     if (!held || held.prompt.id !== command.promptId) return null
-    const answer = ompAnswerPrompt(held, command.optionId, command.text)
+    const answer = ompAnswerPrompt(held, 'optionIds' in command ? command.optionIds : command.optionId, command.text)
     if (!answer || (!answer.next && !answer.frame)) return null
     this.recordAnswer(held, command)
     if (answer.next) { this.state.pending[0] = answer.next; this.recordPrompt(answer.next); this.pending(); return null }

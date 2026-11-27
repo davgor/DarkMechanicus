@@ -478,6 +478,32 @@ for (const kind of ['claude', 'omp'] as const) {
     })
   }
 
+  it(`${kind} keeps a multi question pending on an unknown or repeated id, then writes the golden multiselect answer`, async () => {
+    const r = rig(kind), chat = r.newChat('[multiselect]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const pending = r.sessions.snapshot(chat).pending!
+    expect(pending).toMatchObject({ kind: 'question', multi: true, progress: { index: 1, total: 2 } })
+    const before = [...r.writes]
+    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0']]) {
+      await expect(r.sessions.answer(chat, { promptId: pending.id, optionIds })).rejects.toMatchObject({ code: 'invalid_input' })
+      expect(r.sessions.snapshot(chat).pending).toEqual(pending)
+    }
+    expect(r.writes).toEqual(before)
+    await r.sessions.answer(chat, { promptId: pending.id, optionIds: kind === 'claude' ? ['option_2', 'option_0'] : ['option_1', 'option_0'] })
+    const second = r.sessions.snapshot(chat).pending!
+    expect(second).toMatchObject({ multi: false, progress: { index: 2, total: 2 } })
+    expect(r.writes).toEqual(before)
+    await r.sessions.answer(chat, { promptId: second.id, optionId: 'option_0' })
+    const golden = readFileSync(join(import.meta.dirname, '__fixtures__', kind, 'question_multi.in.jsonl'), 'utf8').trim().split(/\r?\n/)[1]
+    expect(r.writes.at(-1)).toBe(golden)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const items = r.store.readTranscript(chat)!.items
+    expect(items.filter(item => item.kind === 'user_message').map(item => item.text))
+      .toEqual(['[multiselect]', kind === 'claude' ? 'A, C' : 'SQLite, Postgres', kind === 'claude' ? 'SQLite' : 'EU'])
+    expect(items.filter(item => item.kind === 'assistant_text').at(-1)?.text).toMatch(/^answers: /)
+  })
+
   it(`${kind} writes the allow_chat golden line but never answers a subsequent approval itself`, async () => {
     const r = rig(kind), chat = r.newChat('[approval_chat]')
     await r.sessions.start(chat)
