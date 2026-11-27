@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'n
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenameRetryNote } from '../../core/repo/forgeManifest'
-import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { pausesTaken, refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { ensureForgeDirections, FORGE_DIRECTIONS, FORGE_REPOSITORY_GUIDANCE } from './forgeDirections'
 
@@ -94,13 +94,12 @@ describe('a busy rename onto the directions', () => {
   const onRetry = vi.fn<RenameRetryNote>()
   beforeEach(() => { onRetry.mockReset() })
 
-  it('asks again after one busy refusal and writes the update within 300 ms', () => {
+  it('asks again after one busy refusal, pausing 50 ms of its 300 ms bound, and writes the update', () => {
     const file = join(fixture.path, FORGE_DIRECTIONS)
     writeFileSync(file, custom)
     refuseRenames('EPERM')
-    const started = performance.now()
     ensureForgeDirections(fixture.path, onRetry)
-    expect(performance.now() - started).toBeLessThan(300)
+    expect(pausesTaken()).toEqual([50])
     expect(renamesAsked()).toBe(2)
     expect(onRetry.mock.calls).toEqual([['EPERM', file]])
     expect(readFileSync(file, 'utf8')).toContain(begin)
@@ -113,6 +112,7 @@ describe('a busy rename onto the directions', () => {
     refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
     expect(() => ensureForgeDirections(fixture.path, onRetry)).toThrow('EPERM: rename refused')
     expect(renamesAsked()).toBe(4)
+    expect(pausesTaken()).toEqual([50, 100, 150])
     expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
     expect(readFileSync(file, 'utf8')).toBe(custom)
     expect(readdirSync(fixture.path)).toEqual([FORGE_DIRECTIONS])
