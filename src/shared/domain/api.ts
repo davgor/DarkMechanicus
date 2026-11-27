@@ -7,7 +7,8 @@ import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
 import type {
-  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultRecordSynthesisArgs, CultStatusResult, CultSummonArgs, CultSummonResult
+  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultRecordSynthesisArgs, CultRetireWorkerTypeArgs, CultStatusResult, CultSummonArgs, CultSummonResult,
+  CultWorkerTypesResult
 } from '../cults/cultControl'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
@@ -475,6 +476,10 @@ export interface CommandApi {
   cultConcludeService(input: { report: string }): Promise<{ concluding: 'service'; reportStored: boolean }>
   /** Magos: a worker type for this run only, which acolytes may then be summoned as. */
   cultCreateWorkerType(input: { displayName: string; description: string; mission: string; rationale: string; requiredForConclusion: boolean }): Promise<{ workerTypeId: string; displayName: string; requiredForConclusion: boolean }>
+  /** Magos: the worker types created for this run, retired ones included, with the acolytes that held each. */
+  cultListWorkerTypes(): Promise<CultWorkerTypesResult>
+  /** Magos: retires an optional run worker type no acolyte has held, with a reason. */
+  cultRetireWorkerType(input: CultRetireWorkerTypeArgs): Promise<{ retired: string }>
   /** Magos (Plan Forge): its synthesis of the reports for its latest draft edit, before it concludes. */
   cultRecordSynthesis(input: CultRecordSynthesisArgs): Promise<{ draftRevision: number; accepted: number; rejected: number }>
   // Discovery and repository lifecycle
