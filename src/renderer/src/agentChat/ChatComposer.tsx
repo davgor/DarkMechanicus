@@ -1,4 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import type { ImageTargetProps } from '../attachments/useImageAttach'
 import { Icon } from '../components/Icon'
 import './chatComposer.css'
 
@@ -29,13 +30,22 @@ interface ChatComposerProps {
   error: string | null
   /** A screen-reader note on the text area beside the keys, such as where a relayed message goes. */
   note?: string
-  /** Sends the text; resolves true once it was taken, which clears it while it is still the current text. */
+  /** Sends the text (empty when only images go); resolves true once it was taken, which clears it while it is still the current text. */
   send(text: string): Promise<boolean>
   stop?(): void
   /** Controls before the chips (the attach button). */
   leading?: ReactNode
   /** Controls between the chips and Send (the model chip). */
   trailing?: ReactNode
+  /** Images going with the next message: their chips above the text area, and paste and drop onto the card. */
+  attachments?: {
+    chips: ReactNode
+    /** Staged images: Send is allowed with them even when the text is empty. */
+    count: number
+    /** An image is still staging: Send waits for it. */
+    staging: boolean
+    intake: ImageTargetProps
+  }
 }
 
 /** Sizes the text area to its content, capped at a share of the chat pane, on every text change and pane resize. */
@@ -66,31 +76,40 @@ function useAutoGrow(text: string): RefObject<HTMLTextAreaElement> {
   return area
 }
 
+/** What Send would send: the draft, or empty text when only images go; null while nothing may be sent. */
+function outgoing(text: string, { disabled, maxLength, attachments }: ChatComposerProps): string | null {
+  if (disabled || text.length > maxLength || attachments?.staging === true) return null
+  if (text.trim() !== '') return text
+  return (attachments?.count ?? 0) > 0 ? '' : null
+}
+
 /**
- * Every GUI chat's composer: a rounded glass card holding an auto-growing text area over a row of the leading slot,
- * the agent, context and queue chips, the trailing slot and a round Send that turns into a square Stop while busy.
+ * Every GUI chat's composer: a rounded glass card holding any image chips over an auto-growing text area over a row of
+ * the leading slot, the agent, context and queue chips, the trailing slot and a round Send that turns into a square Stop
+ * while busy. Pasting or dropping images anywhere on the card hands them to `attachments`.
  */
 export function ChatComposer(props: ChatComposerProps): JSX.Element {
-  const { id, label, placeholder, agent, context, queued, maxLength, disabled, acting, busy, error, note, send, stop, leading, trailing } = props
+  const { id, label, placeholder, agent, context, queued, maxLength, disabled, acting, busy, error, note, send, stop, leading, trailing, attachments } = props
   const [text, setText] = useState('')
   const area = useAutoGrow(text)
   const keysId = useId()
   // A second Enter can land before the parent re-renders with `acting`; one send at a time either way.
   const inFlight = useRef(false)
-  const sendable = !disabled && text.trim() !== '' && text.length <= maxLength
+  const message = outgoing(text, props)
   async function submit(): Promise<void> {
-    if (!sendable || acting || inFlight.current) return
-    const sent = text
+    if (message === null || acting || inFlight.current) return
+    const draft = text
     inFlight.current = true
     try {
-      if (await send(sent)) setText((current) => (current === sent ? '' : current))
+      if (await send(message)) setText((current) => (current === draft ? '' : current))
     } finally {
       inFlight.current = false
     }
   }
   return (
-    <form className="chat-composer glass" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+    <form className="chat-composer glass" {...attachments?.intake} onSubmit={(event) => { event.preventDefault(); void submit() }}>
       {error !== null && <p className="chat-composer-error" role="alert">{error}</p>}
+      {attachments?.chips}
       <label className="sr-only" htmlFor={id}>{label}</label>
       <span className="sr-only" id={keysId}>{note === undefined ? SEND_KEYS : `${note} ${SEND_KEYS}`}</span>
       <textarea ref={area} className="chat-composer-input" id={id} value={text} maxLength={maxLength} rows={1} disabled={disabled}
@@ -111,7 +130,7 @@ export function ChatComposer(props: ChatComposerProps): JSX.Element {
           ? <button className="chat-composer-stop" type="button" aria-label="Stop" title="Stop (Escape)" disabled={acting}
             onClick={() => stop?.()}><span className="chat-composer-stop-mark" aria-hidden="true" /></button>
           : <button className="chat-composer-send" type="submit" aria-label="Send" title={SEND_KEYS} aria-describedby={keysId}
-            disabled={!sendable || acting}><Icon name="arrow-up" size={16} strokeWidth={2} /></button>}
+            disabled={message === null || acting}><Icon name="arrow-up" size={16} strokeWidth={2} /></button>}
       </div>
     </form>
   )

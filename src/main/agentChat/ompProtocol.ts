@@ -5,7 +5,7 @@ import { ompReadFrame, ompWriteFrame, type OmpFraming } from './ompFraming'
 import type { OmpHeldPrompt } from './ompPrompts'
 import { OmpReducer } from './ompReducer'
 import type { ToolResultBlob, TurnImage } from './toolResultImages'
-import type { ThreadClaimEvent } from './translatorEvents'
+import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
 
 type Payload<T> = T extends unknown ? Omit<T, 'folder' | 'chatId'> : never
 export type OmpEvent = Payload<AgentChatEvent>
@@ -39,6 +39,8 @@ export type OmpCommand =
   | { type: 'interrupt'; id: string }
   | ({ type: 'answer'; id: string } & AgentChatAnswer)
   | { type: 'get_subagent_messages'; id: string; subagentId: string; fromByte: number }
+  /** Main's own catalog request; its reply comes back only as a `command_result` internal event. */
+  | { type: 'get_available_models'; id: string }
 type Result = { events: OmpEvent[]; state: OmpState }
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : {}
 const string = (value: unknown): string => typeof value === 'string' ? value : ''
@@ -55,7 +57,7 @@ export function createOmpState(idNamespace = ''): OmpState {
  * No I/O, clocks or raw-line events. Only `events` are safe for storage/IPC, never `internalEvents`. `blobs` are
  * tool-result image bytes for the named items: never in an event, and the caller stores them as bytes.
  */
-export function translateOmpLine(line: string, previous: OmpState, at: string): Result & { internalEvents: ThreadClaimEvent[]; blobs: ToolResultBlob[] } {
+export function translateOmpLine(line: string, previous: OmpState, at: string): Result & { internalEvents: (ThreadClaimEvent | CommandResultEvent)[]; blobs: ToolResultBlob[] } {
   const state = structuredClone(previous)
   const reducer = new OmpReducer(state, at)
   const result = ompReadFrame(line, state)

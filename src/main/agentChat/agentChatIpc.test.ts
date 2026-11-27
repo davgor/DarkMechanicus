@@ -14,6 +14,7 @@ import type { ChatWindow } from '../agents/chatIpc'
 import { guardIpc } from '../ipcGuard'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from './agentChatIpc'
 import type { AgentChatSessions } from './agentChatSessions'
+import type { OmpModels } from './ompModels'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
@@ -36,7 +37,8 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [AGENT_CHAT_CHANNELS.setSurface]: { folder: REPO, chatId: 'chat_1', surface: 'gui' },
   [AGENT_CHAT_CHANNELS.snapshot]: { folder: REPO, chatId: 'chat_1' },
   [AGENT_CHAT_CHANNELS.attention]: { folder: REPO },
-  [AGENT_CHAT_CHANNELS.stageImage]: { folder: REPO, chatId: 'chat_1', data: SWATCH.toString('base64') }
+  [AGENT_CHAT_CHANNELS.stageImage]: { folder: REPO, chatId: 'chat_1', data: SWATCH.toString('base64') },
+  [AGENT_CHAT_CHANNELS.models]: { folder: REPO, chatId: 'chat_1' }
 }
 
 function rig() {
@@ -57,7 +59,8 @@ function rig() {
       listeners.set(channel, listener)
     }
   }, { appUrl: APP_URL, onRefused: channel => { refused.push(channel) } })
-  const handlers = createAgentChatHandlers({ registry: { resolve: path => (path === REPO ? REPO : null) }, sessions, confirmTerminalStop })
+  const models = { chatModels: record('chatModels', []), catalogModels: record('catalogModels', []) } as unknown as OmpModels
+  const handlers = createAgentChatHandlers({ registry: { resolve: path => (path === REPO ? REPO : null) }, sessions, confirmTerminalStop, models })
   registerAgentChatIpc(guarded, handlers, event => event.sender)
   const invoke = async (channel: string, request: unknown, event = TRUSTED) => (await listeners.get(channel)!(event, request)) as CommandResult<unknown>
   return { calls, sessions, confirmTerminalStop, listeners, refused, invoke }
@@ -76,8 +79,10 @@ describe('agent chat IPC registration', () => {
     const state = rig()
     for (const channel of INVOKED) expect(codeOf(await state.invoke(channel, REQUESTS[channel]))).toBe('ok')
     // `INVOKED` is sorted by channel name, so the manager is reached in that order.
-    expect(state.calls.map(call => [call[0], call[1]])).toEqual([['answer', 'attention'].map(name => [name, name === 'attention' ? REPO : { folder: REPO, id: 'chat_1' }]),
-      ['interrupt', 'send', 'setSurface', 'snapshot', 'stageImage', 'start'].map(name => [name, { folder: REPO, id: 'chat_1' }])].flat())
+    const ref = { folder: REPO, id: 'chat_1' }
+    expect(state.calls.map(call => [call[0], call[1]])).toEqual([
+      ['answer', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setSurface', ref], ['snapshot', ref], ['stageImage', ref], ['start', ref]
+    ])
   })
 
   it('registers agentChat:attention behind the guard and answers the folder’s items or a project-less list', async () => {
@@ -100,6 +105,24 @@ describe('agent chat IPC registration', () => {
       expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder }))).toBe('unauthorized')
     }
     expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.attention, { folder: REPO, chatId: 'chat_1' }))).toBe('invalid_input')
+    expect(state.calls).toEqual([])
+  })
+})
+
+describe('agent chat models IPC', () => {
+  it('serves agentChat:models for a chat or, before one starts, an agent, passing only refresh', async () => {
+    const state = rig()
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: null, chatId: 'chat_1', refresh: true })).toEqual({ ok: true, data: [] })
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO, agentId: 'omp' })).toEqual({ ok: true, data: [] })
+    expect(state.calls).toEqual([['chatModels', { folder: null, id: 'chat_1' }, { refresh: true }], ['catalogModels', 'omp', { refresh: false }]])
+  })
+
+  it('refuses an agentChat:models request naming both a chat and an agent, neither, or an untracked folder', async () => {
+    const state = rig()
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO, chatId: 'chat_1', agentId: 'omp' }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO, agentId: '../omp' }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: '/elsewhere', agentId: 'omp' }))).toBe('unauthorized')
     expect(state.calls).toEqual([])
   })
 })

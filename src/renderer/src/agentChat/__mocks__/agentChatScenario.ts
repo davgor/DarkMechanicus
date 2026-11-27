@@ -1,6 +1,6 @@
 import type { AgentChatEvent, AgentChatSnapshot, AgentTodoPhase } from '../../../../shared/agents/agentChat'
 import type { Callsign } from '../../../../shared/agents/callsign'
-import type { ChatItem } from '../../../../shared/agents/chat'
+import type { ChatImageRef, ChatItem } from '../../../../shared/agents/chat'
 
 const ref = { folder: null, chatId: 'fixture-chat' }
 const at = '2026-11-24T08:00:00.000Z'
@@ -72,9 +72,23 @@ const todoPhases: AgentTodoPhase[] = [
     { id: '7', content: 'Review the result', status: 'pending' }
   ] }
 ]
-/** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree' | 'legacy' | 'changes', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
+
+/** Four screenshots main staged for the composer, one message's worth: what `stageImage` answers, in order. */
+const stagedImages: ChatImageRef[] = [
+  { id: 'ci_01m8e000000000000000000001', mime: 'image/png', width: 1280, height: 800, bytes: 182_044 },
+  { id: 'ci_01m8e000000000000000000002', mime: 'image/jpeg', width: 1024, height: 768, bytes: 96_310 },
+  { id: 'ci_01m8e000000000000000000003', mime: 'image/png', width: 800, height: 600, bytes: 61_872 },
+  { id: 'ci_01m8e000000000000000000004', mime: 'image/png', width: 1440, height: 900, bytes: 240_118 }
+]
+
+type ScenarioName = 'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree' | 'legacy' | 'changes' | 'images'
+/**
+ * Snapshot arrays remain the transport contract, independent of the renderer's derived state. `staged` lists the refs
+ * `stageImage` answers, one per pasted image, for the composer's image states.
+ */
+export const agentChatScenarios: Record<ScenarioName, { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number; staged?: ChatImageRef[] }> = {
   empty: { snapshot: empty, events: [], commit: [] },
+  images: { snapshot: { ...empty, items: conversation }, events: [], commit: [], staged: stagedImages },
   tree: { snapshot: { ...empty, status: 'busy', items: treeItems }, events: [], commit: [] },
   legacy: { snapshot: { ...empty, status: 'busy', items: legacyItems }, events: [], commit: [] },
   changes: { snapshot: { ...empty, status: 'exited', items: changesItems }, events: [], commit: [] },

@@ -25,22 +25,28 @@ interface ImageAttach {
   /** Empties the list (after the record is saved). */
   clear(): void
   /** Spread onto the element that takes paste and drop. */
-  targetProps: {
-    onPaste(event: ClipboardEvent): void
-    onDrop(event: DragEvent): void
-    onDragOver(event: DragEvent): void
-  }
+  targetProps: ImageTargetProps
   /** Spread onto a file `<input>` behind the picker button. */
-  pickerProps: {
-    type: 'file'
-    accept: string
-    multiple: true
-    onChange(event: ChangeEvent<HTMLInputElement>): void
-  }
+  pickerProps: ImagePickerProps
+}
+
+/** The paste and drop handlers of an image target. */
+export interface ImageTargetProps {
+  onPaste(event: ClipboardEvent): void
+  onDrop(event: DragEvent): void
+  onDragOver(event: DragEvent): void
+}
+
+/** The props of the file `<input>` behind a picker button. */
+export interface ImagePickerProps {
+  type: 'file'
+  accept: string
+  multiple: true
+  onChange(event: ChangeEvent<HTMLInputElement>): void
 }
 
 /** The file's bytes as plain base64 (the data: prefix of a data URL is dropped). */
-function readBase64(file: File): Promise<string> {
+export function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
@@ -53,7 +59,8 @@ function readBase64(file: File): Promise<string> {
   })
 }
 
-function precheck(file: File): string | null {
+/** Refuses a file that is not a PNG or JPEG, or is over 10 MB, with the message shown inline; null when it may go. */
+export function precheck(file: File): string | null {
   const name = file.name === '' ? DEFAULT_LABEL : file.name
   if (!ACCEPTED_TYPES.includes(file.type)) {
     return `${name} is not a PNG or JPEG image.`
@@ -100,7 +107,7 @@ function clipboardImages(event: ClipboardEvent): File[] {
 }
 
 /** The element props for paste and drop; `take` receives the files of an event that carried any. */
-function targetPropsFor(take: (files: File[]) => void): ImageAttach['targetProps'] {
+export function targetPropsFor(take: (files: File[]) => void): ImageTargetProps {
   return {
     onPaste: (event) => {
       const files = clipboardImages(event)
@@ -120,6 +127,23 @@ function targetPropsFor(take: (files: File[]) => void): ImageAttach['targetProps
     onDragOver: (event) => {
       if (Array.from(event.dataTransfer.types).includes('Files')) {
         event.preventDefault()
+      }
+    }
+  }
+}
+
+/** The picker input's props: PNG and JPEG, several at once; `take` receives the chosen files. */
+export function pickerPropsFor(take: (files: File[]) => void): ImagePickerProps {
+  return {
+    type: 'file',
+    accept: ACCEPTED_TYPES.join(','),
+    multiple: true,
+    onChange: (event) => {
+      const files = Array.from(event.target.files ?? [])
+      // Picking the same file again must fire a change.
+      event.target.value = ''
+      if (files.length > 0) {
+        take(files)
       }
     }
   }
@@ -154,18 +178,6 @@ export function useImageAttach(runner: Runner): ImageAttach {
       setError(null)
     },
     targetProps: targetPropsFor(take),
-    pickerProps: {
-      type: 'file',
-      accept: 'image/png,image/jpeg',
-      multiple: true,
-      onChange: (event) => {
-        const files = Array.from(event.target.files ?? [])
-        // Picking the same file again must fire a change.
-        event.target.value = ''
-        if (files.length > 0) {
-          take(files)
-        }
-      }
-    }
+    pickerProps: pickerPropsFor(take)
   }
 }

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentChatEvent } from '../../../shared/agents/agentChat'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
@@ -31,14 +32,16 @@ async function mount(name: keyof typeof agentChatScenarios = 'empty') {
   return { ...view, api, emit, commit: () => emit(scenario.commit) }
 }
 
-it('renders the empty scenario with a text-only bounded composer', async () => {
+it('renders the empty scenario with a bounded composer and a PNG/JPEG attach button', async () => {
   await mount()
   expect(screen.getByText('Send a message to Magos to begin.')).toBeTruthy()
   const input = screen.getByRole('textbox', { name: 'Message Magos' })
   expect(input.getAttribute('maxlength')).toBe('20000')
   expect(input.getAttribute('placeholder')).toBe('Message Magos…')
   expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
-  expect(document.querySelector('input[type="file"]')).toBe(null)
+  expect(document.querySelector('input[type="file"]')?.getAttribute('accept')).toBe('image/png,image/jpeg')
+  expect(screen.getByRole('button', { name: 'Attach images' })).toHaveProperty('disabled', false)
+  expect(screen.queryByRole('list', { name: 'Attached images' })).toBe(null)
   expect(screen.queryByText('Enter to send · Shift+Enter for a new line', { selector: ':not(.sr-only)' })).toBe(null)
   expect(screen.getByLabelText('Agent: Magos').textContent).toBe('Magos')
   expect(screen.queryByLabelText(/^Context:/)).toBe(null)
@@ -188,6 +191,88 @@ it('consumes the approval scenario and disables Terminal even when the agent is 
   expect(api.callsOf('setSurface')).toEqual([])
   emit([{ ...ref, type: 'pending', prompt: null }])
   expect(terminal).toHaveProperty('disabled', false)
+})
+
+const FOLDER_KEY = '00000000000000000000000000000001'
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const staged = agentChatScenarios.images.staged ?? []
+const thumbnails = (): string[] => within(screen.getByRole('list', { name: 'Attached images' })).queryAllByRole('img')
+  .map((image) => image.getAttribute('src') ?? '')
+
+/** The images scenario in a project chat, with every one of its staged images pasted into the composer. */
+async function mountWithImages() {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: agentChatScenarios.images.snapshot }
+  api.stagedImages = [...staged]
+  render(<AgentChat {...ref} folderKey={FOLDER_KEY} agentLabel="Magos" api={api} scheduler={new ManualScheduler()} />)
+  await settle()
+  const files = staged.map((image, index) => new File([PNG], `shot-${index}.png`, { type: image.mime }))
+  fireEvent.paste(screen.getByRole('textbox'), {
+    clipboardData: { items: files.map((file) => ({ kind: 'file', type: file.type, getAsFile: () => file })) }
+  })
+  await waitFor(() => expect(screen.queryByRole('listitem', { name: 'Adding image' })).toBe(null))
+  return { api, send: screen.getByRole('button', { name: 'Send' }) }
+}
+
+describe('composer images: staging', () => {
+  it('consumes the images scenario: four pasted images stage as plain base64 and show as thumbnails above the text', async () => {
+    const { api, send } = await mountWithImages()
+    expect(staged).toHaveLength(4)
+    expect(api.callsOf('stageImage')).toEqual(staged.map(() => [{ ...ref, data: 'iVBORw0KGgo=' }]))
+    expect(thumbnails()).toEqual(staged.map((image) => chatImageUrl(FOLDER_KEY, ref.chatId, image.id)))
+    const card = document.querySelector('form.chat-composer') as HTMLFormElement
+    const list = within(card).getByRole('list', { name: 'Attached images' })
+    expect(list.compareDocumentPosition(screen.getByRole('textbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(send).toHaveProperty('disabled', false)
+  })
+
+  it('refuses a fifth image inline without staging it, and remove drops a chip', async () => {
+    const { api } = await mountWithImages()
+    fireEvent.paste(screen.getByRole('textbox'), {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => new File([PNG], 'fifth.png', { type: 'image/png' }) }] }
+    })
+    expect(screen.getByRole('alert').textContent).toBe('At most 4 images can go with one message.')
+    expect(api.callsOf('stageImage')).toHaveLength(4)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image 1' }))
+    expect(thumbnails()).toEqual(staged.slice(1).map((image) => chatImageUrl(FOLDER_KEY, ref.chatId, image.id)))
+    expect(screen.queryByRole('alert')).toBe(null)
+  })
+})
+
+describe('composer images: sending', () => {
+  it('sends images alone with empty text and their ids, then clears the chips', async () => {
+    const { api, send } = await mountWithImages()
+    fireEvent.click(send)
+    await settle()
+    expect(api.callsOf('send')).toEqual([[{ ...ref, text: '', imageIds: staged.map((image) => image.id) }]])
+    expect(screen.queryByRole('list', { name: 'Attached images' })).toBe(null)
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
+  })
+
+  it('keeps the chips and the text and shows the error when the send fails', async () => {
+    const { api, send } = await mountWithImages()
+    api.failures.send = { code: 'conflict', message: 'Session is unavailable.' }
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'See these' } })
+    fireEvent.click(send)
+    await settle()
+    expect(api.callsOf('send')).toEqual([[{ ...ref, text: 'See these', imageIds: staged.map((image) => image.id) }]])
+    expect(screen.getByRole('alert').textContent).toBe('Session is unavailable.')
+    expect(thumbnails()).toHaveLength(4)
+    expect(screen.getByRole('textbox')).toHaveProperty('value', 'See these')
+  })
+
+  it('holds Send while an image is still staging', async () => {
+    const api = new FakeAgentChat()
+    const hold = api.hold('stageImage')
+    render(<AgentChat {...ref} agentLabel="Magos" api={api} scheduler={new ManualScheduler()} />)
+    await settle()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'With a screenshot' } })
+    fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { files: [new File([PNG], 'a.png', { type: 'image/png' })], types: ['Files'] } })
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
+    await act(async () => { hold.resolve() })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', false))
+    expect(thumbnails()).toEqual([chatImageUrl(null, ref.chatId, 'ci_00000000000000000000000000')])
+  })
 })
 
 it('consumes the error scenario and renders the failed transcript notice', async () => {

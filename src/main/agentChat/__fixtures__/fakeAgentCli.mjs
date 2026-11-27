@@ -16,14 +16,16 @@ const arbiter = argv.includes('-p') && (outputFormat === 'json' || argv.includes
 const protocol = outputFormat === 'json' || outputFormat === 'stream-json' ? 'claude' : 'omp'
 const mode = argv.includes('--version') ? 'version'
   : (argv[0] === 'auth' && argv[1] === 'status') || (argv[0] === 'usage' && argv.includes('--json')) ? 'auth'
+    : argv[0] === 'models' && argv.includes('--json') ? 'models'
     : arbiter ? 'arbiter'
       : argv.includes('--mode') && ['rpc-ui', 'rpc'].includes(option('--mode')) ? 'omp'
         : argv.includes('-p') && outputFormat === 'stream-json' ? 'claude' : 'tui'
 /**
- * The CLI this run plays: OMP for an rpc-ui (or rpc) run and for OMP's own auth probe (`usage --json`), and for any run
- * of a `fake-omp` shim, which sets FAKE_AGENT_PERSONA so `--version` names OMP; Claude Code otherwise.
+ * The CLI this run plays: OMP for an rpc-ui (or rpc) run, for OMP's own auth probe (`usage --json`) and model list
+ * (`models --json`), and for any run of a `fake-omp` shim, which sets FAKE_AGENT_PERSONA so `--version` names OMP;
+ * Claude Code otherwise.
  */
-const persona = mode === 'omp' || argv[0] === 'usage' || process.env.FAKE_AGENT_PERSONA === 'omp' ? 'omp' : 'claude'
+const persona = mode === 'omp' || argv[0] === 'usage' || mode === 'models' || process.env.FAKE_AGENT_PERSONA === 'omp' ? 'omp' : 'claude'
 const root = dirname(fileURLToPath(import.meta.url))
 /** The `[slow]` scenario's pause between lines; a test raises it to hold a busy turn silent while it advances fake time. */
 const slowMs = Number(process.env.FAKE_AGENT_SLOW_MS) || 200
@@ -105,6 +107,20 @@ function runInteractive() {
 
 function fixture(name) {
   return readFileSync(join(root, mode, `${name}.out.jsonl`), 'utf8').trimEnd().split('\n')
+}
+
+/**
+ * OMP's model catalog, redacted from a real `get_available_models` (omp 18.20.2): the RPC reply's `data` as stored, and
+ * `models --json` as OMP prints it without a session (no `identity`, `thinking` a plain list, a `selector`).
+ */
+function modelCatalog(sessionless) {
+  const catalog = JSON.parse(readFileSync(join(root, 'omp', 'models.json'), 'utf8'))
+  if (!sessionless) return catalog
+  return { models: catalog.models.map((model) => {
+    const listed = { ...model, selector: `${model.provider}/${model.id}`, thinking: model.thinking.efforts }
+    delete listed.identity
+    return listed
+  }) }
 }
 
 function renumber(lines, number) {
@@ -430,10 +446,18 @@ class ProtocolReplay {
     }
   }
 
+  /** OMP's read-only requests: a subagent's transcript tail and the model catalog. */
+  query(message) {
+    if (message.type === 'get_subagent_messages') { this.tail(message); return true }
+    if (message.type !== 'get_available_models') return false
+    emit({ id: message.id, type: 'response', command: message.type, success: true, data: modelCatalog(false) })
+    return true
+  }
+
   command(message) {
     if (this.initialize(message)) return true
     if (message.type === 'abort' || message.request?.subtype === 'interrupt') { this.interrupt(message); return true }
-    if (mode === 'omp' && message.type === 'get_subagent_messages') { this.tail(message); return true }
+    if (mode === 'omp' && this.query(message)) return true
     if (mode === 'omp' && ['follow_up', 'steer'].includes(message.type)) { this.admit(message); return true }
     this.answer(message)
     return false
@@ -489,6 +513,8 @@ if (mode === 'arbiter') {
   } else if (mode === 'auth') {
     emit({ loggedIn })
     process.exitCode = loggedIn ? 0 : 1
+  } else if (mode === 'models') {
+    emit(modelCatalog(true))
   } else {
     runInteractive()
   }

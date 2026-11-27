@@ -24,7 +24,7 @@ import { claudeInitLines, claudeInputClipped, createClaudeProtocolState, encodeC
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
 import { PendingPrompts, type ArbitrationGate, type AttentionEvent } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
-import type { ThreadClaimEvent } from './translatorEvents'
+import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
 import type { ChatImages, ChatImagesRef } from './chatImages'
 import type { ToolResultBlob, TurnImage } from './toolResultImages'
 
@@ -88,6 +88,11 @@ export interface AgentChatSessions {
    */
   setSurface(ref: ChatRef, surface: 'gui' | 'terminal', confirmTerminalStop?: ConfirmTerminalStop): Promise<AgentChatSnapshot>
   stop(ref: ChatRef): Promise<void>
+  /**
+   * Asks the chat's live OMP process `type` over its RPC stdin and resolves with the reply's `data` (rejecting on a
+   * failed reply, exit, stop or `OMP_REQUEST_TIMEOUT_MS`). Null when the chat has no live, initialized OMP process.
+   */
+  ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null
   /** Stops the GUI process (refusing new starts meanwhile), then runs `remove`, which deletes the record. */
   deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
   /**
@@ -120,6 +125,8 @@ interface Entry {
   protocol: 'claude' | 'omp'
   claude: ClaudeProtocolState
   omp: OmpState
+  /** Main's own OMP requests awaiting their reply, by command id (`ompRequest`). */
+  requests: Map<string, { resolve(data: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>
   grantIds: string[]
   release?: () => void
   cancelled: boolean
@@ -194,6 +201,8 @@ const repeat = (callback: () => void, ms: number): (() => void) => {
   return () => clearInterval(timer)
 }
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error)
+/** How long main waits for a live OMP process to answer one of its own requests (`ompRequest`). */
+const OMP_REQUEST_TIMEOUT_MS = 15_000
 
 function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   // The repository's ES library predates Promise.withResolvers.
@@ -204,7 +213,7 @@ function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   const closed = new Promise<void>((resolve, reject) => { completeClose = resolve; rejectClose = reject })
   for (const pending of [cancellation, ready, closed]) void pending.catch(() => undefined)
   return { chat, status: 'starting', queued: 0, turnActive: false, todos: previous?.todos ?? new Map(), protocol: 'claude', attention: '[]',
-    claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), grantIds: [], cancelled: false,
+    claude: createClaudeProtocolState(), omp: createOmpState(`${randomUUID()}:`), requests: new Map(), grantIds: [], cancelled: false,
     cancellation, cancel, ready, admit, rejectReady, closed, completeClose, rejectClose, toolCalls: new Map(), toolImages: new Map() }
 }
 
@@ -409,6 +418,38 @@ class SessionManager {
     entry.omp.pending = []
     entry.prompts?.clear()
   }
+  /** Fails every request still awaiting its reply: the process that would answer is exiting or stopped. */
+  private failRequests(entry: Entry): void {
+    for (const request of entry.requests.values()) {
+      clearTimeout(request.timer)
+      request.reject(new DomainError('cancelled', 'The agent stopped before it answered.'))
+    }
+    entry.requests.clear()
+  }
+  private settleRequest(entry: Entry, result: CommandResultEvent): void {
+    const request = entry.requests.get(result.id)
+    if (!request) return
+    entry.requests.delete(result.id)
+    clearTimeout(request.timer)
+    if (result.ok) request.resolve(result.data)
+    else request.reject(new DomainError('operation_unavailable', 'The agent refused the request.'))
+  }
+  ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null {
+    const entry = this.entries.get(this.chatFor(ref).id)
+    if (!entry?.process || entry.protocol !== 'omp' || !entry.omp.initialized || entry.cancelled || entry.ending) return null
+    const id = randomUUID()
+    const encoded = encodeOmpCommand({ type, id }, entry.omp, this.now())
+    this.write(entry, encoded.lines)
+    entry.omp = encoded.state
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        entry.requests.delete(id)
+        reject(new DomainError('timeout', `The agent did not answer within ${OMP_REQUEST_TIMEOUT_MS / 1000} seconds.`))
+      }, OMP_REQUEST_TIMEOUT_MS)
+      timer.unref()
+      entry.requests.set(id, { resolve, reject, timer })
+    })
+  }
   private tracked<T>(work: Promise<T>): Promise<T> {
     this.cleanup.add(work)
     void work.then(() => this.cleanup.delete(work), () => this.cleanup.delete(work))
@@ -475,6 +516,7 @@ class SessionManager {
     if (entry.ending) return entry.ending
     this.clearInterrupt(entry)
     this.clearPrompts(entry)
+    this.failRequests(entry)
     this.resetStall(entry)
     entry.release?.()
     entry.release = undefined
@@ -499,6 +541,7 @@ class SessionManager {
     entry.cancelled = true
     entry.cancel()
     this.clearPrompts(entry)
+    this.failRequests(entry)
     entry.release?.()
     entry.release = undefined
     return this.awaitCleanup(entry)
@@ -511,7 +554,10 @@ class SessionManager {
     entry.omp = result.state
     for (const event of result.events) this.emit(entry, event)
     entry.prompts?.update(this.stampedPrompts(entry))
-    for (const claim of result.internalEvents) this.claim(entry, claim)
+    for (const event of result.internalEvents) {
+      if (event.type === 'thread_claim') this.claim(entry, event)
+      else this.settleRequest(entry, event)
+    }
     this.storeToolImages(entry, result.blobs)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
@@ -1008,5 +1054,6 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
     stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
     releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
-    busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder) }
+    busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder),
+    ompRequest: (ref, type) => manager.ompRequest(ref, type) }
 }
