@@ -107,13 +107,8 @@ function editsAt(node: ts.Node, source: string, sourceFile: ts.SourceFile): Edit
 }
 
 export function generateMutants(file: string, source: string): Mutant[] {
-  const sourceFile = ts.createSourceFile(
-    file,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX
-  );
+  // By extension, as in the ast gate: TSX reads a `.ts` generic arrow as a JSX tag and loses the code after it.
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const lineOf = (position: number): number =>
     sourceFile.getLineAndCharacterOfPosition(position).line + 1;
   const mutants: Mutant[] = [];

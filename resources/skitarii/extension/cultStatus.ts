@@ -6,7 +6,9 @@
  *
  * The file holds only what main reads: `{ "state": "working" | "idle" }`. No tool input and no peer text is written;
  * main takes the last tool call from the session JSONL. Each write goes to a temp file (mode 0600) renamed over the
- * file, one at a time in event order, so main never reads a torn file. No timer is used and no handle stays open.
+ * file, one at a time in event order, so main never reads a torn file. No handle stays open, and no timer outlives a
+ * write: a rename Windows refuses as busy (main reading the file at that moment, a scanner holding either file) is
+ * asked again after a short pause, a few times.
  *
  * Like the rest of the extension, this file imports nothing from OMP or npm.
  */
@@ -21,9 +23,21 @@ type CultState = 'working' | 'idle'
 interface CultStatusIo {
   writeFile: (path: string, text: string, options: { mode: number }) => Promise<void>
   rename: (from: string, to: string) => Promise<void>
+  /** Waits between rename tries. */
+  pause: (ms: number) => Promise<void>
 }
 
-const NODE_IO: CultStatusIo = { writeFile: (path, text, options) => writeFile(path, text, options), rename }
+const NODE_IO: CultStatusIo = {
+  writeFile: (path, text, options) => writeFile(path, text, options),
+  rename,
+  pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** What Windows answers a rename onto a file another handle holds open: main's read of the status file, a scanner. */
+const RENAME_BUSY: Record<string, true> = { EPERM: true, EACCES: true, EBUSY: true }
+const RENAME_TRIES = 10
+/** The wait between tries: under half a second in all, against reads that hold the file for a moment. */
+const RENAME_PAUSE_MS = 50
 
 export interface CultStatusContext {
   agent?: { kind?: string }
@@ -50,10 +64,23 @@ class CultStatusWriter {
   async #replace(state: CultState): Promise<void> {
     try {
       await this.io.writeFile(this.temp, JSON.stringify({ state }), { mode: 0o600 })
-      await this.io.rename(this.temp, this.path)
+      await this.#renameOver()
     } catch {
       // A failed write leaves main on the session JSONL fallback; the next event writes again.
       this.#last = null
+    }
+  }
+
+  async #renameOver(): Promise<void> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await this.io.rename(this.temp, this.path)
+        return
+      } catch (error: unknown) {
+        const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+        if (attempt === RENAME_TRIES || !Object.hasOwn(RENAME_BUSY, code)) throw error
+        await this.io.pause(RENAME_PAUSE_MS)
+      }
     }
   }
 }

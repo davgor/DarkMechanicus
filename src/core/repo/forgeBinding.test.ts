@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { pausesTaken, refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { bindForge, forgeBindingFile, withForgeTransfer } from './forgeBinding'
 import type { RenameRetryNote } from './forgeManifest'
@@ -37,11 +37,10 @@ describe('bindForge with a busy rename', () => {
   it.each([
     ['the binding', ['EPERM'], () => forgeBindingFile(home, source)],
     ['the checkout hint', ['', 'EPERM'], () => checkoutHint]
-  ])('asks again after one busy refusal onto %s and binds within 300 ms', (_target, codes, target) => {
+  ])('asks again after one busy refusal onto %s, pausing 50 ms of its 300 ms bound, and binds', (_target, codes, target) => {
     refuseRenames(...codes)
-    const started = performance.now()
     bindForge(home, source, { member, note: 'pointer', onRetry })
-    expect(performance.now() - started).toBeLessThan(300)
+    expect(pausesTaken()).toEqual([50])
     expect(renamesAsked()).toBe(3)
     expect(onRetry.mock.calls).toEqual([['EPERM', target()]])
     expect(JSON.parse(readFileSync(forgeBindingFile(home, source), 'utf8')).member).toBe(member)
@@ -54,6 +53,7 @@ describe('bindForge with a busy rename', () => {
     refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
     expect(() => bindForge(home, source, { member: join(scratch.path, 'elsewhere'), note: 'pointer', onRetry })).toThrow('EPERM: rename refused')
     expect(renamesAsked()).toBe(4)
+    expect(pausesTaken()).toEqual([50, 100, 150])
     const file = forgeBindingFile(home, source)
     expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
     expect(readFileSync(file, 'utf8')).toBe(before)
@@ -74,12 +74,11 @@ describe('withForgeTransfer advancing over a busy rename', () => {
   const moveFile = (): string => join(home, 'forge-bindings', projectKey(source) + '.move.json')
   const phase = (): number => JSON.parse(readFileSync(moveFile(), 'utf8')).phase
 
-  it('asks again after one busy refusal and records the phase within 300 ms', async () => {
+  it('asks again after one busy refusal, pausing 50 ms of its 300 ms bound, and records the phase', async () => {
     await withForgeTransfer(home, source, { target: member, force: false, onRetry }, async (_phase, advance) => {
       refuseRenames('EBUSY')
-      const started = performance.now()
       advance(2)
-      expect(performance.now() - started).toBeLessThan(300)
+      expect(pausesTaken()).toEqual([50])
       expect(renamesAsked()).toBe(2)
       expect(phase()).toBe(2)
     })

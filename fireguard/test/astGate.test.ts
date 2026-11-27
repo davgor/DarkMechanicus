@@ -39,6 +39,12 @@ describe('add', () => {
 `;
 
 describe('analyzeTestSource', () => {
+  it('counts the assertions after a generic arrow function in a .ts test, which TSX parsing would swallow', () => {
+    const source = "it('orders', async () => {\n  const step = async <T>(work: () => Promise<T>): Promise<T> => work()\n  expect(await step(async () => 1)).toBe(1)\n})\n";
+    const result = analyzeTestSource('generic.test.ts', source);
+    expect([result.assertionCount, result.emptyTests]).toEqual([1, []]);
+  });
+
   it('counts asserts and zero mocks for solid tests', () => {
     const result = analyzeTestSource('solid.test.ts', solidSource);
     expect(result.assertionCount).toBe(2);
