@@ -1,8 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { removeScratch } from '../../test/removeScratch'
 import { claudeSessionExists } from '../terminals/claudeSession'
@@ -450,6 +451,39 @@ for (const [protocol, keyword, target] of [['omp', 'tasks', 'todo'], ['claude', 
     await harness.until(() => completed(protocol, harness.stdout))
     expect(await finish(harness)).toBe(0)
     expect(harness.stdout).toBe(golden(protocol, target))
+  })
+}
+
+/**
+ * Instructions with the app's `dm` line (a runtime prefix, a quoted program and script, a pinned repository) and
+ * the first-message naming section; the "dm" is a Node script that records how it was called.
+ */
+function namingInstructions(): { file: string; record: string } {
+  const record = join(scratch, 'name-chat.json')
+  const recorder = join(scratch, 'dm-recorder.mjs')
+  const body = 'JSON.stringify({ argv: process.argv.slice(2), runAsNode: process.env.ELECTRON_RUN_AS_NODE })'
+  // Written beside the record, then renamed onto it: the test reads the record as soon as it exists.
+  writeFileSync(recorder, `import { renameSync, writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(`${record}.part`)}, ${body})\nrenameSync(${JSON.stringify(`${record}.part`)}, ${JSON.stringify(record)})\n`)
+  const line = `ELECTRON_RUN_AS_NODE=1 '${process.execPath}' '${recorder}' --repo ${scratch.replaceAll('\\', '/')}`
+  const file = join(scratch, 'instructions.md')
+  writeFileSync(file, ['```sh', `${line} --list`, `${line} call get_capabilities '{}'  # run a command`, '```', '', '## First-message chat naming', 'Name it.'].join('\n'))
+  return { file, record }
+}
+
+for (const protocol of protocols) {
+  it(`${protocol} names the chat on its first message through the instructions' dm line with FAKE_AGENT_NAME_CHATS`, async () => {
+    const { file, record } = namingInstructions()
+    const flag = protocol === 'claude' ? '--append-system-prompt-file' : '--append-system-prompt'
+    const harness = await initialize(protocol, [flag, file], cli, { FAKE_AGENT_NAME_CHATS: '1' })
+    harness.send(prompt(protocol, 'hello'))
+    await harness.until(() => completed(protocol, harness.stdout))
+    while (!existsSync(record)) await delay(20)
+    expect(JSON.parse(readFileSync(record, 'utf8'))).toEqual({
+      argv: ['--repo', scratch.replaceAll('\\', '/'), 'call', 'name_chat', '{"title":"Fake agent conversation"}'],
+      runAsNode: '1'
+    })
+    expect(await finish(harness)).toBe(0)
+    expect(harness.stderr).toBe('')
   })
 }
 

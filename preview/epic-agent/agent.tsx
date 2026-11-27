@@ -126,17 +126,6 @@ function verifiedTree(): ChatItem[] {
 
 const treeSnapshot = (): AgentChatSnapshot => ({ ...scenarios.tree.snapshot, items: verifiedTree() })
 
-/**
- * The tool scenario with the callsign main stamps on a worker's thread item (the scenario's thread predates
- * callsigns, so the tree would list it as an unnamed Servitor): the rail names it Acolyte:DM-785.
- */
-const toolSnapshot = (): AgentChatSnapshot => ({
-  ...scenarios.tool.snapshot,
-  items: scenarios.tool.snapshot.items.map((item) => item.kind === 'thread'
-    ? { ...item, callsign: { role: 'Acolyte', ticketKey: 'DM-785', ordinal: null, purpose: null, ticketVerified: false } }
-    : item)
-})
-
 /** The sample saved plan plus DM-1 and DM-2 in sprint 1: the tree scenario's Acolytes name these keys. */
 function planWithTreeTickets(): PlanView {
   const base = bundle()
@@ -215,7 +204,7 @@ const agentStates: Record<string, StateDef> = {
   },
   'agent-tool': {
     mount: 'epic',
-    seed: (context) => snapshot(context, toolSnapshot()),
+    seed: (context) => snapshot(context, scenarios.tool.snapshot),
     reach: async () => {
       await openAgentTab()
       await until(() => $('.agent-chat .chat-thread') && $('.agent-chat .chat-tool-name, .agent-chat [class*="chat-tool"]'), 'the tool card and subagent thread')

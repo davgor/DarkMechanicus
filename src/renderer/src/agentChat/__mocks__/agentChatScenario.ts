@@ -90,7 +90,7 @@ export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approv
     snapshot: { ...empty, status: 'busy', items: [
       ...conversation, tool,
       { id: 'spawn', at, kind: 'tool_call', name: 'Task', input: { description: 'Inspect composer' }, status: 'completed', resultSummary: 'Worker started' },
-      { id: 'thread', at, kind: 'thread', parentItemId: 'spawn', label: 'Acolyte:DM-785 Inspect composer', state: 'done' },
+      { id: 'thread', at, kind: 'thread', parentItemId: 'spawn', label: 'Acolyte:DM-785 Inspect composer', state: 'done', callsign: stamp('Acolyte', 'DM-785') },
       { id: 'thread-message', at, kind: 'assistant_text', threadId: 'thread', text: 'Composer keyboard behavior inspected.' }
     ] },
     events: [],

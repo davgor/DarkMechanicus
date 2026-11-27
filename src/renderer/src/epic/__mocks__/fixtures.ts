@@ -877,9 +877,15 @@ export function profileView(patch: Partial<ProfileView> = {}): ProfileView {
   }
 }
 
-/** The Linear packet the sample saved plan (rev 4) builds, as main stores it when the transfer is queued. */
+/**
+ * The Linear packet the sample saved plan (rev 4) builds, as main stores it when the transfer is queued. Its hash is
+ * a fixed stand-in: main's `contentHash` needs `node:crypto`, which the preview pages that load these fixtures cannot.
+ */
 export function transferPacket(): LinearTransferPacket {
-  return buildLinearPacket({ epic: { id: EPIC_ID }, bundle: bundle(), revisionId: 'rv_4', revisionNumber: 4, ticketStatuses: {} })
+  return buildLinearPacket(
+    { epic: { id: EPIC_ID }, bundle: bundle(), revisionId: 'rv_4', revisionNumber: 4, ticketStatuses: {} },
+    () => `sha256:${'4'.repeat(64)}`
+  )
 }
 
 /**

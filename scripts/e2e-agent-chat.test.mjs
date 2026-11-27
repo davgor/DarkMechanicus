@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -18,12 +18,14 @@ import {
   newerVersion,
   parseArgs,
   pngSize,
+  removeStaleRoots,
   replyAfter,
   restartChat,
   restartMarker,
   restartResumeText,
   restartTurn,
   runStep,
+  staleRoots,
   turnEnded,
   verdict,
   waitFor,
@@ -122,7 +124,8 @@ describe('isolatedEnv', () => {
       APPDATA: 'C:\\tmp\\run\\home\\AppData\\Roaming', LOCALAPPDATA: 'C:\\tmp\\run\\home\\AppData\\Local',
       CLAUDE_CONFIG_DIR: 'C:\\tmp\\run\\home\\.claude', PI_CODING_AGENT_DIR: 'C:\\tmp\\run\\home\\.omp\\agent',
       CODEX_HOME: 'C:\\tmp\\run\\home\\.codex', DARKMECHANICUS_HOME: 'C:\\tmp\\run\\dm-home',
-      DISABLE_AUTO_UPDATE: '1', FAKE_AGENT_LOG: 'C:\\tmp\\run\\fake-agent.jsonl', FAKE_AGENT_SESSION_FILES: '1', FAKE_AGENT_CONTINUE_TURNS: '1'
+      DISABLE_AUTO_UPDATE: '1', FAKE_AGENT_LOG: 'C:\\tmp\\run\\fake-agent.jsonl', FAKE_AGENT_SESSION_FILES: '1', FAKE_AGENT_CONTINUE_TURNS: '1',
+      FAKE_AGENT_NAME_CHATS: '1'
     })
   })
 
@@ -352,6 +355,12 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--out', 'x', '--steps', 'ready,nope'])).toThrow('Unknown step(s) nope')
     expect(() => parseArgs([])).toThrow('Usage')
   })
+
+  it('takes a packaged exe, resolved, and refuses --exe without a path', () => {
+    expect(parseArgs(['--out', 'x']).exe).toBeNull()
+    expect(parseArgs(['--out', 'x', '--exe', 'app/DarkMechanicus.exe'])).toMatchObject({ exe: resolve('app/DarkMechanicus.exe'), out: resolve('x') })
+    expect(() => parseArgs(['--out', 'x', '--exe'])).toThrow('--exe needs the path')
+  })
 })
 
 describe('isAlive', () => {
@@ -368,6 +377,44 @@ describe('isAlive', () => {
     expect(isAlive(process.pid)).toBe(true)
     const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' })
     expect(isAlive(Number(child.stdout))).toBe(false)
+  })
+})
+
+describe('stale isolated roots', () => {
+  /** A root under `parent`, owned by `pid` (none: no owner file). */
+  const root = (parent, name, pid) => {
+    const path = join(parent, name)
+    mkdirSync(join(path, 'user-data'), { recursive: true })
+    if (pid !== undefined) writeFileSync(join(path, 'harness.json'), JSON.stringify({ pid }))
+    return path
+  }
+
+  it('are the harness roots whose owner is gone, or ownerless ones older than a minute; others and live ones stay', () => {
+    const parent = temp()
+    const dead = root(parent, 'dm-e2e-agent-chat-dead', 111)
+    const live = root(parent, 'dm-e2e-agent-chat-live', 222)
+    const fresh = root(parent, 'dm-e2e-agent-chat-fresh')
+    const old = root(parent, 'dm-e2e-agent-chat-old')
+    const past = new Date(Date.now() - 120_000)
+    utimesSync(old, past, past)
+    root(parent, 'other-run-dead', 111)
+    const alive = (pid) => pid === 222
+    expect(staleRoots(parent, alive).sort()).toEqual([dead, old].sort())
+    expect(removeStaleRoots(parent, alive).removed.sort()).toEqual([dead, old].sort())
+    expect([dead, live, fresh, old].map((path) => existsSync(path))).toEqual([false, true, true, false])
+  })
+
+  it('include the root of a run that was killed, and the next run removes it', () => {
+    const parent = temp()
+    const script = `const { mkdtempSync, writeFileSync } = require('node:fs'); const { join } = require('node:path')
+      const root = mkdtempSync(join(${JSON.stringify(parent)}, 'dm-e2e-agent-chat-'))
+      writeFileSync(join(root, 'harness.json'), JSON.stringify({ pid: process.pid }))
+      process.kill(process.pid, 'SIGKILL')`
+    spawnSync(process.execPath, ['-e', script])
+    const [killed] = staleRoots(parent)
+    expect(killed).toBeDefined()
+    expect(removeStaleRoots(parent)).toEqual({ removed: [killed] })
+    expect(existsSync(killed)).toBe(false)
   })
 })
 
