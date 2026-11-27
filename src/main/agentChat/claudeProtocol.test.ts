@@ -4,6 +4,8 @@ import { expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/agents/chat'
 import { agentChatEventSchema } from '../../shared/agents/agentChat'
 import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolEvent, type ClaudeProtocolState } from './claudeProtocol'
+import { webpBytes } from '../../test/images'
+import type { ToolResultBlob } from './toolResultImages'
 import type { ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
@@ -19,19 +21,21 @@ function initialized(): ClaudeProtocolState {
   for (const line of fixture('init')) state = translateClaudeLine(line, state, at).state
   return state
 }
-function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; internalEvents: ThreadClaimEvent[]; items: ChatItem[] } {
+function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; internalEvents: ThreadClaimEvent[]; items: ChatItem[]; blobs: ToolResultBlob[] } {
   let state = initial
   const events: ClaudeProtocolEvent[] = []
   const internalEvents: ThreadClaimEvent[] = []
+  const blobs: ToolResultBlob[] = []
   for (const line of lines) {
     const next = translateClaudeLine(line, state, at)
     state = next.state
     events.push(...next.events)
     internalEvents.push(...next.internalEvents)
+    blobs.push(...next.blobs)
   }
   const items = new Map<string, ChatItem>()
   for (const event of events) if (event.type === 'item') items.set(event.item.id, event.item)
-  return { state, events, internalEvents, items: [...items.values()] }
+  return { state, events, internalEvents, items: [...items.values()], blobs }
 }
 function text(id: string, value: string, threadId?: string): ChatItem {
   return { kind: 'assistant_text', id: `${id}:0`, at, ...(threadId ? { threadId } : {}), text: value }
@@ -424,4 +428,45 @@ it.each(['Agent', 'Task'])('extracts exactly one complete token from %s, never a
     expect(result.internalEvents).toHaveLength(count)
     expect(JSON.stringify(result.events)).not.toContain('Secret')
   }
+})
+
+const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))
+const swatchBase64 = swatch.toString('base64')
+const swatchImage = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: swatchBase64 } }
+
+it('encodes image_in byte for byte with images before text, and keeps base64 out of events', () => {
+  const [line] = fixture('image_in', 'in'), wire = JSON.parse(line)
+  const images = [{ mime: 'image/png' as const, base64: swatchBase64 }]
+  const result = encodeClaudeCommand({ type: 'send', text: 'what colour', uuid: wire.uuid, sessionId: wire.session_id, images }, initialized(), at)
+  expect(result.lines).toEqual(fixture('image_in', 'in'))
+  expect(result.events).toEqual([{ type: 'item', item: { kind: 'user_message', id: wire.uuid, at, text: 'what colour' } }, { type: 'status', status: 'busy' }])
+  expect(JSON.stringify(result.events)).not.toContain(swatchBase64.slice(0, 32))
+  const imageOnly = encodeClaudeCommand({ type: 'send', text: '', uuid: 'uuid_T1_image_only', images: [...images, { mime: 'image/jpeg', base64: 'AAAA' }] }, initialized(), at)
+  expect(JSON.parse(imageOnly.lines[0]).message.content).toEqual([swatchImage,
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } }])
+  expect(feed(fixture('image_in')).blobs).toEqual([])
+})
+
+it('lifts image_result into exactly one blob equal to swatch.png and no event', () => {
+  const result = feed(fixture('image_result'))
+  expect(result.blobs).toEqual([{ itemId: 'toolu_T1_read_image', mime: 'image/png', base64: swatchBase64 }])
+  expect(Buffer.from(result.blobs[0].base64, 'base64').equals(swatch)).toBe(true)
+  expect(JSON.stringify(result.events)).not.toContain(swatchBase64.slice(0, 32))
+  expect(result.items).toEqual([tool('read_image', 'Read', { file_path: 'C:\\fixture\\repo\\swatch.png' }, ''), text('msg_T1_image_answer', 'Red')])
+  expect(result.state.skipped).toBe(0)
+  for (const event of result.events) expect(agentChatEventSchema.safeParse({ folder: null, chatId: 'fixture', ...event }).success).toBe(true)
+  expect(feed(fixture('image_result'), result.state).blobs).toEqual([])
+})
+
+it('notes unsupported, mismatched and URL images as not shown, and lifts WebP tool images', () => {
+  const webp = webpBytes(64, 64).toString('base64'), gif = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1').toString('base64')
+  const image = (media_type: string, data: string): unknown => ({ type: 'image', source: { type: 'base64', media_type, data } })
+  const use = json({ type: 'assistant', message: { id: 'msg_T1_images', content: [{ type: 'tool_use', id: 'toolu_T1_images', name: 'Read', input: { file_path: 'x' } }] } })
+  const content = [{ type: 'text', text: 'Read' }, image('image/gif', gif), image('image/webp', webp), image('image/jpeg', swatchBase64),
+    { type: 'image', source: { type: 'url', url: 'https://example.com/a.png' } }, image('image/png', `${swatchBase64}#`)]
+  const result = feed([use, json({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_T1_images', content }] } })])
+  expect(result.blobs).toEqual([{ itemId: 'toolu_T1_images', mime: 'image/webp', base64: webp }])
+  expect(result.items.at(-1)).toMatchObject({ status: 'completed', resultSummary: ['Read', '1 image (image/gif, not shown)',
+    '1 image (image/jpeg, not shown)', '1 image (unknown type, not shown)', '1 image (image/png, not shown)'].join('\n') })
+  for (const prefix of [webp, gif, swatchBase64]) expect(JSON.stringify(result.events)).not.toContain(prefix.slice(0, 32))
 })

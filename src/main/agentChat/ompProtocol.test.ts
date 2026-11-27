@@ -5,6 +5,8 @@ import { agentChatEventSchema } from '../../shared/agents/agentChat'
 import type { ChatItem } from '../../shared/agents/chat'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpCommand, type OmpEvent } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
+import { webpBytes } from '../../test/images'
+import type { ToolResultBlob } from './toolResultImages'
 import type { ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
@@ -18,14 +20,17 @@ function harness(idNamespace = '') {
   let state = createOmpState(idNamespace)
   const events: OmpEvent[] = []
   const internalEvents: ThreadClaimEvent[] = []
+  const blobs: ToolResultBlob[] = []
   return {
     get state() { return state },
     events,
     internalEvents,
+    blobs,
     feed(frame: unknown) {
       const result = translateOmpLine(typeof frame === 'string' ? frame : JSON.stringify(frame), state, at)
       state = result.state; events.push(...result.events)
       internalEvents.push(...result.internalEvents)
+      blobs.push(...result.blobs)
       return result.events
     },
     send(command: OmpCommand, framing?: { chunkId: string; chunkBytes?: number }) {
@@ -230,10 +235,10 @@ describe('OMP security boundary', () => {
 })
 
 describe('OMP framing and streaming invariants', () => {
-  it('reassembles bounded UTF-8 chunks and splits outbound at advertised frame size', () => {
+  it('reassembles bounded UTF-8 chunks and splits explicitly framed outbound commands at advertised frame size', () => {
     const h = initialized()
     h.feed({ type: 'ready', maxFrameBytes: 200, maxReassembledFrameBytes: 10000 })
-    const encoded = h.send({ type: 'send', id: 'prompt', text: '🙂'.repeat(100) })
+    const encoded = h.send({ type: 'send', id: 'prompt', text: '🙂'.repeat(100) }, { chunkId: 'chunk' })
     expect(encoded.length).toBeGreaterThan(1)
     expect(encoded.every(line => Buffer.byteLength(line) <= 200)).toBe(true)
     expect(JSON.parse(Buffer.concat(encoded.map(line => Buffer.from((JSON.parse(line) as { data: string }).data, 'base64'))).toString())).toEqual({ type: 'prompt', id: 'prompt', message: '🙂'.repeat(100) })
@@ -312,14 +317,15 @@ describe('OMP lifecycle edge contracts', () => {
     expect(h.feed({ type: 'response', command: 'get_subagent_messages', id: 'unknown', success: true, data: { messages: [{ role: 'assistant', content: [{ type: 'text', text: 'wrong thread' }] }] } })).toEqual([])
     expect(h.feed({ type: 'response', command: 'get_state', id: 'unknown', success: true, data: { todoPhases: phases } })).toEqual([])
   })
-  it('requires ready initialization, keeps v1 compatible, and rejects oversized v1 sends', () => {
+  it('requires ready initialization, keeps v1 compatible, and sends an oversized v1 turn as one line', () => {
     const h = harness()
     expect(h.init({ type: 'other' })).toEqual([])
     expect(() => h.send({ type: 'send', id: 'prompt', text: 'early' })).toThrow('initialization')
     const ready = { type: 'ready', protocolVersion: 1, supportedProtocolVersions: [1], maxFrameBytes: 100 }
     h.feed(ready)
     expect(h.init(ready).map(line => JSON.parse(line).type)).toEqual(['set_ask_dialog', 'set_subagent_subscription', 'set_event_filter', 'get_state'])
-    expect(() => h.send({ type: 'send', id: 'prompt', text: 'x'.repeat(300) })).toThrow('protocol v2')
+    expect(h.send({ type: 'send', id: 'prompt', text: 'x'.repeat(300) })).toEqual([JSON.stringify({ type: 'prompt', id: 'prompt', message: 'x'.repeat(300) })])
+    expect(() => h.send({ type: 'send', id: 'framed', text: 'x'.repeat(300) }, { chunkId: 'chunk' })).toThrow('protocol v2')
     expect(() => h.send({ type: 'interrupt', id: '' })).toThrow('requires an id')
   })
   it('settles main tools and pending prompts on abort without settling background workers', () => {
@@ -593,4 +599,65 @@ it('namespaces synthesized ids and their streams without changing provider tool 
   const toolIds = (events: OmpEvent[]) => events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' ? [event.item.id] : [])
   expect(toolIds(first.events)).toEqual(toolIds(second.events))
   expect(toolIds(first.events)).toContain('call_T1_read')
+})
+
+const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))
+const swatchBase64 = swatch.toString('base64')
+
+describe('OMP image turns', () => {
+  it('encodes image_in byte for byte, and follow_up carries the same images', () => {
+    const h = initialized()
+    const images = [{ mime: 'image/png' as const, base64: swatchBase64 }]
+    expect(h.send({ type: 'send', id: 'req_T1_image_in', text: 'what colour', images })).toEqual(lines('image_in', 'in'))
+    expect(JSON.parse(h.send({ type: 'send', id: 'req_T1_image_follow', text: '', images })[0])).toEqual({ type: 'follow_up', id: 'req_T1_image_follow', message: '',
+      images: [{ type: 'image', mimeType: 'image/png', data: swatchBase64 }] })
+    expect(h.items()).toEqual([{ kind: 'user_message', id: 'req_T1_image_in', at, text: 'what colour' }, { kind: 'user_message', id: 'req_T1_image_follow', at, text: '' }])
+    lines('image_in', 'out').forEach(line => h.feed(line))
+    expect(h.blobs).toEqual([])
+    expect(JSON.stringify(h.events)).not.toContain(swatchBase64.slice(0, 32))
+  })
+  it('writes an image over maxFrameBytes as one unsplit line and refuses one over maxReassembledFrameBytes', () => {
+    const h = initialized()
+    expect(h.state.protocolVersion).toBe(2)
+    const big = [{ mime: 'image/png' as const, base64: 'A'.repeat(h.state.maxFrameBytes + 4) }]
+    const sent = h.send({ type: 'send', id: 'req_T1_big', text: 'big', images: big })
+    expect(sent).toHaveLength(1)
+    expect(Buffer.byteLength(sent[0])).toBeGreaterThan(h.state.maxFrameBytes)
+    expect(JSON.parse(sent[0])).toEqual({ type: 'prompt', id: 'req_T1_big', message: 'big', images: [{ type: 'image', mimeType: 'image/png', data: big[0].base64 }] })
+    const limited = initialized()
+    limited.feed({ type: 'ready', maxFrameBytes: 1_048_576, maxReassembledFrameBytes: 2_097_152 })
+    let error: unknown
+    try { limited.send({ type: 'send', id: 'req_T1_huge', text: '', images: [{ mime: 'image/png', base64: 'A'.repeat(2_097_152) }] }) } catch (caught) { error = caught }
+    expect(error).toMatchObject({ code: 'image_too_large' })
+    expect(limited.state.inFlight).toBe(false)
+    expect(limited.items()).toEqual([])
+  })
+})
+
+describe('OMP tool-result images', () => {
+  it('lifts image_result into exactly one blob equal to swatch.png and no event', () => {
+    const { h, input, encoded } = replayGolden('image_result')
+    expect(encoded).toEqual(input)
+    expect(h.blobs).toEqual([{ itemId: 'call_T1_read_image', mime: 'image/png', base64: swatchBase64 }])
+    expect(Buffer.from(h.blobs[0].base64, 'base64').equals(swatch)).toBe(true)
+    expect(JSON.stringify(h.events)).not.toContain(swatchBase64.slice(0, 32))
+    expect(h.items().filter(item => item.kind !== 'user_message')).toEqual([toolItem('call_T1_read_image', 'read', { path: 'swatch.png' }, 'Read image file [image/png]'),
+      { kind: 'assistant_text', id: 'omp:main:message:3:0', at, text: 'Red' }])
+    expect(h.state.skipped).toBe(0)
+    for (const event of h.events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
+  })
+  it('notes unsupported images as not shown, lifts WebP, and keeps one summary across duplicate copies', () => {
+    const h = initialized(), webp = webpBytes(64, 64).toString('base64'), gif = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1').toString('base64')
+    const content = [{ type: 'text', text: 'Read' }, { type: 'image', mimeType: 'image/gif', data: gif }, { type: 'image', data: webp, mimeType: 'image/webp' },
+      { type: 'image', mimeType: 'image/jpeg', data: swatchBase64 }]
+    h.feed({ type: 'tool_execution_start', toolCallId: 'call_T1_images', toolName: 'read', args: { path: 'a' } })
+    h.feed({ type: 'tool_execution_end', toolCallId: 'call_T1_images', toolName: 'read', result: { content }, isError: false })
+    h.feed({ type: 'message_end', message: { role: 'toolResult', toolCallId: 'call_T1_images', toolName: 'read', content, isError: false } })
+    h.feed({ type: 'turn_end', message: { role: 'assistant', content: [] }, toolResults: [{ role: 'toolResult', toolCallId: 'call_T1_images', toolName: 'read', content, isError: false }] })
+    expect(h.blobs).toEqual([{ itemId: 'call_T1_images', mime: 'image/webp', base64: webp }])
+    const summaries = h.events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' && event.item.status === 'completed' ? [event.item.resultSummary] : [])
+    expect(summaries.length).toBeGreaterThan(1)
+    for (const summary of summaries) expect(summary).toBe('Read\n1 image (image/gif, not shown)\n1 image (image/jpeg, not shown)')
+    for (const prefix of [webp, gif, swatchBase64]) expect(JSON.stringify(h.events)).not.toContain(prefix.slice(0, 32))
+  })
 })

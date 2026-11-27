@@ -15,6 +15,8 @@ export const DOMAIN_ERROR_CODES = [
   /** No connected agent is signed in to start the chat with. */
   'no_agent',
   'response_too_large',
+  /** An agent-chat turn's encoded images exceed what the agent CLI reassembles in one line. */
+  'image_too_large',
   'operation_unavailable',
   'internal_error',
   'not_found',
