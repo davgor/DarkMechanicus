@@ -10,6 +10,7 @@ import { createControlPipe, type ControlPipe, type NamingDispatcher } from '../n
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import { isCultOperation } from '../../shared/cults/cultControl'
 import { createCultDispatcher, planTargetRevision } from '../cults/cultCommands'
+import { announcingDispatcher, createCultHandlers, type CultHandlerDeps, forwardCultEvents, registerCultIpc } from '../cults/cultHandlers'
 import { createNamingDispatcher } from '../naming/namingCommands'
 import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
 import { existsSync, realpathSync } from 'node:fs'
@@ -1170,6 +1171,19 @@ interface CultServiceDeps {
   agents: AgentRegistry
   pool: WorkspacePool
   processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants' | 'setCultDispatcher' | 'setCultWake'>
+  ipc: Pick<IpcMain, 'handle'>
+}
+
+/** The `cults:*` channels over the supervisor, the store and the launcher, and the `cults:event` push of every run change. */
+function serveCults(deps: CultServiceDeps, services: Pick<CultHandlerDeps, 'cults' | 'supervisor' | 'launcher' | 'models'>): void {
+  const handlers = createCultHandlers({
+    ...services,
+    folders: deps.registry,
+    epicIn: (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId }),
+    onUnexpectedError: (error) => logger.error('Cult request failed:', error)
+  })
+  registerCultIpc(deps.ipc, handlers)
+  forwardCultEvents(services, () => BrowserWindow.getAllWindows())
 }
 
 /**
@@ -1209,7 +1223,7 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     userData, supervisor, chats: store, epochOf: (chatId) => terminals.generationOf(chatId),
     onError: (error) => logger.error('Cult wake failed:', error)
   }))
-  deps.processes.setCultDispatcher(createCultDispatcher({
+  deps.processes.setCultDispatcher(announcingDispatcher(createCultDispatcher({
     supervisor, cults, council,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
@@ -1217,7 +1231,8 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     folderGrants: (runId, chatId) => ledger.grants().flatMap((grant) =>
       grant.runId === runId && grant.chatId === chatId && grant.kind === 'folder_access' && grant.tokenFile !== null ? [{ folder: grant.folder, tokenFile: grant.tokenFile }] : []),
     onError: (error) => logger.error('Cult member conclusion failed:', error)
-  }))
+  }), supervisor))
+  serveCults(deps, { cults, supervisor, launcher, models })
   return supervisor
 }
 
@@ -1453,7 +1468,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
   startAgentChats(ipc, registry, agentChats)
   startRestartResume({ registry, pool, store, terminals, agentChats })
-  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants, setCultDispatcher, setCultWake } })
+  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, ipc, processes: { chats, store, terminals, grants, setCultDispatcher, setCultWake } })
   const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

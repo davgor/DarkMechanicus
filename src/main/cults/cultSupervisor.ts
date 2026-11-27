@@ -56,7 +56,7 @@ export interface CultRunSnapshot {
 type RunOptions = Omit<RunStartInput, 'workDir'>
 
 interface CultSupervisorDeps {
-  cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup' | 'slotCoverage'>
+  cults: Pick<CultStore, 'getRun' | 'transitionRun' | 'listMembers' | 'updateMember' | 'createPetition' | 'decidePetition' | 'getPetition' | 'listPetitions' | 'appendEvent' | 'activeRunsOnStartup' | 'slotCoverage' | 'raiseCap'>
   launcher: Pick<CultLauncher, 'launch' | 'startAcolyte' | 'endMember'>
   terminals: Pick<TerminalSessions, 'onExit' | 'isRunning' | 'attachGrant' | 'detachGrant'>
   control: CultControl
@@ -115,6 +115,12 @@ export interface CultSupervisor {
    * run's member chat ids. A listener that fails is reported, never in the lifecycle's way.
    */
   onWakeClose(listener: WakeCloser): () => void
+  /** Raises a running or paused run's acolyte cap, told as a change. */
+  raiseCap(runId: string, cap: number): CultRunSnapshot
+  /** Tells the run's current snapshot as a change (a Magos command recorded something the snapshot shows). */
+  changed(runId: string): void
+  /** Ends an active run gracefully (Stop, unless it is already shutting down) and resolves once it has ended. */
+  endRun(runId: string): Promise<void>
 }
 
 type WakeCloser = (memberChatIds: string[]) => Promise<void>
@@ -241,7 +247,17 @@ async function track(s: State, runId: string, launched: LaunchedMember): Promise
   // It may have exited before it was watched.
   if (!s.deps.terminals.isRunning(chatId)) memberExited(s, chatId)
   await recording
+  await resendPause(s, runId, member)
   return member
+}
+
+/**
+ * A member launched while its run is paused: actions sent while it had no running launch were dropped
+ * (`cultControl.ts`), so its new launch is told the paused state now.
+ */
+async function resendPause(s: State, runId: string, member: CultMemberView): Promise<void> {
+  if (s.deps.cults.getRun(runId)?.state !== 'paused' || !s.deps.terminals.isRunning(member.chatId)) return
+  await tell(s, [member], () => ({ action: 'interrupt' }))
 }
 
 function requireLiveMember(s: State, runId: string, chatId: string): CultMemberView {
@@ -560,6 +576,24 @@ async function reconcileOnStartup(s: State): Promise<CultRunView[]> {
   }))
 }
 
+/** Stops the run (unless it is already shutting down) and waits until it has ended; a run not supervised here has nothing to wait for. */
+async function endRun(s: State, runId: string): Promise<void> {
+  if (!s.runs.has(runId)) return
+  let resolve: () => void = () => {}
+  // The lib target predates `Promise.withResolvers`.
+  const ended = new Promise<void>((done) => {
+    resolve = done
+  })
+  const check = (snapshot: CultRunSnapshot): void => {
+    if (snapshot.run.id !== runId || snapshot.run.state !== 'ended') return
+    s.events.off(CULT_CHANGED, check)
+    resolve()
+  }
+  s.events.on(CULT_CHANGED, check)
+  if (requireRun(s, runId).state !== 'shutting_down') await serialized(s, runId, () => beginShutdown(s, runId, 'stopped'))
+  if (s.runs.has(runId)) await ended
+}
+
 function serialized<T>(s: State, runId: string, work: () => Promise<T>): Promise<T> {
   return queued(supervised(s, runId), work)
 }
@@ -605,6 +639,12 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
       await Promise.all([...s.runs.keys()].map((runId) => abort(s, runId, 'interrupted').catch(onError)))
     },
     busy: () => s.runs.size > 0,
+    raiseCap: (runId, cap) => {
+      deps.cults.raiseCap(runId, cap)
+      return emit(s, runId)
+    },
+    changed: (runId) => void emit(s, runId),
+    endRun: (runId) => endRun(s, runId),
     on: (event, listener) => {
       s.events.on(event, listener)
       return () => {
