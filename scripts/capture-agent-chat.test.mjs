@@ -22,7 +22,7 @@ const BASE = {
   planGraph: false, planList: false, scorecard: false, agentChatRegion: true, railWidth: 280, railRightOfStage: true,
   treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
-  needsYouHeader: null, badgedRows: 0, settingsControls: [], agentsPressed: null, errors: []
+  needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -47,6 +47,10 @@ function passing() {
     'agent-worker': ready('agent-worker', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
+    'landing-notification': ready('landing-notification', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
+    'landing-activity': ready('landing-activity', {
+      treeRows: TREE.map((entry) => entry.name === 'Acolyte:DM-1' ? { ...entry, selected: true } : entry)
+    }),
     'chat-rail': ready('chat-rail', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)]
     }),
@@ -105,19 +109,20 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 19 states once each, in capture order', () => {
+  it('lists the 21 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-      'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+      'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
+      'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
+      'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(19)
+    expect(new Set(STATES).size).toBe(21)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 300 s overall bound that covers all 19', () => {
+  it('declares 15 s per state within a 360 s overall bound that covers all 21', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(300_000)
+    expect(OVERALL_LIMIT_MS).toBe(360_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
   })
 })
@@ -205,6 +210,19 @@ describe('capture-agent-chat: per-state observations', () => {
   it('fails agent-tool unless the tree lists the subagent Acolyte:DM-785, not just any second row', () => {
     expect(validateObservations('agent-tool', ready('agent-tool', { treeRows: [row('Magos', true), row('Finished 1')] })))
       .toEqual(['agent-tool: expected the tree lists Magos and the subagent Acolyte:DM-785'])
+  })
+
+  it('fails a landing whose rail stayed collapsed, whose ticket panel stayed open or whose agent is not shown', () => {
+    const records = passing()
+    expect(validateObservations('landing-notification', { ...records['landing-notification'],
+      observations: { ...records['landing-notification'].observations, railWidth: 40, treeRows: [] } }))
+      .toEqual(['landing-notification: expected railWidth is 280±1 with no Expand click', 'landing-notification: expected Acolyte:DM-2 is selected'])
+    const activity = records['landing-activity'].observations
+    expect(validateObservations('landing-activity', { ...records['landing-activity'], observations: { ...activity, ticketPanel: true } }))
+      .toEqual(['landing-activity: expected no ticket panel over the rail'])
+    const hidden = TREE.filter((entry) => entry.name !== 'Acolyte:DM-1')
+    expect(validateObservations('landing-activity', { ...records['landing-activity'], observations: { ...activity, treeRows: hidden } }))
+      .toEqual(['landing-activity: expected Acolyte:DM-1 is selected inside the opened Finished 1 group; got no such row'])
   })
 
   it('fails any agent state whose rail is not right of the stage', () => {

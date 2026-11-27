@@ -11,10 +11,12 @@ import type { PlanView } from '../../src/shared/domain/views'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
+import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
 import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
+import type { EpicLanding } from '../../src/renderer/src/app/landing'
 import { ToastProvider } from '../../src/renderer/src/app/toasts'
 import { ClockContext, type Clock } from '../../src/renderer/src/epic/clock'
 import { EpicWorkspace } from '../../src/renderer/src/epic/EpicWorkspace'
@@ -49,6 +51,8 @@ interface Seeded {
   folder: TrackedFolderView
   /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
   finishedExpandedAtStart: boolean | null
+  /** What another screen asked the workspace to open as it mounts (a clicked notification, a ticket's Activity link). */
+  landing: EpicLanding | null
 }
 
 const STEP_MS = 12_000
@@ -61,6 +65,10 @@ const scenarios = agentChatScenarios
 const conversation = scenarios.streaming.snapshot.items
 const AT = conversation[0].at
 const DM442: Callsign = { role: 'Acolyte', ticketKey: 'DM-442', ordinal: null, purpose: null, ticketVerified: true }
+/** A worker running in a GUI chat of its own, bound to the epic: what a clicked notification lands on. */
+const WORKER_DM2 = chatRecord({
+  id: 'chat_dm2', folder: FOLDER.path, role: 'worker', epicId: 'ep_1', surface: 'gui', title: 'Acolyte:DM-2', createdAt: '2026-03-01T09:00:00.000Z'
+})
 
 // ---------------------------------------------------------------------------------------------- DOM helpers
 
@@ -261,6 +269,33 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('aside[aria-label="Epic agents"][data-collapsed="true"]'), 'the collapsed rail')
     }
   },
+  // Landings never click Expand Epic agents: below 1100 px the rail starts collapsed and the landing itself must show the agent.
+  'landing-notification': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, scenarios.streaming.snapshot)
+      context.chats.push(WORKER_DM2)
+      context.landing = { kind: 'epicAgent', epicId: 'ep_1', chatId: WORKER_DM2.id }
+    },
+    reach: async () => {
+      await until(() => treeItem('Acolyte:DM-2')?.getAttribute('aria-selected') === 'true', 'the selected Acolyte:DM-2 row')
+    }
+  },
+  'landing-activity': {
+    mount: 'epic',
+    seed: (context) => {
+      snapshot(context, treeSnapshot())
+      const chats = new FakeChats()
+      chats.bound.attempts.at_202_2 = [{ folder: FOLDER.path, chatId: ORCHESTRATOR.id, threadId: 'th-dm1', role: 'worker' }]
+      context.backend.chats = chats
+      context.landing = { kind: 'ticket', epicId: 'ep_1', ticketId: 'tk_202', attemptId: 'at_202_2' }
+    },
+    reach: async () => {
+      await clickWhenPresent(() => buttonNamed('Open chat', $('.tp') ?? document), 'the Activity tab’s Open chat link')
+      await until(() => $('.tp') === null && treeItem('Acolyte:DM-1')?.getAttribute('aria-selected') === 'true',
+        'the selected Acolyte:DM-1 row with the ticket panel closed')
+    }
+  },
   'agent-todos': {
     mount: 'epic',
     seed: (context) => snapshot(context, todosSnapshot()),
@@ -450,6 +485,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     approvalRecord: text($('.chat-approval-card')),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
+    ticketPanel: $('.tp') !== null,
     settingsControls: [...document.querySelectorAll<HTMLElement>('.preview-settings :is(input, textarea, select, button)')].map(accessibleName),
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     errors: [...window.__errors]
@@ -471,7 +507,8 @@ function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
   return {
-    backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER, finishedExpandedAtStart: null
+    backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], folder: FOLDER, finishedExpandedAtStart: null,
+    landing: null
   }
 }
 
@@ -494,7 +531,8 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
     <div className="preview-epic-agent">
       <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
-        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })} />
+        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats })}
+        landing={context.landing} onLanded={() => undefined} />
     </div>
   </ViewMemoryContext.Provider></ClockContext.Provider>
 }

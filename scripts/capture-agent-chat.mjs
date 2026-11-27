@@ -20,14 +20,15 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
   'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-  'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-  'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
+  'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
+  'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
+  'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 19 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 300_000
+/** A declared bound: 21 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 360_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -65,7 +66,7 @@ export function electronEnv(env) {
 const BASE_FIELDS = [
   'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
-  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'settingsControls', 'agentsPressed', 'errors'
+  'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'settings-notifications'])
@@ -122,6 +123,17 @@ const STATE_CHECKS = {
     ...treeLevelChecks
   ],
   'rail-collapsed': [['railWidth is 40±1', (o) => near(o.railWidth, 40)]],
+  'landing-notification': [
+    ['railWidth is 280±1 with no Expand click', (o) => near(o.railWidth, 280)],
+    ['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]
+  ],
+  'landing-activity': [
+    ['railWidth is 280±1 with no Expand click', (o) => near(o.railWidth, 280)],
+    ['no ticket panel over the rail', (o) => o.ticketPanel === false],
+    ['Acolyte:DM-1 is selected inside the opened Finished 1 group',
+      (o) => rowNamed(o, 'Acolyte:DM-1')?.selected === true && placement(o, 'Acolyte:DM-1')?.parent === 'Finished 1',
+      (o) => describePlacement(placement(o, 'Acolyte:DM-1'))]
+  ],
   'chat-rail': [
     ['the Chat agents rail is right of the chat', (o) => o.railRightOfStage === true],
     ['Inquisitor:DM-2 is selected', (o) => rowNamed(o, 'Inquisitor:DM-2')?.selected === true]

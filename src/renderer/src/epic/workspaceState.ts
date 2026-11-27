@@ -59,6 +59,11 @@ export interface WorkspaceState {
   /** A subagent thread of `agentChatId` shown read-only with the relay composer; null shows the chat itself. */
   agentThreadId: string | null
   /**
+   * An agent link or landing (a notification, the ticket's Activity tab, an "Open chat" link) asked the Agent stage to
+   * show the selected agent: its rail expands even where it starts collapsed, then `agent_revealed` clears this.
+   */
+  agentReveal: boolean
+  /**
    * Set when the person opened the live activity of an attempt (the hourglass, the attempts strip): the ticket panel
    * shows its Activity tab for that attempt. A new object per request, so asking again brings the tab back.
    */
@@ -101,8 +106,13 @@ export type WorkspaceAction =
   | { type: 'select_ticket'; ticketId: string | null }
   /** Show an epic chat, or one of its subagent threads, in the Agent stage. */
   | { type: 'select_agent'; chatId: string; threadId?: string | null }
-  /** An "Open chat" link inside the epic: show the Agent stage with that chat, or one of its threads, selected. */
+  /**
+   * An "Open chat" link or landing inside the epic: show the Agent stage with that chat, or one of its threads, selected
+   * and revealed in the rail. The ticket panel closes, since it floats over the rail.
+   */
   | { type: 'open_agent'; chatId: string; threadId?: string | null }
+  /** The Agent stage expanded its rail for `agentReveal`. */
+  | { type: 'agent_revealed' }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
   /** Select the ticket and show its Scorecard tab, on one run's grade when named. */
@@ -132,6 +142,7 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     selectedTicketId: null,
     agentChatId: null,
     agentThreadId: null,
+    agentReveal: false,
     activity: null,
     ticketScorecard: null,
     checkpointOpen: false,
@@ -226,9 +237,14 @@ const HANDLERS: Handlers = {
     layout: 'agent',
     agentChatId: action.chatId,
     agentThreadId: action.threadId ?? null,
+    agentReveal: true,
+    selectedTicketId: null,
+    activity: null,
+    ticketScorecard: null,
     checkpointOpen: false,
     scorecardOpen: false
   }),
+  agent_revealed: (state) => ({ ...state, agentReveal: false }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
   open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
   open_checkpoint: (state) => ({ ...state, layout: state.layout === 'agent' ? 'graph' : state.layout, checkpointOpen: true, scorecardOpen: false }),

@@ -109,6 +109,19 @@ describe('RightRail responsive defaults', () => {
     expect(rail().dataset.collapsed).toBe('false')
   })
 
+  it('expands on the requested tab for a reveal, once, so a later collapse stands', () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: query === '(max-width: 1099px)' })))
+    const onRevealed = vi.fn()
+    const view = mount()
+    expect(rail().dataset.collapsed).toBe('true')
+    view.rerender(<RightRail label="Agent rail" storageKey="dm.testRail.one" tabs={tabs} reveal={{ tab: 'files', onRevealed }} />)
+    expect(rail().dataset.collapsed).toBe('false')
+    expect(screen.getByRole('tab', { name: 'Files' }).getAttribute('aria-selected')).toBe('true')
+    expect(onRevealed).toHaveBeenCalled()
+    view.rerender(<RightRail label="Agent rail" storageKey="dm.testRail.one" tabs={tabs} reveal={null} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Agent rail' }))
+    expect(rail().dataset.collapsed).toBe('true')
+  })
 })
 
 describe('RightRail cards', () => {
