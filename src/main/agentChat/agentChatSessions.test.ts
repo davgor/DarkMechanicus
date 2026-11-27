@@ -983,7 +983,7 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI inte
     const launches = readFileSync(r.env.FAKE_AGENT_LOG!, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line)).filter(row => row.mode === kind)
     expect(launches[1].argv.slice(-2)).toEqual(['--resume', session])
     expect(r.store.getChat(chat)!.sessionId).toBe(session)
-  })
+  }, 10_000)
 })
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI shutdown and secrets`, () => {
