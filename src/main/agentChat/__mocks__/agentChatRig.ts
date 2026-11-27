@@ -42,9 +42,14 @@ function nativeFixture(fixture: string) {
   return { root, repo, userData, executable, env, store }
 }
 
+/**
+ * Starts the fake CLI without the Windows job supervisor: that supervisor compiles its C# with PowerShell's Add-Type
+ * on every launch (about 2.5 s on a CI runner), which pushed rig tests that start several chats past their 15 s bound.
+ * The supervisor itself is covered on Windows by agentProcess.test.ts and windowsAgentJob.test.ts.
+ */
 function recordingChild(spec: Parameters<typeof startAgentProcess>[0], children: AgentProcess[], writes: string[], steps: string[]): AgentProcess {
   steps.push('spawn')
-  const child = startAgentProcess(spec)
+  const child = startAgentProcess(spec, undefined, false)
   children.push(child)
   return { pid: child.pid, write: line => { writes.push(line); return child.write(line) },
     onLine: listener => child.onLine(listener), onStderr: listener => child.onStderr(listener),
