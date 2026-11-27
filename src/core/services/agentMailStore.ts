@@ -15,6 +15,7 @@ import { canonicalJson, contentHash } from '../canonical'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import type { IdGenerator } from '../ids'
+import { CHAT_ROLES, type ChatRole } from '../../shared/agents/chat'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -64,6 +65,10 @@ export interface MailEndpoint {
   /** Trusted desktop metadata, shown as plain text and never interpreted. */
   name: string
   state: MailEndpointState
+  /** Trusted desktop metadata (v38): the epic the chat is bound to, from main's chat record; null when it has none. */
+  epicId: string | null
+  /** Trusted desktop metadata (v38): the chat's Dark Mechanicus role, from main's chat record; null when unknown. */
+  chatRole: ChatRole | null
   /** The highest recipient sequence ever handed out; never reused, even after every message is gone. */
   lastSeq: number
   /** The person's own read cursor, independent of agent acknowledgement. */
@@ -146,6 +151,8 @@ interface EndpointRow {
   chat_id: string
   name: string
   state: MailEndpointState
+  epic_id: string | null
+  chat_role: ChatRole | null
   last_seq: number
   human_seen_seq: number
   created_at: string
@@ -184,7 +191,7 @@ interface ReceiptRow {
 }
 
 const ENDPOINT_COLUMNS =
-  'id, machine_id, chat_id, name, state, last_seq, human_seen_seq, created_at, updated_at, deleting_at, deleted_at'
+  'id, machine_id, chat_id, name, state, epic_id, chat_role, last_seq, human_seen_seq, created_at, updated_at, deleting_at, deleted_at'
 const BINDING_COLUMNS = 'grant_id, endpoint_id, machine_id, canonical_folder, bound_at, closed_at, close_reason'
 /** A message is retained while unacknowledged (no expiry) or until its expiry passes. */
 const RETAINED = '(m.expires_at IS NULL OR m.expires_at > ?)'
@@ -255,6 +262,8 @@ function endpointView(row: EndpointRow): MailEndpoint {
     chatId: row.chat_id,
     name: row.name,
     state: row.state,
+    epicId: row.epic_id,
+    chatRole: row.chat_role,
     lastSeq: row.last_seq,
     humanSeenSeq: row.human_seen_seq,
     createdAt: row.created_at,
@@ -322,15 +331,35 @@ function closeOpenBindings(db: Db, endpointId: string, at: string, reason: MailB
 
 // --- endpoints -----------------------------------------------------------------------------------------------------
 
+/** The trusted chat metadata main records on an endpoint from its own chat record; null for unknown. */
+export interface MailEndpointChatMeta {
+  epicId: string | null
+  chatRole: ChatRole | null
+}
+
+function requireChatMeta(input: Partial<MailEndpointChatMeta>): MailEndpointChatMeta {
+  const epicId = input.epicId === undefined || input.epicId === null ? null : requireText(input.epicId, 'epicId', AGENT_MAIL_LIMITS.chatIdChars)
+  const chatRole = input.chatRole ?? null
+  if (chatRole !== null && !CHAT_ROLES.includes(chatRole)) {
+    fail('invalid_input', 'chatRole must be planner, orchestrator, worker or reviewer.', { field: 'chatRole' })
+  }
+  return { epicId, chatRole }
+}
+
 /**
  * The endpoint for (machine, trusted chat id) in this project's database, created on first use. The same pair always
- * yields the same opaque id; a later call only refreshes the display name. A deleting or deleted endpoint is never
- * reopened: a deleted chat's identity stays a tombstone.
+ * yields the same opaque id; a later call only refreshes the display name and the trusted chat metadata (epic and
+ * role), where an omitted value records null. A deleting or deleted endpoint is never reopened: a deleted chat's
+ * identity stays a tombstone.
  */
-export function provisionEndpoint(deps: AgentMailDeps, input: { machineId: string; chatId: string; name: string }): MailEndpoint {
+export function provisionEndpoint(
+  deps: AgentMailDeps,
+  input: { machineId: string; chatId: string; name: string } & Partial<MailEndpointChatMeta>
+): MailEndpoint {
   const machineId = requireText(input.machineId, 'machineId', AGENT_MAIL_LIMITS.chatIdChars)
   const chatId = requireText(input.chatId, 'chatId', AGENT_MAIL_LIMITS.chatIdChars)
   const name = requireText(input.name.trim(), 'name', AGENT_MAIL_LIMITS.nameChars)
+  const { epicId, chatRole } = requireChatMeta(input)
   return deps.db.tx(() => {
     const at = now(deps).iso
     const existing = deps.db.get<EndpointRow>(
@@ -342,19 +371,28 @@ export function provisionEndpoint(deps: AgentMailDeps, input: { machineId: strin
       if (existing.state === 'deleting' || existing.state === 'deleted') {
         fail('invalid_state', 'This chat’s mailbox was deleted and cannot be reopened.', { endpointId: existing.id, state: existing.state })
       }
-      if (existing.name !== name) {
-        deps.db.run('UPDATE agent_mail_endpoints SET name = ?, updated_at = ? WHERE id = ?', name, at, existing.id)
+      if (existing.name !== name || existing.epic_id !== epicId || existing.chat_role !== chatRole) {
+        deps.db.run(
+          'UPDATE agent_mail_endpoints SET name = ?, epic_id = ?, chat_role = ?, updated_at = ? WHERE id = ?',
+          name,
+          epicId,
+          chatRole,
+          at,
+          existing.id
+        )
       }
       return endpointView(requireEndpoint(deps.db, existing.id))
     }
     const id = deps.ids.next('mailEndpoint')
     deps.db.run(
-      `INSERT INTO agent_mail_endpoints (id, machine_id, chat_id, name, state, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'open', ?, ?)`,
+      `INSERT INTO agent_mail_endpoints (id, machine_id, chat_id, name, state, epic_id, chat_role, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
       id,
       machineId,
       chatId,
       name,
+      epicId,
+      chatRole,
       at,
       at
     )

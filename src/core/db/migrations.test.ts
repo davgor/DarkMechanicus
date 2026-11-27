@@ -873,6 +873,33 @@ function insertDeliveryCheckRow(db: Db, spec: { id: string; number?: number; run
   )
 }
 
+describe('schema v38 trusted epic and role of mail endpoints', () => {
+  it('upgrades a v37 database, adding nullable epic_id and chat_role and keeping every endpoint as it was', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 37))
+    insertMailEndpoint(db, 'me1')
+    insertMailEndpoint(db, 'me2')
+    db.run("UPDATE agent_mail_endpoints SET last_seq = 3, human_seen_seq = 2, state = 'suspended' WHERE id = 'me2'")
+    const before = db.all('SELECT * FROM agent_mail_endpoints ORDER BY id')
+    expect(columnsOf(db, 'agent_mail_endpoints')).not.toContain('epic_id')
+
+    expect(migrate(db)).toEqual({ from: 37, to: SCHEMA_VERSION })
+    expect(columnsOf(db, 'agent_mail_endpoints').slice(-2)).toEqual(['epic_id', 'chat_role'])
+    expect(db.all('SELECT * FROM agent_mail_endpoints ORDER BY id')).toEqual(
+      (before as Record<string, unknown>[]).map((row) => ({ ...row, epic_id: null, chat_role: null }))
+    )
+  })
+
+  it('stores an epic and a chat role, and refuses a role a chat cannot run as', () => {
+    const db = freshDb()
+    migrate(db)
+    insertMailEndpoint(db, 'me1')
+    db.run("UPDATE agent_mail_endpoints SET epic_id = 'ep1', chat_role = 'planner' WHERE id = 'me1'")
+    expect(db.get('SELECT epic_id, chat_role FROM agent_mail_endpoints')).toEqual({ epic_id: 'ep1', chat_role: 'planner' })
+    expect(() => db.run("UPDATE agent_mail_endpoints SET chat_role = 'desktop' WHERE id = 'me1'")).toThrow(/CHECK constraint failed/)
+  })
+})
+
 describe('schema v37 delivery checks', () => {
   it('upgrades a v36 database, keeping its runs and adding an empty delivery_checks table and its index', () => {
     const db = freshDb()
