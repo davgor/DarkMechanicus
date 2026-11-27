@@ -16,6 +16,8 @@ const SEMVER = /^\d+\.\d+\.\d+$/
 
 /** A marker older than this is ignored: the restart did not follow the install it was written for. */
 const MARKER_MAX_AGE_MS = 15 * 60 * 1000
+/** A marker dated further ahead than this clock skew is ignored: it was not written by the install just before this start. */
+const MARKER_MAX_FUTURE_MS = 60 * 1000
 const MARKER_MAX_CHATS = 20
 
 const restartMarkerSchema = z.strictObject({
@@ -32,8 +34,9 @@ export function writeRestartMarker(file: string, marker: RestartMarker): void {
 }
 
 /**
- * Reads and deletes the marker: it is consumed at most once. Null when it is missing, malformed, older than 15 minutes
- * or cannot be deleted (a marker left behind would resume the chats again at the next start).
+ * Reads and deletes the marker: it is consumed at most once. Null when it is missing, malformed, older than 15 minutes,
+ * dated more than 1 minute in the future or cannot be deleted (a marker left behind would resume the chats again at the
+ * next start).
  */
 export function takeRestartMarker(file: string, now: number): RestartMarker | null {
   let raw: string
@@ -55,7 +58,8 @@ export function takeRestartMarker(file: string, now: number): RestartMarker | nu
   }
   const marker = restartMarkerSchema.safeParse(parsed)
   if (!marker.success) return null
-  return now - Date.parse(marker.data.writtenAt) > MARKER_MAX_AGE_MS ? null : marker.data
+  const age = now - Date.parse(marker.data.writtenAt)
+  return age > MARKER_MAX_AGE_MS || age < -MARKER_MAX_FUTURE_MS ? null : marker.data
 }
 
 /** The one fixed message a resumed chat receives; only the two versions vary, and both must be `x.y.z`. */
