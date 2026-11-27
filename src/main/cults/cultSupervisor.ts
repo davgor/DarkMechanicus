@@ -18,6 +18,9 @@
  *   survived (`cultLedger.ts`) and revokes the upgrades it left.
  * - A member whose terminal exits on its own has `left`; when that is the Magos of a running or paused run, every
  *   acolyte is killed and the run ends `failed`.
+ * - **The standing wake** closes the moment a run leaves `running` (pause, shutdown, Kill now, a failure, quit): every
+ *   `onWakeClose` listener (the cult wake disarming its members' armed wakes) is awaited before a member is told or
+ *   ended, so a wake not yet taken never fires once the run has left `running`.
  * - Every change is told as `cult_changed` with the run's snapshot.
  */
 import { EventEmitter } from 'node:events'
@@ -97,7 +100,7 @@ export interface CultSupervisor {
   petition(runId: string, input: PetitionInput, fromChatId?: string): CultPetitionView
   /** The decision is applied to the running Magos live, then told to it as a fixed reminder. */
   decidePetition(petitionId: string, approve: boolean, granted?: number): Promise<CultPetitionView>
-  /** Whether the run's standing wake is open: it is supervised here and running (not paused, ending or ended). */
+  /** Whether the run's standing wake is open: it is supervised here, running and not being ended. */
   isWakeOpen(runId: string): boolean
   snapshot(runId: string): CultRunSnapshot
   /** Startup: every run left active is marked `interrupted`; surviving member processes end; left upgrades are revoked. */
@@ -107,7 +110,14 @@ export interface CultSupervisor {
   /** True while a supervised run is active. */
   busy(): boolean
   on(event: typeof CULT_CHANGED, listener: (snapshot: CultRunSnapshot) => void): () => void
+  /**
+   * Work the supervisor awaits the moment a run's standing wake closes, before it tells or ends a member; it gets the
+   * run's member chat ids. A listener that fails is reported, never in the lifecycle's way.
+   */
+  onWakeClose(listener: WakeCloser): () => void
 }
+
+export type WakeCloser = (memberChatIds: string[]) => Promise<void>
 
 /** A run this supervisor drives. */
 interface Supervised {
@@ -128,6 +138,7 @@ interface State {
   /** Member chat id → its supervised run. */
   chatRuns: Map<string, string>
   events: EventEmitter
+  wakeClosers: Set<WakeCloser>
 }
 
 const isLive = (member: Pick<CultMemberView, 'state'>): boolean => LIVE_MEMBER_STATES.includes(member.state)
@@ -166,6 +177,25 @@ function magosOf(s: State, runId: string): CultMemberView | null {
 /** Sends one control action to members; a write that fails is reported, never in the lifecycle's way. */
 async function tell(s: State, members: readonly CultMemberView[], request: (member: CultMemberView) => CultControlRequest): Promise<void> {
   await Promise.all(members.map((member) => s.deps.control.send(member.chatId, request(member)).catch(s.onError)))
+}
+
+/** The run's standing wake closed: every listener has finished before a member is told or ended. */
+async function closeWake(s: State, runId: string): Promise<void> {
+  const chatIds = s.deps.cults.listMembers(runId).map((member) => member.chatId)
+  await Promise.all([...s.wakeClosers].map(async (close) => {
+    try {
+      await close(chatIds)
+    } catch (error) {
+      s.onError(error)
+    }
+  }))
+}
+
+function addWakeCloser(s: State, closer: WakeCloser): () => void {
+  s.wakeClosers.add(closer)
+  return () => {
+    s.wakeClosers.delete(closer)
+  }
 }
 
 /** Runs `work` after the run's earlier queued work. */
@@ -350,6 +380,7 @@ async function beginShutdown(s: State, runId: string, reason: ShutdownReason): P
     schedule(s.clock, backstopMs(grace, run.magosWindowMs), () => void backstop(s, runId).catch(s.onError))
   ]
   emit(s, runId)
+  await closeWake(s, runId)
   await tell(s, liveMembers(s, runId), (member) => ({ action: member.role === 'magos' ? 'wind_down' : 'conclude' }))
   await finishIfDone(s, runId)
   return snapshot(s, runId)
@@ -405,6 +436,7 @@ async function abort(s: State, runId: string, reason: AbortReason): Promise<Cult
   const entry = supervised(s, runId)
   entry.ending = true
   cancelTimers(entry)
+  await closeWake(s, runId)
   await revokeUpgrades(s, runId)
   await endEveryone(s, runId)
   if (requireRun(s, runId).state !== 'ended') s.deps.cults.transitionRun(runId, { type: 'abort', reason })
@@ -418,16 +450,18 @@ async function revokeUpgrades(s: State, runId: string): Promise<void> {
   await Promise.all(upgrades.map((grant) => revokeUpgrade(s.upgrades, grant).catch(s.onError)))
 }
 
-/** After the run ended: every upgrade revoked, the run's records here dropped, the end told. */
+/** After the run ended: every upgrade revoked, the run's records here dropped, the end told, its members' files cleared. */
 async function settle(s: State, runId: string): Promise<void> {
   await revokeUpgrades(s, runId)
-  for (const member of s.deps.cults.listMembers(runId)) {
-    s.chatRuns.delete(member.chatId)
-    void s.deps.control.clear(member.chatId).catch(s.onError)
-    void s.deps.ledger.removeProcess(member.chatId).catch(s.onError)
-  }
+  const members = s.deps.cults.listMembers(runId)
+  for (const member of members) s.chatRuns.delete(member.chatId)
   s.runs.delete(runId)
   emit(s, runId)
+  // Awaited, so a run has ended (and a quit finished) only once no file of its members is still being written.
+  await Promise.all(members.flatMap((member) => [
+    s.deps.control.clear(member.chatId).catch(s.onError),
+    s.deps.ledger.removeProcess(member.chatId).catch(s.onError)
+  ]))
 }
 
 // --- petitions ---------------------------------------------------------------------------------------------------
@@ -488,6 +522,7 @@ async function pause(s: State, runId: string): Promise<CultRunSnapshot> {
   s.deps.cults.transitionRun(runId, { type: 'pause' })
   entry.cancelTimer?.()
   entry.cancelTimer = null
+  await closeWake(s, runId)
   await tell(s, liveMembers(s, runId), () => ({ action: 'interrupt' }))
   return emit(s, runId)
 }
@@ -535,7 +570,9 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
     userData: deps.userData, chatStore: deps.chatStore, grants: deps.grants, terminals: deps.terminals, ledger: deps.ledger,
     revokeGrantIn: deps.revokeGrantIn, onError
   }
-  const s: State = { deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter() }
+  const s: State = {
+    deps, clock: deps.clock ?? systemClock, onError, upgrades, runs: new Map(), chatRuns: new Map(), events: new EventEmitter(), wakeClosers: new Set()
+  }
   deps.terminals.onExit((chatId) => {
     try {
       memberExited(s, chatId)
@@ -561,7 +598,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
       if (runId === undefined) return Promise.reject(new DomainError('not_found', `No cult petition ${petitionId}.`))
       return serialized(s, runId, () => decidePetition(s, petitionId, approve, granted))
     },
-    isWakeOpen: (runId) => s.runs.has(runId) && deps.cults.getRun(runId)?.state === 'running',
+    isWakeOpen: (runId) => s.runs.get(runId)?.ending === false && deps.cults.getRun(runId)?.state === 'running',
     snapshot: (runId) => snapshot(s, runId),
     reconcileOnStartup: () => reconcileOnStartup(s),
     dispose: async () => {
@@ -573,6 +610,7 @@ export function createCultSupervisor(deps: CultSupervisorDeps): CultSupervisor {
       return () => {
         s.events.off(event, listener)
       }
-    }
+    },
+    onWakeClose: (listener) => addWakeCloser(s, listener)
   }
 }

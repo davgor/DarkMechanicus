@@ -16,11 +16,11 @@ import { CULT_WAKE_FILE } from '../../../resources/skitarii/extension/cultWake'
 import type { ChatStore } from '../agents/chatStore'
 import { ompFilePaths } from '../terminals/ompSession'
 import { writePrivateFile } from '../terminals/privateFile'
-import { CULT_CHANGED, type CultRunSnapshot, type CultSupervisor } from './cultSupervisor'
+import type { CultSupervisor } from './cultSupervisor'
 
 export interface CultWakeDeps {
   userData: string
-  supervisor: Pick<CultSupervisor, 'memberOf' | 'isWakeOpen' | 'on'>
+  supervisor: Pick<CultSupervisor, 'memberOf' | 'isWakeOpen' | 'onWakeClose'>
   chats: Pick<ChatStore, 'listChats'>
   /** The generation of the chat's running launch; null while none runs (nothing to wake). */
   epochOf: (chatId: string) => string | null
@@ -49,7 +49,8 @@ export function cultWakePath(userData: string, chatId: string): string {
 
 interface ChatWake {
   seq: number
-  armed: boolean
+  /** Whether the last queued write arms the wake. */
+  wanted: boolean
   chain: Promise<void>
 }
 
@@ -58,16 +59,17 @@ export function createCultWake(deps: CultWakeDeps): CultWake {
   const offered = new Set<string>()
   const onError = deps.onError ?? (() => {})
   const write = (chatId: string, arm: boolean): Promise<void> => {
-    const state = wakes.get(chatId) ?? { seq: 0, armed: false, chain: Promise.resolve() }
+    const state = wakes.get(chatId) ?? { seq: 0, wanted: false, chain: Promise.resolve() }
     wakes.set(chatId, state)
+    // What the last queued write leaves: a disarm also covers an arm queued but not yet written.
+    state.wanted = arm
     state.chain = state.chain.catch(() => {}).then(() => publish(deps, chatId, state, arm)).catch(onError)
     return state.chain
   }
   const disarm = (chatIds: Iterable<string>): Promise<void> =>
-    Promise.all([...chatIds].filter((id) => wakes.get(id)?.armed === true).map((id) => write(id, false))).then(() => {})
-  const off = deps.supervisor.on(CULT_CHANGED, (snapshot: CultRunSnapshot) => {
-    if (!deps.supervisor.isWakeOpen(snapshot.run.id)) void disarm(snapshot.members.map((member) => member.chatId))
-  })
+    Promise.all([...chatIds].filter((id) => wakes.get(id)?.wanted === true).map((id) => write(id, false))).then(() => {})
+  // Awaited by the supervisor before it tells or ends a member of a run that left `running`.
+  const off = deps.supervisor.onWakeClose((chatIds) => disarm(chatIds))
   return {
     cultWakeAllowed: (folder, sender, recipient) => cultWakeAllowed(deps, folder, sender, recipient),
     offer: async (folder, recipient, messages) => {
@@ -99,11 +101,9 @@ async function publish(deps: CultWakeDeps, chatId: string, state: ChatWake, arm:
   const path = cultWakePath(deps.userData, chatId)
   const epoch = deps.epochOf(chatId)
   if (epoch === null) {
-    state.armed = false
     await rm(path, { force: true })
     return
   }
   if (arm) state.seq += 1
-  state.armed = arm
   await writePrivateFile(path, JSON.stringify({ version: 1, chatId, epoch, wake: arm ? state.seq : null }), 0o600)
 }

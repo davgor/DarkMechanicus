@@ -169,8 +169,8 @@ describe('cult wake: closing the run disarms', () => {
     expect(wakeFile(acolyte)).toMatchObject({ wake: 1 })
     const gate = gateOf(acolyte)
 
+    // At once: the pause has disarmed the wake before it returns, before any member was told to stop.
     await f.supervisor.pause(run.id)
-    await settle()
     expect(wakeFile(acolyte)).toMatchObject({ wake: null })
     expect(await gate.take()).toBe(false)
   })

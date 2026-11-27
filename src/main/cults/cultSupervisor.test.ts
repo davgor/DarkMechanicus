@@ -160,6 +160,8 @@ describe('cult supervisor: the running-time timer', () => {
     expect(runOf(run.id).state).toBe('running')
     await advance(1)
     expect(runOf(run.id)).toMatchObject({ state: 'shutting_down', endReason: 'expired' })
+    // The expiry starts the shutdown from its timer; the wind-down reaches the Magos's control file on the real disk.
+    await controlled(magos, 'wind_down')
     expect(actionsOf(magos)).toEqual(['interrupt', 'resume', 'wind_down'])
   })
 
