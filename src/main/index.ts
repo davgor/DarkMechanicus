@@ -70,6 +70,17 @@ function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
   ipc.handle('app:getVersion', () => app.getVersion())
 }
 
+/**
+ * Windows shows a toast only for the installed shortcut's app id. An isolated profile (DARKMECHANICUS_HOME)
+ * gets its own id, so its toasts never activate the installed app. Must run before the first window opens.
+ */
+function nameAppForNotifications(): void {
+  const userHome = app.getPath('home')
+  applyAppUserModelId(process.platform, id => {
+    app.setAppUserModelId(id)
+  }, { home: resolveHomeDir(process.env, userHome), defaultHome: resolveHomeDir({}, userHome) })
+}
+
 function startDesktop(): void {
   setupGlobalErrorLogging()
   // Theme colours must render as the exact sRGB values (see applyColorProfile).
@@ -102,12 +113,7 @@ function startDesktop(): void {
         logger.error('Could not dispose agent chats or close the app stores on quit:', error)
       }
     })
-    // Windows shows a toast only for the installed shortcut's app id; set it before the first window opens.
-    // An isolated profile (DARKMECHANICUS_HOME) gets its own id, so its toasts never activate the installed app.
-    const userHome = app.getPath('home')
-    applyAppUserModelId(process.platform, id => {
-      app.setAppUserModelId(id)
-    }, { home: resolveHomeDir(process.env, userHome), defaultHome: resolveHomeDir({}, userHome) })
+    nameAppForNotifications()
     // No File/Edit/View/Window bar in the window; macOS keeps its system menu for the edit shortcuts.
     removeWindowMenuBar(process.platform, () => {
       Menu.setApplicationMenu(null)
