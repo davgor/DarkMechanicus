@@ -14,7 +14,7 @@ export const AGENT_CHAT_CHANNELS = {
   start: 'agentChat:start', send: 'agentChat:send', interrupt: 'agentChat:interrupt',
   answer: 'agentChat:answer', setSurface: 'agentChat:setSurface', snapshot: 'agentChat:snapshot', event: 'agentChat:event',
   attention: 'agentChat:attention', stageImage: 'agentChat:stageImage', attachEvidence: 'agentChat:attachEvidence',
-  models: 'agentChat:models', setModel: 'agentChat:setModel'
+  models: 'agentChat:models', setModel: 'agentChat:setModel', stop: 'agentChat:stop'
 } as const
 
 /** The most images one message may carry. */
@@ -32,6 +32,8 @@ export const agentChatSendSchema = z.strictObject({
   ...chatRef, text: z.string().max(20_000), imageIds: z.array(chatImageIdSchema).max(CHAT_IMAGES_PER_MESSAGE).optional()
 }).refine(request => request.text.length > 0 || (request.imageIds?.length ?? 0) > 0, { message: 'A message needs text or an image', path: ['text'] })
 export const agentChatInterruptSchema = z.strictObject(chatRef)
+/** Ends the chat's GUI process (its transcript stays); a stopped chat starts again on its next start. */
+export const agentChatStopSchema = z.strictObject(chatRef)
 const answerFields = { ...chatRef, promptId: z.string().min(1), text: z.string().max(20_000).optional() }
 /** Exactly one of `optionId` (one option) or `optionIds` (a multi question's chosen options, `text` among them for free text). */
 export const agentChatAnswerSchema = z.union([
@@ -138,6 +140,8 @@ export interface AgentChatApi {
   start(request: z.infer<typeof agentChatStartSchema>): Promise<CommandResult<AgentChatSnapshot>>
   send(request: z.infer<typeof agentChatSendSchema>): Promise<CommandResult<null>>
   interrupt(request: z.infer<typeof agentChatInterruptSchema>): Promise<CommandResult<null>>
+  /** Stops the chat's GUI process and waits for it to close; nothing when none runs. */
+  stop(request: z.infer<typeof agentChatStopSchema>): Promise<CommandResult<null>>
   answer(request: z.infer<typeof agentChatAnswerSchema>): Promise<CommandResult<null>>
   setSurface(request: z.infer<typeof agentChatSetSurfaceSchema>): Promise<CommandResult<AgentChatSnapshot>>
   snapshot(request: z.infer<typeof agentChatSnapshotRequestSchema>): Promise<CommandResult<AgentChatSnapshot>>

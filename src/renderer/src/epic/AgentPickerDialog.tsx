@@ -3,7 +3,7 @@
  * opens the Start run dialog, so a run keeps its own agent, model, instructions and policy and is never started here.
  */
 import './epicAgentPanel.css'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AgentRolePicker } from '../agentRoles/AgentRolePicker'
 import type { AgentRole } from '../agentRoles/agentRoles'
 import { errorMessage } from '../api/dm'
@@ -73,11 +73,15 @@ export function EpicRolePicker({ ws, onStarted }: { ws: WorkspaceHandle; onStart
   )
 }
 
-/** The role picker in a dialog, for starting another of the epic's agents; Escape or a backdrop press closes it. */
-export function AgentPickerDialog({ ws, onClose }: { ws: WorkspaceHandle; onClose(): void }): JSX.Element {
+/**
+ * The role picker in a dialog, for starting another of the epic's agents; Escape or a backdrop press closes it.
+ * `children` follow the cards (the tab strip's Reopen list).
+ */
+export function AgentPickerDialog({ ws, onClose, children }: { ws: WorkspaceHandle; onClose(): void; children?: ReactNode }): JSX.Element {
   return (
     <Dialog title="Start an agent" description="The Lexmechanic plans this epic with you; the Magos runs it." onClose={onClose}>
       <EpicRolePicker ws={ws} onStarted={onClose} />
+      {children}
     </Dialog>
   )
 }

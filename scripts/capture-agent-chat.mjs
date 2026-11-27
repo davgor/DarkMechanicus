@@ -24,14 +24,14 @@ export const STATES = Object.freeze([
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
   'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
-  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card',
+  'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 40 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 615_000
+/** A declared bound: 41 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 630_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -306,6 +306,13 @@ const STATE_CHECKS = {
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
     (o) => JSON.stringify(o.questionCard)],
     ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'epic-agent-tabs': [
+    ['the tab strip reads Magos (selected, no ✕) then Lexmechanic (unread dot, ✕), above the chat', (o) => JSON.stringify(o.agentTabs?.tabs)
+      === '[{"name":"Magos","selected":true,"unread":false,"closable":false},{"name":"Lexmechanic, 2 unread messages","selected":false,"unread":true,"closable":true}]'
+      && o.agentTabs?.aboveChat === true, (o) => JSON.stringify(o.agentTabs)],
+    ['the active tab is joined to the chat header: the same surface, rounded top corners', (o) => o.agentTabs?.activeJoined === true
+      && o.agentTabs?.roundedTop === true, (o) => JSON.stringify(o.agentTabs)]
   ],
   'mail-card': [
     ['a received card then a sent card between the person’s message and the reply', (o) => JSON.stringify(o.mail?.rows)
