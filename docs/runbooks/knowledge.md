@@ -98,6 +98,7 @@ Topics hold pull-only material. The built-in facts use these, and the kernel lis
 | `time-box` | Prerequisites, five-minute checks and ten-minute progress/stall alarms; productive workers continue on the same assignment/claim, within genuine operation limits |
 | `final-validation-ci` | Long validation on immutable CI heads, live reporting and every outcome accounted for |
 | `post-checkpoint-delivery` | Delivering the sprint revision under its approved workflow |
+| `sprint-delivery` | Verifying and recording a sprint's declared `delivery` after checkpoint approval (`record_delivery`, the `delivery_pending` hold), and the update-restart marker |
 | `learning-card` | The sprint learning card a checkpoint advance queues: claim it before ordinary polling, one worker, isolated branches, Ready-for-review stop (see below) |
 
 One built-in topic is not in the kernel's list: `space`, the measurement, grade and corrective-work rules in full. The kernel is at its 800-word limit, so the short `orchestrator.space-duties` fact, pushed with `run.started` and `run.recovery`, names it, as do the claim and landing pointers (`orchestrator.space-claim`, `orchestrator.space-landing`).
