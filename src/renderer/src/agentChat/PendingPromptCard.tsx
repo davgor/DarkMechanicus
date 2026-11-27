@@ -70,7 +70,7 @@ function Prompt({ prompt, answer }: { prompt: PendingPrompt; answer: Props['answ
   const title = heading(prompt)
   const freeText = prompt.kind === 'question' ? prompt.options.find((option) => option.id === 'text') : undefined
   return (
-    <section className="agent-prompt" role="alertdialog" aria-label={title} aria-busy={busy}>
+    <section className="agent-prompt glass" role="alertdialog" aria-label={title} aria-busy={busy}>
       <h3>{title}</h3>
       {prompt.tool && <p className="agent-prompt-tool">Tool: {clip(prompt.tool.name, 120)}</p>}
       {prompt.detail && <p className="agent-prompt-detail">{clip(prompt.detail, 600)}</p>}

@@ -152,7 +152,7 @@ function Messages({ state, folder, agentLabel }: { state: ChatState; folder: str
     return () => observer.disconnect()
   }, [state.items, state.streaming])
   return (
-    <div className="agent-chat-scroll" ref={viewport} tabIndex={0} aria-label="Chat messages" onScroll={(event) => {
+    <div className="agent-chat-scroll glass-strong" ref={viewport} tabIndex={0} aria-label="Chat messages" onScroll={(event) => {
       const node = event.currentTarget
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 32
     }}>
@@ -184,7 +184,7 @@ function Composer({ chatId, agentLabel, ready, busy, queued, command, send, stop
     if (await command.run(() => send(sent))) setText((current) => current === sent ? '' : current)
   }
   return (
-    <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+    <form className="agent-chat-composer glass" onSubmit={(event) => { event.preventDefault(); void submit() }}>
       {command.error && <p className="agent-chat-command-error" role="alert">{command.error}</p>}
       <label className="agent-chat-label" htmlFor={`agent-message-${chatId}`}>Message {agentLabel}</label>
       <textarea className="input" id={`agent-message-${chatId}`} value={text} maxLength={20_000} rows={3} disabled={!ready}

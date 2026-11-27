@@ -23,13 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
+  'agent-glass',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 27 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 420_000
+/** A declared bound: 28 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 435_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -82,6 +83,14 @@ const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
 const matches = (value, pattern) => typeof value === 'string' && pattern.test(value)
+/** The alpha of a computed `rgb()`/`rgba()` color; null for anything else. */
+const alphaOf = (color) => {
+  const match = /^rgba?\([^,]+,[^,]+,[^,)]+(?:,\s*([\d.]+))?\)$/.exec(typeof color === 'string' ? color : '')
+  return match === null ? null : match[1] === undefined ? 1 : Number(match[1])
+}
+/** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
+const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
+  && alphaOf(surface?.background) <= 0.72
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -174,6 +183,14 @@ const STATE_CHECKS = {
   'agent-approval-named': [
     ['the card is headed Acolyte:DM-442 wants to run: npm test', (o) => o.cardHeading === 'Acolyte:DM-442 wants to run: npm test'],
     ['the card says The Magos asks you', (o) => matches(o.cardArbitration, /^The Magos asks you: \S/)]
+  ],
+  'agent-glass': [
+    ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
+    ['the open rail is frosted glass', (o) => near(o.railWidth, 280) && frosted(o.glass?.rail), (o) => JSON.stringify(o.glass?.rail)],
+    ['the docked approval card is frosted glass', (o) => matches(o.cardHeading, /wants to run/) && frosted(o.glass?.card),
+      (o) => JSON.stringify(o.glass?.card)],
+    ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
+      (o) => JSON.stringify(o.glass?.transcript)]
   ],
   'agent-magos-decided': [
     ['the record reads Asked by Acolyte:DM-442 and Denied by the Magos with its reason',

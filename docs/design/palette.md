@@ -187,6 +187,18 @@ Colors for the source-control diff. Ink on tint is the text of an added or delet
 | `--diff-hunk-bg` (new) | — | `#2b2532` | Hunk header row |
 | `--diff-gutter-ink` (new) | — | `#a39a8c` | Line-number gutter text |
 
+### Glass (DM-1026)
+
+The Agent surface's frosted panels. `--agent-backdrop` lays the two glows over `--bg` (brass top right, crimson bottom left). The right rail, docked prompt cards and composer use `.glass` (`--glass-bg`); the transcript uses `.glass-strong` (`--glass-bg-strong`). Both blur what is under them by `--glass-blur` (16 px) and fall back to solid `--panel-2` when `backdrop-filter` is unsupported or the person prefers reduced transparency. `styles.test.ts` holds `--ink` and `--muted` on both glass tokens, composited over both glows at full strength (the backdrop's brightest point), to 4.5:1.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--glass-bg` (new) | — | `rgba(33, 27, 24, 0.7)` | Frosted panel: `--panel` at 70% |
+| `--glass-bg-strong` (new) | — | `rgba(21, 18, 17, 0.9)` | Near-solid reading surface: `--bg` at 90% |
+| `--glass-edge` (new) | — | `rgba(242, 215, 174, 0.12)` | Glass 1 px light edge: `--ink-display` at 12% |
+| `--glow-brass` (new) | — | `rgba(214, 155, 74, 0.28)` | Backdrop glow: `--accent` at 28% |
+| `--glow-crimson` (new) | — | `rgba(181, 26, 31, 0.3)` | Backdrop glow: `--primary` at 30% |
+
 `rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
 ## 4. Collision rules

@@ -4,7 +4,7 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  background: var(--bg);
+  background: var(--agent-backdrop);
   color: var(--ink);
 }
 
@@ -62,6 +62,7 @@
   overflow-y: auto;
   overflow-wrap: anywhere;
   padding: 20px 24px;
+  margin: 12px 16px 0;
 }
 
 .agent-chat .chat-transcript {
@@ -94,8 +95,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 16px 24px;
-  border-top: 1px solid var(--line);
-  background: var(--panel);
+  margin: 12px 16px 16px;
 }
 
 .agent-chat-label {
