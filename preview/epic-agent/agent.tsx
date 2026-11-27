@@ -177,6 +177,27 @@ function namedApproval(): AgentChatSnapshot {
   }
 }
 
+/** The first of two questions in one multi-select ask, docked over the conversation. */
+function multiQuestion(): AgentChatSnapshot {
+  return {
+    ...scenarios.empty.snapshot,
+    items: conversation,
+    status: 'busy',
+    pending: {
+      id: 'question-multi-1', kind: 'question', title: 'Which checks should the worker run before it submits?',
+      detail: 'Choose every check that applies.', threadId: null,
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+      options: [
+        { id: 'option_0', label: 'Lint', description: 'ESLint over the changed files' },
+        { id: 'option_1', label: 'Typecheck', description: 'Both tsconfig projects' },
+        { id: 'option_2', label: 'Unit tests', description: 'Vitest for the touched files' },
+        { id: 'option_3', label: 'Build' },
+        { id: 'text', label: 'Other' }
+      ]
+    }
+  }
+}
+
 function magosDecided(): AgentChatSnapshot {
   return {
     ...scenarios.empty.snapshot,
@@ -367,6 +388,19 @@ const agentStates: Record<string, StateDef> = {
     reach: async () => {
       await openAgentTab()
       await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
+    }
+  },
+  'question-multi': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, multiQuestion()),
+    reach: async () => {
+      await openAgentTab()
+      const card = await until(() => $('.agent-prompt-multi'), 'the docked multi-select question')
+      for (const label of ['Lint', 'Unit tests']) {
+        click(await until(() => [...card.querySelectorAll('label.agent-prompt-check')]
+          .find((row) => text(row.querySelector('.agent-prompt-check-label')) === label)?.querySelector('input') ?? null, `the ${label} checkbox`))
+      }
+      await until(() => text($('.agent-prompt-count')) === '2 selected', '2 selected')
     }
   },
   'agent-magos-decided': {
@@ -609,6 +643,23 @@ function deliveryObservations(): Record<string, unknown> {
   }
 }
 
+/** The docked multi-select question: its legend, progress, checked option labels, count and Submit; null without one. */
+function questionObservations(): Record<string, unknown> | null {
+  const form = $('.agent-prompt .agent-prompt-multi')
+  if (form === null) return null
+  const rows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')]
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  return {
+    legend: text(form.querySelector('legend')),
+    progress: text($('.agent-prompt .agent-prompt-progress')),
+    checkboxes: rows.length,
+    checked: rows.filter((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked === true)
+      .map((row) => text(row.querySelector('.agent-prompt-check-label'))),
+    count: text(form.querySelector('.agent-prompt-count')),
+    submitEnabled: submit === null ? null : !submit.matches(':disabled')
+  }
+}
+
 /** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
 function glassObservations(): Record<string, unknown> | null {
   const stage = $('section.eap')
@@ -740,6 +791,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
+    questionCard: questionObservations(),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),

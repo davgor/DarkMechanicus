@@ -123,6 +123,12 @@ function passingChatStates() {
   }
 }
 
+/** The question-multi state's docked card: the first of two questions, two options checked, Submit enabled. */
+const QUESTION = {
+  legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
+  checked: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
@@ -161,7 +167,8 @@ function passing() {
     'settings-notifications': ready('settings-notifications', {
       ...STANDALONE, settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
     }),
-    'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } })
+    'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
+    'question-multi': ready('question-multi', { questionCard: QUESTION })
   }
 }
 
@@ -196,21 +203,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 31 states once each, in capture order', () => {
+  it('lists the 32 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'agent-transcript',
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'question-multi', 'agent-transcript',
       'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(31)
+    expect(new Set(STATES).size).toBe(32)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 480 s overall bound: 31 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 495 s overall bound: 32 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(480_000)
+    expect(OVERALL_LIMIT_MS).toBe(495_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -440,6 +447,22 @@ describe('capture-agent-chat: agent-role-picker observations', () => {
     expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker: expected both cards are frosted glass'])
     expect(picker([magos, { ...lex, clipped: true }])).toEqual(['agent-role-picker: expected no card clips its text or leaves the window'])
     expect(validateObservations('agent-role-picker', ready('agent-role-picker', STANDALONE))).toHaveLength(4)
+  })
+})
+
+describe('capture-agent-chat: question-multi observations', () => {
+  const question = (patch) => validateObservations('question-multi', ready('question-multi', { questionCard: { ...QUESTION, ...patch } }))
+
+  it('passes Question 1 of 2 with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
+    expect(question({})).toEqual([])
+  })
+
+  it('fails missing progress, another selection, a wrong count, a disabled Submit and no card', () => {
+    expect(question({ progress: null })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question headed Question 1 of 2/)])
+    expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
+    expect(question({ count: '1 selected' })).toHaveLength(1)
+    expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
+    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(3)
   })
 })
 
