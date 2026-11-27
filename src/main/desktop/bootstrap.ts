@@ -45,7 +45,7 @@ import { createConversationDeliveries, type ConversationDeliveries } from '../ag
 import { createAgentContextDelivery, resumeContextChat, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
 import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
 import type { ConversationReads } from '../agents/conversationTarget'
-import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
+import { createAgentMailDesktop, type AgentMailDesktop, type AgentMailDesktopDeps } from '../agents/agentMailDesktop'
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
@@ -106,6 +106,7 @@ import { createCultControl } from '../cults/cultControl'
 import { createCultLedger, systemLeftovers } from '../cults/cultLedger'
 import { createCultLauncher } from '../cults/cultLauncher'
 import { createCultSupervisor, type CultSupervisor } from '../cults/cultSupervisor'
+import { createCultWake, type CultWake } from '../cults/cultWake'
 import { cheapest, createOmpModelCatalog } from '../cults/ompModels'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
@@ -348,6 +349,8 @@ interface ChatProcesses {
   grants: ChatGrants
   /** Serves the cult operations of the control pipe once the cult supervisor has started (`startCults`). */
   setCultDispatcher(dispatch: NamingDispatcher): void
+  /** The standing cult wake the mail monitor offers undelivered mail to, once the cult supervisor has started. */
+  setCultWake(wake: CultWake): void
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
@@ -507,9 +510,11 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
   namingReady = listenControlPipe(grants, pipeDispatcher(createNamingDispatcher({ store, push }), () => recovery, () => cults), pipe => { namingPipe = pipe })
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
-  const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
+  let cultWake: CultWake | null = null
+  const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery,
+    cultWake: { offer: async (folder, chat, messages) => { await cultWake?.offer(folder, chat, messages) } } })
   return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
-    setCultDispatcher: dispatch => { cults = dispatch },
+    setCultDispatcher: dispatch => { cults = dispatch }, setCultWake: wake => { cultWake = wake },
     suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
@@ -906,6 +911,7 @@ function createChatMail(services: {
   resumeChat: (chat: ChatRecord) => Promise<string | null>
   boardTransport: BoardContextTransport
   recovery: { poll(folder: string): Promise<void> }
+  cultWake: NonNullable<AgentMailDesktopDeps['cultWake']>
 }): AgentMailDesktop {
   return createAgentMailDesktop({
     registry: services.folders,
@@ -922,6 +928,7 @@ function createChatMail(services: {
     folders: () => [...services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []), ...services.sanctums.list()],
     workspaceFor: (folder, background) => desktopWorkspace(services.folders, services.workspaces, folder, background),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
+    cultWake: services.cultWake,
     board: { poll: async (folder) => {
       await services.contextDelivery.reconcileBoard(folder, services.boardTransport)
       await services.recovery.poll(folder)
@@ -971,7 +978,7 @@ interface CultServiceDeps {
   sanctums: SanctumRegistry
   agents: AgentRegistry
   pool: WorkspacePool
-  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants' | 'setCultDispatcher'>
+  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants' | 'setCultDispatcher' | 'setCultWake'>
 }
 
 /**
@@ -992,8 +999,9 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     closeWorkspace: (folder) => deps.pool.close(folder),
     cheapestModel: async () => cheapest((await models.list()).options)?.id ?? null
   })
+  const ledger = createCultLedger({ userData })
   const supervisor = createCultSupervisor({
-    cults, launcher, terminals, control, ledger: createCultLedger({ userData }), grants, chatStore: store, userData,
+    cults, launcher, terminals, control, ledger, grants, chatStore: store, userData,
     revokeGrantIn: async (folder, grantId) => {
       await desktopWorkspace(deps.gates, deps.pool, folder).revokeGrant({ grantId })
     },
@@ -1001,11 +1009,17 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     onError: (error) => logger.error('Cult supervision failed:', error)
   })
   void supervisor.reconcileOnStartup().catch((error: unknown) => logger.error('Cult startup recovery failed:', error))
+  deps.processes.setCultWake(createCultWake({
+    userData, supervisor, chats: store, epochOf: (chatId) => terminals.generationOf(chatId),
+    onError: (error) => logger.error('Cult wake failed:', error)
+  }))
   deps.processes.setCultDispatcher(createCultDispatcher({
     supervisor, cults,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),
+    folderGrants: (runId, chatId) => ledger.grants().flatMap((grant) =>
+      grant.runId === runId && grant.chatId === chatId && grant.kind === 'folder_access' && grant.tokenFile !== null ? [{ folder: grant.folder, tokenFile: grant.tokenFile }] : []),
     onError: (error) => logger.error('Cult member conclusion failed:', error)
   }))
   return supervisor
@@ -1180,7 +1194,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail, setCultDispatcher } = createChatProcesses({
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail, setCultDispatcher, setCultWake } = createChatProcesses({
     folders: gates, sanctums, agents, workspaces: pool, activity, sourceCheckouts,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
@@ -1203,7 +1217,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: gates, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
-  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants, setCultDispatcher } })
+  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, processes: { chats, store, terminals, grants, setCultDispatcher, setCultWake } })
   const stores = async (): Promise<void> => { await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

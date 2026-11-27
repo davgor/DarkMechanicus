@@ -28,6 +28,8 @@
  *
  * Like the client, this file imports nothing from OMP or npm: OMP runs it from the app's resources.
  */
+import { cultTools, type CultRole } from './cultTools'
+import { CULT_WAKE_REMINDER, CULT_WAKE_TYPE, type CultWakeGate } from './cultWake'
 import { DM_COMMAND_NAME, type DmClient, type DmClientError, type DmMailCalls, type DmMailCommand, type DmMailMessage, type DmMailMessageMeta } from './dmClient'
 import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, recoveryContextBodies, RECOVERY_DATA_NOTE, RECOVERY_DELIVERY_TYPE, type BoardContextBody } from './contextDelivery'
 import { SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_MESSAGE } from './dmDiagnostics'
@@ -105,6 +107,8 @@ export interface MailApi {
   on: (event: string, handler: (event: unknown, ctx: MailContext) => unknown) => void
   registerTool?: (tool: MailToolDefinition) => void
   sendUserMessage?: (content: string, options: { deliverAs: 'aside'; attribution: 'user' | 'agent' }) => Promise<void>
+  /** OMP's custom host message; the cult wake's fixed reminder uses it. */
+  sendMessage?: (message: { customType: string; content: string; display: boolean }, options: { deliverAs: 'aside'; triggerTurn: boolean }) => Promise<void> | undefined
   typebox?: { Type?: Partial<TypeBuilder> }
 }
 
@@ -491,6 +495,8 @@ interface MailWatcherDeps {
   client: DmClient
   timers: Timers
   sendUserMessage?: MailApi['sendUserMessage']
+  /** A cult member's standing wake (`cultWake.ts`): idle peer mail starts a turn only through it. */
+  cultWake?: { take(): Promise<boolean>; remind(): void }
 }
 
 interface PreparedDelivery {
@@ -644,7 +650,15 @@ export class MailWatcher {
       this.#sendBoard(prepared.board)
       return
     }
-    if (prepared.peer !== undefined && this.#inboxReads.size === 0) this.#sendPeer(prepared.peer)
+    if (prepared.peer === undefined || this.#inboxReads.size > 0) return
+    const cult = this.#deps.cultWake
+    if (cult === undefined) {
+      this.#sendPeer(prepared.peer)
+      return
+    }
+    // A cult member's idle turn starts only from a wake main armed for its running run, with the fixed reminder; the
+    // bodies then join that turn through the hooks. Unarmed mail waits for the member's next turn.
+    void cult.take().then((taken) => { if (taken) cult.remind() })
   }
 
   /** Hook returns are committed by OMP before its first provider request, with explicit attribution. */
@@ -1002,11 +1016,17 @@ function startPrompt(event: unknown): string {
   return isArgs(event) && typeof event.prompt === 'string' ? event.prompt : ''
 }
 
+/** A cult member's chat: its role (from the client descriptor) and the gate of its standing wake. */
+export interface CultMembership {
+  role: CultRole
+  gate: Pick<CultWakeGate, 'take'>
+}
+
 /**
  * Registers native tools and automatic full-body delivery at the host's awaited safe boundaries;
  * otherwise exposes only a visible unavailable status. Returns null when messaging is unavailable.
  */
-export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers): MailWatcher | null {
+export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers, cult?: CultMembership): MailWatcher | null {
   const support = mailSupport(pi)
   if (!support.ok) {
     pi.on('session_start', (_event, ctx) => {
@@ -1015,17 +1035,26 @@ export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers): 
     })
     return null
   }
-  const watcher = attachMailWatcher(pi, client, timers)
+  const watcher = attachMailWatcher(pi, client, timers, undefined, cult === undefined ? undefined : cultWakeOf(pi, cult.gate))
   registerMailTools(pi, client, support.type, watcher)
+  for (const tool of cultTools(client, support.type, cult?.role)) pi.registerTool?.(tool as unknown as MailToolDefinition)
   if (!hasRecoverySchemas(support.type)) pi.on('session_start', (_event, ctx) => {
     if (ctx.hasUI && ctx.agent?.kind !== 'sub') ctx.ui.setStatus?.('skitarii-recovery', 'Tooling recovery unavailable: this OMP has no public nullable native-tool schemas')
   })
   return watcher
 }
 
+/** The watcher's side of a member's standing wake: take it once, then start the turn with the fixed reminder only. */
+function cultWakeOf(pi: MailApi, gate: Pick<CultWakeGate, 'take'>): NonNullable<MailWatcherDeps['cultWake']> {
+  return {
+    take: () => gate.take(),
+    remind: () => void pi.sendMessage?.({ customType: CULT_WAKE_TYPE, content: CULT_WAKE_REMINDER, display: true }, { deliverAs: 'aside', triggerTurn: true })?.catch(() => {})
+  }
+}
+
 /** World chats install one watcher per member, while registering the project-selecting tools only once. */
-export function attachMailWatcher(pi: MailApi, client: DmClient, timers: Timers, project?: string): MailWatcher {
-  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi), ...(project === undefined ? {} : { project }) })
+export function attachMailWatcher(pi: MailApi, client: DmClient, timers: Timers, project?: string, cultWake?: MailWatcherDeps['cultWake']): MailWatcher {
+  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi), ...(project === undefined ? {} : { project }), ...(cultWake === undefined ? {} : { cultWake }) })
   pi.on('session_start', (_event, ctx) => {
     const entries = (): readonly unknown[] => ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? []
     if (ctx.agent?.kind === 'main') watcher.start(ctx.ui, entries(), entries, ctx.isIdle?.bind(ctx))

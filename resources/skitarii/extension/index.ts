@@ -8,8 +8,10 @@
  */
 import frames from '../mascot/frames.json'
 import { attachProjectStandards } from './projectStandards'
-import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient } from './dmClient'
-import { attachMessaging, type MailApi, type MailContext } from './messaging'
+import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient, type DmClientDeps } from './dmClient'
+import { cultRoleOf } from './cultTools'
+import { cultWakeGate } from './cultWake'
+import { attachMessaging, type CultMembership, type MailApi, type MailContext } from './messaging'
 import { worldMailClients } from './worldDmClient'
 import { attachWorldMessaging } from './worldMessaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
@@ -104,13 +106,20 @@ export function attachDmClient(pi: OmpApi, client: DmClient): DmClient {
   return client
 }
 
+/** A cult member's role and standing-wake gate, from its client descriptor; undefined for any other chat. */
+export async function cultMembership(deps: Pick<DmClientDeps, 'env' | 'readFile'>): Promise<CultMembership | undefined> {
+  const role = await cultRoleOf(deps.env, deps.readFile)
+  const gate = cultWakeGate({ ...deps.env }, deps.readFile)
+  return role === undefined || gate === null ? undefined : { role, gate }
+}
+
 export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   attach(pi, await ompLookup())
   const deps = nodeDmClientDeps()
   const client = createDmClient(deps)
   const world = await worldMailClients(deps)
   // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
-  if (world === null) attachMessaging(pi, client, PROCESS_TIMERS)
+  if (world === null) attachMessaging(pi, client, PROCESS_TIMERS, await cultMembership(deps))
   else attachWorldMessaging(pi, world, PROCESS_TIMERS)
   const home = process.env.DARKMECHANICUS_HOME
   attachHumanWait(pi, world === null ? { home, client } : { home, projects: world.projects })
