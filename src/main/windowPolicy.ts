@@ -1,6 +1,7 @@
 /** Pure helpers for Electron window lifecycle - kept free of Electron imports for mutation testing. */
 
-import { relative } from 'node:path'
+import { createHash } from 'node:crypto'
+import { relative, win32 } from 'node:path'
 
 /** Route legacy packaged MCP invocations before touching the desktop singleton or focus. */
 export function routeAppLaunch(entry: string | undefined, mcpEntry: string, actions: {
@@ -70,10 +71,33 @@ export function applyColorProfile(commandLine: { appendSwitch: (name: string, va
 
 /** The installed shortcut's AppUserModelId (`build.appId` in package.json): Windows shows a toast only for a matching id. */
 const APP_USER_MODEL_ID = 'com.davgor.darkmechanicus'
+/** How many hex digits of the home path's SHA-256 name an isolated profile. */
+const ISOLATED_ID_HASH_LENGTH = 12
 
-/** On Windows, names the process with the installer's app id before any window opens, so OS notifications show and group under the app. */
-export function applyAppUserModelId(platform: NodeJS.Platform, set: (id: string) => void): boolean {
+/** The Dark Mechanicus home this process uses, and the one it uses when `DARKMECHANICUS_HOME` is unset. */
+interface AppProfile {
+  home: string
+  defaultHome: string
+}
+
+/** A Windows path in one spelling: resolved, without a trailing separator, lower-cased (Windows paths ignore case). */
+function canonicalWindowsPath(path: string): string {
+  return win32.resolve(path).toLowerCase()
+}
+
+/**
+ * On Windows, names the process before any window opens, so OS notifications show and group under the app.
+ * The default home gets the installer's app id. Any other home (an isolated test or verification profile)
+ * gets its own stable id, so its toasts never raise or activate the person's installed app.
+ */
+export function applyAppUserModelId(platform: NodeJS.Platform, set: (id: string) => void, profile: AppProfile): boolean {
   if (platform !== 'win32') return false
-  set(APP_USER_MODEL_ID)
+  const home = canonicalWindowsPath(profile.home)
+  if (home === canonicalWindowsPath(profile.defaultHome)) {
+    set(APP_USER_MODEL_ID)
+  } else {
+    const digest = createHash('sha256').update(home).digest('hex').slice(0, ISOLATED_ID_HASH_LENGTH)
+    set(`${APP_USER_MODEL_ID}.isolated.${digest}`)
+  }
   return true
 }

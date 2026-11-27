@@ -213,7 +213,7 @@ class ChatMailboxRegistry implements ChatMailboxes {
     let workspace: ProjectWorkspace
     try { workspace = this.deps.workspaceFor(chat.folder) }
     catch (error) { this.logFailure(chat.folder, 'rename the mailbox of chat ' + chat.id, error); return }
-    try { await workspace.call('renameMailbox', chat.endpointId, chat.title) }
+    try { await workspace.call('renameMailbox', chat.endpointId, chat) }
     catch (error) { this.deps.log('Could not rename the mailbox of chat ' + chat.id + ': ' + messageOf(error)) }
   }
 

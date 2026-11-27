@@ -15,6 +15,7 @@ export function idleChatMail(): ChatMailApi {
     snapshot: (folder) => Promise.resolve({ ok: true, data: { folder, chats: [] } }),
     state: refused,
     read: refused,
+    conversation: refused,
     markSeen: refused,
     onEvent: () => () => {}
   }

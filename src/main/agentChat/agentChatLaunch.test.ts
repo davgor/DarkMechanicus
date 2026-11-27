@@ -1,8 +1,9 @@
+import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, win32 } from 'node:path'
+import { dirname, join, resolve, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SHIM_HELP } from '../terminals/claudeExecutable'
+import { SHIM_HELP } from '../terminals/agentExecutable'
 import { claudeProjectName, claudeSessionExists } from '../terminals/claudeSession'
 import { claudeSettings, writeClaudeSettings } from '../terminals/claudeSettingsFile'
 import { ompSessionId } from '../terminals/ompSession'
@@ -140,6 +141,48 @@ describe('Windows GUI programs', () => {
     input.shimFs = { readFile: () => '"%dp0%\\cli.js"', isFile: () => false }
     expect(() => agentChatLaunch(input)).toThrow(/node\.exe/)
   })
+})
+
+describe('the e2e fake-omp shim', () => {
+  it.runIf(process.platform === 'win32')('runs the e2e fake-omp npm-style shim on disk through node, and its first turn streams', async () => {
+    const fixtures = resolve('src/main/agentChat/__fixtures__')
+    const shimDir = join(root, 'shim')
+    mkdirSync(shimDir, { recursive: true })
+    writeFileSync(join(shimDir, 'fake-omp.cmd'), '@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-omp.js" %*\r\n')
+    const fixtureUrl = JSON.stringify(join(fixtures, 'fakeAgentCli.mjs'))
+    writeFileSync(join(shimDir, 'fake-omp.js'), `process.env.FAKE_AGENT_PERSONA = 'omp'\nimport(require('node:url').pathToFileURL(${fixtureUrl}).href)\n`)
+    const input = inputFor('omp')
+    mkdirSync(input.folder, { recursive: true })
+    input.agent.executablePath = join(shimDir, 'fake-omp.cmd')
+    input.env = { ...input.env, SystemRoot: process.env['SystemRoot'], Path: dirname(process.execPath) }
+    const spec = agentChatLaunch(input)
+    expect(spec.file).toBe(win32.join(dirname(process.execPath), 'node.exe'))
+    expect(spec.args.slice(0, 3)).toEqual([join(shimDir, 'fake-omp.js'), '--mode', 'rpc-ui'])
+
+    const log = join(root, 'fake-agent.jsonl')
+    const child = spawn(spec.file, spec.args, { cwd: spec.cwd, env: { ...spec.env, FAKE_AGENT_LOG: log }, stdio: 'pipe', windowsHide: true })
+    const closed = new Promise<number | null>((resolveExit, reject) => { child.once('error', reject); child.once('close', resolveExit) })
+    let stdout = ''
+    let promptSent = false
+    child.stdout.setEncoding('utf8')
+    const golden = (name: string, direction = 'out'): string => readFileSync(join(fixtures, 'omp', `${name}.${direction}.jsonl`), 'utf8')
+    const turnDone = new Promise<void>((resolveTurn) => {
+      child.stdout.on('data', (data: string) => {
+        stdout += data
+        if (!promptSent && stdout === golden('init')) {
+          promptSent = true
+          child.stdin.write(`${JSON.stringify({ type: 'prompt', id: 'req_T1_prompt', message: 'hello first' })}\n`)
+        }
+        if (stdout.includes('"type":"prompt_result"') && stdout.endsWith('\n')) resolveTurn()
+      })
+    })
+    child.stdin.write(golden('init', 'in'))
+    await turnDone
+    child.stdin.end()
+    expect(await closed).toBe(0)
+    expect(stdout).toBe(golden('init') + golden('text'))
+    expect(JSON.parse(readFileSync(log, 'utf8'))).toMatchObject({ mode: 'omp', persona: 'omp', pid: child.pid, cwd: input.folder })
+  })
 
 })
 
@@ -171,6 +214,20 @@ describe('launch input boundaries', () => {
     expect(agentChatLaunch(input).args).not.toContain('--model')
     input.newSessionId = () => '--invalid'
     expect(() => agentChatLaunch(input)).toThrow('UUID')
+  })
+
+  it('relaunches a switched Skitarii chat on its stored model and thinking level, and nothing else takes --thinking', () => {
+    const input = inputFor('omp')
+    prepareResume(input, true)
+    input.chat.model = 'anthropic/claude-sonnet-5-5'
+    input.chat.thinking = 'medium'
+    const args = agentChatLaunch(input).args
+    expect(args.slice(args.indexOf('--model'))).toEqual(['--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'medium', '--resume', SESSION])
+    input.chat.thinking = null
+    expect(agentChatLaunch(input).args).not.toContain('--thinking')
+    const claude = inputFor('claude')
+    claude.chat.thinking = 'medium'
+    expect(agentChatLaunch(claude).args).not.toContain('--thinking')
   })
 
   it('refuses mismatched agents, unsupported kinds and an unpinned grant', () => {

@@ -16,6 +16,7 @@ import { pickChatAgent } from '../../shared/agents/pickChatAgent'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../shared/desktop/api'
 import type { EpicDetailView } from '../../shared/domain/views'
 import type { AgentChatSessions } from '../agentChat/agentChatSessions'
+import type { ModelChoice } from './modelChoice'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 import { startChatOnSurface } from './chatSurfaceStart'
 import type { ChatRecords } from './chatRecords'
@@ -33,6 +34,8 @@ interface PlannerStartDeps {
   chats: Pick<ChatRecords, 'createChat' | 'deleteChat' | 'agentName'>
   terminals: Pick<TerminalSessions, 'start'>
   agentChats: Pick<AgentChatSessions, 'start'>
+  /** Refuses a model or thinking level the picked agent cannot start on (`checkModelChoice`); nothing is created then. */
+  checkModel(agent: AgentId, choice: ModelChoice): Promise<void>
   onError?: (error: unknown) => void
 }
 
@@ -80,11 +83,13 @@ export async function startPlannerChat(deps: PlannerStartDeps, request: StartPla
   const { folder } = request
   const epic = await deps.epics.getEpic(folder, request.epicId)
   const agent = await signedInAgent(deps.agents)
+  await deps.checkModel(agent, request)
 
   let chat: ChatRecord
   try {
     chat = await deps.chats.createChat({
-      folder, agent, role: 'planner', model: null, allowSave: true, title: `Planner · ${oneLine(epic.title)}`.slice(0, LIMITS.title), epicId: epic.id
+      folder, agent, role: 'planner', model: request.model ?? null, ...(request.thinking == null ? {} : { thinking: request.thinking }),
+      allowSave: true, title: `Planner · ${oneLine(epic.title)}`.slice(0, LIMITS.title), epicId: epic.id
     })
   } catch (error) {
     if (!(error instanceof DomainError)) deps.onError?.(error)

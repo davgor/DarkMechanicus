@@ -1,4 +1,6 @@
 import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem } from '../../../shared/agents/agentChat'
+import type { ChatImageRef } from '../../../shared/agents/chat'
+import type { ChatModelOption } from '../../../shared/agents/models'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import { deferred, type Deferred } from './deferred'
@@ -11,6 +13,13 @@ export class FakeAgentChat implements AgentChatApi {
     ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
   }
   attentionResult: CommandResult<AttentionItem[]> = { ok: true, data: [] }
+  stageImageResult: CommandResult<{ image: ChatImageRef }> = {
+    ok: true, data: { image: { id: 'ci_00000000000000000000000000', mime: 'image/png', width: 1, height: 1, bytes: 68 } }
+  }
+  attachEvidenceResult: CommandResult<{ commentId: string; attachmentId: string }> = {
+    ok: true, data: { commentId: 'cm_1', attachmentId: 'im_1' }
+  }
+  modelsResult: CommandResult<ChatModelOption[]> = { ok: true, data: [] }
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   calls: { method: Method; args: unknown[] }[] = []
   private holds: Partial<Record<Method, Deferred[]>> = {}
@@ -57,6 +66,14 @@ export class FakeAgentChat implements AgentChatApi {
     return this.call('interrupt', request, () => ({ ok: true, data: null }))
   }
 
+  /** Records the stop, then tells every view of the chat it exited, as main's process close does. */
+  stop(request: Parameters<AgentChatApi['stop']>[0]) {
+    return this.call('stop', request, () => {
+      this.emit({ folder: request.folder, chatId: request.chatId, type: 'status', status: 'exited' })
+      return { ok: true, data: null }
+    })
+  }
+
   answer(request: Parameters<AgentChatApi['answer']>[0]) {
     return this.call('answer', request, () => ({ ok: true, data: null }))
   }
@@ -68,9 +85,36 @@ export class FakeAgentChat implements AgentChatApi {
     })
   }
 
+  setModel(request: Parameters<AgentChatApi['setModel']>[0]) {
+    return this.call('setModel', request, () => {
+      const model = `${request.provider}/${request.modelId}`
+      if (this.snapshotResult.ok) this.snapshotResult = { ok: true, data: { ...this.snapshotResult.data, model, thinking: request.effort ?? this.snapshotResult.data.thinking ?? null } }
+      return this.snapshotResult
+    })
+  }
+
   attention(request: Parameters<AgentChatApi['attention']>[0]) {
     const result = this.attentionResult
     return this.call('attention', request, () => result)
+  }
+
+  /** The images later `stageImage` calls answer, one each and in order; `stageImageResult` once they run out. */
+  stagedImages: ChatImageRef[] = []
+
+  stageImage(request: Parameters<AgentChatApi['stageImage']>[0]) {
+    const next = this.stagedImages.shift()
+    const result: CommandResult<{ image: ChatImageRef }> = next === undefined ? this.stageImageResult : { ok: true, data: { image: next } }
+    return this.call('stageImage', request, () => result)
+  }
+
+  attachEvidence(request: Parameters<AgentChatApi['attachEvidence']>[0]) {
+    const result = this.attachEvidenceResult
+    return this.call('attachEvidence', request, () => result)
+  }
+
+  models(request: Parameters<AgentChatApi['models']>[0]) {
+    const result = this.modelsResult
+    return this.call('models', request, () => result)
   }
 
   private async call<T>(method: Method, request: unknown, produce: () => CommandResult<T>): Promise<CommandResult<T>> {

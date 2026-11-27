@@ -3,6 +3,7 @@
  * Consumer regressions exercise ordered pickup, native continuation boundaries, trust, recovery and explicit ack.
  */
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -71,7 +72,7 @@ const hostileBody = ${JSON.stringify(HOSTILE_BODY)}
 const meta = { id: 'mm_1', seq: 1, from: { endpointId: 'me_peer', name: hostileName, deleted: false }, inReplyTo: null, bodyBytes: 10, acceptedAt: '2026-11-15T10:00:00.000Z', acknowledgedAt: null, expiresAt: null }
 const answers = {
   get_agent_identity: { endpointId: 'me_self', name: 'Self', role: 'worker', boundAt: '2026-11-15T09:00:00.000Z' },
-  list_agent_peers: { peers: [{ endpointId: 'me_peer', name: hostileName }], nextAfterId: 'me_peer', hasMore: false },
+  list_agent_peers: { peers: [{ endpointId: 'me_peer', name: hostileName, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false },
   send_agent_message: { messageId: 'mm_9', to: input.to, clientMessageId: input.clientMessageId, inReplyTo: input.inReplyTo ?? null, acceptedAt: '2026-11-15T10:01:00.000Z', duplicate: false },
   read_agent_inbox: input.throughSeq === 0
     ? { messages: [], snapshotHighWater: 0, nextCursor: input.afterSeq ?? 0, hasMore: false }
@@ -124,7 +125,23 @@ beforeEach(async () => {
   })
 })
 
-afterEach(() => {
+/** Every `dm` child a test's real deps started, including those a watcher's tick started after the test stopped looking. */
+const spawned = new Set<ChildProcess>()
+
+/**
+ * A child still running holds the scratch folder as its working directory. A watcher tick can start one just before a
+ * test ends, and `removeScratch` is synchronous: it blocked the event loop before the child's stdin was written, so the
+ * child waited on its input until the removal's retries ran out (the hook timed out). So each child is ended and its
+ * exit awaited first.
+ */
+afterEach(async () => {
+  const running = [...spawned].filter((child) => child.pid !== undefined && child.exitCode === null && child.signalCode === null)
+  spawned.clear()
+  await Promise.all(running.map((child) => {
+    const exited = once(child, 'exit')
+    child.kill('SIGKILL')
+    return exited
+  }))
   removeScratch(root)
 })
 
@@ -139,6 +156,7 @@ function realDeps(token = TOKEN, limits = DM_CLIENT_LIMITS, runLimits = DM_RUN_L
     spawn: (command, args, options) => {
       const child = nodeSpawn(command, [...args], options)
       children.push(child)
+      spawned.add(child)
       waiting.splice(0).forEach((resolve) => resolve(child))
       return child
     },
@@ -427,7 +445,7 @@ describe('Skitarii mail tools: results and refusals', () => {
     for (const result of [peers, read]) {
       expect(textOf(result)).not.toMatch(RAW_CONTROL)
     }
-    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME }], nextAfterId: 'me_peer', hasMore: false })
+    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false })
     const page = dataOf(read) as { messages: DmMailMessage[] }
     expect(page.messages[0]!.body).toBe(HOSTILE_BODY)
     expect(textOf(read)).toContain('\\u001b]52;c;')
@@ -452,6 +470,7 @@ describe('Skitarii mail tools: results and refusals', () => {
       await send.execute('c', { to: 'me_peer', body: 'hi', clientMessageId: '-starts-with-dash' }),
       await send.execute('c', ['to']),
       await tools.get('dm_agent_identity')!.execute('c', { endpointId: 'me_other' }),
+      await tools.get('dm_agent_peers')!.execute('c', { role: 'desktop' }),
       await tools.get('dm_agent_peers')!.execute('c', { limit: 51 }),
       await tools.get('dm_inbox_read')!.execute('c', { afterSeq: -1 }),
       await tools.get('dm_inbox_read')!.execute('c', { unacknowledgedOnly: 'yes' }),
@@ -464,6 +483,18 @@ describe('Skitarii mail tools: results and refusals', () => {
     }
     expect(deps.children).toEqual([])
     expect(fixtureCalls()).toEqual([])
+  })
+})
+
+describe('Skitarii mail tools: peer filters', () => {
+  it('passes the epicId and role filters of dm_agent_peers to the CLI and refuses a role no chat runs as', async () => {
+    const tools = toolsOver(createDmClient(realDeps()))
+    const peers = await tools.get('dm_agent_peers')!.execute('c', { epicId: 'ep_e', role: 'planner' })
+    expect(dataOf(peers)).toEqual({ peers: [{ endpointId: 'me_peer', name: HOSTILE_NAME, epicId: 'ep_e', role: 'planner' }], nextAfterId: 'me_peer', hasMore: false })
+    expect(fixtureCalls()).toEqual([{ command: 'list_agent_peers', input: { epicId: 'ep_e', role: 'planner' } }])
+    expect((await tools.get('dm_agent_peers')!.execute('c', { role: 'captain' })).isError).toBe(true)
+    expect((await tools.get('dm_agent_peers')!.execute('c', { epicId: 'ep e' })).isError).toBe(true)
+    expect(fixtureCalls()).toHaveLength(1)
   })
 })
 

@@ -94,7 +94,7 @@ describe('the seven mailbox commands', () => {
     const b = await boundChat(desktop, 'chat-b', 'orchestrator')
     const sender = a.cli()
     expect(await sender.getAgentIdentity({})).toMatchObject({ endpointId: a.endpoint.id, role: 'worker' })
-    expect((await sender.listAgentPeers({})).peers).toEqual([{ endpointId: b.endpoint.id, name: 'Chat chat-b' }])
+    expect((await sender.listAgentPeers({})).peers).toEqual([{ endpointId: b.endpoint.id, name: 'Chat chat-b', epicId: null, role: null }])
     const accepted = await sender.sendAgentMessage({ to: b.endpoint.id, clientMessageId: 'hello-1', body: 'Ready for review?' })
 
     const receiver = b.cli()

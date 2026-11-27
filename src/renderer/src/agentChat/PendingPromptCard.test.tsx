@@ -15,7 +15,8 @@ const approval: PendingPrompt = {
   arbitration: { state: 'off', reason: null }, tool: { name: 'Bash', input: { command: 'npm test' } },
   options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }]
 }
-const question: PendingPrompt = {
+type QuestionPrompt = Extract<PendingPrompt, { kind: 'question' }>
+const question: QuestionPrompt = {
   id: 'question', kind: 'question', title: 'Which approach?', detail: 'Choose or explain.',
   threadId: null, attributed: false, callsign: null, arbitration: { state: 'off', reason: null },
   options: [{ id: 'option_0', label: 'Small' }, { id: 'text', label: 'Other' }]
@@ -144,4 +145,120 @@ it('keeps a failed answer available with bounded plain-text notice', async () =>
   await settle()
   expect(screen.getByRole('alert').textContent).toHaveLength(300)
   expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+})
+
+const multi: QuestionPrompt = {
+  id: 'multi-1', kind: 'question', title: 'Which checks should run?', detail: '', threadId: null, attributed: false, callsign: null,
+  arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+  options: [
+    { id: 'A', label: 'Lint', description: 'ESLint over the tree' }, { id: 'B', label: 'Typecheck' },
+    { id: 'C', label: 'Unit tests' }, { id: 'D', label: 'Build' }
+  ]
+}
+const checkbox = (name: string) => screen.getByRole('checkbox', { name: new RegExp(`^${name}`) }) as HTMLInputElement
+const submitButton = () => screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement
+
+it('renders a multi question as labelled checkboxes in a fieldset with its question as the legend', async () => {
+  await mount(multi)
+  const card = screen.getByRole('alertdialog', { name: 'Which checks should run?' })
+  expect(card.classList.contains('glass-strong')).toBe(true)
+  const group = within(card).getByRole('group', { name: 'Which checks should run?' })
+  expect(group.tagName).toBe('FIELDSET')
+  expect(within(group).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent))
+    .toEqual(['LintESLint over the tree', 'Typecheck', 'Unit tests', 'Build'])
+  expect(within(group).getAllByRole('checkbox').every((box) => !(box as HTMLInputElement).checked)).toBe(true)
+  expect(within(card).queryByRole('textbox')).toBeNull()
+  expect(screen.getByText('0 selected')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
+})
+
+it('counts checked options, enables Submit, and keeps zero selected disabled', async () => {
+  const { api } = await mount(multi)
+  fireEvent.click(checkbox('Unit tests'))
+  fireEvent.click(checkbox('Lint'))
+  expect(checkbox('Lint').checked).toBe(true)
+  expect(screen.getByText('2 selected')).toBeTruthy()
+  expect(submitButton().disabled).toBe(false)
+  fireEvent.click(checkbox('Lint'))
+  fireEvent.click(checkbox('Unit tests'))
+  expect(screen.getByText('0 selected')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.submit(submitButton().closest('form') as HTMLFormElement)
+  await settle()
+  expect(api.callsOf('answer')).toEqual([])
+})
+
+it('submits once with the checked ids in option order and disables the card while pending', async () => {
+  const { api } = await mount(multi)
+  fireEvent.click(checkbox('Unit tests'))
+  fireEvent.click(checkbox('Lint'))
+  const hold = api.hold('answer')
+  fireEvent.click(submitButton())
+  fireEvent.click(submitButton())
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'multi-1', optionIds: ['A', 'C'] }]])
+  const card = screen.getByRole('alertdialog')
+  expect(card.getAttribute('aria-busy')).toBe('true')
+  expect(within(card).getByRole('group')).toHaveProperty('disabled', true)
+  for (const box of within(card).getAllByRole('checkbox')) expect(box.matches(':disabled')).toBe(true)
+  expect(submitButton().matches(':disabled')).toBe(true)
+  await act(async () => { hold.resolve(); await settle() })
+  expect(screen.queryByRole('alertdialog')).toBeNull()
+  expect(screen.getByText('Answer sent.')).toBeTruthy()
+})
+
+it('includes nonblank Other text as the text option in option order', async () => {
+  const { api } = await mount({ ...multi, options: [...multi.options.slice(0, 2), { id: 'text', label: 'Other' }, ...multi.options.slice(2)] })
+  const other = screen.getByRole('textbox', { name: 'Other' })
+  fireEvent.change(other, { target: { value: '   ' } })
+  expect(submitButton().disabled).toBe(true)
+  fireEvent.change(other, { target: { value: ' Smoke run ' } })
+  expect(screen.getByText('1 selected')).toBeTruthy()
+  fireEvent.click(checkbox('Build'))
+  fireEvent.click(checkbox('Lint'))
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'multi-1', optionIds: ['A', 'text', 'D'], text: ' Smoke run ' }]])
+})
+
+it('keeps the selection and shows the error inline when the answer fails', async () => {
+  const { api } = await mount(multi)
+  fireEvent.click(checkbox('Lint'))
+  fireEvent.click(checkbox('Unit tests'))
+  api.failures.answer = { code: 'operation_unavailable', message: 'The CLI is busy' }
+  fireEvent.click(submitButton())
+  await settle()
+  expect(screen.getByRole('alert').textContent).toBe('The CLI is busy')
+  expect([checkbox('Lint').checked, checkbox('Typecheck').checked, checkbox('Unit tests').checked]).toEqual([true, false, true])
+  expect(screen.getByText('2 selected')).toBeTruthy()
+  expect(submitButton().disabled).toBe(false)
+  delete api.failures.answer
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([
+    [{ ...ref, promptId: 'multi-1', optionIds: ['A', 'C'] }], [{ ...ref, promptId: 'multi-1', optionIds: ['A', 'C'] }]
+  ])
+})
+
+it('keeps one-click answers for a single question and shows its progress', async () => {
+  const { api } = await mount({ ...question, progress: { index: 2, total: 3 } })
+  expect(screen.getByText('Question 2 of 3').closest('.agent-prompt-submit')).toBeNull()
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Small' }))
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'question', optionId: 'option_0' }]])
+})
+
+it('shows the next question of an ask as a new step with nothing checked', async () => {
+  const { emit } = await mount(multi)
+  // A multi question's progress shares the Submit row, so the docked card's height goes to its options.
+  expect([...submitButton().parentElement!.children].map((child) => child.textContent)).toEqual(['Question 1 of 2', '0 selected', 'Submit'])
+  fireEvent.click(checkbox('Lint'))
+  fireEvent.click(checkbox('Build'))
+  emit({ ...multi, id: 'multi-2', title: 'Which targets?', progress: { index: 2, total: 2 } })
+  expect(screen.getByRole('alertdialog', { name: 'Which targets?' })).toBeTruthy()
+  expect(screen.getByText('Question 2 of 2')).toBeTruthy()
+  expect(screen.queryByText('Question 1 of 2')).toBeNull()
+  expect(screen.getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)).toBe(false)
+  expect(screen.getByText('0 selected')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
 })

@@ -1,11 +1,41 @@
 /**
  * Built-app e2e harness for agent chats. Launches the built Electron app (run `npm run build` first) with an isolated
- * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent, drives it over CDP and runs named
- * steps, each exactly once under a 10 s condition-based deadline with no retries.
+ * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent (`fake-claude`) and, with
+ * `--agent omp`, also as the built-in `omp` (Skitarii) agent (`fake-omp`), drives it over CDP and runs named steps, each
+ * exactly once under a 10 s condition-based deadline with no retries.
  *
- *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
  *
- * Without `--steps` every step runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
+ * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
+ * the app prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios.
+ * So `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord and model steps.
+ *
+ * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
+ * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
+ * folder. A step list that does not start the app itself (`ready` or `restart-resume`) gets `ready` first.
+ *
+ * The `image-*` steps (screenshots in GUI chats) also run only when named: `image-send` sends `swatch.png` from a new
+ * folder chat's composer, and `image-result` has the seeded epic's Magos (started through Start run) return it from a
+ * tool, opens it and attaches it to the epic as evidence.
+ *
+ * The `coord-*` steps (the epic's Lexmechanic and Magos as tabs, coordinating over Skitarii mail) also run only when
+ * named, and they run the omp fake (`--agent omp` is implied; `--agent claude` is refused): `coord-tabs` starts the
+ * seeded epic's Magos through Start run and a Lexmechanic from the tab strip's "+", `coord-mail` has the Lexmechanic's
+ * fake find the Magos by epic and role and mail it with the real `dm` CLI, `coord-wake` stops the Lexmechanic and has
+ * the Magos mail it awake in the GUI, and `coord-close` stops it for good from its tab.
+ *
+ * The `model-*` steps (a Skitarii chat's composer model picker) also run only when named, on the omp fake (`--agent
+ * omp` implied), which starts on Opus 5.5 at High as the person's configured default: `model-pick` opens a new folder
+ * chat and switches it to a Codex model at Medium, `model-busy` switches it to a Claude model at High during a `[slow]`
+ * turn, and `model-restart` relaunches the app and checks the chat starts again on that model and effort. The fake
+ * logs each session control it receives to `<out>/fake-controls.jsonl`.
+ *
+ * Without `--steps` every step but the polish, image, coord and model ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -22,7 +52,8 @@
  * Each run first removes the isolated roots that earlier runs left behind when they were killed before their own
  * cleanup (`harness.json` names the harness that owns a root; a root whose harness is gone is stale).
  */
-import { spawn, spawnSync } from 'node:child_process'
+import { execFile, spawn, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
@@ -45,6 +76,11 @@ const SCREENSHOT_BOUND_MS = 5_000
 const STDERR_TAIL_LINES = 40
 const FOLDER_NAME = 'e2e-repo'
 const FAKE_VERSION = '2.1.329'
+/** What the fake's OMP persona prints for `--version` (`omp/18.16.0`), as the app stores it. */
+const FAKE_OMP_VERSION = '18.16.0'
+/** The agent kinds `--agent` takes; with `omp` only these steps run (see the header). */
+const AGENT_KINDS = ['claude', 'omp']
+const OMP_STEPS = ['ready', 'new-chat', 'quit']
 const EPIC_TITLE = 'E2E epic'
 /** The window every chat step is captured at, and the wide one the epic's Agent stage with its open rail is. */
 const WINDOW = { width: 1024, height: 768 }
@@ -67,6 +103,17 @@ const OWNER_FILE = 'harness.json'
 const UNOWNED_GRACE_MS = 6 * 60 * 60_000
 /** The title the fake agent names a new chat with (`fakeAgentCli.mjs`, FAKE_CHAT_TITLE); scripts cannot import it. */
 const FAKE_CHAT_TITLE = 'Fake agent conversation'
+/** The second fixture folder, seeded and tracked only for `polish-untrack`, which untracks it. */
+const SECOND_FOLDER_NAME = 'e2e-repo-2'
+/** The fake's `[markdown]` reply (`fakeAgentCli.mjs`, MARKDOWN_REPLY) and the code of its fenced block. */
+const MARKDOWN_REPLY = 'Here is the **fix**:\n\n```js\nconst answer = 42\nconsole.log(answer)\n```'
+const MARKDOWN_CODE = 'const answer = 42\nconsole.log(answer)'
+/** The steps that start the app themselves; a step list starting with any other step gets `ready` first. */
+const APP_STARTING_STEPS = ['ready', 'restart-resume']
+/** The fixture image both `image-*` steps send or receive; the fake's `[image]` tool result carries the same bytes. */
+const SWATCH = join(REPO, 'src', 'main', 'agentChat', '__fixtures__', 'images', 'swatch.png')
+/** The confirmation the epic shows once Attach as evidence took (`ChatImages.tsx`, AttachEvidence). */
+const EVIDENCE_TOAST = 'Attached the image to the epic as evidence.'
 
 /**
  * The environment the app and its children get: `base` minus the stripped variables, with every home and config
@@ -102,28 +149,40 @@ export function isolatedEnv(base, root, platform = process.platform) {
   return { ...Object.fromEntries(kept), ...isolated }
 }
 
-/** The same shim text as `src/main/agentChat/__mocks__/fakeAgentShim.ts`; scripts cannot import TypeScript. */
-function shimFiles(fixture, platform) {
+/**
+ * The same shim text as `src/main/agentChat/__mocks__/fakeAgentShim.ts`; scripts cannot import TypeScript. The
+ * `fake-omp` shim sets FAKE_AGENT_PERSONA so the fake answers `--version` as OMP.
+ */
+function shimFiles(fixture, platform, kind) {
+  const name = `fake-${kind}`
+  const persona = kind === 'omp' ? `process.env.FAKE_AGENT_PERSONA = 'omp'\n` : ''
   if (platform === 'win32') {
     return [
-      { name: 'fake-claude.cmd', text: '@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-claude.js" %*\r\n' },
+      { name: `${name}.cmd`, text: `@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\${name}.js" %*\r\n` },
       // A bare `C:\…` specifier makes import() fail with ERR_UNSUPPORTED_ESM_URL_SCHEME, so it goes through a file URL.
-      { name: 'fake-claude.js', text: `import(require('node:url').pathToFileURL(${JSON.stringify(fixture)}).href)\n` }
+      { name: `${name}.js`, text: `${persona}import(require('node:url').pathToFileURL(${JSON.stringify(fixture)}).href)\n` }
     ]
   }
-  return [{ name: 'fake-claude', text: `#!/bin/sh\nexec node '${fixture.replaceAll("'", "'\\''")}' "$@"\n`, mode: 0o755 }]
+  const exported = kind === 'omp' ? 'export FAKE_AGENT_PERSONA=omp\n' : ''
+  return [{ name, text: `#!/bin/sh\n${exported}exec node '${fixture.replaceAll("'", "'\\''")}' "$@"\n`, mode: 0o755 }]
 }
 
-/** Writes the fake agent's shim into `directory` and returns the executable to register. */
-export function writeShim(directory, fixture, platform = process.platform) {
+/** Writes the fake agent's `kind` shim (`fake-claude` or `fake-omp`) into `directory` and returns the executable to register. */
+export function writeShim(directory, fixture, platform = process.platform, kind = 'claude') {
   mkdirSync(directory, { recursive: true })
-  const files = shimFiles(fixture, platform)
+  const files = shimFiles(fixture, platform, kind)
   for (const file of files) {
     const path = join(directory, file.name)
     writeFileSync(path, file.text)
     if (file.mode !== undefined) chmodSync(path, file.mode)
   }
   return join(directory, files[0].name)
+}
+
+/** The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP. */
+export function seededAgents(shims, agent) {
+  const claude = { kind: 'claude', executablePath: shims.claude, version: FAKE_VERSION }
+  return agent === 'omp' ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
 }
 
 /** The fake agent's invocation log, one entry per launch, in launch order. */
@@ -302,42 +361,62 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
   return { ...env, [key]: [folder, env[key]].filter(Boolean).join(separator) }
 }
 
-function createSession(out, exe) {
+/**
+ * A run's state. With a coord step the fakes deliver their inbox at startup (`FAKE_AGENT_DELIVER_MAIL`), as the
+ * Skitarii extension delivers mail; other runs never make that `dm` call.
+ */
+function createSession(out, exe, agent = 'claude', keys = []) {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
   writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
+  const env = withNodeFirst(isolatedEnv(process.env, root))
+  if (keys.some((key) => STEPS[key].coord)) env.FAKE_AGENT_DELIVER_MAIL = '1'
+  if (keys.some((key) => STEPS[key].model)) {
+    Object.assign(env, {
+      FAKE_AGENT_OMP_START_MODEL: MODEL_START.model, FAKE_AGENT_OMP_START_THINKING: MODEL_START.thinking,
+      FAKE_AGENT_CONTROL_LOG: join(root, 'fake-controls.jsonl'), FAKE_AGENT_SLOW_MS: String(MODEL_SLOW_MS)
+    })
+  }
   return {
-    out, root, exe, env: withNodeFirst(isolatedEnv(process.env, root)),
+    out, root, exe, agent, env,
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
-    shim: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
+    second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
+    shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null
+    store: null, restart: null, console: [], coord: null, model: null
   }
 }
 
-function git(session, args) {
-  const result = spawnSync('git', args, { cwd: session.folder, env: session.env, encoding: 'utf8', windowsHide: true })
+function git(session, folder, args) {
+  const result = spawnSync('git', args, { cwd: folder, env: session.env, encoding: 'utf8', windowsHide: true })
   if (result.status !== 0) throw new Error(`git ${args.at(-1)} failed: ${result.stderr || result.error}`)
 }
 
-function seedRepository(session) {
-  mkdirSync(session.folder)
-  git(session, ['init', '-q'])
-  writeFileSync(join(session.folder, 'README.md'), '# e2e fixture\n')
-  git(session, ['add', 'README.md'])
-  git(session, ['-c', 'user.name=DM e2e', '-c', 'user.email=e2e@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Seed'])
+function seedRepository(session, folder) {
+  mkdirSync(folder)
+  git(session, folder, ['init', '-q'])
+  writeFileSync(join(folder, 'README.md'), '# e2e fixture\n')
+  git(session, folder, ['add', 'README.md'])
+  git(session, folder, ['-c', 'user.name=DM e2e', '-c', 'user.email=e2e@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Seed'])
+}
+
+/** The folders a run seeds as Git repositories: the fixture folder, and the second one when `polish-untrack` runs. */
+function fixtureFolders(session) {
+  return session.second === null ? [session.folder] : [session.folder, session.second]
 }
 
 /**
- * The fake is the built-in claude-kind agent: a custom agent is terminal-only and its sign-in is never checked. The
+ * The fakes are built-in agents (`seededAgents`): a custom agent is terminal-only and its sign-in is never checked. The
  * folder is set up in database mode (its records live under the isolated Dark Mechanicus home, so the Git tree stays
- * clean) with one saved epic, whose id the seed prints. Notifications are on while the window is focused, as an
- * unattended run's window is.
+ * clean) with one saved epic, whose id the seed prints, and its default agent is the kind `--agent` selects. A second
+ * folder (`polish-untrack`) is set up and tracked the same way, without an epic.
+ * Notifications are on while the window is focused, as an unattended run's window is.
  */
 const SEED_SOURCE = `
 import { openWorkspace } from './src/core/workspace'
 import { openAppDatabase } from './src/main/desktop/appDatabase'
 import { createAgentRegistry } from './src/main/desktop/agentRegistry'
 import { createAppSettings } from './src/main/desktop/appSettings'
+import { createFolderAgentDefaults } from './src/main/desktop/folderAgentDefaults'
 import { createFolderRegistry } from './src/main/desktop/folderRegistry'
 import { DEFAULT_NOTIFICATION_SETTINGS } from './src/shared/desktop/notificationSettings'
 const seed = JSON.parse(process.argv[2])
@@ -357,15 +436,26 @@ async function main() {
   } finally {
     workspace.close()
   }
+  if (seed.second !== null) {
+    const second = openWorkspace({ repoRoot: seed.second, homeDir: seed.dmHome, role: 'desktop', transport: 'desktop', label: 'e2e seed' })
+    try {
+      await second.initializeRepository({ name: 'E2E second fixture', keyPrefix: 'DM', mode: 'db' })
+    } finally {
+      second.close()
+    }
+  }
+  const folders = createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome })
+  const tracked = [seed.folder, ...(seed.second === null ? [] : [seed.second])].map((path) => folders.track(path).folder)
   const db = openAppDatabase(seed.userData)
   try {
-    createAgentRegistry({ db }).upsert({ kind: 'claude', executablePath: seed.shim, version: seed.version, connectedVia: 'found' })
+    const registry = createAgentRegistry({ db })
+    for (const agent of seed.agents) registry.upsert({ ...agent, connectedVia: 'found' })
+    for (const folder of tracked) createFolderAgentDefaults({ db }).set(folder.path, seed.defaultAgent)
     await createAppSettings({ db, confirm: async () => false, logger: console })
       .setNotifications({ ...DEFAULT_NOTIFICATION_SETTINGS, whenFocused: 'notify' })
   } finally {
     db.close()
   }
-  createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome }).track(seed.folder)
   process.stdout.write(JSON.stringify({ epicId }))
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })
@@ -378,8 +468,9 @@ function seedStores(session) {
     bundle: true, platform: 'node', format: 'cjs', target: 'node24', logLevel: 'warning'
   })
   const seed = {
-    userData: session.userData, shim: session.shim, version: FAKE_VERSION, folders: join(session.userData, 'folders.json'),
-    home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME, folder: session.folder, epicTitle: EPIC_TITLE
+    userData: session.userData, agents: seededAgents(session.shims, session.agent), defaultAgent: session.agent,
+    folders: join(session.userData, 'folders.json'), home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME,
+    folder: session.folder, second: session.second, epicTitle: EPIC_TITLE
   }
   const result = spawnSync(process.execPath, [bundle, JSON.stringify(seed)], { env: session.env, encoding: 'utf8', windowsHide: true })
   if (result.status !== 0) throw new Error(`Seeding the app stores failed: ${result.stderr || result.error}`)
@@ -465,8 +556,9 @@ function setup(session) {
   for (const directory of [env.APPDATA, env.LOCALAPPDATA, env.CLAUDE_CONFIG_DIR, env.DARKMECHANICUS_HOME, session.userData]) {
     mkdirSync(directory, { recursive: true })
   }
-  session.shim = writeShim(join(session.root, 'shim'), FAKE_AGENT_CLI)
-  seedRepository(session)
+  const shimDirectory = join(session.root, 'shim')
+  session.shims = Object.fromEntries(AGENT_KINDS.map((kind) => [kind, writeShim(shimDirectory, FAKE_AGENT_CLI, process.platform, kind)]))
+  for (const folder of fixtureFolders(session)) seedRepository(session, folder)
   seedStores(session)
   if (session.exe === null) {
     const { version } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
@@ -475,7 +567,7 @@ function setup(session) {
   }
   if (process.platform === 'win32') startDialogHelper(session)
   return {
-    shim: session.shim, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
+    shims: session.shims, agent: session.agent, folder: session.folder, second: session.second, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
     app: session.exe ?? BUILT_MAIN
   }
 }
@@ -575,7 +667,13 @@ async function devtoolsTarget(session, port, signal, match) {
 
 async function attach(session, signal) {
   const target = await waitFor(() => devtoolsTarget(session, session.port, signal, (entry) => entry.type === 'page' && entry.url.includes('/renderer/index.html')), signal)
-  session.page = await connect(target.webSocketDebuggerUrl)
+  session.page = await connect(target.webSocketDebuggerUrl, (message) => {
+    const text = consoleText(message)
+    if (text !== null) session.console.push(text)
+  })
+  // The renderer's console and browser log (a Content-Security-Policy refusal is a log entry), from the page's start.
+  await cdp(session, 'Log.enable')
+  await cdp(session, 'Runtime.enable')
 }
 
 /**
@@ -625,22 +723,32 @@ function tellApp(session, message) {
   return evaluateMain(session, `(${command}, true)`)
 }
 
-/** Ready: the renderer is mounted and lists the seeded claude agent and folder, and the fake signs in through its shim. */
-function readyProbe(shim) {
+/**
+ * Ready: the renderer is mounted and lists each seeded agent with its shim and the folder, and each fake signs in
+ * through its shim (Claude's `auth status`, OMP's `usage --json`). `agent` is the one the fixture chats use.
+ */
+function readyProbe(seeded, selected) {
   return `(async () => {
     if (typeof window.dm !== 'object' || !document.getElementById('root')?.firstElementChild) return { ready: false, reason: 'renderer not mounted' }
     try {
       const agents = await window.dm.listAgents()
-      const agent = agents.find((entry) => entry.id === 'claude')
-      if (agent?.executablePath !== ${JSON.stringify(shim)}) return { ready: false, reason: 'seeded claude agent not listed', agent: agent ?? null }
+      const auths = {}
+      for (const seeded of ${JSON.stringify(seeded)}) {
+        const agent = agents.find((entry) => entry.id === seeded.kind)
+        if (agent?.executablePath !== seeded.executablePath) return { ready: false, reason: 'seeded ' + seeded.kind + ' agent not listed', agent: agent ?? null }
+        const auth = await window.dm.agentStatus(seeded.kind)
+        if (auth.state !== 'signed_in') return { ready: false, reason: 'fake ' + seeded.kind + ' not signed in', auth }
+        auths[seeded.kind] = auth.state
+      }
       const folder = (await window.dm.listFolders()).find((entry) => entry.name === ${JSON.stringify(FOLDER_NAME)})
       if (!folder?.available || !folder.initialized) return { ready: false, reason: 'seeded folder not tracked and set up' }
-      const auth = await window.dm.agentStatus('claude')
-      if (auth.state !== 'signed_in') return { ready: false, reason: 'fake claude not signed in', auth }
+      const defaultAgent = await window.dm.folderDefaultAgent(folder.path)
+      if (defaultAgent !== ${JSON.stringify(selected)}) return { ready: false, reason: 'folder default agent is ' + defaultAgent }
+      const agent = agents.find((entry) => entry.id === ${JSON.stringify(selected)})
       return {
         ready: true, agent: { id: agent.id, kind: agent.kind, version: agent.version, connectedVia: agent.connectedVia },
         agents: agents.map((entry) => ({ id: entry.id, kind: entry.kind, executablePath: entry.executablePath })),
-        folder: { name: folder.name, path: folder.path, storageMode: folder.storageMode }, auth: auth.state
+        folder: { name: folder.name, path: folder.path, storageMode: folder.storageMode }, defaultAgent, auth: auths
       }
     } catch (error) {
       return { ready: false, reason: String(error) }
@@ -678,6 +786,10 @@ function installHelpers(_h) {
     rect(element) {
       const { left, top, right, bottom, width, height } = element.getBoundingClientRect()
       return { left, top, right, bottom, width, height }
+    },
+    /** The GUI chat's section, found by its composer; null while it is not shown. */
+    chatSection(chatId) {
+      return document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat') ?? null
     },
     /** The top-level bubbles of a chat transcript: who wrote each and its text. */
     messages(root) {
@@ -739,7 +851,7 @@ function composeAndSend(h, chatId, text) {
     h.setValue(input, text)
     return { ok: false, phase: 'typed' }
   }
-  const send = h.button(input.form, 'Send')
+  const send = input.form?.querySelector('button[aria-label="Send"]') ?? null
   if (!send || send.disabled) return { ok: false, phase: 'send button', found: !!send }
   send.click()
   return { ok: true }
@@ -833,7 +945,7 @@ async function appReady(session, signal) {
   await attach(session, signal)
   const probe = await waitFor(async () => {
     assertRunning(session)
-    session.lastProbe = await evaluate(session, readyProbe(session.shim))
+    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent), session.agent))
     return session.lastProbe.ready && session.lastProbe
   }, signal)
   session.folderPath = probe.folder.path
@@ -852,17 +964,32 @@ async function appReady(session, signal) {
   }
 }
 
-/** Step 1: a folder chat from the New chat popup, with the claude-kind fake, opens in the GUI with its first turn. */
+/**
+ * The GUI (protocol) launch of the new chat, the run's first chat: the one long-lived fake run whose mode and persona
+ * are the selected kind. Throws unless there is exactly one.
+ */
+export function newChatLaunch(logText, agent) {
+  const launches = fakeAgentLog(logText).filter((entry) => entry.mode === agent && entry.persona === agent)
+  if (launches.length !== 1) throw new Error(`Expected one ${agent} GUI launch; the log has ${launches.length}.`)
+  const [{ mode, persona, pid, cwd, argv }] = launches
+  return { mode, persona, pid, cwd, argv }
+}
+
+/** Step 1: a folder chat from the New chat popup, with the selected kind's fake, opens in the GUI with its first turn. */
 async function newChat(session, signal) {
   await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
   await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello first')
   await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
   const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: 'hello first' })
-  if (chat.surface !== 'gui' || chat.agent !== 'claude') throw new Error(`The new chat is ${chat.agent} on ${chat.surface}, not claude on gui.`)
+  if (chat.surface !== 'gui' || chat.agent !== session.agent) {
+    throw new Error(`The new chat is ${chat.agent} on ${chat.surface}, not ${session.agent} on gui.`)
+  }
   session.chat = { chatId: chat.id, sessionId: chat.sessionId }
   await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'hello first' })
   const shown = await until(session, signal, guiShows, chat.id, 'hello first', 'Hello world')
-  return { chat, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-new-chat.png', WINDOW) }
+  const launch = newChatLaunch(readLog(session), session.agent)
+  if (!isAlive(launch.pid)) throw new Error(`The ${session.agent} fake (pid ${launch.pid}) is not running.`)
+  return { chat, launch, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-new-chat.png', WINDOW) }
 }
 
 function streamEvents(h, chatId, from) {
@@ -881,10 +1008,18 @@ async function stream(session, signal) {
   return { streamed, messages: shown.messages, screenshot: await capture(session, 'e2e-stream.png', WINDOW) }
 }
 
+/** The tool card's state; an ended turn folds its work behind a `Worked for` row, so a missing card opens the newest folded row. */
 function toolCard(_h, name, state) {
-  const card = document.querySelector(`section.agent-chat .chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
-  const pill = card?.querySelector('[data-state]')
-  return { ok: pill?.getAttribute('data-state') === state, found: !!card, state: pill?.getAttribute('data-state') ?? null, pill: pill?.textContent ?? null }
+  const section = document.querySelector('section.agent-chat')
+  if (!section) return { ok: false, section: false }
+  const card = section.querySelector(`.chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
+  if (!card) {
+    const folded = [...section.querySelectorAll('.chat-work-toggle[aria-expanded="false"]')].at(-1)
+    if (folded) folded.click()
+    return { ok: false, found: false, opened: Boolean(folded) }
+  }
+  const actual = card.querySelector('[data-state]')?.getAttribute('data-state') ?? null
+  return { ok: actual === state, found: true, state: actual }
 }
 
 /** Step 3: `[tool]` shows a tool card that finishes. */
@@ -906,7 +1041,7 @@ function dockedPrompt(h, chatId) {
   }
 }
 
-/** Step 4: `[approval]` docks a card above the composer; Allow once finishes the turn, and no earlier turn collapses. */
+/** Step 4: `[approval]` docks a card above the composer; Allow once finishes the turn, whose folded work holds the Bash card. */
 async function approval(session, signal) {
   const { chatId } = session.chat
   await until(session, signal, composeAndSend, chatId, '[approval]')
@@ -916,7 +1051,7 @@ async function approval(session, signal) {
   await until(session, signal, clickButton, 'section.agent-chat section.agent-prompt', 'Allow once')
   await until(session, signal, turnDone, session.folderPath, chatId, { text: '[approval]' })
   const bash = await until(session, signal, toolCard, 'Bash', 'accepted')
-  // Step 2's own reply is still the bubble right after its `hello`: the approval turn collapsed no earlier turn.
+  // Step 2's own reply is still the bubble right after its `hello`: a turn with nothing but its reply folds nothing.
   const { messages, answered } = await until(session, signal, guiShows, chatId, 'hello', 'Hello world')
   const asked = messages.filter((message) => message.who === 'You').map((message) => message.text)
   const expected = ['hello first', 'hello', '[tool]', '[approval]']
@@ -1005,23 +1140,27 @@ function guiResumed(h, folder, chatId) {
   })
 }
 
-function grantDatabase(session) {
+/** Every seeded project's database: the fixture folder's and, for `polish-untrack`, the second folder's. */
+function grantDatabases(session) {
   const projects = join(session.env.DARKMECHANICUS_HOME, 'projects')
-  const [project, ...others] = readdirSync(projects)
-  if (project === undefined || others.length > 0) throw new Error(`Expected one project under ${projects}.`)
-  return join(projects, project, 'local', 'state.sqlite')
+  const expected = session.second === null ? 1 : 2
+  const found = readdirSync(projects)
+  if (found.length !== expected) throw new Error(`Expected ${expected} project(s) under ${projects}; found ${found.length}.`)
+  return found.map((project) => join(projects, project, 'local', 'state.sqlite'))
 }
 
-/** The grant row a launch's `grantHash` names, read-only from the project's database. */
+/** The grant row a launch's `grantHash` names, read-only from the project database that holds it. */
 function grantOf(session, grantHash) {
-  const db = new DatabaseSync(grantDatabase(session), { readOnly: true })
-  try {
-    const row = db.prepare('SELECT id, created_at, revoked_at FROM grants WHERE token_hash = ?').get(grantHash)
-    if (row === undefined) throw new Error('No grant row matches the terminal launch.')
-    return { id: row.id, createdAt: row.created_at, revokedAt: row.revoked_at }
-  } finally {
-    db.close()
+  for (const file of grantDatabases(session)) {
+    const db = new DatabaseSync(file, { readOnly: true })
+    try {
+      const row = db.prepare('SELECT id, created_at, revoked_at FROM grants WHERE token_hash = ?').get(grantHash)
+      if (row !== undefined) return { id: row.id, createdAt: row.created_at, revokedAt: row.revoked_at }
+    } finally {
+      db.close()
+    }
   }
+  throw new Error('No grant row matches the launch.')
 }
 
 /**
@@ -1135,15 +1274,18 @@ function plannerKickoff(h) {
 
 function threadView(_h) {
   const section = document.querySelector('section.eap section.agent-chat[aria-label="Acolyte:DM-2 thread"]')
-  if (!section) return { ok: false }
+  const relay = section?.querySelector('form.chat-composer textarea') ?? null
+  if (!section || !relay) return { ok: false, section: !!section }
   const items = section.querySelectorAll('.chat-transcript li').length
-  const hint = section.querySelector('.agent-chat-hint')?.textContent ?? null
-  const relayLabel = section.querySelector('form.agent-chat-composer label')?.textContent ?? null
+  // The relay note is the text area's screen-reader description, beside the keys.
+  const note = document.getElementById(relay.getAttribute('aria-describedby'))?.textContent ?? ''
+  const relayLabel = relay.labels[0]?.textContent ?? ''
   const ownComposer = !!section.querySelector('textarea[id^="agent-message-"]')
-  return {
-    ok: items > 0 && hint === 'Your message goes through Lexmechanic, which passes it to this worker.' && relayLabel === 'Message Acolyte:DM-2' && !ownComposer,
-    items, hint, relayLabel, ownComposer
-  }
+  const ok = [
+    items > 0, note.startsWith('Your message goes through Lexmechanic, which passes it to this worker.'),
+    relayLabel === 'Message Acolyte:DM-2', !ownComposer
+  ].every(Boolean)
+  return { ok, items, note, relayLabel, ownComposer }
 }
 
 /** The epic View buttons in their displayed order, and the stage each one opens. */
@@ -1230,14 +1372,15 @@ async function epicViews(session, signal, size, file) {
 }
 
 /**
- * Step 6: the saved epic's Agent stage starts the planner (Lexmechanic) and, after `[subagent_tree]`, names its
- * workers in the rail's tree; a finished worker sits in the collapsed Finished group; a row opens its thread read-only.
+ * Step 6: the saved epic's Agent stage starts the planner from its Lexmechanic role card and, after `[subagent_tree]`,
+ * names its workers in the rail's tree; a finished worker sits in the collapsed Finished group; a row opens its thread
+ * read-only.
  */
 async function epicAgent(session, signal) {
   await resizeWindow(session, signal, WIDE_WINDOW)
   await until(session, signal, clickEpic, EPIC_TITLE)
   await until(session, signal, agentToggle)
-  await until(session, signal, clickButton, 'section.eap .eap-empty', 'Start planner')
+  await until(session, signal, clickSelector, 'section.eap .eap-empty .arc[data-role="planner"]')
   const { chat } = await until(session, signal, chatRecord, session.folderPath, { role: 'planner', epicId: session.epicId })
   const kickoff = await until(session, signal, plannerKickoff)
   await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'Plan this Dark Mechanicus epic', prefix: true })
@@ -1538,6 +1681,1057 @@ async function restartEqualVersion(session, signal) {
   return { waitedMs: NO_RESUME_WINDOW_MS, launches: launches.length, markerRemoved: true, turn, ...exited, ...await fakeProcessesExited(session, signal) }
 }
 
+/** The chat `polish-picker` started, which the later polish steps drive. */
+function polishChat(session) {
+  if (session.chat === null) throw new Error('The polish steps after polish-picker drive its chat: run polish-picker first.')
+  return session.chat
+}
+
+/** Checks the New chat dialog's `role` card; ok once it is the checked radio. Clicking a checked card again is harmless. */
+function chooseRole(_h, role) {
+  const card = document.querySelector(`.dialog[role="dialog"] .first-prompt-roles .arc[data-role="${role}"]`)
+  if (!card) return { ok: false, card: false }
+  if (card.querySelector('[role="radio"]')?.getAttribute('aria-checked') !== 'true') {
+    card.click()
+    return { ok: false, checked: false }
+  }
+  return { ok: true, role, name: card.querySelector('.arc-name')?.textContent ?? null }
+}
+
+/** Polish 1: folder New chat with the Lexmechanic card stores a planner GUI chat, which opens with its first turn. */
+async function polishPicker(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  const picked = await until(session, signal, chooseRole, 'planner')
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: 'hello' })
+  if (chat.role !== 'planner' || chat.surface !== 'gui') throw new Error(`The new chat is a ${chat.role} on ${chat.surface}, not a planner on gui.`)
+  session.chat = { chatId: chat.id, sessionId: chat.sessionId }
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'hello' })
+  const shown = await until(session, signal, guiShows, chat.id, 'hello', 'Hello world')
+  return { picked, chat, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-polish-picker.png', WINDOW) }
+}
+
+function focusComposer(_h, chatId) {
+  const input = document.getElementById(`agent-message-${chatId}`)
+  if (!input || input.disabled) return { ok: false, found: !!input }
+  input.focus()
+  return { ok: document.activeElement === input }
+}
+
+function composerValue(_h, chatId, text) {
+  const input = document.getElementById(`agent-message-${chatId}`)
+  return { ok: input?.value === text, value: input?.value ?? null, height: input ? Math.round(input.getBoundingClientRect().height) : null }
+}
+
+/** A real Enter key press in the focused element, with Shift held when `shift`. */
+async function pressEnter(session, shift = false) {
+  const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, modifiers: shift ? 8 : 0 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', unmodifiedText: '\r', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+}
+
+/** The kinds of the items after the last user message `text` in the stored transcript, and the last reply text among them. */
+async function turnItems(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items, status } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return { ok: sent >= 0, status, kinds: after.map((item) => item.kind), reply: after.findLast((item) => item.kind === 'assistant_text')?.text ?? null }
+}
+
+/** Clicks the composer's Stop, which replaces Send while the agent works. */
+function clickStop(_h, chatId) {
+  const form = document.getElementById(`agent-message-${chatId}`)?.form
+  const stop = form?.querySelector('button[aria-label="Stop"]') ?? null
+  if (!stop || stop.disabled) return { ok: false, stop: !!stop }
+  const send = !!form.querySelector('button[aria-label="Send"]')
+  stop.click()
+  return { ok: true, title: stop.title, sendShown: send }
+}
+
+const TWO_LINES = '[echo] first line\nsecond line'
+
+/**
+ * Polish 2: two lines typed with real keys (Shift+Enter between them) go out on Enter and the fake echoes both; then
+ * `[slow]` shows Stop in place of Send, and Stop ends that turn as `turn_stopped`.
+ */
+async function polishComposer(session, signal) {
+  const { chatId } = polishChat(session)
+  const folder = session.folderPath
+  await until(session, signal, focusComposer, chatId)
+  const [first, second] = TWO_LINES.split('\n')
+  await cdp(session, 'Input.insertText', { text: first })
+  await pressEnter(session, true)
+  await cdp(session, 'Input.insertText', { text: second })
+  const typed = await until(session, signal, composerValue, chatId, TWO_LINES)
+  await pressEnter(session)
+  await until(session, signal, turnDone, folder, chatId, { text: TWO_LINES })
+  const echoed = await until(session, signal, turnItems, folder, chatId, TWO_LINES)
+  if (echoed.reply !== 'first line\nsecond line') throw new Error(`The fake did not echo both lines: ${JSON.stringify(echoed.reply)}`)
+  await until(session, signal, composeAndSend, chatId, '[slow]')
+  const stop = await until(session, signal, clickStop, chatId)
+  if (stop.sendShown) throw new Error('Send was shown beside Stop while the agent worked.')
+  await until(session, signal, turnDone, folder, chatId, { text: '[slow]' })
+  const stopped = await until(session, signal, turnItems, folder, chatId, '[slow]')
+  if (!stopped.kinds.includes('turn_stopped')) throw new Error(`Stop did not end the turn as turn_stopped: ${JSON.stringify(stopped.kinds)}`)
+  return {
+    typed, echo: echoed.reply, stop, stoppedTurn: stopped.kinds,
+    screenshot: await capture(session, 'e2e-polish-composer.png', WINDOW)
+  }
+}
+
+/** Clicks the newest reply's message Copy or its code block's Copy once; ok once it says Copied or Copy failed. */
+function clickCopy(_h, which) {
+  const reply = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-msg-assistant')].at(-1)
+  const button = which === 'code' ? reply?.querySelector('.md-code-block .md-code-copy') : reply?.querySelector(':scope > .chat-msg-actions .copy-button')
+  if (!button) return { ok: false, reply: !!reply, button: false }
+  if (button.dataset.e2eClicked !== '1') {
+    button.dataset.e2eClicked = '1'
+    button.click()
+  }
+  const state = button.getAttribute('data-state')
+  return { ok: state !== 'idle', state, title: button.title }
+}
+
+/** Copies through `which`'s button and reads the clipboard back in the page. */
+async function copyAndRead(session, signal, which) {
+  const clicked = await until(session, signal, clickCopy, which)
+  if (clicked.state !== 'copied') throw new Error(`${clicked.title} says ${clicked.state}.`)
+  return { button: clicked.title, clipboard: await evaluate(session, 'navigator.clipboard.readText()') }
+}
+
+/** Polish 3: the reply's Copy puts its raw Markdown on the clipboard; its code block's Copy puts only the code. */
+async function polishCopy(session, signal) {
+  const { chatId } = polishChat(session)
+  // The page reads the clipboard only while it has focus, which an unattended window may not: focus is emulated here.
+  await cdp(session, 'Emulation.setFocusEmulationEnabled', { enabled: true })
+  await until(session, signal, composeAndSend, chatId, 'Show the fix [markdown]')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: 'Show the fix [markdown]' })
+  const stored = await until(session, signal, turnItems, session.folderPath, chatId, 'Show the fix [markdown]')
+  if (stored.reply !== MARKDOWN_REPLY) throw new Error(`The stored reply is not the fake's Markdown: ${JSON.stringify(stored.reply)}`)
+  const message = await copyAndRead(session, signal, 'message')
+  const code = await copyAndRead(session, signal, 'code')
+  // The Windows clipboard holds text with CRLF line ends (Chromium converts on write); every other byte is the copy's.
+  const clipped = (text) => (process.platform === 'win32' ? text.replaceAll('\n', '\r\n') : text)
+  if (message.clipboard !== clipped(MARKDOWN_REPLY)) throw new Error(`Copy message gave ${JSON.stringify(message.clipboard)}, not the raw Markdown.`)
+  if (code.clipboard !== clipped(MARKDOWN_CODE)) throw new Error(`Copy code gave ${JSON.stringify(code.clipboard)}, not the code alone.`)
+  return { stored: stored.reply, message, code, codeExpected: MARKDOWN_CODE, screenshot: await capture(session, 'e2e-polish-copy.png', WINDOW) }
+}
+
+const MULTI_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-multi-card[role="alertdialog"]'
+const SINGLE_CARD = 'section.agent-chat section.agent-prompt[role="alertdialog"]:not(.agent-prompt-multi-card)'
+
+/** Checks exactly `labels` on the multi-select card, one checkbox per poll so React renders each change. */
+function checkOptions(_h, selector, labels) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  const text = (element) => element?.textContent ?? null
+  const options = [...card.querySelectorAll('label.agent-prompt-check')].map((label) => ({
+    label: text(label.querySelector('.agent-prompt-check-label')), input: label.querySelector('input[type="checkbox"]')
+  }))
+  const wrong = options.find((option) => labels.includes(option.label) !== option.input.checked)
+  if (wrong) {
+    wrong.input.click()
+    return { ok: false, toggled: wrong.label }
+  }
+  const count = text(card.querySelector('.agent-prompt-count'))
+  return {
+    ok: options.length > 0 && count === `${labels.length} selected`, count, legend: text(card.querySelector('legend')),
+    progress: text(card.querySelector('.agent-prompt-progress')), options: options.map((option) => option.label)
+  }
+}
+
+function singleQuestion(h, selector, label) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  const progress = card.querySelector('.agent-prompt-progress')?.textContent ?? null
+  return { ok: progress === 'Question 2 of 2' && !!h.button(card, label), progress, heading: card.getAttribute('aria-label') }
+}
+
+/**
+ * Polish 4: `[multiselect]` docks the multi question; two checked options and Submit bring the single second question,
+ * "Question 2 of 2", and once it is answered the fake echoes the answers it received, both labels included.
+ */
+async function polishMultiselect(session, signal) {
+  const { chatId } = polishChat(session)
+  await until(session, signal, composeAndSend, chatId, '[multiselect]')
+  const multi = await until(session, signal, checkOptions, MULTI_CARD, ['A', 'C'])
+  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
+  await until(session, signal, clickButton, MULTI_CARD, 'Submit')
+  const second = await until(session, signal, singleQuestion, SINGLE_CARD, 'SQLite')
+  await until(session, signal, clickButton, SINGLE_CARD, 'SQLite')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[multiselect]' })
+  const { reply } = await until(session, signal, turnItems, session.folderPath, chatId, '[multiselect]')
+  if (!reply?.includes('"Which letters?":"A, C"') || !reply.includes('"Which database?":"SQLite"')) {
+    throw new Error(`The fake did not echo both checked labels: ${JSON.stringify(reply)}`)
+  }
+  return { multi, second, echo: reply, screenshot }
+}
+
+/** The newest `Worked for` row: its label, whether it is open, and the state of its `name` tool card (null when hidden). */
+function workRow(_h, name) {
+  const row = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-work')].at(-1)
+  const toggle = row?.querySelector(':scope > .chat-work-toggle')
+  if (!toggle) return { ok: false, row: !!row }
+  const card = row.querySelector(`.chat-work-rows li.chat-tool[aria-label="Tool call: ${name}"]`)
+  return {
+    ok: true, label: toggle.textContent.replace('›', '').trim(), expanded: toggle.getAttribute('aria-expanded'),
+    card: card === null ? null : card.querySelector('[data-state]')?.getAttribute('data-state') ?? 'unknown'
+  }
+}
+
+/** The newest row is folded: `Worked for <time>`, collapsed, its `name` card hidden. */
+async function workFolded(session, signal, name) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const row = session.lastProbe = await page(session, workRow, name)
+    return row.ok && /^Worked for \d/.test(row.label) && row.expanded === 'false' && row.card === null && row
+  }, signal)
+}
+
+function openNewestWork(_h) {
+  const toggle = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-work > .chat-work-toggle')].at(-1)
+  if (toggle?.getAttribute('aria-expanded') !== 'false') return { ok: false, found: !!toggle }
+  toggle.click()
+  return { ok: true }
+}
+
+/** Opens the newest row (one click) until it shows its `name` card, finished. */
+async function workOpened(session, signal, name) {
+  await until(session, signal, openNewestWork)
+  return waitFor(async () => {
+    const row = session.lastProbe = await page(session, workRow, name)
+    return row.ok && row.expanded === 'true' && row.card === 'accepted' && row
+  }, signal)
+}
+
+/** Polish 5: a finished `[tool]` turn folds its work behind a collapsed `Worked for` row; opening it shows the Read card. */
+async function polishWorkedFor(session, signal) {
+  const { chatId } = polishChat(session)
+  const shown = await sendInChat(session, signal, { chatId, text: '[tool]', reply: 'alpha' })
+  const folded = await workFolded(session, signal, 'Read')
+  const opened = await workOpened(session, signal, 'Read')
+  return { folded, opened, messages: shown.messages, screenshot: await capture(session, 'e2e-polish-worked-for.png', WINDOW) }
+}
+
+/** Clicks the folder's New chat, expanding the folder first when its body is collapsed. */
+function newChatIn(_h, name) {
+  const button = document.querySelector(`button[aria-label="New chat in ${name}"]`)
+  if (button && !button.disabled) {
+    button.click()
+    return { ok: true }
+  }
+  document.querySelector(`button[aria-label="Expand ${name}"]`)?.click()
+  return { ok: false, button: !!button }
+}
+
+async function trackedFolder(_h, name) {
+  const folders = await window.dm.listFolders()
+  const folder = folders.find((entry) => entry.name === name)
+  return { ok: folder?.available === true && folder.initialized === true, path: folder?.path ?? null, names: folders.map((entry) => entry.name) }
+}
+
+async function folderGone(_h, name) {
+  const names = (await window.dm.listFolders()).map((entry) => entry.name)
+  return { ok: !names.includes(name), names }
+}
+
+function clickMenuItem(_h, menu, label) {
+  const item = [...document.querySelectorAll(`.menu[role="menu"][aria-label="${menu}"] [role="menuitem"]`)].find((entry) => entry.textContent.trim() === label)
+  if (!item) return { ok: false, menu }
+  item.click()
+  return { ok: true }
+}
+
+/** Runs `dm --repo <repo> call <command>` as the app's chats run it: this build's runtime as Node, on the isolated home. */
+function dmCall(session, { repo, command, args }, signal) {
+  const runtime = session.exe ?? require('electron')
+  const script = session.exe === null ? join(REPO, 'out', 'main', 'cli.js') : join(dirname(session.exe), 'resources', 'app.asar', 'out', 'main', 'cli.js')
+  const options = { env: { ...session.env, ELECTRON_RUN_AS_NODE: '1' }, signal, windowsHide: true, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+  return new Promise((resolveCall, reject) => {
+    execFile(runtime, [script, '--repo', repo, 'call', command, JSON.stringify(args)], options, (error, stdout, stderr) => {
+      if (error) reject(new Error(`dm call ${command} failed: ${stderr.trim() || error.message}`))
+      else resolveCall(JSON.parse(stdout))
+    })
+  })
+}
+
+/** A GUI chat of the second folder, started from its New chat and live: its record, its one fake process and its grant. */
+async function startSecondChat(session, signal) {
+  if (session.second === null) throw new Error('polish-untrack needs the second fixture folder, seeded only when it is requested.')
+  const { path: folder } = await until(session, signal, trackedFolder, SECOND_FOLDER_NAME)
+  await until(session, signal, newChatIn, SECOND_FOLDER_NAME)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello second')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, folder, { firstPrompt: 'hello second' })
+  await until(session, signal, turnDone, folder, chat.id, { text: 'hello second' })
+  const launches = chatLaunches(readLog(session), chat.sessionId)
+  const [gui] = launches
+  if (launches.length !== 1 || gui.surface !== 'gui') throw new Error(`Expected one GUI launch of the second folder's chat: ${JSON.stringify(launches)}`)
+  if (!isAlive(gui.pid)) throw new Error(`The second folder's fake (pid ${gui.pid}) is not running.`)
+  const grant = grantOf(session, gui.grantHash)
+  if (grant.revokedAt !== null) throw new Error(`The live chat's grant is already revoked: ${JSON.stringify(grant)}`)
+  return { folder, chat, gui, grant }
+}
+
+/**
+ * Polish 6: a live GUI chat in the second fixture folder, then Stop tracking that folder from its sidebar menu: within
+ * the deadline the chat's fake process has exited and its grant is revoked, as `dm call list_grants` shows.
+ */
+async function polishUntrack(session, signal) {
+  const { folder, chat, gui, grant: before } = await startSecondChat(session, signal)
+  const menu = `Actions for ${SECOND_FOLDER_NAME}`
+  await until(session, signal, clickSelector, `button[aria-label="${menu}"]`)
+  await until(session, signal, clickMenuItem, menu, 'Stop tracking folder')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Stop tracking')
+  const untrackedAt = Date.now()
+  await waitFor(() => !isAlive(gui.pid), signal)
+  const exitedWithinMs = Date.now() - untrackedAt
+  const revoked = await waitFor(() => {
+    const grant = grantOf(session, gui.grantHash)
+    return grant.revokedAt !== null && grant
+  }, signal)
+  const gone = await until(session, signal, folderGone, SECOND_FOLDER_NAME)
+  const listed = await dmCall(session, { repo: folder, command: 'list_grants', args: {} }, signal)
+  const grant = listed.ok ? listed.data.find((entry) => entry.id === before.id) : undefined
+  if (grant === undefined || grant.revokedAt === null || grant.active) throw new Error(`list_grants does not show the chat's grant revoked: ${JSON.stringify(listed)}`)
+  return {
+    chat: { id: chat.id, role: chat.role, surface: chat.surface }, folder, fakePid: gui.pid, fakeExited: true, exitedWithinMs,
+    grant: { id: before.id, revokedAt: revoked.revokedAt }, listGrants: grant, folders: gone.names,
+    screenshot: await capture(session, 'e2e-polish-untrack.png', WINDOW)
+  }
+}
+
+/** The text of a renderer console call or browser log entry a DevTools event carries; null for any other event. */
+export function consoleText({ method, params }) {
+  if (method === 'Log.entryAdded') return params.entry.text
+  if (method === 'Runtime.consoleAPICalled') return params.args.map((arg) => String(arg.value ?? arg.description ?? '')).join(' ')
+  return null
+}
+
+/**
+ * The console lines saying the page refused an image: a Content-Security-Policy img-src block. Older Chromium writes
+ * "Refused to load the image …"; the Chromium in this Electron writes "Loading the image … violates the following
+ * Content Security Policy directive … The action has been blocked."
+ */
+export function refusedImages(lines) {
+  return lines.filter((line) => line.includes('Refused to load the image') || (line.includes('Loading the image') && line.includes('Content Security Policy')))
+}
+
+/** The first 12 hex digits of the SHA-256 of `bytes`, as the fake agent names an image it received. */
+export function sha12(bytes) {
+  return createHash('sha256').update(bytes).digest('hex').slice(0, 12)
+}
+
+/** The line the fake agent replies with for an image a turn carries (`fakeAgentCli.mjs`, receivedImages). */
+export function imageEchoLine(mime, bytes) {
+  return `received image ${mime} ${bytes.length} ${sha12(bytes)}`
+}
+
+/**
+ * A chat's transcript file (`<chat id>.jsonl`: one ChatItem per line, the last line per id winning): the image refs on
+ * the last user message `text`, and whether `needle` occurs anywhere in the file's text.
+ */
+export function transcriptImageRefs(fileText, text, needle) {
+  const items = new Map()
+  for (const line of fileText.split(/\r?\n/)) {
+    if (line.trim() === '') continue
+    const item = JSON.parse(line)
+    items.set(item.id, item)
+  }
+  const sent = [...items.values()].findLast((item) => item.kind === 'user_message' && item.text === text)
+  return { found: sent !== undefined, images: sent?.images ?? [], needleFound: fileText.includes(needle) }
+}
+
+/** `ok` when the epic's comments (`list_comments` data) are exactly one, with exactly one attachment of `sha256`. */
+export function evidenceComment(comments, sha256) {
+  const shown = comments.map(({ id, ticketId, body, attachments = [] }) => ({
+    id, ticketId, body, attachments: attachments.map(({ id: attachmentId, sha256: hash, mime, bytes, purpose }) => ({ id: attachmentId, sha256: hash, mime, bytes, purpose }))
+  }))
+  const ok = shown.length === 1 && shown[0].attachments.length === 1 && shown[0].attachments[0].sha256 === sha256
+  return { ok, comments: shown }
+}
+
+/** Throws when the page logged an image refusal; the check every image step ends with. */
+function assertNoRefusedImages(session) {
+  const refused = refusedImages(session.console)
+  if (refused.length > 0) throw new Error(`The page refused images: ${JSON.stringify(refused)}`)
+}
+
+/** The chat's transcript file in the isolated profile's chat store (`<chats>/<folder key>/<chat id>.jsonl`). */
+function transcriptFile(session, chatId) {
+  const root = chatsRoot(session)
+  const found = readdirSync(root).map((key) => join(root, key, `${chatId}.jsonl`)).filter((path) => existsSync(path))
+  if (found.length !== 1) throw new Error(`Expected one transcript file of chat ${chatId}; found ${found.length}.`)
+  return found[0]
+}
+
+const IMAGE_CHAT_PROMPT = 'hello image'
+const IMAGE_TEXT = 'look'
+
+/** The chat's composer has its hidden file input (the "+" button's picker). */
+function fileInput(_h, chatId) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  const input = section?.querySelector('input[type="file"]') ?? null
+  return { ok: !!input && !input.disabled, section: !!section, accept: input?.getAttribute('accept') ?? null }
+}
+
+/** Sets the chat composer's hidden file input to `file`, as a pick in the native file dialog would. */
+async function setComposerFile(session, chatId, file) {
+  const expression = `document.getElementById(${JSON.stringify(`agent-message-${chatId}`)}).closest('section.agent-chat').querySelector('input[type="file"]')`
+  const { result } = await cdp(session, 'Runtime.evaluate', { expression })
+  if (result.objectId === undefined) throw new Error('The composer has no file input.')
+  await cdp(session, 'DOM.setFileInputFiles', { files: [file], objectId: result.objectId })
+}
+
+/** The composer's staged image chips: ok once exactly `count` are staged, each one's image loaded. */
+function composerChips(_h, chatId, count) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  const chips = section ? [...section.querySelectorAll('ul.chat-image-chips > li.chat-image-chip')] : []
+  const staging = chips.some((chip) => chip.classList.contains('is-staging'))
+  const loaded = chips.map((chip) => chip.querySelector('img')).map((img) => img?.complete === true && img.naturalWidth > 0)
+  const error = section?.querySelector('.chat-composer-error')?.textContent ?? null
+  return { ok: !staging && chips.length === count && loaded.every(Boolean), chips: chips.length, staging, loaded, error }
+}
+
+/** The newest bubble of the person's images shows its thumbnail, loaded, and the composer holds no chip any more. */
+function sentImage(_h, chatId) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  if (!section) return { ok: false, section: false }
+  const img = [...section.querySelectorAll('ul.chat-images[aria-label="Your images"] img')].at(-1)
+  if (!img) return { ok: false, img: false }
+  const chips = section.querySelectorAll('li.chat-image-chip').length
+  return { ok: img.complete && img.naturalWidth > 0 && chips === 0, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0], chips }
+}
+
+/** A new folder GUI chat from the New chat popup, its first turn done. */
+async function openImageChat(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', IMAGE_CHAT_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: IMAGE_CHAT_PROMPT })
+  if (chat.surface !== 'gui') throw new Error(`The image chat runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_CHAT_PROMPT })
+  return chat
+}
+
+/**
+ * Image 1: `swatch.png` set on a new GUI chat's composer file input stages one chip; `look` sends it, and the fake's
+ * reply starts with the image's mime, size and hash. The stored user message names the image by ref, and the
+ * transcript file holds none of its base64.
+ */
+async function imageSend(session, signal) {
+  const bytes = readFileSync(SWATCH)
+  const chat = await openImageChat(session, signal)
+  const input = await until(session, signal, fileInput, chat.id)
+  await setComposerFile(session, chat.id, SWATCH)
+  const chips = await until(session, signal, composerChips, chat.id, 1)
+  await until(session, signal, composeAndSend, chat.id, IMAGE_TEXT)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_TEXT })
+  const turn = await until(session, signal, turnItems, session.folderPath, chat.id, IMAGE_TEXT)
+  const expected = imageEchoLine('image/png', bytes)
+  const firstLine = turn.reply?.split(/\r?\n/)[0] ?? null
+  if (firstLine !== expected) throw new Error(`The reply starts ${JSON.stringify(firstLine)}, not ${JSON.stringify(expected)}.`)
+  const shown = await until(session, signal, sentImage, chat.id)
+  const file = transcriptFile(session, chat.id)
+  const needle = bytes.toString('base64').slice(0, 32)
+  const stored = transcriptImageRefs(readFileSync(file, 'utf8'), IMAGE_TEXT, needle)
+  if (!stored.found || stored.images.length !== 1) throw new Error(`The stored user message does not carry one image ref: ${JSON.stringify(stored)}`)
+  if (stored.needleFound) throw new Error(`The transcript ${file} holds the image's base64.`)
+  assertNoRefusedImages(session)
+  return {
+    chat: { id: chat.id, surface: chat.surface }, input, chips, reply: turn.reply, expected, firstLineMatches: true, thumbnail: shown,
+    transcript: { file, userImages: stored.images, base64Prefix: needle, base64Found: false }, refusedImages: [],
+    screenshot: await capture(session, 'e2e-image-send.png', WINDOW)
+  }
+}
+
+/** Opens Start run from the epic Agent stage's Magos card, or from the header once the stage holds a chat. */
+function startRunDialog(h) {
+  const dialog = document.querySelector('.dialog[role="dialog"]')
+  if (dialog) return { ok: !!h.button(dialog.querySelector('.dialog-actions'), 'Run with agent'), dialog: true }
+  const card = document.querySelector('section.eap .eap-empty .arc[data-role="orchestrator"]')
+  const header = h.button(document.querySelector('section.ew[aria-label="Epic workspace"] header.ew-header'), 'Start run')
+  const from = card ?? header
+  from?.click()
+  return { ok: false, card: !!card, header: !!header }
+}
+
+/** The image on the Read tool card of the epic's open chat; its thumbnail and its Attach as evidence lie inside it. */
+const TOOL_IMAGE = 'section.eap section.agent-chat .chat-transcript li.chat-tool[aria-label="Tool call: Read"] ul.chat-images[aria-label="Images from the agent"] > li.chat-image'
+
+/**
+ * The tool card's image (`selector`) shows its thumbnail, loaded, and offers Attach as evidence. A finished turn folds
+ * its work, so a missing image opens the newest folded row.
+ */
+function toolImage(_h, selector) {
+  const item = document.querySelector(selector)
+  if (!item) {
+    const folded = [...document.querySelectorAll('section.eap section.agent-chat .chat-work-toggle[aria-expanded="false"]')].at(-1)
+    folded?.click()
+    return { ok: false, opened: Boolean(folded) }
+  }
+  const img = item.querySelector('img')
+  if (!img) return { ok: false, img: false }
+  const evidence = item.querySelector('button.chat-image-evidence')
+  return {
+    ok: img.complete && img.naturalWidth > 0 && evidence !== null, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0],
+    thumb: item.querySelector('button.chat-image-thumb')?.getAttribute('aria-label'), evidence: evidence?.getAttribute('aria-label')
+  }
+}
+
+function lightboxShown(_h) {
+  const box = document.querySelector('.attachment-lightbox[role="dialog"]')
+  const img = box?.querySelector('img.attachment-lightbox-image') ?? null
+  return { ok: !!img && img.complete && img.naturalWidth > 0, label: box?.getAttribute('aria-label') ?? null, naturalWidth: img?.naturalWidth ?? null }
+}
+
+function lightboxClosed(_h) {
+  const box = document.querySelector('.attachment-lightbox[role="dialog"]')
+  box?.querySelector('button[aria-label="Close"]')?.click()
+  return { ok: !document.querySelector('.attachment-lightbox[role="dialog"]') }
+}
+
+function toastShown(_h, text) {
+  const toasts = [...document.querySelectorAll('.ew-toast[role="status"] > span')].map((toast) => toast.textContent.trim())
+  return { ok: toasts.includes(text), toasts }
+}
+
+/**
+ * Image 2: the seeded epic's Magos, started through Start run, answers `[image]` with a Read tool result image. In the
+ * epic's Agent tab its thumbnail loads under the tool card with no image refused, the lightbox shows it, and Attach as evidence leaves one
+ * epic comment whose attachment's sha256 is swatch.png's, as `dm call list_comments` (reader role, no token) reads it.
+ */
+async function imageResult(session, signal) {
+  const sha256 = createHash('sha256').update(readFileSync(SWATCH)).digest('hex')
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await until(session, signal, startRunDialog)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Run with agent')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { role: 'orchestrator', epicId: session.epicId })
+  if (chat.surface !== 'gui') throw new Error(`The Magos runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: '', prefix: true })
+  await until(session, signal, composeAndSend, chat.id, '[image]')
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: '[image]' })
+  // Run with agent opens the Magos as a folder chat; Attach as evidence lives in the epic's Agent tab.
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  const thumbnail = await until(session, signal, toolImage, TOOL_IMAGE)
+  await until(session, signal, clickSelector, `${TOOL_IMAGE} button.chat-image-thumb`)
+  const lightbox = await until(session, signal, lightboxShown)
+  const lightboxShot = await capture(session, 'e2e-image-result-lightbox.png', WINDOW)
+  await until(session, signal, lightboxClosed)
+  await until(session, signal, clickSelector, `${TOOL_IMAGE} button.chat-image-evidence`)
+  const toast = await until(session, signal, toastShown, EVIDENCE_TOAST)
+  const screenshot = await capture(session, 'e2e-image-result.png', WINDOW)
+  const listed = await dmCall(session, { repo: session.folderPath, command: 'list_comments', args: { epicId: session.epicId } }, signal)
+  if (!listed.ok) throw new Error(`list_comments failed: ${JSON.stringify(listed)}`)
+  const comment = evidenceComment(listed.data, sha256)
+  if (!comment.ok) throw new Error(`list_comments does not show one comment with swatch.png attached: ${JSON.stringify(comment.comments)}`)
+  assertNoRefusedImages(session)
+  return {
+    magos: { id: chat.id, role: chat.role, surface: chat.surface, epicId: chat.epicId }, thumbnail, lightbox, toast: toast.toasts,
+    swatchSha256: sha256, listComments: comment.comments, refusedImages: [], screenshots: [lightboxShot, screenshot]
+  }
+}
+
+/** The body the fake's `[mail] <role> <epicId>` sends (`fakeAgentCli.mjs`, mailPeer), shown on both mail cards. */
+export function coordMailBody(role) {
+  return `Fake coordination mail for the ${role}.`
+}
+
+/** The tab strip over the epic's Agent stage: each tab's chat, name, selection, unread dot and stopped look, and the chat shown. */
+function tabStrip(_h) {
+  const tabs = [...document.querySelectorAll('section.eap .ats [role="tab"]')].map((tab) => ({
+    chatId: tab.dataset.chatId, name: tab.querySelector('.ats-name')?.textContent ?? null, label: tab.getAttribute('aria-label'),
+    selected: tab.getAttribute('aria-selected') === 'true', unread: tab.querySelector('.ats-unread') !== null,
+    stopped: tab.closest('.ats-tab')?.classList.contains('is-stopped') ?? false
+  }))
+  const shown = document.querySelector('section.eap .eap-centre section.agent-chat, section.eap .eap-centre section.eap-terminal')
+  const dialog = document.querySelector('.dialog[role="dialog"] .dialog-title')?.textContent ?? null
+  return { ok: true, tabs, shown: shown?.getAttribute('aria-label') ?? null, dialog }
+}
+
+/** Polls the tab strip until `test` accepts it, which it returns. */
+function tabsWhere(session, signal, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const strip = await page(session, tabStrip)
+    session.lastProbe = strip
+    return test(strip) && strip
+  }, signal)
+}
+
+const tabOf = (strip, chatId) => strip.tabs.find((tab) => tab.chatId === chatId)
+
+/** Clicks the chat's tab until it is the selected one and its chat (`name chat`) fills the stage. */
+async function selectTab(session, signal, chatId, name) {
+  await until(session, signal, clickSelector, `section.eap .ats [role="tab"][data-chat-id="${chatId}"]`)
+  return tabsWhere(session, signal, (strip) => tabOf(strip, chatId)?.selected && strip.shown === `${name} chat`)
+}
+
+/** A real Ctrl+Tab in the page, as the person cycles the tabs. */
+async function pressCtrlTab(session) {
+  const key = { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9, modifiers: 2 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+}
+
+/** Clicks the Start an agent dialog's Lexmechanic card once; ok once it is clicked. */
+function pickLexmechanic(_h) {
+  const card = document.querySelector('.dialog[role="dialog"] .arc[data-role="planner"]')
+  if (!card || card.getAttribute('aria-disabled') === 'true') return { ok: false, card: !!card }
+  card.click()
+  return { ok: true }
+}
+
+/** The long-lived fake launches of the chat: an OMP session folder names its chat id, a PTY would run the fake TUI. */
+export function coordLaunches(logText, chatId) {
+  return fakeAgentLog(logText)
+    .filter((entry) => LONG_LIVED_MODES.has(entry.mode) && entry.argv.some((arg) => arg.includes(chatId)))
+    .map((entry) => ({ mode: entry.mode, surface: entry.mode === 'tui' ? 'terminal' : 'gui', pid: entry.pid, at: entry.at }))
+}
+
+/** The chat's one live GUI fake process, its launches and that no terminal (PTY) launch ran for it. */
+function liveGuiLaunch(session, chatId) {
+  const launches = coordLaunches(readLog(session), chatId)
+  const live = launches.filter((launch) => isAlive(launch.pid))
+  const terminal = launches.filter((launch) => launch.surface === 'terminal')
+  return live.length === 1 && live[0].mode === 'omp' && terminal.length === 0 ? { launch: live[0], launches, terminalLaunches: terminal } : null
+}
+
+/** The mail card the chat's transcript shows `body` on, the newest of `direction`: its header, text normalized. */
+function mailCard(_h, name, direction, body) {
+  const section = document.querySelector(`section.eap .eap-centre section.agent-chat[aria-label="${name} chat"]`)
+  if (!section) return { ok: false, section: false }
+  const cards = [...section.querySelectorAll(`.chat-transcript li.chat-mail-${direction} article.chat-mail-card`)]
+    .filter((card) => card.querySelector('.chat-mail-body')?.textContent === body)
+  const card = cards.at(-1)
+  const head = card?.querySelector('.chat-mail-head')?.textContent.replace(/\s+/g, ' ').trim() ?? null
+  return { ok: card !== undefined, head, label: card?.getAttribute('aria-label') ?? null, cards: cards.length }
+}
+
+/** Sends `[mail] <role> <epic>` from the chat and waits for its turn: the fake's reply names the endpoint it mailed. */
+async function sendMail(session, signal, chatId, role) {
+  const text = `[mail] ${role} ${session.epicId}`
+  await until(session, signal, composeAndSend, chatId, text)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnItems, session.folderPath, chatId, text)
+  if (!turn.reply?.startsWith(`mailed the ${role} at `)) throw new Error(`The fake did not mail the ${role}: ${turn.reply}`)
+  return { text, reply: turn.reply }
+}
+
+/** Clicks the tab's ✕ and answers the Stop confirmation with `button` (Cancel or Stop). */
+async function answerTabStop(session, signal, name, button) {
+  await until(session, signal, clickSelector, `section.eap .ats button.ats-close[aria-label="Stop ${name}"]`)
+  await tabsWhere(session, signal, (strip) => strip.dialog === `Stop the ${name}?`)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', button)
+  return tabsWhere(session, signal, (strip) => strip.dialog === null)
+}
+
+function coordChats(session) {
+  if (session.coord === null) throw new Error('The coord steps after coord-tabs drive its two chats: run coord-tabs first.')
+  return session.coord
+}
+
+/** The OMP session file the fake keeps for the chat holds an inbox delivery: the app counts its mail delivered. */
+function inboxDelivered(session, chatId) {
+  const sessions = join(session.userData, 'agents', 'omp', chatId, 'sessions')
+  return existsSync(sessions) && readdirSync(sessions).some((name) => readFileSync(join(sessions, name), 'utf8').includes('"customType":"dm-inbox-delivery"'))
+}
+
+/**
+ * Coord 1: the seeded epic's Magos through Start run, then a Lexmechanic from the tab strip's "+", both Skitarii
+ * (omp-kind) GUI chats. Two tabs show; a click on each shows its chat, and Ctrl+Tab cycles between them.
+ */
+async function coordTabs(session, signal) {
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await until(session, signal, startRunDialog)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Run with agent')
+  const { chat: magos } = await until(session, signal, chatRecord, session.folderPath, { role: 'orchestrator', epicId: session.epicId })
+  // Run with agent opens the Magos as a folder chat; the tabs live in the epic's Agent tab.
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await tabsWhere(session, signal, (strip) => tabOf(strip, magos.id)?.selected)
+  await until(session, signal, clickSelector, 'section.eap .ats button.ats-new')
+  await until(session, signal, pickLexmechanic)
+  const { chat: lex } = await until(session, signal, chatRecord, session.folderPath, { role: 'planner', epicId: session.epicId })
+  for (const chat of [magos, lex]) {
+    if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The ${chat.role} is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  }
+  session.coord = { magos, lex }
+  const both = await tabsWhere(session, signal, (strip) => strip.tabs.length === 2 && strip.tabs[0].chatId === magos.id && tabOf(strip, lex.id)?.selected && strip.shown === 'Lexmechanic chat')
+  const clicked = [await selectTab(session, signal, magos.id, 'Magos'), await selectTab(session, signal, lex.id, 'Lexmechanic')]
+  const cycled = []
+  for (const [chat, name] of [[magos, 'Magos'], [lex, 'Lexmechanic']]) {
+    await pressCtrlTab(session)
+    cycled.push(await tabsWhere(session, signal, (strip) => tabOf(strip, chat.id)?.selected && strip.shown === `${name} chat`))
+  }
+  const launches = [magos, lex].map((chat) => liveGuiLaunch(session, chat.id))
+  if (launches.includes(null)) throw new Error(`Expected one live GUI fake per chat: ${JSON.stringify([magos, lex].map((chat) => coordLaunches(readLog(session), chat.id)))}`)
+  return {
+    magos, lexmechanic: lex, tabs: both.tabs, clicked: clicked.map((strip) => strip.shown), ctrlTab: cycled.map((strip) => strip.shown),
+    pids: { magos: launches[0].launch.pid, lexmechanic: launches[1].launch.pid }, screenshot: await capture(session, 'e2e-coord-tabs.png', WINDOW)
+  }
+}
+
+/**
+ * Coord 2: the Lexmechanic's fake finds the Magos by epic and role with its own grant and mails it (`[mail]`). The
+ * Lexmechanic's transcript shows the sent card, the unselected Magos tab its unread dot, and once selected the Magos's
+ * transcript the received card.
+ */
+async function coordMail(session, signal) {
+  const { magos, lex } = coordChats(session)
+  await selectTab(session, signal, lex.id, 'Lexmechanic')
+  const body = coordMailBody('orchestrator')
+  const mailed = await sendMail(session, signal, lex.id, 'orchestrator')
+  const sent = await until(session, signal, mailCard, 'Lexmechanic', 'sent', body)
+  const dot = await tabsWhere(session, signal, (strip) => tabOf(strip, magos.id)?.unread && !tabOf(strip, magos.id).selected)
+  const sentShot = await capture(session, 'e2e-coord-mail-sent.png', WINDOW)
+  await selectTab(session, signal, magos.id, 'Magos')
+  const received = await until(session, signal, mailCard, 'Magos', 'received', body)
+  const expected = { sent: '✉ Lexmechanic → Magos Sent', received: '✉ Lexmechanic → Magos Received' }
+  if (sent.head !== expected.sent || received.head !== expected.received) throw new Error(`Unexpected mail card headers: ${JSON.stringify({ sent, received })}`)
+  return {
+    mailed, body, sentCard: sent, receivedCard: received, magosTabBeforeSelect: tabOf(dot, magos.id),
+    screenshots: [sentShot, await capture(session, 'e2e-coord-mail.png', WINDOW)]
+  }
+}
+
+/**
+ * Coord 3: the Lexmechanic stopped from its tab (✕ → Stop) is gone with its process; the Magos's fake mails it. The
+ * Lexmechanic restarts in the GUI (a new fake process, no terminal launch), its tab comes back with the unread dot,
+ * and its fake delivers the mail into its session as the Skitarii extension does.
+ */
+async function coordWake(session, signal) {
+  const { magos, lex } = coordChats(session)
+  const before = liveGuiLaunch(session, lex.id)
+  if (before === null) throw new Error(`The Lexmechanic has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), lex.id))}`)
+  await answerTabStop(session, signal, 'Lexmechanic', 'Stop')
+  await waitFor(() => !isAlive(before.launch.pid), signal)
+  const stopped = await tabsWhere(session, signal, (strip) => strip.tabs.length === 1 && strip.tabs[0].chatId === magos.id)
+  const mailed = await sendMail(session, signal, magos.id, 'planner')
+  const woken = await waitFor(() => {
+    const live = liveGuiLaunch(session, lex.id)
+    return live !== null && live.launch.pid !== before.launch.pid && live
+  }, signal)
+  const back = await tabsWhere(session, signal, (strip) => tabOf(strip, lex.id)?.unread && !tabOf(strip, lex.id).stopped)
+  await waitFor(() => inboxDelivered(session, lex.id), signal)
+  const sent = await until(session, signal, mailCard, 'Magos', 'sent', coordMailBody('planner'))
+  const { chat: record } = await until(session, signal, chatRecord, session.folderPath, { id: lex.id })
+  if (record.surface !== 'gui') throw new Error(`The woken Lexmechanic is on ${record.surface}, not gui.`)
+  return {
+    stoppedPid: before.launch.pid, tabsWhileStopped: stopped.tabs, mailed, magosSentCard: sent, wokenPid: woken.launch.pid,
+    launches: woken.launches, terminalLaunches: woken.terminalLaunches, surface: record.surface, lexmechanicTab: tabOf(back, lex.id),
+    inboxDelivered: true, screenshot: await capture(session, 'e2e-coord-wake.png', WINDOW)
+  }
+}
+
+/** How long coord-close watches a stopped Lexmechanic stay stopped: past one mail sweep (`agentMailDesktop.ts`, 2 s). */
+const STAYS_STOPPED_MS = 3_000
+
+/**
+ * Coord 4: ✕ → Cancel leaves the Lexmechanic's tab and process; ✕ → Stop removes the tab once its fake has exited,
+ * and the delivered mail wakes it no more.
+ */
+async function coordClose(session, signal) {
+  const { magos, lex } = coordChats(session)
+  const live = liveGuiLaunch(session, lex.id)
+  if (live === null) throw new Error(`The Lexmechanic has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), lex.id))}`)
+  const cancelled = await answerTabStop(session, signal, 'Lexmechanic', 'Cancel')
+  if (!tabOf(cancelled, lex.id) || !isAlive(live.launch.pid)) throw new Error(`Cancel stopped the Lexmechanic: ${JSON.stringify(cancelled.tabs)}`)
+  await answerTabStop(session, signal, 'Lexmechanic', 'Stop')
+  await waitFor(() => !isAlive(live.launch.pid), signal)
+  const closed = await tabsWhere(session, signal, (strip) => strip.tabs.length === 1 && strip.tabs[0].chatId === magos.id)
+  const launchesBefore = coordLaunches(readLog(session), lex.id).length
+  await delay(STAYS_STOPPED_MS, undefined, { signal })
+  const after = await page(session, tabStrip)
+  const launches = coordLaunches(readLog(session), lex.id)
+  if (launches.length !== launchesBefore || tabOf(after, lex.id)) throw new Error(`The stopped Lexmechanic came back: ${JSON.stringify({ launches, tabs: after.tabs })}`)
+  return {
+    tabsAfterCancel: cancelled.tabs, stoppedPid: live.launch.pid, tabsAfterStop: closed.tabs, stayedStoppedMs: STAYS_STOPPED_MS,
+    launches, screenshot: await capture(session, 'e2e-coord-close.png', WINDOW)
+  }
+}
+
+/**
+ * The model and effort the omp fake's sessions start on without `--model` (FAKE_AGENT_OMP_START_*), as the person's
+ * configured default, and the chip they read as (`ModelPicker.tsx`: the catalog name without its provider, then the effort).
+ */
+const MODEL_START = { model: 'anthropic/claude-opus-5-5', thinking: 'high', chip: 'Opus 5.5 · High' }
+/** The `[slow]` turn's pause between lines in a model run: about 4 s for its 10 lines, room to switch models during it. */
+const MODEL_SLOW_MS = 400
+const MODEL_CHAT_PROMPT = 'model switch'
+/** The chip's title while the agent works (`ModelPicker.tsx`, BUSY_HINT), also the open menu's first note. */
+const MODEL_BUSY_HINT = 'Applies to next response'
+
+/** The controls the fake's run `pid` logged (FAKE_AGENT_CONTROL_LOG) at or after `from` (epoch ms), in order. */
+export function fakeControls(logText, pid, from = 0) {
+  return logText.split(/\r?\n/).filter((line) => line.trim() !== '').map((line) => JSON.parse(line))
+    .filter((entry) => entry.pid === pid && entry.at >= from)
+}
+
+/** The `--model` and `--thinking` values a launch's argv carries; null for a flag it lacks. */
+export function launchModelFlags(argv) {
+  const flag = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] ?? null : null)
+  return { model: flag('--model'), thinking: flag('--thinking') }
+}
+
+/** The two controls one switch to `model` (`provider/id`) at `effort` sends, in order, as the fake logs them. */
+export function switchControls(model, effort) {
+  const slash = model.indexOf('/')
+  return [
+    { type: 'set_model', provider: model.slice(0, slash), modelId: model.slice(slash + 1) },
+    { type: 'set_thinking_level', level: effort }
+  ]
+}
+
+function controlsOf(session, pid, from) {
+  const file = session.env.FAKE_AGENT_CONTROL_LOG
+  return fakeControls(existsSync(file) ? readFileSync(file, 'utf8') : '', pid, from)
+}
+
+/** Whether `controls` are exactly `expected` (each a subset of the logged control's fields). */
+function sameControls(controls, expected) {
+  return controls.length === expected.length && expected.every((want, index) => Object.entries(want).every(([key, value]) => controls[index][key] === value))
+}
+
+/** The chat's composer model chip: what it reads, its title (the busy hint while the agent works), queued and open. */
+function modelChip(h, chatId) {
+  const chip = h.chatSection(chatId)?.querySelector('.model-picker button.model-picker-chip') ?? null
+  if (!chip) return { ok: false, chip: false }
+  return {
+    ok: true, label: chip.querySelector('.model-picker-label')?.textContent ?? null, ariaLabel: chip.getAttribute('aria-label'), title: chip.title,
+    queued: chip.querySelector('.model-picker-queued') !== null, open: chip.getAttribute('aria-expanded') === 'true', spinning: chip.getAttribute('aria-busy') === 'true'
+  }
+}
+
+/** Polls the chat's model chip until `test` accepts it, which it returns. */
+function chipWhere(session, signal, chatId, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const chip = await page(session, modelChip, chatId)
+    session.lastProbe = chip
+    return chip.ok && test(chip) && chip
+  }, signal)
+}
+
+/** Opens the chat's model menu: a click on its chip while it is closed; ok once the menu shows. */
+function openModelMenu(h, chatId) {
+  const picker = h.chatSection(chatId)?.querySelector('.model-picker')
+  if (!picker) return { ok: false, picker: false }
+  if (picker.querySelector('[role="menu"]')) return { ok: true }
+  picker.querySelector('button.model-picker-chip[aria-expanded="false"]')?.click()
+  return { ok: false, menu: false }
+}
+
+/**
+ * Clicks the first featured model under the open menu's `heading` group (Claude or Codex); ok with the name it shows
+ * and the menu's notes (the busy hint) as it was clicked.
+ */
+function pickModel(h, chatId, heading) {
+  const menu = h.chatSection(chatId)?.querySelector('.model-picker [role="menu"]')
+  if (!menu) return { ok: false, menu: false }
+  const hints = [...menu.querySelectorAll('.model-picker-hint')].map((hint) => hint.textContent)
+  const item = menu.querySelector(`[role="group"][aria-label="${heading}"] [role="menuitemradio"]`)
+  if (!item) return { ok: false, hints }
+  item.click()
+  return { ok: true, name: item.querySelector('.model-picker-name')?.textContent ?? null, hints }
+}
+
+/** The open menu's Effort control for the picked model; ok with its label and efforts once it shows them. */
+function effortControl(h, chatId) {
+  const control = h.chatSection(chatId)?.querySelector('.model-picker [role="menu"] .model-picker-effort')
+  if (!control) return { ok: false, control: false }
+  const label = control.querySelector('.model-picker-effort-label')?.textContent ?? ''
+  return { ok: label.startsWith('Effort for '), label, efforts: [...control.querySelectorAll('[data-effort]')].map((segment) => segment.textContent) }
+}
+
+/** Clicks the open menu's `effort` segment (Medium, High, …), which switches the chat. */
+function pickEffort(h, chatId, effort) {
+  const segments = h.chatSection(chatId)?.querySelectorAll('.model-picker [role="menu"] .model-picker-effort [data-effort]') ?? []
+  const segment = [...segments].find((button) => button.textContent === effort)
+  segment?.click()
+  return { ok: !!segment, segments: segments.length }
+}
+
+/** The chat's catalog (`agentChat:models`), each model's provider, id, name and efforts. */
+async function chatCatalog(_h, folder, chatId) {
+  const result = await window.dm.agentChat.models({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  return { ok: true, options: result.data.map(({ provider, id, name, efforts }) => ({ provider, id, name, efforts })) }
+}
+
+/** The chat's live model, effort and status (its snapshot), and its newest `model_change` item. */
+async function chatModel(_h, folder, chatId) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { model, thinking, status, items } = result.data
+  const change = items.findLast((item) => item.kind === 'model_change') ?? null
+  return { ok: true, model: model ?? null, thinking: thinking ?? null, status, change: change && { from: change.from, to: change.to } }
+}
+
+/** The chat's transcript shows the notice `text` (a model change). */
+function noticeShown(h, chatId, text) {
+  const notices = [...(h.chatSection(chatId)?.querySelectorAll('.chat-transcript li.chat-notice') ?? [])].map((notice) => notice.textContent.trim())
+  return { ok: notices.includes(text), notices }
+}
+
+/** The catalog model the menu showed as `name` under the provider of `heading` (`Opus 5.5` is `Claude Opus 5.5`): `provider/id`. */
+async function pickedModel(session, signal, { chatId, heading, name }) {
+  const { options } = await until(session, signal, chatCatalog, session.folderPath, chatId)
+  const provider = { Claude: 'anthropic', Codex: 'openai-codex' }[heading]
+  const option = options.find((entry) => entry.provider === provider && (entry.name === name || entry.name === `${heading} ${name}`))
+  if (!option) throw new Error(`The catalog has no ${heading} model named ${name}.`)
+  return `${option.provider}/${option.id}`
+}
+
+/** Polls the chat's snapshot until `test` accepts its model state, which it returns. */
+function modelWhere(session, signal, chatId, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = await page(session, chatModel, session.folderPath, chatId)
+    session.lastProbe = state
+    return state.ok && test(state) && state
+  }, signal)
+}
+
+/**
+ * One switch from the open chip: the first featured `heading` model, a menu capture `menuShot` while its Effort control
+ * shows, then `effort`. Resolves once the chip reads the switched model and effort and the fake logged exactly the
+ * switch's two controls since `from`.
+ */
+async function switchModel(session, signal, { chatId, pid, heading, effort, menuShot, from, chipTest = () => true }) {
+  await until(session, signal, openModelMenu, chatId)
+  const picked = await until(session, signal, pickModel, chatId, heading)
+  const control = await until(session, signal, effortControl, chatId)
+  const menu = await capture(session, menuShot, WINDOW)
+  await until(session, signal, pickEffort, chatId, effort)
+  const model = await pickedModel(session, signal, { chatId, heading, name: picked.name })
+  const chip = await chipWhere(session, signal, chatId, (state) => !state.spinning && state.label === `${picked.name} · ${effort}` && chipTest(state))
+  const expected = switchControls(model, effort.toLowerCase())
+  const controls = await waitFor(() => {
+    const logged = controlsOf(session, pid, from)
+    session.lastProbe = { controls: logged, expected }
+    return logged.length >= expected.length && logged
+  }, signal)
+  if (!sameControls(controls, expected)) throw new Error(`The fake got ${JSON.stringify(controls)}, not ${JSON.stringify(expected)}.`)
+  return { picked, effortControl: control, model, chip, controls, menuScreenshot: menu }
+}
+
+function modelChat(session) {
+  if (session.model === null) throw new Error('The model steps after model-pick drive its chat: run model-pick first.')
+  return session.model
+}
+
+/**
+ * Model 1: a new Skitarii folder chat's chip reads the fake's `get_state` model and effort (Opus 5.5 at High). The
+ * first featured Codex model at Medium makes the fake log `set_model` and `set_thinking_level` with exactly those, the
+ * chip reads it, and the transcript shows the `model_change` notice.
+ */
+async function modelPick(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', MODEL_CHAT_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: MODEL_CHAT_PROMPT })
+  if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: MODEL_CHAT_PROMPT })
+  const live = liveGuiLaunch(session, chat.id)
+  if (live === null) throw new Error(`The chat has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), chat.id))}`)
+  const { pid } = live.launch
+  const started = await modelWhere(session, signal, chat.id, (state) => state.model === MODEL_START.model && state.thinking === MODEL_START.thinking)
+  const startChip = await chipWhere(session, signal, chat.id, (state) => state.label === MODEL_START.chip)
+  const from = Date.now()
+  const switched = await switchModel(session, signal, { chatId: chat.id, pid, heading: 'Codex', effort: 'Medium', menuShot: 'e2e-model-pick-menu.png', from })
+  const state = await modelWhere(session, signal, chat.id, (snapshot) => snapshot.model === switched.model && snapshot.thinking === 'medium'
+    && snapshot.change?.from === MODEL_START.model && snapshot.change.to === switched.model)
+  const notice = await until(session, signal, noticeShown, chat.id, `Model changed from ${MODEL_START.model} to ${switched.model}.`)
+  session.model = { chatId: chat.id, pid, codex: switched.model }
+  return {
+    chat, pid, startModel: { model: started.model, thinking: started.thinking }, startChip: startChip.label, ...switched,
+    snapshot: { model: state.model, thinking: state.thinking, change: state.change }, notice: notice.notices,
+    screenshot: await capture(session, 'e2e-model-pick.png', WINDOW)
+  }
+}
+
+/**
+ * Model 2: during a `[slow]` turn the chip carries the busy hint; the first featured Claude model at High goes to the
+ * fake (at once, while the turn runs, or after it) and the chip says queued. The turn is never interrupted: the same
+ * fake process ends it with its whole reply, no abort reaches it and no turn_stopped is stored.
+ */
+async function modelBusy(session, signal) {
+  const { chatId, pid, codex } = modelChat(session)
+  const from = Date.now()
+  await until(session, signal, composeAndSend, chatId, '[slow]')
+  const busyChip = await chipWhere(session, signal, chatId, (state) => state.title === MODEL_BUSY_HINT)
+  const switched = await switchModel(session, signal, {
+    chatId, pid, heading: 'Claude', effort: 'High', menuShot: 'e2e-model-busy-menu.png', from, chipTest: (state) => state.queued
+  })
+  if (!switched.picked.hints.includes(MODEL_BUSY_HINT)) throw new Error(`The menu did not show the busy hint: ${JSON.stringify(switched.picked.hints)}`)
+  const queuedShot = await capture(session, 'e2e-model-busy-queued.png', WINDOW)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[slow]' })
+  const turn = await until(session, signal, turnItems, session.folderPath, chatId, '[slow]')
+  if (turn.reply !== 'Hello world' || turn.kinds.includes('turn_stopped')) throw new Error(`The [slow] turn did not end whole: ${JSON.stringify(turn)}`)
+  const controls = controlsOf(session, pid, from)
+  if (!sameControls(controls, switchControls(switched.model, 'high'))) throw new Error(`The fake got more than the switch: ${JSON.stringify(controls)}`)
+  if (!isAlive(pid)) throw new Error(`The chat's fake (pid ${pid}) is gone.`)
+  const after = await chipWhere(session, signal, chatId, (state) => !state.queued && state.label === switched.chip.label)
+  const state = await modelWhere(session, signal, chatId, (snapshot) => snapshot.model === switched.model && snapshot.thinking === 'high' && snapshot.change?.to === switched.model)
+  if (state.change.from !== codex) throw new Error(`The model change is from ${state.change.from}, not ${codex}.`)
+  session.model = { ...session.model, claude: switched.model }
+  return {
+    busyChip, ...switched, receivedWhileBusy: controls.map((control) => control.busy), turn, samePid: pid, chipAfter: after.label,
+    snapshot: { model: state.model, thinking: state.thinking, change: state.change },
+    screenshots: [switched.menuScreenshot, queuedShot, await capture(session, 'e2e-model-busy.png', WINDOW)]
+  }
+}
+
+/** Model 3, phase 1: the chat's record keeps the Claude model and High; a plain quit ends the app and its fakes. */
+async function modelRestartQuit(session, signal) {
+  const { chatId, claude } = modelChat(session)
+  if (!claude) throw new Error('model-restart checks the model model-busy switched to: run model-busy first.')
+  const record = chatStore(session).getChat({ folder: session.folderPath, id: chatId })
+  if (record?.model !== claude || record.thinking !== 'high') throw new Error(`The chat record keeps ${record?.model} at ${record?.thinking}, not ${claude} at high.`)
+  const exited = await quit(session, signal)
+  const fakes = await fakeProcessesExited(session, signal)
+  session.model = { ...session.model, quitAt: Date.now() }
+  return { record: { model: record.model, thinking: record.thinking }, ...exited, ...fakes }
+}
+
+/** Shows the chat: its composer, else a click on its sidebar row (by `title`). */
+function showChat(_h, chatId, title) {
+  if (document.getElementById(`agent-message-${chatId}`)) return { ok: true }
+  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')].find((button) => button.querySelector('.chat-row-title')?.textContent === title)
+  row?.click()
+  return { ok: false, row: !!row }
+}
+
+/**
+ * Model 3, phase 3: the chat, shown and sent a message, starts one new GUI fake whose argv carries `--model` and
+ * `--thinking` with the Claude model and High; its chip reads them back from `get_state`.
+ */
+async function modelRestartResumed(session, signal) {
+  const { chatId, claude, quitAt } = modelChat(session)
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { id: chatId })
+  await until(session, signal, showChat, chatId, chat.title)
+  await until(session, signal, composeAndSend, chatId, 'after restart')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: 'after restart' })
+  const launches = coordLaunches(readLog(session), chatId).filter((launch) => launch.at >= quitAt)
+  if (launches.length !== 1 || launches[0].mode !== 'omp') throw new Error(`Expected one GUI launch after the restart: ${JSON.stringify(launches)}`)
+  const entry = fakeAgentLog(readLog(session)).find((logged) => logged.pid === launches[0].pid && logged.at === launches[0].at)
+  const flags = launchModelFlags(entry.argv)
+  if (flags.model !== claude || flags.thinking !== 'high') throw new Error(`The relaunch carries --model ${flags.model} --thinking ${flags.thinking}, not ${claude} high.`)
+  const state = await modelWhere(session, signal, chatId, (snapshot) => snapshot.model === claude && snapshot.thinking === 'high')
+  const chip = await chipWhere(session, signal, chatId, (shown) => shown.label.endsWith(' · High') && !shown.queued)
+  return {
+    launch: { pid: entry.pid, argv: entry.argv }, flags, snapshot: { model: state.model, thinking: state.thinking }, chip: chip.label,
+    screenshot: await capture(session, 'e2e-model-restart.png', WINDOW)
+  }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -1558,11 +2752,33 @@ const STEPS = {
       { name: 'restart-resume equal-version launch', run: restartEqualLaunch },
       { name: 'restart-resume equal version', run: restartEqualVersion }
     ]
+  },
+  'polish-picker': { name: 'polish-picker', run: polishPicker, polish: true },
+  'polish-composer': { name: 'polish-composer', run: polishComposer, polish: true },
+  'polish-copy': { name: 'polish-copy', run: polishCopy, polish: true },
+  'polish-multiselect': { name: 'polish-multiselect', run: polishMultiselect, polish: true },
+  'polish-worked-for': { name: 'polish-worked-for', run: polishWorkedFor, polish: true },
+  'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true },
+  'image-send': { name: 'image-send', run: imageSend, image: true },
+  'image-result': { name: 'image-result', run: imageResult, image: true },
+  'coord-tabs': { name: 'coord-tabs', run: coordTabs, coord: true, skitarii: true },
+  'coord-mail': { name: 'coord-mail', run: coordMail, coord: true, skitarii: true },
+  'coord-wake': { name: 'coord-wake', run: coordWake, coord: true, skitarii: true },
+  'coord-close': { name: 'coord-close', run: coordClose, coord: true, skitarii: true },
+  'model-pick': { name: 'model-pick', run: modelPick, model: true, skitarii: true },
+  'model-busy': { name: 'model-busy', run: modelBusy, model: true, skitarii: true },
+  'model-restart': {
+    model: true, skitarii: true,
+    phases: [
+      { name: 'model-restart quit', run: modelRestartQuit },
+      { name: 'model-restart launch', run: appReady },
+      { name: 'model-restart resumed', run: modelRestartResumed }
+    ]
   }
 }
 
 async function captureFailure(session, step) {
-  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe }
+  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe, refusedImages: refusedImages(session.console) }
   if (session.page?.socket.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
   const bound = delay(SCREENSHOT_BOUND_MS).then(() => { throw new Error('screenshot timed out') })
   const { data } = await Promise.race([cdp(session, 'Page.captureScreenshot', { format: 'png' }), bound])
@@ -1571,17 +2787,20 @@ async function captureFailure(session, step) {
   return { ...detail, screenshot: file }
 }
 
+/** The phases `keys` run, in order, each verdict step named after its phase: a step without phases is its own one. */
+export function stepPhases(keys) {
+  return keys.flatMap((key) => STEPS[key].phases ?? [STEPS[key]])
+}
+
 async function runSteps(session, keys, steps) {
   const onFailure = (step) => captureFailure(session, step)
   steps.push(await runStep('stale isolated roots removed', async () => removeStaleRoots()))
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
-  steps: for (const key of prepared.ok ? keys : []) {
-    for (const phase of STEPS[key].phases ?? [STEPS[key]]) {
-      const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
-      steps.push(result)
-      if (!result.ok) break steps
-    }
+  for (const phase of prepared.ok ? stepPhases(keys) : []) {
+    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
+    steps.push(result)
+    if (!result.ok) break
   }
   // Whatever stopped before the quit step still ends the app and checks its fakes.
   if (session.child === null || isRunning(session.child)) {
@@ -1596,6 +2815,8 @@ function preserveLogs(session) {
   writeFileSync(join(session.out, 'electron-main.log'), `${session.stdout}\n--- stderr ---\n${session.stderr}`)
   const log = session.env.FAKE_AGENT_LOG
   if (existsSync(log)) copyFileSync(log, join(session.out, 'fake-agent.jsonl'))
+  const controls = session.env.FAKE_AGENT_CONTROL_LOG
+  if (controls && existsSync(controls)) copyFileSync(controls, join(session.out, 'fake-controls.jsonl'))
 }
 
 function removeIsolatedState(session) {
@@ -1604,22 +2825,53 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
+/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude fake. */
+function refuseOtherKind(keys, agent) {
+  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii)]
+  const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
+  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
+  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii) : []
+  if (skitarii.length > 0) throw new Error(`${skitarii.join(', ')} drive the omp fake: leave out --agent claude.`)
+}
+
+/**
+ * The steps to run: `--steps`, else every step but the polish, image, coord and model ones (only OMP_STEPS for `--agent
+ * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
+ * nor names `ready` gets `ready` first.
+ */
+function stepKeys(requested, agent) {
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii))
+  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
+  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+  refuseOtherKind(keys, agent)
+  return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
+}
+
+/** `--agent`, else `omp` when a coord or model step is named (they run Skitarii chats), else `claude`. */
+function agentOf(argv, requested) {
+  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii) ?? false
+  const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : skitarii ? 'omp' : 'claude'
+  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  return agent
+}
+
 export function parseArgs(argv) {
   const value = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined)
   const out = value('--out')
-  if (!out) throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ${Object.keys(STEPS).join(',')}]`)
+  if (!out) {
+    throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent ${AGENT_KINDS.join('|')}] [--steps ${Object.keys(STEPS).join(',')}]`)
+  }
   if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
-  const keys = value('--steps')?.split(',') ?? Object.keys(STEPS)
-  const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
-  if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+  const requested = value('--steps')
+  const agent = agentOf(argv, requested)
   const exe = value('--exe')
-  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), keys }
+  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys: stepKeys(requested, agent) }
 }
 
 async function main(argv) {
-  const { out, exe, keys } = parseArgs(argv)
+  const { out, exe, agent, keys } = parseArgs(argv)
   mkdirSync(out, { recursive: true })
-  const session = createSession(out, exe)
+  const session = createSession(out, exe, agent, keys)
   const steps = []
   try {
     await runSteps(session, keys, steps)

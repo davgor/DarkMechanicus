@@ -93,6 +93,57 @@
   white-space: pre;
 }
 
+/* A code block with its Copy in the top-right corner; the block keeps the spacing a bare pre had. */
+.md .md-code-block {
+  position: relative;
+  margin: 0 0 10px;
+}
+
+.md .md-code-block > .md-code {
+  margin: 0;
+  padding-right: 72px;
+}
+
+.md .md-code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  border-color: var(--line-soft);
+  background: var(--panel-3);
+}
+
+/* Copy, wherever it appears: a quiet text button that says "Copied" or "Copy failed" in place. */
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.copy-button:hover,
+.copy-button:focus-visible {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.copy-button[data-state='copied'] {
+  color: var(--st-accepted);
+}
+
+.copy-button[data-state='failed'] {
+  color: var(--st-failed);
+}
+
 .md .md-link,
 .md-inline .md-link {
   color: var(--accent);

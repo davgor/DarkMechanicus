@@ -1,0 +1,62 @@
+/* A Skitarii mail card in a GUI transcript: plain text between agents, apart from what the person and agent said. */
+.chat-mail {
+  list-style: none;
+}
+
+.chat-mail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.chat-mail-sent .chat-mail-card {
+  border-left-color: var(--primary);
+}
+
+.chat-mail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.chat-mail-party.is-name {
+  font-weight: 500;
+}
+
+.chat-mail-name-tag,
+.chat-mail-direction,
+.chat-mail-reply {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.chat-mail-direction {
+  margin-left: auto;
+}
+
+.chat-mail-reply {
+  margin: 0;
+}
+
+.chat-mail-reply code {
+  font-family: var(--font-mono);
+}
+
+.chat-mail-body {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chat-mail-more {
+  align-self: flex-start;
+}

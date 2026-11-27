@@ -91,6 +91,7 @@ export async function startTransferChat(deps: TransferStartDeps, request: StartT
       agent,
       role: 'orchestrator',
       model: request.model ?? null,
+      ...(request.thinking == null ? {} : { thinking: request.thinking }),
       allowSave: true,
       title: transferTitle(epic.title),
       transferEpicId: epic.id,

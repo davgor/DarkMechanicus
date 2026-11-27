@@ -7,9 +7,12 @@ import { removeScratch } from './removeScratch'
 
 const CONFIG = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', '-c', 'core.quotepath=false', '-c', 'maintenance.auto=false']
 
-/** Runs git in `cwd` and returns its output untrimmed. */
+/**
+ * Runs git in `cwd` and returns its output untrimmed. Like Git's own test suite, these thrown-away fixtures need real
+ * objects, not power-loss hardware flushes (`GIT_TEST_FSYNC=0`).
+ */
 export function gitIn(cwd: string, ...args: string[]): string {
-  const env: NodeJS.ProcessEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: '1' }
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_TEST_FSYNC: '0' }
   for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']) {
     delete env[key]
   }

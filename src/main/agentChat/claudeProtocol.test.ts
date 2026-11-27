@@ -2,13 +2,15 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/agents/chat'
-import { agentChatEventSchema } from '../../shared/agents/agentChat'
+import { agentChatEventSchema, type AgentChatAnswer } from '../../shared/agents/agentChat'
 import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolEvent, type ClaudeProtocolState } from './claudeProtocol'
+import { webpBytes } from '../../test/images'
+import type { ToolResultBlob } from './toolResultImages'
 import type { ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
 const directory = join(import.meta.dirname, '__fixtures__', 'claude')
-const scenarios = ['init', 'text', 'tool', 'subagent', 'approval', 'approval_chat', 'question', 'interrupt', 'error', 'queued', 'subagent_tree', 'todo', 'tasks', 'todo_fail', 'edit']
+const scenarios = ['init', 'text', 'tool', 'subagent', 'approval', 'approval_chat', 'question', 'question_multi', 'interrupt', 'error', 'queued', 'subagent_tree', 'todo', 'tasks', 'todo_fail', 'edit']
 function fixture(name: string, direction = 'out'): string[] {
   const raw = readFileSync(join(directory, `${name}.${direction}.jsonl`), 'utf8')
   expect(raw).not.toContain('\r')
@@ -19,19 +21,21 @@ function initialized(): ClaudeProtocolState {
   for (const line of fixture('init')) state = translateClaudeLine(line, state, at).state
   return state
 }
-function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; internalEvents: ThreadClaimEvent[]; items: ChatItem[] } {
+function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; internalEvents: ThreadClaimEvent[]; items: ChatItem[]; blobs: ToolResultBlob[] } {
   let state = initial
   const events: ClaudeProtocolEvent[] = []
   const internalEvents: ThreadClaimEvent[] = []
+  const blobs: ToolResultBlob[] = []
   for (const line of lines) {
     const next = translateClaudeLine(line, state, at)
     state = next.state
     events.push(...next.events)
     internalEvents.push(...next.internalEvents)
+    blobs.push(...next.blobs)
   }
   const items = new Map<string, ChatItem>()
   for (const event of events) if (event.type === 'item') items.set(event.item.id, event.item)
-  return { state, events, internalEvents, items: [...items.values()] }
+  return { state, events, internalEvents, items: [...items.values()], blobs }
 }
 function text(id: string, value: string, threadId?: string): ChatItem {
   return { kind: 'assistant_text', id: `${id}:0`, at, ...(threadId ? { threadId } : {}), text: value }
@@ -50,6 +54,8 @@ const todoWorker = 'thread:toolu_T1_todoworker'
 const questions = [{ question: 'Which database?', header: 'Database', options: [
   { label: 'SQLite', description: 'Local database' }, { label: 'Postgres', description: 'Server database' }
 ], multiSelect: false }]
+const multiQuestions = [{ question: 'Which letters?', header: 'Letters', options: ['A', 'B', 'C', 'D'].map(label => ({ label, description: `Letter ${label}` })), multiSelect: true },
+  { ...questions[0] }]
 const todos = [
   { content: 'Read file', activeForm: 'Reading file', status: 'in_progress' },
   { content: 'Edit file', activeForm: 'Editing file', status: 'pending' }
@@ -69,6 +75,10 @@ const expected: Record<string, ChatItem[]> = {
   question: [tool('question', 'AskUserQuestion', { questions }, 'SQLite'),
     { kind: 'approval_request', id: 'approval:req_T1_question', at, requestId: 'req_T1_question', category: 'other',
       tool: 'AskUserQuestion', summary: 'Which database?', input: { questions } }],
+  question_multi: [tool('question_multi', 'AskUserQuestion', { questions: multiQuestions }, 'Answered'),
+    { kind: 'approval_request', id: 'approval:req_T1_question_multi', at, requestId: 'req_T1_question_multi', category: 'other',
+      tool: 'AskUserQuestion', summary: 'Which letters?', input: { questions: multiQuestions } },
+    text('msg_T1_134', 'answers: {"Which letters?":"A, C","Which database?":"SQLite"}')],
   interrupt: [hello, { kind: 'turn_stopped', id: 'stopped:uuid_T1_51', at }],
   error: [{ kind: 'error', id: 'error:uuid_T1_53', at, message: 'Fixture provider failure' }],
   subagent_tree: [
@@ -95,7 +105,7 @@ const expected: Record<string, ChatItem[]> = {
 }
 
   it('covers every pinned pair without CR characters', () => {
-    const all = [...scenarios, 'worker_approval']
+    const all = [...scenarios, 'worker_approval', 'image_in', 'image_result']
     expect(readdirSync(directory).filter(name => name.endsWith('.out.jsonl')).sort()).toEqual(all.map(name => `${name}.out.jsonl`).sort())
     for (const name of all) { fixture(name); fixture(name, 'in') }
   })
@@ -135,9 +145,13 @@ const expected: Record<string, ChatItem[]> = {
         state = result.state; output.push(...result.lines)
       } else {
         state = feed(fixture(name).slice(0, 2), state).state
-        const result = encodeClaudeCommand({ type: 'answer', promptId: expectedLine.response.request_id,
-          optionId: name === 'question' ? 'option_0' : name === 'approval_chat' ? 'allow_chat' : 'allow_once' }, state, at)
-        state = result.state; output.push(...result.lines)
+        const answers: AgentChatAnswer[] = name === 'question_multi'
+          ? [{ promptId: 'req_T1_question_multi', optionIds: ['option_0', 'option_2'] }, { promptId: 'req_T1_question_multi:question:1', optionId: 'option_0' }]
+          : [{ promptId: expectedLine.response.request_id, optionId: name === 'question' ? 'option_0' : name === 'approval_chat' ? 'allow_chat' : 'allow_once' }]
+        for (const answer of answers) {
+          const result = encodeClaudeCommand({ type: 'answer', ...answer }, state, at)
+          state = result.state; output.push(...result.lines)
+        }
       }
     }
     expect(output).toEqual(fixture(name, 'in'))
@@ -224,8 +238,8 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
     const input = { questions: [...questions, { ...questions[0], question: 'Which backup?' }], other: 'held' }
     const result = feed([approvalRequest('question', 'unknown', { tool_name: 'AskUserQuestion', input })])
     expect(result.items).toEqual([expect.objectContaining({ kind: 'approval_request', requestId: 'question', tool: 'AskUserQuestion', category: 'other' })])
-    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { kind: 'question', options: [
-      { id: 'option_0', label: 'SQLite' }, { id: 'option_1', label: 'Postgres' }, { id: 'text', label: 'Other' }
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { kind: 'question', multi: false, progress: { index: 1, total: 2 }, options: [
+      { id: 'option_0', label: 'SQLite', description: 'Local database' }, { id: 'option_1', label: 'Postgres', description: 'Server database' }, { id: 'text', label: 'Other' }
     ] } })
     const answers = { 'Which database?': 'SQLite', 'Which backup?': 'Postgres' }
     const first = encodeClaudeCommand({ type: 'answer', promptId: 'question', optionId: 'option_0' }, result.state, at)
@@ -233,7 +247,7 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
     expect(first.events).toMatchObject([
       { type: 'item', item: { kind: 'approval_decision', requestId: 'question', decision: 'allow_once' } },
       { type: 'item', item: { kind: 'user_message', text: 'SQLite' } },
-      { type: 'pending', prompt: { id: 'question:question:1', title: 'Which backup?' } },
+      { type: 'pending', prompt: { id: 'question:question:1', title: 'Which backup?', progress: { index: 2, total: 2 } } },
       { type: 'item', item: { kind: 'approval_request', requestId: 'question:question:1', summary: 'Which backup?' } }
     ])
     const last = encodeClaudeCommand({ type: 'answer', promptId: 'question:question:1', optionId: 'option_1' }, first.state, at)
@@ -242,6 +256,29 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
       { item: { kind: 'approval_decision', requestId: 'question:question:1', decision: 'allow_once' } },
       { item: { kind: 'user_message', text: 'Postgres' } }
     ])
+  })
+  it('answers a multiSelect question with the chosen labels in option order, as Claude Code encodes them', () => {
+    const input = { questions: [multiQuestions[0], { ...multiQuestions[0], question: 'Which tags?', options: [{ label: 'x, y' }, { label: 'say "hi"' }, { label: 'plain' }] }, questions[0]] }
+    const result = feed([approvalRequest('multi', 'unknown', { tool_name: 'AskUserQuestion', input })])
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { id: 'multi', multi: true, progress: { index: 1, total: 3 } } })
+    for (const optionIds of [['option_0', 'option_7'], ['option_0', 'option_0'], ['option_0', 'text']]) {
+      const refused = encodeClaudeCommand({ type: 'answer', promptId: 'multi', optionIds }, result.state, at)
+      expect([refused.lines, refused.events, refused.state.pending.get('multi')?.prompt.id]).toEqual([[], [], 'multi'])
+    }
+    const first = encodeClaudeCommand({ type: 'answer', promptId: 'multi', optionIds: ['option_2', 'option_0'] }, result.state, at)
+    expect(first.events).toMatchObject([{ item: { kind: 'approval_decision' } }, { item: { kind: 'user_message', text: 'A, C' } },
+      { type: 'pending', prompt: { id: 'multi:question:1', multi: true, progress: { index: 2, total: 3 } } }, { item: { kind: 'approval_request' } }])
+    // A label holding ", " or a quote is written as a JSON string, as Claude Code's own dialog writes it; the free text comes last.
+    const second = encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:1', optionIds: ['text', 'option_1', 'option_0'], text: 'mine' }, first.state, at)
+    expect(second.events).toMatchObject([{}, { item: { text: '"x, y", "say \\"hi\\"", mine' } }, { prompt: { id: 'multi:question:2', multi: false, progress: { index: 3, total: 3 } } }, {}])
+    expect(encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:2', optionIds: ['option_0'] }, second.state, at).lines).toEqual([])
+    const last = encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:2', optionId: 'option_1' }, second.state, at)
+    expect(JSON.parse(last.lines[0]).response.response).toEqual({ behavior: 'allow', updatedInput: { ...input,
+      answers: { 'Which letters?': 'A, C', 'Which tags?': '"x, y", "say \\"hi\\"", mine', 'Which database?': 'Postgres' } } })
+  })
+  it('refuses optionIds on an approval', () => {
+    const state = feed([approvalRequest('plain')]).state
+    expect(encodeClaudeCommand({ type: 'answer', promptId: 'plain', optionIds: ['allow_once'] }, state, at).lines).toEqual([])
   })
   it('masks tokens before clipping and across streamed chunk boundaries', () => {
     const claim = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
@@ -424,4 +461,45 @@ it.each(['Agent', 'Task'])('extracts exactly one complete token from %s, never a
     expect(result.internalEvents).toHaveLength(count)
     expect(JSON.stringify(result.events)).not.toContain('Secret')
   }
+})
+
+const swatch = readFileSync(join(import.meta.dirname, '__fixtures__', 'images', 'swatch.png'))
+const swatchBase64 = swatch.toString('base64')
+const swatchImage = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: swatchBase64 } }
+
+it('encodes image_in byte for byte with images before text, and keeps base64 out of events', () => {
+  const [line] = fixture('image_in', 'in'), wire = JSON.parse(line)
+  const images = [{ mime: 'image/png' as const, base64: swatchBase64 }]
+  const result = encodeClaudeCommand({ type: 'send', text: 'what colour', uuid: wire.uuid, sessionId: wire.session_id, images }, initialized(), at)
+  expect(result.lines).toEqual(fixture('image_in', 'in'))
+  expect(result.events).toEqual([{ type: 'item', item: { kind: 'user_message', id: wire.uuid, at, text: 'what colour' } }, { type: 'status', status: 'busy' }])
+  expect(JSON.stringify(result.events)).not.toContain(swatchBase64.slice(0, 32))
+  const imageOnly = encodeClaudeCommand({ type: 'send', text: '', uuid: 'uuid_T1_image_only', images: [...images, { mime: 'image/jpeg', base64: 'AAAA' }] }, initialized(), at)
+  expect(JSON.parse(imageOnly.lines[0]).message.content).toEqual([swatchImage,
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } }])
+  expect(feed(fixture('image_in')).blobs).toEqual([])
+})
+
+it('lifts image_result into exactly one blob equal to swatch.png and no event', () => {
+  const result = feed(fixture('image_result'))
+  expect(result.blobs).toEqual([{ itemId: 'toolu_T1_read_image', mime: 'image/png', base64: swatchBase64 }])
+  expect(Buffer.from(result.blobs[0].base64, 'base64').equals(swatch)).toBe(true)
+  expect(JSON.stringify(result.events)).not.toContain(swatchBase64.slice(0, 32))
+  expect(result.items).toEqual([tool('read_image', 'Read', { file_path: 'C:\\fixture\\repo\\swatch.png' }, ''), text('msg_T1_image_answer', 'Red')])
+  expect(result.state.skipped).toBe(0)
+  for (const event of result.events) expect(agentChatEventSchema.safeParse({ folder: null, chatId: 'fixture', ...event }).success).toBe(true)
+  expect(feed(fixture('image_result'), result.state).blobs).toEqual([])
+})
+
+it('notes unsupported, mismatched and URL images as not shown, and lifts WebP tool images', () => {
+  const webp = webpBytes(64, 64).toString('base64'), gif = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1').toString('base64')
+  const image = (media_type: string, data: string): unknown => ({ type: 'image', source: { type: 'base64', media_type, data } })
+  const use = json({ type: 'assistant', message: { id: 'msg_T1_images', content: [{ type: 'tool_use', id: 'toolu_T1_images', name: 'Read', input: { file_path: 'x' } }] } })
+  const content = [{ type: 'text', text: 'Read' }, image('image/gif', gif), image('image/webp', webp), image('image/jpeg', swatchBase64),
+    { type: 'image', source: { type: 'url', url: 'https://example.com/a.png' } }, image('image/png', `${swatchBase64}#`)]
+  const result = feed([use, json({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_T1_images', content }] } })])
+  expect(result.blobs).toEqual([{ itemId: 'toolu_T1_images', mime: 'image/webp', base64: webp }])
+  expect(result.items.at(-1)).toMatchObject({ status: 'completed', resultSummary: ['Read', '1 image (image/gif, not shown)',
+    '1 image (image/jpeg, not shown)', '1 image (unknown type, not shown)', '1 image (image/png, not shown)'].join('\n') })
+  for (const prefix of [webp, gif, swatchBase64]) expect(JSON.stringify(result.events)).not.toContain(prefix.slice(0, 32))
 })

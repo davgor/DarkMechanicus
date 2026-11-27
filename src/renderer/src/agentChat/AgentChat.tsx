@@ -1,4 +1,5 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
@@ -7,19 +8,29 @@ import type { Scheduler } from '../app/scheduler'
 import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
+import { ChatComposer } from './ChatComposer'
+import { ModelPicker } from './ModelPicker'
+import { ChatImageAttachButton, ChatImageChips } from './ChatImageChips'
+import { ChatEvidenceProvider, useChatEvidence, type ChatEpic, type ChatImageSrc } from './ChatImages'
 import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
-import { useAgentChat } from './useAgentChat'
-import { withoutTodoCalls } from './todoPanelModel'
+import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
+import { ChatImagesContext, useChatImages, type ChatImages } from './useChatImages'
 import '../agents/chatView.css'
 import './agentChat.css'
 import '../agents/chatThreads.css'
 
 interface Props {
   folder: string | null
+  /** The folder's attachment key (`TrackedFolderView.attachmentKey`), the host of the chat's image addresses; null without a folder. */
+  folderKey?: string | null
   chatId: string
   agentLabel: string
+  /** The composer's agent chip: the label with its role or CLI, such as `Magos · Skitarii`; the label alone by default. */
+  agentChip?: string
+  /** The composer's context chip: the epic or folder the chat works in; none by default. */
+  context?: string | null
   api?: AgentChatApi
   scheduler?: Scheduler
   /** `toggle` offers an Agents rail listing this chat's subagents; the epic panel keeps the default `none`. */
@@ -30,6 +41,10 @@ interface Props {
   revealThreadId?: string | null
   /** Called once the requested thread was revealed. */
   onRevealed?(): void
+  /** The epic the chat works in, whose images it may attach as evidence; none outside an epic. */
+  epic?: ChatEpic
+  /** A Skitarii (OMP) chat: the composer offers its model and effort chip. Claude and every other chat has none. */
+  skitarii?: boolean
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -70,14 +85,21 @@ function useChatCommand(): ChatCommand {
 
 const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
-function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed }: Props): JSX.Element {
-  const { state, send, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
+function ChatView({
+  folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
+  epic, skitarii
+}: Props): JSX.Element {
+  const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
+  const transcript = useMailTranscript(folder, chatId, state.items)
+  const images = useChatImages(stageImage)
+  const evidence = useChatEvidence({ folder, chatId, api, items: state.items, epic })
   const command = useChatCommand()
   const agents = useChatRail(chatId)
   const agentsOpen = !agents.state.collapsed
   const { reveal, show } = useThreadReveal(state, revealThreadId, onRevealed)
   const railId = useId()
   const busy = state.status === 'busy'
+  const imageSrc = useCallback<ChatImageSrc>((ref) => chatImageUrl(folderKey, chatId, ref.id), [folderKey, chatId])
   function stop(): void {
     if (busy) void command.run(interrupt)
   }
@@ -92,23 +114,65 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler, rail = 'none', c
       <ChatHeader state={state} agentLabel={agentLabel} acting={command.acting}
         terminal={() => { void command.run(() => setSurface('terminal')) }}
         agents={rail === 'toggle' ? { open: agentsOpen, toggle: () => agents.setCollapsed(agentsOpen), controls: railId } : null} />
-      <div className="agent-chat-body">
+      <ChatImagesContext.Provider value={images}><div className="agent-chat-body">
         <div className="agent-chat-main">
           {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
-          <RevealThreadContext.Provider value={reveal}>
-            <Messages state={state} folder={folder} agentLabel={agentLabel} />
-          </RevealThreadContext.Provider>
+          <RevealThreadContext.Provider value={reveal}><ChatEvidenceProvider value={evidence}>
+            <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
+          </ChatEvidenceProvider></RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
           <PendingPromptCard prompt={state.pending} answer={answer} />
           <TodoCard chatId={chatId} state={state} />
-          <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
-            queued={state.queued} command={command} send={send} stop={stop} />
+          <Composer chatId={chatId} folderKey={folderKey} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state}
+            command={command} images={images} send={send} stop={stop}
+            model={skitarii ? <ModelPicker state={state} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
           <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
         </div>}
-      </div>
+      </div></ChatImagesContext.Provider>
     </section>
+  )
+}
+
+/**
+ * The chat's shared composer: Message the agent while the transcript is empty, Reply to it once there is one. Staged
+ * images go with the text by id and leave the composer only once the send was taken.
+ */
+function Composer({ chatId, folderKey, agentLabel, agentChip, context, state, command, images, send, stop, model }: {
+  chatId: string
+  folderKey: string | null
+  agentLabel: string
+  agentChip: string | undefined
+  context: string | null | undefined
+  state: ChatState
+  command: ChatCommand
+  images: ChatImages
+  send(message: { text: string; imageIds: readonly string[] }): Promise<CommandResult<null>>
+  stop(): void
+  /** The model chip, just left of Send; none for a chat that cannot switch models. */
+  model: JSX.Element | null
+}): JSX.Element {
+  const busy = state.status === 'busy'
+  const disabled = !(state.status === 'idle' || busy)
+  const empty = state.items.length === 0 && state.streaming.size === 0
+  async function sendWithImages(text: string): Promise<boolean> {
+    const imageIds = images.images.map((image) => image.id)
+    const sent = await command.run(() => send({ text, imageIds }))
+    if (sent) images.clear(imageIds)
+    return sent
+  }
+  return (
+    <ChatComposer id={`agent-message-${chatId}`} label={`Message ${agentLabel}`}
+      placeholder={empty ? `Message ${agentLabel}…` : `Reply to ${agentLabel}…`} agent={agentChip ?? agentLabel} context={context ?? null}
+      queued={state.queued} maxLength={20_000} disabled={disabled} acting={command.acting} busy={busy}
+      error={command.error} send={sendWithImages} stop={stop} trailing={model}
+      leading={<ChatImageAttachButton pickerProps={images.pickerProps} disabled={disabled} />}
+      attachments={{
+        chips: <ChatImageChips folderKey={folderKey} chatId={chatId} images={images.images} staging={images.staging} error={images.error}
+          remove={images.remove} />,
+        count: images.images.length, staging: images.staging, intake: images.targetProps
+      }} />
   )
 }
 
@@ -134,8 +198,9 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   )
 }
 
-function Messages({ state, folder, agentLabel }: { state: ChatState; folder: string | null; agentLabel: string }): JSX.Element {
-  const items = useMemo(() => withoutTodoCalls(state.items), [state.items])
+function Messages({ state, transcript, folder, agentLabel, imageSrc }: {
+  state: ChatState; transcript: readonly TranscriptLine[]; folder: string | null; agentLabel: string; imageSrc: ChatImageSrc
+}): JSX.Element {
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -150,57 +215,18 @@ function Messages({ state, folder, agentLabel }: { state: ChatState; folder: str
     observer.observe(content.current)
     observer.observe(viewport.current)
     return () => observer.disconnect()
-  }, [state.items, state.streaming])
+  }, [transcript, state.streaming])
   return (
-    <div className="agent-chat-scroll" ref={viewport} tabIndex={0} aria-label="Chat messages" onScroll={(event) => {
+    <div className="agent-chat-scroll glass-strong" ref={viewport} tabIndex={0} aria-label="Chat messages" onScroll={(event) => {
       const node = event.currentTarget
       pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 32
     }}>
       <div ref={content}>
-        {state.items.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={items} />
+        {state.items.length === 0 && transcript.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>
   )
 }
 
-interface ComposerProps {
-  chatId: string
-  agentLabel: string
-  ready: boolean
-  busy: boolean
-  queued: number
-  command: ChatCommand
-  send: (text: string) => Promise<CommandResult<null>>
-  stop: () => void
-}
-
-function Composer({ chatId, agentLabel, ready, busy, queued, command, send, stop }: ComposerProps): JSX.Element {
-  const [text, setText] = useState('')
-  async function submit(): Promise<void> {
-    if (!ready || !text.trim() || text.length > 20_000) return
-    const sent = text
-    if (await command.run(() => send(sent))) setText((current) => current === sent ? '' : current)
-  }
-  return (
-    <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-      {command.error && <p className="agent-chat-command-error" role="alert">{command.error}</p>}
-      <label className="agent-chat-label" htmlFor={`agent-message-${chatId}`}>Message {agentLabel}</label>
-      <textarea className="input" id={`agent-message-${chatId}`} value={text} maxLength={20_000} rows={3} disabled={!ready}
-        placeholder="Send a message…" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault()
-            void submit()
-          }
-        }} />
-      <div className="agent-chat-actions">
-        <span className="agent-chat-hint">Enter to send · Shift+Enter for a new line</span>
-        {queued > 0 && <span className="chat-chip" aria-label="Queued messages">{queued} queued</span>}
-        {busy
-          ? <button className="btn" type="button" disabled={command.acting} onClick={stop}>Stop</button>
-          : <button className="btn btn-primary" type="submit" disabled={!ready || !text.trim() || command.acting}>Send</button>}
-      </div>
-    </form>
-  )
-}

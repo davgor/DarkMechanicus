@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
 import type { AgentChatSnapshot, AgentTodoPhase } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
+import { FakeChatMail, mailEntry } from '../__mocks__/fakeChatMail'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
+import { AgentMailContext, createAgentMailStore, type AgentMailStore } from '../agents/useAgentMail'
 import { ClockContext, type Clock } from '../epic/clock'
-import { useAgentChat } from './useAgentChat'
+import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
 import { showsTodoCard } from './todoPanelModel'
 
 const ref = { folder: 'C:\\project', chatId: 'chat-one' }
@@ -87,16 +89,24 @@ afterEach(cleanup)
     const view = mount()
     await settle()
     await act(async () => {
-      await view.result.current.send('Steer')
+      await view.result.current.send({ text: 'Steer' })
+      await view.result.current.send({ text: '', imageIds: ['ci_00000000000000000000000000'] })
+      await view.result.current.stageImage('iVBORw0KGgo=')
       await view.result.current.interrupt()
-      await view.result.current.answer('prompt', 'allow_once')
-      await view.result.current.answer('question', 'other', 'Response')
+      await view.result.current.answer({ promptId: 'prompt', optionId: 'allow_once' })
+      await view.result.current.answer({ promptId: 'question', optionId: 'other', text: 'Response' })
+      await view.result.current.answer({ promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' })
       await view.result.current.start()
       await view.result.current.setSurface('terminal')
     })
-    expect(view.api.callsOf('send')).toEqual([[{ ...ref, text: 'Steer' }]])
+    expect(view.api.callsOf('send')).toEqual([[{ ...ref, text: 'Steer' }], [{ ...ref, text: '', imageIds: ['ci_00000000000000000000000000'] }]])
+    expect(view.api.callsOf('stageImage')).toEqual([[{ ...ref, data: 'iVBORw0KGgo=' }]])
     expect(view.api.callsOf('interrupt')).toEqual([[ref]])
-    expect(view.api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'prompt', optionId: 'allow_once' }], [{ ...ref, promptId: 'question', optionId: 'other', text: 'Response' }]])
+    expect(view.api.callsOf('answer')).toEqual([
+      [{ ...ref, promptId: 'prompt', optionId: 'allow_once' }],
+      [{ ...ref, promptId: 'question', optionId: 'other', text: 'Response' }],
+      [{ ...ref, promptId: 'multi', optionIds: ['a', 'text'], text: 'Also this' }]
+    ])
     expect(view.api.callsOf('start')).toEqual([[ref]])
     expect(view.api.callsOf('setSurface')).toEqual([[{ ...ref, surface: 'terminal' }]])
     expect(view.result.current.state.surface).toBe('terminal')
@@ -182,7 +192,7 @@ afterEach(cleanup)
     expect(view.result.current.state.queued).toBe(4)
     expect(api.callsOf('start')).toEqual([])
     expect(api.subscribers()).toBe(1)
-    await view.result.current.send('new')
+    await view.result.current.send({ text: 'new' })
     expect(api.callsOf('send')).toEqual([[{ ...next, text: 'new' }]])
   })
 
@@ -592,4 +602,112 @@ it('restarts an exited chat when a start-capable view rejoins while a read-only 
   expect(reselected.result.current.state.status).toBe('idle')
   expect(reader.result.current.state.status).toBe('idle')
   expect(api.subscribers()).toBe(1)
+})
+
+const T = (second: number): string => `2026-11-26T10:00:0${second}.000Z`
+const items = [
+  { id: 'u1', at: T(0), kind: 'user_message' as const, text: 'Plan the epic' },
+  { id: 'a1', at: T(2), kind: 'assistant_text' as const, text: 'Asked the Magos.' }
+]
+const lexmechanic = { label: 'Lexmechanic', kind: 'callsign' as const }
+const magos = { label: 'Magos', kind: 'callsign' as const }
+const planner = { folder: 'C:\\project', chatId: 'planner-chat' }
+const orchestrator = { folder: 'C:\\project', chatId: 'magos-chat' }
+
+/** A page with the shell's mail store over `mail`, and the Lexmechanic → Magos exchange in both mailboxes. */
+function mailPage(): { mail: FakeChatMail; store: AgentMailStore; wrapper: (props: { children: ReactNode }) => JSX.Element } {
+  const mail = new FakeChatMail()
+  const dm = new FakeDm()
+  dm.chats.mail = mail
+  window.dm = dm
+  mail.put({ ...planner, unseenCount: 1 })
+  mail.put({ ...orchestrator, unseenCount: 1 })
+  mail.setConversation(planner.folder, planner.chatId, [
+    mailEntry({ id: 'ask', direction: 'sent', seq: null, from: lexmechanic, to: magos, acceptedAt: T(1), body: 'Proceed?' }),
+    mailEntry({ id: 'answer', direction: 'received', seq: 1, from: magos, to: lexmechanic, acceptedAt: T(3), body: 'Yes', inReplyTo: 'ask' })
+  ])
+  mail.setConversation(orchestrator.folder, orchestrator.chatId, [
+    mailEntry({ id: 'ask', direction: 'received', seq: 1, from: lexmechanic, to: magos, acceptedAt: T(1), body: 'Proceed?' }),
+    mailEntry({ id: 'answer', direction: 'sent', seq: null, from: magos, to: lexmechanic, acceptedAt: T(3), body: 'Yes', inReplyTo: 'ask' })
+  ])
+  const store = createAgentMailStore(mail)
+  store.track([planner.folder])
+  const wrapper = ({ children }: { children: ReactNode }): JSX.Element => <AgentMailContext.Provider value={store}>{children}</AgentMailContext.Provider>
+  return { mail, store, wrapper }
+}
+
+const shown = (line: TranscriptLine): string => line.kind === 'mail'
+  ? `✉ ${line.mail.from.label} → ${line.mail.to.label}`
+  : line.id
+
+/** What the open chat view (`AgentChat`) uses: the chat's state, and its transcript with mail cards. */
+function useOpenChat(options: Parameters<typeof useAgentChat>[0]) {
+  const chat = useAgentChat(options)
+  return { ...chat, transcript: useMailTranscript(options.folder, options.chatId, chat.state.items) }
+}
+
+describe('Skitarii mail cards in the transcript', () => {
+  it('interleaves each chat’s own received and sent mail with its items by time, storing none of it', async () => {
+    const { mail, wrapper } = mailPage()
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ items }) }
+    const scheduler = new ManualScheduler()
+    const forPlanner = renderHook(() => useOpenChat({ ...planner, api, scheduler }), { wrapper })
+    const forMagos = renderHook(() => useOpenChat({ ...orchestrator, api, scheduler }), { wrapper })
+    await settle()
+
+    expect(forPlanner.result.current.transcript.map(shown)).toEqual(['u1', '✉ Lexmechanic → Magos', 'a1', '✉ Magos → Lexmechanic'])
+    expect(forMagos.result.current.transcript.map(shown)).toEqual(['u1', '✉ Lexmechanic → Magos', 'a1', '✉ Magos → Lexmechanic'])
+    // Only the chat's own mailbox is read, and mail never becomes a chat item or reaches the agent chat bridge.
+    expect(mail.calls.filter((call) => call.method === 'conversation').map((call) => call.args)).toEqual([[planner], [orchestrator]])
+    expect(forPlanner.result.current.state.items).toEqual(items)
+    expect(api.calls.map((call) => call.method).filter((method) => method !== 'snapshot')).toEqual([])
+  })
+
+  it('marks the shown received mail seen once for the person, and reads again on a push without marking it twice', async () => {
+    const { mail, store, wrapper } = mailPage()
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ items }) }
+    const scheduler = new ManualScheduler()
+    renderHook(() => useOpenChat({ ...planner, api, scheduler }), { wrapper })
+    await settle()
+
+    const marks = (): unknown[][] => mail.calls.filter((call) => call.method === 'markSeen').map((call) => call.args)
+    expect(marks()).toEqual([[{ ...planner, throughSeq: 1 }]])
+    expect(store.view(planner.folder, planner.chatId).state).toMatchObject({ humanSeenSeq: 1, unseenCount: 0 })
+    act(() => mail.put({ ...orchestrator, pendingCount: 1 }, true))
+    await settle()
+    expect(mail.calls.filter((call) => call.method === 'conversation')).toHaveLength(2)
+    expect(marks()).toHaveLength(1)
+  })
+
+  it('shows no cards, and marks nothing, for a chat without a mailbox or a page without the mail store', async () => {
+    const { mail, wrapper } = mailPage()
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ items }) }
+    const scheduler = new ManualScheduler()
+    const claude = renderHook(() => useOpenChat({ folder: planner.folder, chatId: 'claude-chat', api, scheduler }), { wrapper })
+    const bare = renderHook(() => useOpenChat({ ...planner, api, scheduler }))
+    await settle()
+    expect(claude.result.current.transcript.map(shown)).toEqual(['u1', 'a1'])
+    expect(bare.result.current.transcript.map(shown)).toEqual(['u1', 'a1'])
+    expect(mail.calls.map((call) => call.method).filter((method) => method !== 'snapshot')).toEqual(['conversation'])
+  })
+})
+
+describe('views that only follow a chat', () => {
+  it('reads no mail and marks nothing seen for a view that only follows the chat (a rail row, a feed, a changes card)', async () => {
+    const { mail, store, wrapper } = mailPage()
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ items }) }
+    const scheduler = new ManualScheduler()
+    const row = renderHook(() => useAgentChat({ ...planner, api, scheduler }, { autoStart: false }), { wrapper })
+    renderHook(() => useAgentChat({ ...orchestrator, api, scheduler }), { wrapper })
+    await settle()
+    act(() => mail.put({ ...orchestrator, pendingCount: 1 }, true))
+    await settle()
+    expect(row.result.current.state.items).toEqual(items)
+    expect(mail.calls.map((call) => call.method).filter((method) => method !== 'snapshot')).toEqual([])
+    expect(store.view(planner.folder, planner.chatId).state).toMatchObject({ humanSeenSeq: 0, unseenCount: 1 })
+  })
 })

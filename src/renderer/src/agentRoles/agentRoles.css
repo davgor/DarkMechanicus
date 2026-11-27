@@ -1,0 +1,177 @@
+/* The agent role picker: a radiogroup of glass role cards (Magos, Lexmechanic), each with its original illustration. */
+
+.arp {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 760px;
+}
+
+@media (max-width: 640px) {
+  .arp {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.arc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 20px 22px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.arc-checked {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring), 0 0 28px var(--glow-crimson), var(--glass-shadow);
+}
+
+.arc:has(.arc-radio:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.arc-disabled {
+  cursor: not-allowed;
+}
+
+.arc-disabled .arc-art,
+.arc-disabled .arc-radio,
+.arc-disabled .arc-facts {
+  opacity: 0.55;
+}
+
+/* At most a subtle hover lift, and none when the person prefers reduced motion (the class is dropped then too). */
+.arc-motion {
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.arc-motion:not(.arc-disabled):hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-motion {
+    transition: none;
+  }
+
+  .arc-motion:not(.arc-disabled):hover {
+    transform: none;
+  }
+}
+
+/* The art reads from 96 to 160 px: full size wherever two cards fit side by side, smaller only in narrow panes. */
+.arc-art {
+  width: 160px;
+  height: 160px;
+}
+
+@media (max-width: 900px) {
+  .arc-art {
+    width: 128px;
+    height: 128px;
+  }
+}
+
+@media (max-width: 640px) {
+  .arc-art {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+.role-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.arc-radio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.arc-name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 28px;
+  color: var(--ink-display);
+}
+
+.arc-role {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.arc-facts {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.arc-facts li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.arc-facts li::before {
+  content: "";
+  position: absolute;
+  top: 0.5em;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+
+.arc-reason {
+  width: 100%;
+  margin: 2px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-hover);
+}
+
+/* Illustration paint: every fill, stroke and gradient stop is a theme token. */
+.role-art .ra-crimson { fill: var(--primary); }
+.role-art .ra-crimson-lit { fill: var(--ring); }
+.role-art .ra-crimson-soft { fill: var(--primary-soft); }
+.role-art .ra-brass { fill: var(--accent); }
+.role-art .ra-brass-glow { fill: var(--accent-hover); }
+.role-art .ra-brass-soft { fill: var(--accent-soft); }
+.role-art .ra-bone { fill: var(--ink-display); }
+.role-art .ra-ink { fill: var(--ink); }
+.role-art .ra-void { fill: var(--code-bg); }
+.role-art .ra-steel { fill: var(--line-strong); }
+.role-art .ra-stroke-crimson { stroke: var(--primary-hover); }
+.role-art .ra-stroke-brass { stroke: var(--accent); }
+.role-art .ra-stroke-brass-hi { stroke: var(--accent-hover); }
+.role-art .ra-stroke-bone { stroke: var(--ink-display); }
+.role-art .ra-stroke-ink { stroke: var(--ink); }
+.role-art .ra-stroke-steel { stroke: var(--line-strong); }
+.role-art .ra-stroke-void { stroke: var(--code-bg); }
+.role-art .ra-stop-crimson { stop-color: var(--primary); }
+.role-art .ra-stop-crimson-lit { stop-color: var(--primary-hover); }
+.role-art .ra-stop-void { stop-color: var(--code-bg); }

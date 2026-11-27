@@ -3,11 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { OMP_CONFIG_OVERLAY, ompFilePaths, ompSessionId, removeOmpFolder, writeOmpFiles } from './ompSession'
+import { OMP_CONFIG_OVERLAY, OMP_MAGOS_OVERLAY, ompFilePaths, ompSessionId, removeOmpFolder, writeOmpFiles } from './ompSession'
 
 const A = '01a19f51-856e-7612-8d38-0de416901104'
 const B = '01a19f99-0000-7000-8000-00000000abcd'
 const CHAT = 'ch_01hzzzzzzzzzzzzzzzzzzzzzzz'
+const WORKER_START = { fresh: false, role: 'worker' } as const
 
 let root: string
 beforeEach(() => {
@@ -53,7 +54,7 @@ describe('writeOmpFiles', () => {
   it("makes the chat session folder and writes its own overlay without changing the user's config", async () => {
     const userConfig = join(root, 'config.yml')
     writeFileSync(userConfig, 'user-owned config\n')
-    const files = await writeOmpFiles(root, CHAT, false)
+    const files = await writeOmpFiles(root, CHAT, WORKER_START)
 
     expect(readdirSync(files.sessionDir)).toEqual([])
     expect(readFileSync(files.config, 'utf8')).toBe(OMP_CONFIG_OVERLAY)
@@ -69,10 +70,21 @@ describe('writeOmpFiles', () => {
     expect(OMP_CONFIG_OVERLAY.endsWith('\n')).toBe(true)
   })
 
+  it("lets only an orchestrator chat's task tool pick each subagent's model (task.perCallModel on)", async () => {
+    const magos = await writeOmpFiles(root, CHAT, { fresh: false, role: 'orchestrator' })
+    expect(readFileSync(magos.config, 'utf8')).toBe(`${OMP_CONFIG_OVERLAY}task:\n  perCallModel: "on"\n`)
+    expect(OMP_MAGOS_OVERLAY).toBe('task:\n  perCallModel: "on"\n')
+    for (const role of ['planner', 'worker', 'reviewer'] as const) {
+      const other = await writeOmpFiles(root, CHAT, { fresh: false, role })
+      expect(readFileSync(other.config, 'utf8'), role).toBe(OMP_CONFIG_OVERLAY)
+      expect(readFileSync(other.config, 'utf8'), role).not.toContain('perCallModel')
+    }
+  })
+
   it('keeps the session folder on an ordinary start', async () => {
     const files = ompFilePaths(root, CHAT)
     session(files.sessionDir, '2026-11-03T02-51-22-350Z', A)
-    await writeOmpFiles(root, CHAT, false)
+    await writeOmpFiles(root, CHAT, WORKER_START)
 
     expect(ompSessionId(files.sessionDir)).toBe(A)
   })
@@ -80,7 +92,7 @@ describe('writeOmpFiles', () => {
   it('moves the old session aside on a fresh start, so it is not resumed', async () => {
     const files = ompFilePaths(root, CHAT)
     session(files.sessionDir, '2026-11-03T02-51-22-350Z', A)
-    await writeOmpFiles(root, CHAT, true, () => 5)
+    await writeOmpFiles(root, CHAT, { fresh: true, role: 'worker' }, () => 5)
 
     expect(ompSessionId(files.sessionDir)).toBeNull()
     expect(ompSessionId(`${files.sessionDir}.old-5`)).toBe(A)
@@ -91,9 +103,9 @@ describe('removeOmpFolder', () => {
   const OTHER = 'ch_01hyyyyyyyyyyyyyyyyyyyyyyy'
 
   it('removes a deleted chat\'s folder, sessions included, and leaves another chat\'s folder untouched', async () => {
-    const doomed = await writeOmpFiles(root, CHAT, false)
+    const doomed = await writeOmpFiles(root, CHAT, WORKER_START)
     session(doomed.sessionDir, '2026-11-03T02-51-22-350Z', A)
-    const kept = await writeOmpFiles(root, OTHER, false)
+    const kept = await writeOmpFiles(root, OTHER, WORKER_START)
     session(kept.sessionDir, '2026-11-04T01-00-00-000Z', B)
 
     await removeOmpFolder(root, CHAT)
@@ -108,7 +120,7 @@ describe('removeOmpFolder', () => {
   })
 
   it('deletes nothing for a name that is not a chat id', async () => {
-    const kept = await writeOmpFiles(root, OTHER, false)
+    const kept = await writeOmpFiles(root, OTHER, WORKER_START)
 
     await expect(removeOmpFolder(root, '../omp')).rejects.toThrow(/not a chat id/)
 

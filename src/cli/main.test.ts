@@ -640,7 +640,7 @@ describe('dm when writing the answer fails', () => {
 /** Mail commands, their camelCase aliases and their input fields. */
 const MAIL = [
   ['get_agent_identity', 'getAgentIdentity', []],
-  ['list_agent_peers', 'listAgentPeers', ['afterId', 'limit']],
+  ['list_agent_peers', 'listAgentPeers', ['afterId', 'epicId', 'limit', 'role']],
   ['send_agent_message', 'sendAgentMessage', ['body', 'clientMessageId', 'inReplyTo', 'to']],
   ['read_agent_inbox', 'readAgentInbox', ['afterSeq', 'limit', 'throughSeq', 'unacknowledgedOnly']],
   ['acknowledge_agent_messages', 'acknowledgeAgentMessages', ['messageIds']],

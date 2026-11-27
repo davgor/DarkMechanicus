@@ -4,20 +4,29 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveClaudeExecutable } from '../src/main/terminals/claudeExecutable'
+import { resolveAgentExecutable } from '../src/main/terminals/agentExecutable'
 import {
   assertHandoffOrder,
   assertToggleLaunches,
   chatLaunches,
   claudeSessionPath,
+  consoleText,
+  coordLaunches,
+  coordMailBody,
+  evidenceComment,
   failureScreenshotName,
   fakeAgentLog,
   fakeAgentPids,
+  fakeControls,
+  imageEchoLine,
   isAlive,
   isolatedEnv,
+  launchModelFlags,
+  newChatLaunch,
   newerVersion,
   parseArgs,
   pngSize,
+  refusedImages,
   removeStaleRoots,
   replyAfter,
   restartChat,
@@ -25,7 +34,12 @@ import {
   restartResumeText,
   restartTurn,
   runStep,
+  seededAgents,
+  sha12,
   staleRoots,
+  stepPhases,
+  switchControls,
+  transcriptImageRefs,
   turnEnded,
   verdict,
   waitFor,
@@ -155,7 +169,7 @@ describe('writeShim', () => {
     expect(shim).toBe(join(directory, 'fake-claude.cmd'))
     const text = readFileSync(shim, 'utf8')
     expect(text).toBe('@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-claude.js" %*\r\n')
-    expect(resolveClaudeExecutable(shim, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
+    expect(resolveAgentExecutable(shim, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
     expect(readFileSync(join(directory, 'fake-claude.js'), 'utf8'))
       .toBe(`import(require('node:url').pathToFileURL(${JSON.stringify(FIXTURE)}).href)\n`)
   })
@@ -189,6 +203,81 @@ describe('writeShim', () => {
     const result = spawnSync(shim, ['auth', 'status'], { env, encoding: 'utf8' })
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('{"loggedIn":true}')
+  })
+})
+
+describe('writeShim: fake-omp', () => {
+  it('writes a fake-omp .cmd and .js beside fake-claude; the .js names the OMP persona before loading the fake', () => {
+    const directory = temp()
+    const claude = writeShim(directory, FIXTURE, 'win32')
+    const omp = writeShim(directory, FIXTURE, 'win32', 'omp')
+    expect(omp).toBe(join(directory, 'fake-omp.cmd'))
+    expect(readFileSync(omp, 'utf8')).toBe('@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-omp.js" %*\r\n')
+    expect(resolveAgentExecutable(omp, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-omp.js'))
+    expect(readFileSync(join(directory, 'fake-omp.js'), 'utf8'))
+      .toBe(`process.env.FAKE_AGENT_PERSONA = 'omp'\nimport(require('node:url').pathToFileURL(${JSON.stringify(FIXTURE)}).href)\n`)
+    expect(resolveAgentExecutable(claude, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
+  })
+
+  it('writes an executable fake-omp sh shim that exports the OMP persona on POSIX', () => {
+    const directory = temp()
+    const shim = writeShim(directory, '/repo/fakeAgentCli.mjs', 'darwin', 'omp')
+    expect(shim).toBe(join(directory, 'fake-omp'))
+    expect(readFileSync(shim, 'utf8')).toBe(`#!/bin/sh\nexport FAKE_AGENT_PERSONA=omp\nexec node '/repo/fakeAgentCli.mjs' "$@"\n`)
+  })
+
+  /** Runs a seeded shim as the app's probes do: through cmd.exe on Windows, directly on POSIX. */
+  const runShim = (shim, args) => {
+    const env = { ...process.env }
+    delete env.FAKE_AGENT_SIGNED_OUT
+    delete env.FAKE_AGENT_LOG
+    delete env.FAKE_AGENT_PERSONA
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH'
+    env[pathKey] = [dirname(process.execPath), env[pathKey]].filter(Boolean).join(delimiter)
+    return process.platform === 'win32'
+      ? spawnSync('cmd.exe', ['/d', '/s', '/c', `"${shim}" ${args.join(' ')}`], { env, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true })
+      : spawnSync(shim, args, { env, encoding: 'utf8' })
+  }
+
+  it('seeds both shims in one folder, each answering version and sign-in as its own CLI', () => {
+    const directory = temp()
+    const claude = writeShim(directory, FIXTURE, process.platform)
+    const omp = writeShim(directory, FIXTURE, process.platform, 'omp')
+    const results = [[claude, ['--version']], [claude, ['auth', 'status']], [omp, ['--version']], [omp, ['usage', '--json']]].map(([shim, args]) => runShim(shim, args))
+    for (const result of results) expect(result.status, result.stderr).toBe(0)
+    expect(results.map((result) => result.stdout.trim())).toEqual([
+      '2.1.329 (Claude Code)',
+      '{"loggedIn":true}',
+      'omp/18.16.0',
+      '{"reports":[{"provider":"fixture","accounts":1}],"accountsWithoutUsage":[],"disabledCredentials":[]}'
+    ])
+  })
+})
+
+describe('seededAgents', () => {
+  const shims = { claude: 'C:\\run\\shim\\fake-claude.cmd', omp: 'C:\\run\\shim\\fake-omp.cmd' }
+
+  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp', () => {
+    expect(seededAgents(shims, 'claude')).toEqual([{ kind: 'claude', executablePath: shims.claude, version: '2.1.329' }])
+    expect(seededAgents(shims, 'omp')).toEqual([
+      { kind: 'claude', executablePath: shims.claude, version: '2.1.329' },
+      { kind: 'omp', executablePath: shims.omp, version: '18.16.0' }
+    ])
+  })
+})
+
+describe('newChatLaunch', () => {
+  const entry = (mode, persona, pid) => JSON.stringify({ mode, persona, pid, at: pid, argv: [`--${mode}`], cwd: 'C:\\repo' })
+
+  it('finds the one GUI launch whose mode and persona are the selected kind', () => {
+    const log = [entry('version', 'omp', 1), entry('auth', 'omp', 2), entry('claude', 'claude', 3), entry('omp', 'omp', 4)].join('\n')
+    expect(newChatLaunch(log, 'omp')).toEqual({ mode: 'omp', persona: 'omp', pid: 4, cwd: 'C:\\repo', argv: ['--omp'] })
+    expect(newChatLaunch(log, 'claude')).toMatchObject({ mode: 'claude', persona: 'claude', pid: 3 })
+  })
+
+  it('refuses none or more than one', () => {
+    expect(() => newChatLaunch(entry('claude', 'claude', 3), 'omp')).toThrow('Expected one omp GUI launch; the log has 0.')
+    expect(() => newChatLaunch([entry('omp', 'omp', 4), entry('omp', 'omp', 5)].join('\n'), 'omp')).toThrow('the log has 2')
   })
 })
 
@@ -361,6 +450,51 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x', '--exe', 'app/DarkMechanicus.exe'])).toMatchObject({ exe: resolve('app/DarkMechanicus.exe'), out: resolve('x') })
     expect(() => parseArgs(['--out', 'x', '--exe'])).toThrow('--exe needs the path')
   })
+
+  it('selects the fixture chats\' agent kind: claude by default, omp only for the steps the omp fake runs', () => {
+    expect(parseArgs(['--out', 'x']).agent).toBe('claude')
+    expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
+    expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
+    expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
+  })
+
+  it('runs the polish steps only when named, in the order given, after ready; claude only', () => {
+    const polish = ['polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack']
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('polish-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--steps', polish.join(',')]).keys).toEqual(['ready', ...polish])
+    expect(parseArgs(['--out', 'x', '--steps', `ready,${polish[0]}`]).keys).toEqual(['ready', polish[0]])
+    expect(parseArgs(['--out', 'x', '--steps', 'quit']).keys).toEqual(['ready', 'quit'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'polish-picker'])).toThrow('polish-picker drive the claude fake.')
+  })
+})
+
+describe('polish verdict', () => {
+  it('names one verdict step per polish step, each {name, ok, ms, detail}, run once under the deadline', async () => {
+    const keys = parseArgs(['--out', 'x', '--steps', 'polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack']).keys
+    const phases = stepPhases(keys)
+    expect(phases.map((phase) => phase.name)).toEqual([
+      'app ready', 'polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack'
+    ])
+    const runs = []
+    const steps = []
+    for (const phase of phases) {
+      steps.push(await runStep(phase.name, async () => { runs.push(phase.name); return { screenshot: { file: `e2e-${phase.name}.png` } } }))
+    }
+    const result = JSON.parse(JSON.stringify(verdict(steps)))
+    expect(runs).toEqual(phases.map((phase) => phase.name))
+    expect(result.ok).toBe(true)
+    for (const step of result.steps) {
+      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail'])
+      expect(step.ms).toBeLessThan(10_000)
+    }
+  })
+
+  it('keeps every classic step\'s phases, restart-resume\'s seven included', () => {
+    expect(stepPhases(['restart-resume']).map((phase) => phase.name)).toHaveLength(7)
+    expect(stepPhases(['ready', 'quit']).map((phase) => phase.name)).toEqual(['app ready', 'quit'])
+  })
 })
 
 describe('isAlive', () => {
@@ -499,5 +633,137 @@ describe('restart-resume seeding', () => {
     expect(restartTurn([user('1', text), reply('2', 'Hello world'), user('3', text), reply('4', 'Hello world')], text, 'Hello world'))
       .toEqual({ ok: false, messages: 2, reply: 'Hello world' })
     expect(restartTurn([user('1', 'hello'), reply('2', 'Hello world')], text, 'Hello world').messages).toBe(0)
+  })
+})
+
+describe('image steps', () => {
+  const swatch = readFileSync(resolve('src', 'main', 'agentChat', '__fixtures__', 'images', 'swatch.png'))
+
+  it('run only when named, after ready, each its own verdict step', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('image-'))).toEqual([])
+    const keys = parseArgs(['--out', 'x', '--steps', 'image-send,image-result']).keys
+    expect(keys).toEqual(['ready', 'image-send', 'image-result'])
+    expect(stepPhases(keys).map((phase) => phase.name)).toEqual(['app ready', 'image-send', 'image-result'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'image-send'])).toThrow('image-send drive the claude fake.')
+  })
+
+  it('names swatch.png by mime, size and the first 12 hex digits of its sha256, as the fake echoes it', () => {
+    expect(sha12(swatch)).toBe('6f7ffeeb8892')
+    expect(sha12(Buffer.from('abc'))).toBe('ba7816bf8f01')
+    expect(imageEchoLine('image/png', swatch)).toBe('received image image/png 132 6f7ffeeb8892')
+  })
+
+  it('reads a transcript file\'s last user message line and searches the whole file, CRLF included', () => {
+    const needle = swatch.toString('base64').slice(0, 32)
+    const ref = { id: 'img-1', mime: 'image/png', width: 64, height: 64, bytes: 132 }
+    const lines = [
+      { id: 'u1', kind: 'user_message', text: 'look' },
+      { id: 'a1', kind: 'assistant_text', text: 'received image' },
+      { id: 'u1', kind: 'user_message', text: 'look', images: [ref] }
+    ].map((item) => JSON.stringify(item))
+    expect(transcriptImageRefs(`${lines.join('\r\n')}\r\n`, 'look', needle)).toEqual({ found: true, images: [ref], needleFound: false })
+    expect(transcriptImageRefs(`${lines[0]}\n`, 'look', needle)).toEqual({ found: true, images: [], needleFound: false })
+    expect(transcriptImageRefs(`${lines.join('\n')}\n${JSON.stringify({ id: 't1', kind: 'tool_call', output: needle })}\n`, 'look', needle).needleFound).toBe(true)
+    expect(transcriptImageRefs('', 'look', needle)).toEqual({ found: false, images: [], needleFound: false })
+  })
+
+  it('accepts exactly one comment with exactly one attachment of the expected sha256', () => {
+    const attachment = (sha256) => ({ id: 'at-1', sha256, mime: 'image/png', bytes: 132, width: 64, height: 64, label: 'Chat image', purpose: 'evidence' })
+    const comment = (attachments) => ({ id: 'c-1', epicId: 'e', ticketId: null, body: 'Evidence', author: { role: 'desktop', label: 'x' }, createdAt: 't', attachments })
+    expect(evidenceComment([comment([attachment('aa')])], 'aa')).toEqual({
+      ok: true, comments: [{ id: 'c-1', ticketId: null, body: 'Evidence', attachments: [{ id: 'at-1', sha256: 'aa', mime: 'image/png', bytes: 132, purpose: 'evidence' }] }]
+    })
+    expect(evidenceComment([comment([attachment('bb')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([comment([attachment('aa'), attachment('aa')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([comment([attachment('aa')]), comment([attachment('aa')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([{ ...comment([]), attachments: undefined }], 'aa').ok).toBe(false)
+    expect(evidenceComment([], 'aa').ok).toBe(false)
+  })
+
+  it('collects console and log text and finds image refusals', () => {
+    const refusal = 'Refused to load the image \'dm-chat-image://k/c/i\' because it violates the following Content Security Policy directive: "img-src \'self\'".'
+    expect(consoleText({ method: 'Log.entryAdded', params: { entry: { source: 'security', level: 'error', text: refusal } } })).toBe(refusal)
+    expect(consoleText({ method: 'Runtime.consoleAPICalled', params: { type: 'log', args: [{ type: 'string', value: 'a' }, { type: 'number', value: 2 }, { type: 'object', description: 'Object' }] } }))
+      .toBe('a 2 Object')
+    expect(consoleText({ method: 'Page.loadEventFired', params: {} })).toBeNull()
+    const blocked = 'Loading the image \'dm-chat-image://k/c/i\' violates the following Content Security Policy directive: "img-src \'self\' data: dm-attachment:". The action has been blocked.'
+    expect(refusedImages(['fine', refusal, blocked, 'Loading the image editor'])).toEqual([refusal, blocked])
+  })
+})
+
+describe('coord steps', () => {
+  const coord = ['coord-tabs', 'coord-mail', 'coord-wake', 'coord-close']
+
+  it('run only when named, after ready, each its own verdict step, with the omp fake', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('coord-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp']).keys.filter((key) => key.startsWith('coord-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', coord.join(',')])
+    expect(parsed).toMatchObject({ agent: 'omp', keys: ['ready', ...coord] })
+    expect(stepPhases(parsed.keys).map((phase) => phase.name)).toEqual(['app ready', ...coord])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'coord-tabs,coord-mail'])).toMatchObject({ agent: 'omp', keys: ['ready', 'coord-tabs', 'coord-mail'] })
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'coord-tabs'])).toThrow('coord-tabs drive the omp fake: leave out --agent claude.')
+    expect(() => parseArgs(['--out', 'x', '--steps', 'coord-tabs,stream'])).toThrow('stream drive the claude fake.')
+  })
+
+  it('find a chat\'s launches by the chat id its OMP session folder names, telling GUI from terminal (PTY) ones', () => {
+    const entry = (mode, pid, argv) => JSON.stringify({ mode, persona: 'omp', pid, at: pid, argv })
+    const dir = (chatId) => `C:\\u\\agents\\omp\\${chatId}\\sessions`
+    const log = [
+      entry('omp', 1, ['--mode', 'rpc-ui', '--session-dir', dir('chat_lex')]),
+      entry('version', 2, ['--version']),
+      entry('omp', 3, ['--mode', 'rpc-ui', '--session-dir', dir('chat_magos')]),
+      entry('tui', 4, ['--session-dir', dir('chat_lex'), '--resume', 's']),
+      entry('omp', 5, ['--mode', 'rpc-ui', '--session-dir', dir('chat_lex'), '--resume', 's'])
+    ].join('\n')
+    expect(coordLaunches(log, 'chat_lex')).toEqual([
+      { mode: 'omp', surface: 'gui', pid: 1, at: 1 }, { mode: 'tui', surface: 'terminal', pid: 4, at: 4 }, { mode: 'omp', surface: 'gui', pid: 5, at: 5 }
+    ])
+    expect(coordLaunches(log, 'chat_magos').map((launch) => launch.pid)).toEqual([3])
+    expect(coordLaunches(log, 'chat_none')).toEqual([])
+  })
+
+  it('expect the body the fake mails a role with', () => {
+    expect(coordMailBody('orchestrator')).toBe('Fake coordination mail for the orchestrator.')
+    expect(coordMailBody('planner')).toBe('Fake coordination mail for the planner.')
+  })
+})
+
+describe('model steps', () => {
+  const model = ['model-pick', 'model-busy', 'model-restart']
+
+  it('run only when named, after ready, with the omp fake; model-restart runs as its quit, launch and resumed phases', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('model-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp']).keys.filter((key) => key.startsWith('model-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', model.join(',')])
+    expect(parsed).toMatchObject({ agent: 'omp', keys: ['ready', ...model] })
+    expect(stepPhases(parsed.keys).map((phase) => phase.name)).toEqual([
+      'app ready', 'model-pick', 'model-busy', 'model-restart quit', 'model-restart launch', 'model-restart resumed'
+    ])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'model-pick'])).toThrow('model-pick drive the omp fake: leave out --agent claude.')
+    expect(() => parseArgs(['--out', 'x', '--steps', 'model-pick,stream'])).toThrow('stream drive the claude fake.')
+  })
+
+  it('read the controls one fake run logged since a time, in order', () => {
+    const log = [
+      { pid: 7, at: 10, type: 'set_model', provider: 'anthropic', modelId: 'claude-opus-5-5', busy: false },
+      { pid: 8, at: 20, type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol', busy: false },
+      { pid: 7, at: 30, type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol', busy: true },
+      { pid: 7, at: 31, type: 'set_thinking_level', level: 'medium', busy: true }
+    ].map((entry) => JSON.stringify(entry)).join('\r\n')
+    expect(fakeControls(log, 7).map((entry) => entry.at)).toEqual([10, 30, 31])
+    expect(fakeControls(`${log}\n`, 7, 30).map((entry) => entry.type)).toEqual(['set_model', 'set_thinking_level'])
+    expect(fakeControls('', 7)).toEqual([])
+  })
+
+  it('expect one switch as set_model then set_thinking_level', () => {
+    expect(switchControls('openai-codex/gpt-6.1-sol', 'medium')).toEqual([
+      { type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.1-sol' }, { type: 'set_thinking_level', level: 'medium' }
+    ])
+  })
+
+  it('read a launch\'s --model and --thinking', () => {
+    expect(launchModelFlags(['--mode', 'rpc-ui', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high'])).toEqual({ model: 'anthropic/claude-sonnet-5-5', thinking: 'high' })
+    expect(launchModelFlags(['--mode', 'rpc-ui'])).toEqual({ model: null, thinking: null })
+    expect(launchModelFlags(['--model'])).toEqual({ model: null, thinking: null })
   })
 })

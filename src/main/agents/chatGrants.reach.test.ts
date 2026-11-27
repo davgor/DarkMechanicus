@@ -177,7 +177,7 @@ describe('chat grants: Forge World mail ownership', () => {
         identities.push(identity.endpointId)
         await peer.sendAgentMessage({ to: identity.endpointId, clientMessageId: 'reply', body: target.folder })
         expect((await world.readAgentInbox({})).messages.map(message => message.body)).toEqual([target.folder])
-        expect((await peer.listAgentPeers({})).peers).toContainEqual({ endpointId: identity.endpointId, name: 'World coordinator' })
+        expect((await peer.listAgentPeers({})).peers).toContainEqual(expect.objectContaining({ endpointId: identity.endpointId, name: 'World coordinator' }))
       } finally { world.close(); peer.close() }
     }
     await Promise.all(issued.grantIds.map(id => state.grants.revokeChatGrant(id)))

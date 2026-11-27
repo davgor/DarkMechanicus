@@ -2,6 +2,12 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  background: var(--agent-backdrop);
+}
+
+/* One backdrop for the whole stage: the chat inside lets it show through rather than painting its own. */
+.eap .agent-chat {
+  background: transparent;
 }
 
 .eap-centre {
@@ -24,6 +30,19 @@
 .eap-empty .ew-empty,
 .eap-terminal .ew-empty {
   margin: 0;
+}
+
+/* The epic's role cards: as wide as the picker allows; a dialog holding them widens to fit both side by side. */
+.eap-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.dialog:has(.eap-picker) {
+  width: min(816px, 100%);
 }
 
 .eap-terminal h2 {

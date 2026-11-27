@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { AgentChatAnswer, AgentChatApi, AgentChatEvent, AgentChatModelChoice, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import type { ChatItem } from '../../../shared/agents/chat'
+import type { ChatMailEntry } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
+import { AgentMailContext } from '../agents/useAgentMail'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
 import { useClock, type Clock } from '../epic/clock'
 import { agentChatState, reconcileAgentChatLifecycle, reduceAgentChat, type AgentChatState } from './agentChatModel'
+import { withoutTodoCalls } from './todoPanelModel'
 
 type SnapshotCall = () => Promise<CommandResult<AgentChatSnapshot>>
 interface Options {
@@ -154,6 +158,100 @@ function sharedSubscription(api: AgentChatApi, identity: ChatRef, config: Config
   return created
 }
 
+/** A mail card's place in the transcript stream. It is never a `ChatItem`, so nothing stores it in the chat's jsonl. */
+export interface MailLine {
+  kind: 'mail'
+  id: string
+  at: string
+  mail: ChatMailEntry
+}
+
+export type TranscriptLine = ChatItem | MailLine
+
+/**
+ * The chat's items in stored order with each mail card placed before the first top-level item stored after it was
+ * accepted; a subagent's items stay with their thread, and cards accepted after everything come last.
+ */
+function withMail(items: readonly ChatItem[], mail: readonly ChatMailEntry[]): TranscriptLine[] {
+  const out: TranscriptLine[] = []
+  let next = 0
+  // A null after the last item flushes the cards accepted after everything.
+  for (const item of [...items, null]) {
+    if (item === null || item.threadId === undefined) {
+      for (; next < mail.length && (item === null || mail[next].acceptedAt < item.at); next++) {
+        out.push({ kind: 'mail', id: `mail:${mail[next].id}`, at: mail[next].acceptedAt, mail: mail[next] })
+      }
+    }
+    if (item !== null) out.push(item)
+  }
+  return out
+}
+
+const NO_MAIL: readonly ChatMailEntry[] = []
+
+/**
+ * The chat's received and sent Skitarii mail, on a page with the shell's mail store; none for a chat without a
+ * mailbox (Claude) or a project-less one. Read again on every mail push of the folder (a peer's mailbox changes when
+ * this chat sends). Showing received cards moves the person's seen cursor once per newly shown message; it never
+ * acknowledges for the agent.
+ */
+function useChatMailEntries(folder: string | null, chatId: string): readonly ChatMailEntry[] {
+  const store = useContext(AgentMailContext)
+  const [mail, setMail] = useState<{ key: string; entries: readonly ChatMailEntry[] }>({ key: '', entries: NO_MAIL })
+  const key = JSON.stringify([folder, chatId])
+  useEffect(() => {
+    if (store === null || folder === null) return undefined
+    const api = window.dm.chats.mail
+    let alive = true
+    let reading = false
+    let again = false
+    let asked = 0
+    const markSeen = (entries: readonly ChatMailEntry[]): void => {
+      const shown = entries.reduce((highest, entry) => Math.max(highest, entry.seq ?? 0), 0)
+      if (shown <= Math.max(asked, store.view(folder, chatId).state?.humanSeenSeq ?? 0)) return
+      asked = shown
+      void api.markSeen({ folder, chatId, throughSeq: shown }).then((result) => {
+        if (alive && result.ok) store.apply(result.data)
+      }, () => undefined)
+    }
+    const read = async (): Promise<void> => {
+      if (reading) {
+        again = true
+        return
+      }
+      reading = true
+      do {
+        again = false
+        const result = await api.conversation({ folder, chatId }).catch(() => null)
+        if (!alive) return
+        const entries = result?.ok === true ? result.data.entries : NO_MAIL
+        setMail({ key, entries })
+        markSeen(entries)
+      } while (again)
+      reading = false
+    }
+    const stop = api.onEvent((event) => {
+      if ((event.type === 'mail_state' ? event.state.folder : event.folder) === folder) void read()
+    })
+    void read()
+    return () => {
+      alive = false
+      stop()
+    }
+  }, [store, folder, chatId, key])
+  return mail.key === key ? mail.entries : NO_MAIL
+}
+
+/**
+ * The open chat's transcript stream: its items without to-do calls, with its mail cards placed by time. Only the
+ * chat's own open view (`AgentChat`) calls this, so opening the transcript is what reads mail and marks it seen;
+ * rail rows, feeds and cards that only follow the chat through `useAgentChat` never read or mark mail.
+ */
+export function useMailTranscript(folder: string | null, chatId: string, items: ChatItem[]): readonly TranscriptLine[] {
+  const mail = useChatMailEntries(folder, chatId)
+  return useMemo(() => withMail(withoutTodoCalls(items), mail), [items, mail])
+}
+
 /**
  * Subscribe before reading; replay pushes over each in-flight snapshot in arrival order. Every view of one chat shares
  * one push subscription. With `autoStart: false` the hook only reads: a stopped chat stays stopped, so a second view of
@@ -184,12 +282,19 @@ export function useAgentChat(
     return joined?.identity === identity ? joined.subscription.load(call, preserveOnRefusal) : call()
   }, [identity])
   const start = useCallback(() => load(() => api.start(identity)), [api, identity, load])
-  const send = useCallback((text: string) => api.send({ ...identity, text }), [api, identity])
+  const send = useCallback(({ text, imageIds = [] }: { text: string; imageIds?: readonly string[] }) =>
+    api.send({ ...identity, text, ...(imageIds.length === 0 ? {} : { imageIds: [...imageIds] }) }), [api, identity])
+  const stageImage = useCallback((data: string) => api.stageImage({ ...identity, data }), [api, identity])
   const interrupt = useCallback(() => api.interrupt(identity), [api, identity])
-  const answer = useCallback((promptId: string, optionId: string, text?: string) =>
-    api.answer({ ...identity, promptId, optionId, ...(text === undefined ? {} : { text }) }), [api, identity])
+  const answer = useCallback((request: AgentChatAnswer) => api.answer({ ...identity, ...request }), [api, identity])
   const setSurface = useCallback((surface: AgentChatSnapshot['surface']) =>
     load(() => api.setSurface({ ...identity, surface }), true), [api, identity, load])
+  const models = useCallback(() => api.models(identity), [api, identity])
+  // A refused switch keeps the chat as it was; its snapshot carries the switched model and effort into every view.
+  const setModel = useCallback((choice: AgentChatModelChoice) =>
+    load(() => api.setModel({ ...identity, ...choice }), true), [api, identity, load])
 
-  return { state: view.identity === identity ? view.state : agentChatState(), start, send, interrupt, answer, setSurface }
+  return {
+    state: view.identity === identity ? view.state : agentChatState(), start, send, stageImage, interrupt, answer, setSurface, models, setModel
+  }
 }

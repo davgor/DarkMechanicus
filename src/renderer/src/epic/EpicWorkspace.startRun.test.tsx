@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { chatModelOptions } from '../../../shared/agents/models'
+import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
 import { FakeChats } from '../__mocks__/fakeChats'
 import { chatRecord } from '../__mocks__/fixtures'
 import { installDomShims } from './__mocks__/domShims'
@@ -140,6 +142,25 @@ describe('Start run: run with an agent', () => {
       runId: 'rn_2'
     })
     expect(chats.callsOf('create')).toEqual([])
+  })
+
+  it('sends a Skitarii Magos\'s catalog model and effort with the start request', async () => {
+    const { backend, chats } = idleBackend()
+    backend.agentChat.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    const { agent, status } = readyAgent('omp')
+    renderWorkspace(backend, { orchestration: fakeOrchestration({ agents: [agent], statuses: { omp: status } }) })
+
+    const dialog = await openDialog()
+    fireEvent.click(await dialog.findByRole('button', { name: 'Model: Default' }))
+    const menu = within(dialog.getByRole('menu', { name: 'Model and effort' }))
+    fireEvent.click(menu.getAllByRole('menuitemradio').find((entry) => entry.querySelector('.model-picker-name')?.textContent === 'GPT-6 Astra')!)
+    fireEvent.click(within(menu.getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'High' }))
+    await waitFor(() => expect(dialog.getByRole('button', { name: 'Model: GPT-6 Astra · High' })).toBeTruthy())
+    fireEvent.click(dialog.getByRole('button', { name: 'Run with agent' }))
+
+    await waitFor(() => expect(chats.callsOf('startOrchestrator')).toEqual([[
+      { folder: FOLDER, epicId: 'ep_1', agent: 'omp', model: 'openai-codex/gpt-6-astra', thinking: 'high' }
+    ]]))
   })
 })
 

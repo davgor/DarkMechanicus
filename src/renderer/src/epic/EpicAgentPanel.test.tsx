@@ -1,17 +1,25 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { AgentChatSnapshot, AgentTodoPhase, AgentTodoTask, AttentionItem } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeChats } from '../__mocks__/fakeChats'
+import { FakeChatMail, mailEntry } from '../__mocks__/fakeChatMail'
+import { createAgentMailStore } from '../agents/useAgentMail'
 import { installDomShims } from './__mocks__/domShims'
-import { FakeBackend } from './__mocks__/fakeBackend'
-import { fakeOrchestration } from './__mocks__/fakeOrchestration'
-import { folder, runView } from './__mocks__/fixtures'
+import { chatModelOptions } from '../../../shared/agents/models'
+import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
+import { FakeBackend, scenario } from './__mocks__/fakeBackend'
+import { fakeOrchestration, readyAgent } from './__mocks__/fakeOrchestration'
+import { epicDetail, folder, runView, transferView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
+import { AgentPickerDialog } from './AgentPickerDialog'
+import { relayMessage } from './epicAgentsView'
 import { allowSlowRendering } from './__mocks__/testTiming'
+import type { WorkspaceHandle } from './useWorkspace'
+import type { WorkspaceData } from './workspaceState'
 
 allowSlowRendering()
 
@@ -67,11 +75,11 @@ describe('EpicAgentPanel: chat and tree', () => {
     openAgent(backendWith(), [orchestrator])
     const stage = await agentStage()
     const chat = within(stage).getByRole('region', { name: 'Magos chat' })
-    expect(await within(chat).findByText('Starting the sprint now')).toBeTruthy()
+    fireEvent.click(await within(chat).findByRole('button', { name: /^Worked for/ })) // the idle chat's ended turn is folded
+    expect(within(chat).getByText('Starting the sprint now')).toBeTruthy()
     const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
     expect(chat.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    const magos = await within(rail).findByRole('treeitem', { name: 'Magos' })
-    expect(magos.getAttribute('aria-selected')).toBe('true')
+    expect((await within(rail).findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
     expect(within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })).toBeTruthy()
   })
 
@@ -84,7 +92,14 @@ describe('EpicAgentPanel: chat and tree', () => {
     const view = within(stage).getByRole('region', { name: 'Acolyte:DM-201 thread' })
     expect(within(view).getByText('Worker is editing files')).toBeTruthy()
     expect(within(view).queryByText('Starting the sprint now')).toBeNull()
-    expect(within(view).getByText('Your message goes through Magos, which passes it to this worker.')).toBeTruthy()
+    const relay = within(view).getByRole('textbox', { name: 'Message Acolyte:DM-201' })
+    expect(relay.getAttribute('placeholder')).toBe('Message Acolyte:DM-201 (through Magos)…')
+    expect(document.getElementById(relay.getAttribute('aria-describedby') ?? '')?.textContent)
+      .toBe('Your message goes through Magos, which passes it to this worker. Enter to send · Shift+Enter for a new line')
+    expect(relay.getAttribute('maxlength')).toBe('18000')
+    expect(within(view).getByLabelText('Agent: Acolyte:DM-201')).toBeTruthy()
+    expect(within(view).getByLabelText('Context: Planning vertical slice')).toBeTruthy()
+    expect(within(view).queryByText(/which passes it to this worker/, { selector: ':not(.sr-only)' })).toBeNull()
   })
 
   it('relays to the owning chat with the exact marker and never the label', async () => {
@@ -92,7 +107,8 @@ describe('EpicAgentPanel: chat and tree', () => {
     openAgent(backend, [orchestrator])
     const stage = await agentStage()
     fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
-    fireEvent.change(within(stage).getByLabelText('Message Acolyte:DM-201'), { target: { value: 'Please rebase first' } })
+    const relay = within(stage).getByLabelText('Message Acolyte:DM-201')
+    fireEvent.change(relay, { target: { value: 'Please rebase first' } })
     fireEvent.click(within(stage).getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(backend.agentChat.callsOf('send')).toHaveLength(1))
     const [[request]] = backend.agentChat.callsOf('send') as [[{ folder: string; chatId: string; text: string }]]
@@ -103,6 +119,32 @@ describe('EpicAgentPanel: chat and tree', () => {
     })
     expect(request.text).not.toContain('Fix ]')
     expect(request.text).not.toContain(LABEL)
+    await waitFor(() => expect(relay).toHaveProperty('value', ''))
+  })
+})
+
+describe('EpicAgentPanel: shared composer', () => {
+  it('sends Enter from the relay composer as relayMessage(threadId, text) to the owning GUI chat', async () => {
+    const backend = backendWith()
+    openAgent(backend, [orchestrator])
+    const stage = await agentStage()
+    fireEvent.click(within(await within(stage).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
+    const relay = within(stage).getByRole('textbox', { name: 'Message Acolyte:DM-201' })
+    fireEvent.change(relay, { target: { value: 'check the tests' } })
+    fireEvent.keyDown(relay, { key: 'Enter' })
+    await waitFor(() => expect(backend.agentChat.callsOf('send')).toHaveLength(1))
+    expect(backend.agentChat.callsOf('send')).toEqual([[{ folder: FOLDER, chatId: 'chat_orch', text: relayMessage('th_1', 'check the tests') }]])
+  })
+
+  it('mounts the shared composer for the epic chat with the agent and epic chips', async () => {
+    openAgent(backendWith(), [orchestrator])
+    const stage = await agentStage()
+    const chat = within(stage).getByRole('region', { name: 'Magos chat' })
+    await within(chat).findByRole('button', { name: /^Worked for/ })
+    const input = within(chat).getByRole('textbox', { name: 'Message Magos' })
+    expect(input.getAttribute('placeholder')).toBe('Reply to Magos…')
+    expect(within(chat).getByLabelText(/^Agent: Magos · \S/)).toBeTruthy()
+    expect(within(chat).getByLabelText('Context: Planning vertical slice')).toBeTruthy()
   })
 })
 
@@ -172,7 +214,7 @@ describe('EpicAgentPanel: selection across views', () => {
   })
 })
 
-describe('EpicAgentPanel: rail memory and empty epic', () => {
+describe('EpicAgentPanel: rail memory', () => {
   it('remembers a collapsed rail for the same epic but not for another epic', async () => {
     const chats = [orchestrator, { ...orchestrator, id: 'chat_other', epicId: 'ep_2', runId: undefined }]
     const first = openAgent(backendWith(), chats)
@@ -186,24 +228,170 @@ describe('EpicAgentPanel: rail memory and empty epic', () => {
     openAgent(backendWith([]), chats, 'ep_2')
     expect(within(await agentStage()).getByRole('button', { name: 'Collapse Epic agents' })).toBeTruthy()
   })
+})
 
-  it('offers Start planner with no agents and starts it with the epic id', async () => {
-    const backend = backendWith()
-    const { orchestration } = openAgent(backend, [])
+const roleCard = (scope: HTMLElement, name: 'Magos' | 'Lexmechanic'): HTMLElement =>
+  within(scope).getByRole('radio', { name }).closest<HTMLElement>('.arc')!
+
+function noRunBackend(patch: Parameters<typeof scenario>[0] = {}): FakeBackend {
+  const backend = new FakeBackend(scenario({ run: null, checkpoint: null, ...patch }))
+  backend.agentChat.snapshotResult = { ok: true, data: { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] } }
+  return backend
+}
+
+describe('EpicAgentPanel: starting an agent on an empty epic', () => {
+  it('shows the Magos and Lexmechanic cards in place of a Start planner button', async () => {
+    openAgent(noRunBackend(), [])
     const stage = await agentStage()
-    fireEvent.click(within(stage).getByRole('button', { name: 'Start planner' }))
-    await waitFor(() => expect(orchestration.chatsChanged.count).toBe(1))
-    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
+    const group = within(stage).getByRole('radiogroup', { name: 'Agent role' })
+    expect(within(group).getAllByRole('radio').map((radio) => radio.textContent))
+      .toEqual(['MagosOrchestrator', 'LexmechanicPlanner'])
+    expect(within(stage).queryByRole('button', { name: 'Start planner' })).toBe(null)
+    expect(within(stage).getByRole('radio', { name: 'Magos' }).getAttribute('aria-disabled')).toBe(null)
   })
 
-  it('shows the sign-in prompt text when no agent can start the planner', async () => {
-    const backend = backendWith()
+  it('starts the planner once with the folder and epic id when Lexmechanic is chosen, and selects the returned chat', async () => {
+    const backend = noRunBackend()
+    const harness = openAgent(backend, [])
+    const stage = await agentStage()
+    fireEvent.click(roleCard(stage, 'Lexmechanic'))
+    await waitFor(() => expect(harness.orchestration.chatsChanged.count).toBe(1))
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
+    expect((backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
+    // A newer epic chat would be the default; the started planner stays selected.
+    const started = chatRecord({ id: 'chat_new_1', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Started planner', createdAt: AT })
+    const newer = chatRecord({ id: 'chat_newer', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Newer planner', createdAt: '2026-03-02T10:00:00.000Z' })
+    harness.orchestration.chats = [newer, started]
+    harness.refresh(1)
+    const rail = await within(await agentStage()).findByRole('complementary', { name: 'Epic agents' })
+    await within(rail).findByRole('treeitem', { selected: true })
+    // The newest epic chat is the default selection; the started one (the older, bare-callsign Lexmechanic) is selected.
+    expect(within(rail).getAllByRole('treeitem').map((row) => [row.getAttribute('aria-label'), row.getAttribute('aria-selected')]))
+      .toEqual([['Lexmechanic-2', 'false'], ['Lexmechanic', 'true']])
+  })
+
+  it('shows main’s sign-in prompt text when no agent can start the planner', async () => {
+    const backend = noRunBackend()
     ;(backend.chats as FakeChats).plannerAgent = null
     openAgent(backend, [])
     const stage = await agentStage()
-    fireEvent.click(within(stage).getByRole('button', { name: 'Start planner' }))
+    fireEvent.click(roleCard(stage, 'Lexmechanic'))
     expect((await within(stage).findByRole('alert')).textContent)
       .toBe('No connected agent is signed in. Sign in to one in Agents, then start the planner again.')
+  })
+})
+
+describe('EpicAgentPanel: starting the Magos on an empty epic', () => {
+  it('opens the Start run dialog when Magos is chosen and never starts an orchestrator itself', async () => {
+    const backend = noRunBackend()
+    openAgent(backend, [])
+    const stage = await agentStage()
+    fireEvent.keyDown(within(stage).getByRole('radio', { name: 'Magos' }), { key: 'Enter' })
+    expect(await screen.findByRole('dialog', { name: 'Start run' })).toBeTruthy()
+    expect((backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([])
+  })
+
+  it.each([
+    ['no saved plan', noRunBackend({ epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), saved: null }), 'Save the plan first'],
+    ['an active run', backendWith(), 'A run is active; its Magos is in the list'],
+    ['an open Linear transfer', noRunBackend({ transfer: transferView('in_progress') }), 'A Linear transfer is open'],
+    ['a completed epic', noRunBackend({ epic: epicDetail({ status: 'completed' }) }), 'The epic is complete']
+  ])('disables Magos with its reason with %s, as the header withholds Start run, and choosing it opens nothing', async (_, backend, reason) => {
+    openAgent(backend, [])
+    const stage = await agentStage()
+    const magos = roleCard(stage, 'Magos')
+    expect(within(magos).getByText(reason)).toBeTruthy()
+    expect(within(stage).getByRole('radio', { name: 'Magos' }).getAttribute('aria-disabled')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Start run' })).toBe(null)
+    fireEvent.click(magos)
+    expect(screen.queryByRole('dialog', { name: 'Start run' })).toBe(null)
+    expect((backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
+  })
+})
+
+type PickerInput = Pick<WorkspaceData, 'epic' | 'run'> & Partial<Pick<WorkspaceData, 'transfer'>> & { view?: 'saved' | 'draft' }
+
+function pickerWorkspace({ view = 'saved', ...input }: PickerInput, backend: FakeBackend): {
+  ws: WorkspaceHandle
+  opened: { count: number }
+  dispatched: unknown[]
+} {
+  window.dm = backend
+  const opened = { count: 0 }
+  const dispatched: unknown[] = []
+  const ws = {
+    data: { transfer: null, ...input }, state: { view }, folder: folder(), epicId: 'ep_1', orchestration: fakeOrchestration(),
+    dispatch: (action: unknown) => dispatched.push(action),
+    openStartRun: () => { opened.count += 1 }
+  } as unknown as WorkspaceHandle
+  return { ws, opened, dispatched }
+}
+
+describe('AgentPickerDialog', () => {
+  it('offers the same cards and rules in a dialog that Escape closes', () => {
+    const { ws } = pickerWorkspace({ epic: epicDetail(), run: runView() }, noRunBackend())
+    const closed = { count: 0 }
+    render(<AgentPickerDialog ws={ws} onClose={() => { closed.count += 1 }} />)
+    const dialog = screen.getByRole('dialog', { name: 'Start an agent' })
+    expect(within(dialog).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['MagosOrchestrator', 'LexmechanicPlanner'])
+    expect(within(roleCard(dialog, 'Magos')).getByText('A run is active; its Magos is in the list')).toBeTruthy()
+    fireEvent.keyDown(within(dialog).getByRole('radio', { name: 'Lexmechanic' }), { key: 'Escape' })
+    expect(closed.count).toBe(1)
+  })
+
+  it.each<[string, PickerInput, string]>([
+    ['until the plan is saved', { epic: epicDetail({ currentRevisionId: null, currentRevisionNumber: null }), run: null }, 'Save the plan first'],
+    ['while a Linear transfer is open', { epic: epicDetail(), run: null, transfer: transferView('queued') }, 'A Linear transfer is open'],
+    ['on a completed epic', { epic: epicDetail({ status: 'completed' }), run: null }, 'The epic is complete'],
+    ['while the draft is shown', { epic: epicDetail({ hasDraft: true }), run: null, view: 'draft' }, 'View the saved plan to start a run']
+  ])('disables Magos %s', (_, data, reason) => {
+    const { ws } = pickerWorkspace(data, noRunBackend())
+    render(<AgentPickerDialog ws={ws} onClose={() => undefined} />)
+    expect(within(roleCard(screen.getByRole('dialog'), 'Magos')).getByText(reason)).toBeTruthy()
+  })
+
+  it('opens Start run for Magos and closes; never starts an orchestrator itself', () => {
+    const backend = noRunBackend()
+    const { ws, opened } = pickerWorkspace({ epic: epicDetail(), run: null }, backend)
+    const closed = { count: 0 }
+    render(<AgentPickerDialog ws={ws} onClose={() => { closed.count += 1 }} />)
+    fireEvent.click(roleCard(screen.getByRole('dialog'), 'Magos'))
+    expect([opened.count, closed.count]).toEqual([1, 1])
+    expect((backend.chats as FakeChats).callsOf('startOrchestrator')).toEqual([])
+  })
+
+  it('starts the planner for Lexmechanic, selects its chat and closes', async () => {
+    const backend = noRunBackend()
+    const { ws, dispatched } = pickerWorkspace({ epic: epicDetail(), run: null }, backend)
+    const closed = { count: 0 }
+    render(<AgentPickerDialog ws={ws} onClose={() => { closed.count += 1 }} />)
+    fireEvent.click(roleCard(screen.getByRole('dialog'), 'Lexmechanic'))
+    await waitFor(() => expect(closed.count).toBe(1))
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
+    expect(dispatched).toEqual([{ type: 'select_agent', chatId: 'chat_new_1' }])
+  })
+})
+
+describe('AgentPickerDialog: a Skitarii Lexmechanic', () => {
+  it('starts a Skitarii Lexmechanic on the catalog model and effort chosen under the cards', async () => {
+    const backend = noRunBackend()
+    backend.agentChat.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+    const { ws } = pickerWorkspace({ epic: epicDetail(), run: null }, backend)
+    const { agent, status } = readyAgent('omp')
+    Object.assign(ws, { orchestration: fakeOrchestration({ agents: [agent], statuses: { omp: status } }) })
+    render(<AgentPickerDialog ws={ws} onClose={() => undefined} />)
+    const dialog = within(screen.getByRole('dialog'))
+    await waitFor(() => expect(backend.agentChat.callsOf('models')).toEqual([[{ folder: FOLDER, agentId: 'omp' }]]))
+    expect(dialog.getByRole('group', { name: 'Lexmechanic model' })).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Model: Default' }))
+    const menu = within(dialog.getByRole('menu', { name: 'Model and effort' }))
+    fireEvent.click(menu.getAllByRole('menuitemradio').find((entry) => entry.querySelector('.model-picker-name')?.textContent === 'Opus 5.5')!)
+    fireEvent.click(within(menu.getByRole('group', { name: 'Effort' })).getByRole('menuitemradio', { name: 'Max' }))
+    await waitFor(() => expect(dialog.getByRole('button', { name: 'Model: Opus 5.5 · Max' })).toBeTruthy())
+    fireEvent.click(roleCard(screen.getByRole('dialog'), 'Lexmechanic'))
+    await waitFor(() => expect((backend.chats as FakeChats).callsOf('startPlanner')).toHaveLength(1))
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1', model: 'anthropic/claude-opus-5-5', thinking: 'max' }]])
   })
 })
 
@@ -489,5 +677,36 @@ describe('EpicAgentPanel: one push subscription per GUI chat', () => {
     await waitFor(() => expect(backend.agentChat.subscribers()).toBe(planners.length + 1 + 1))
     const reads = (backend.agentChat.callsOf('snapshot') as [{ chatId: string }][]).map(([request]) => request.chatId)
     expect(new Set(reads)).toEqual(new Set(['chat_orch', ...planners.map((chat) => chat.id)]))
+  })
+})
+
+describe('EpicAgentPanel: mail cards are read by the open chat only', () => {
+  it('reads and marks seen the selected chat’s mail, never a rail row’s', async () => {
+    const planner = chatRecord({
+      id: 'chat_plan', folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+    })
+    const backend = backendWith()
+    snapshotsByChat(backend, {
+      chat_orch: snapshot({ items }),
+      chat_plan: snapshot({ status: 'exited', todos: [{ threadId: null, phases: threeOfSeven }] })
+    })
+    const mail = new FakeChatMail()
+    backend.chats.mail = mail
+    for (const chatId of ['chat_orch', 'chat_plan']) {
+      mail.put({ folder: FOLDER, chatId, unseenCount: 1 })
+      mail.setConversation(FOLDER, chatId, [mailEntry({ id: `mm_${chatId}`, acceptedAt: AT })])
+    }
+    const store = createAgentMailStore(mail)
+    store.track([FOLDER])
+    renderWorkspace(backend, { orchestration: fakeOrchestration({ chats: [orchestrator, planner] }), epicId: 'ep_1' }, store)
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    await within(ownRow(await within(rail).findByRole('treeitem', { name: 'Lexmechanic' }))).findByRole('img', { name: 'To-dos 3 of 7 done' })
+    await waitFor(() => expect(stage.querySelectorAll('.chat-mail')).toHaveLength(1))
+    const asked = (method: string): string[] => mail.calls.filter((call) => call.method === method)
+      .map(({ args: [request] }) => (typeof request === 'object' && request !== null && 'chatId' in request ? String(request.chatId) : ''))
+    expect(new Set(asked('conversation'))).toEqual(new Set(['chat_orch']))
+    expect(asked('markSeen')).toEqual(['chat_orch'])
+    expect(store.view(FOLDER, 'chat_plan').state).toMatchObject({ humanSeenSeq: 0, unseenCount: 1 })
   })
 })

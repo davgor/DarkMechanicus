@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType, MutableRefObject } from 'react'
+import { rootCallsignOf } from '../../shared/agents/callsign'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
@@ -135,13 +136,17 @@ interface ChatPaneProps {
   shell: ShellModel
   /** The chat's tracked folder; null for a project-less chat. */
   folder: string | null
+  /** The tracked folder's attachment key, the host of the chat's image addresses; null for a project-less chat. */
+  folderKey: string | null
+  /** The tracked folder's name, the composer's context chip; null for a project-less chat. */
+  folderName: string | null
   chat: ChatRecord
   scheduler: Scheduler
   terminalKit: TerminalKit
 }
 
 /** The persisted surface owns the pane; a surface command waits for the chats_changed record push. */
-function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
+function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
   const threadId = threadLandingFor(shell.landing, chat.id)?.threadId ?? null
   const gui = chat.surface === 'gui'
@@ -151,8 +156,11 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
   }, [actions, threadId, gui])
   const onRevealed = useCallback(() => actions.current.landed(), [actions])
   if (gui) {
-    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler}
-      rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} />
+    const cli = agentName(chat.agent, shell.agents.agents)
+    const callsign = rootCallsignOf(chat)?.role
+    const skitarii = shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'
+    return <AgentChat folder={folder} folderKey={folderKey} chatId={chat.id} agentLabel={cli} agentChip={callsign === undefined ? cli : `${callsign} · ${cli}`}
+      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii} />
   }
   return (
     <TerminalPane
@@ -338,9 +346,11 @@ function MainContent(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} folderKey={view.folder.attachmentKey} folderName={view.folder.name}
+        chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'projectless-chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={null} folderKey={null} folderName={null} chat={view.chat}
+        scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
       return <KanbanPane key={folderIdentity(view.folder)} folder={view.folder} shell={shell} />
     case 'metrics':
@@ -504,17 +514,27 @@ interface FirstPromptRequest {
   agent: string
 }
 
-/** The first-prompt popup; Start creates the chat (in its folder, or project-less) and opens it. */
+/**
+ * The first-prompt popup; Start creates the chat (in its folder, as the chosen role, or project-less) and opens it. A
+ * Skitarii agent's folder chat also asks for its model and effort from the OMP catalog.
+ */
 function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; request: FirstPromptRequest; onClose(): void }): JSX.Element {
   const { actions } = shell
   const { folder, agent } = request
+  const catalog = folder !== null && shell.agents.agents.some((candidate) => candidate.id === agent && candidate.kind === 'omp')
+    ? { folder: folder.path, agent }
+    : undefined
   return (
     <FirstPromptDialog
+      roles={folder !== null}
+      {...(catalog === undefined ? {} : { catalog })}
       onClose={onClose}
-      onSubmit={async (prompt) =>
+      onSubmit={async (prompt, role = 'orchestrator', chosen = { model: null, thinking: null }) =>
         (folder === null
           ? await actions.summonChat(agent, prompt)
-          : await actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+          : await actions.createChat(folder, {
+            agent, model: chosen.model, ...(chosen.thinking === null ? {} : { thinking: chosen.thinking }), role, allowSave: true, firstPrompt: prompt
+          })) !== null
       }
     />
   )
