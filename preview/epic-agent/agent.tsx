@@ -42,7 +42,7 @@ declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'models' | 'composer' | 'settings' | 'roles' | 'newChat' | 'mail'
+type Mount = 'epic' | 'chat' | 'models' | 'composer' | 'settings' | 'roles' | 'newChat' | 'newChatModel' | 'mail'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -63,6 +63,8 @@ interface Seeded {
   chats: ChatRecord[]
   /** The shell's connected agents, by which the epic mount tells a Skitarii chat from any other. */
   agents: AgentView[]
+  /** The shell's sign-in states of `agents`: a signed-in Skitarii agent is offered by Start run and picked for the Lexmechanic. */
+  statuses: Record<string, { state: 'signed_in'; reason: string }>
   folder: TrackedFolderView
   /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
   finishedExpandedAtStart: boolean | null
@@ -175,6 +177,34 @@ const chatLoaded = (): Promise<unknown> => until(() => $('.agent-chat .chat-msg-
 /** The Magos and Lexmechanic cards, each with its art, are shown inside `scope`. */
 const roleCardsShown = (scope: string): boolean =>
   document.querySelectorAll(`${scope} .arp [role="radio"]`).length === 2 && document.querySelectorAll(`${scope} .arp svg[role="img"]`).length === 2
+
+/**
+ * In a start surface's Model field: opens the Default chip, picks `model` and its `effort` from the host's catalog, then
+ * opens the chip again over the choice, so the menu shows it checked.
+ */
+async function chooseCatalogModel(model: string, effort: string): Promise<void> {
+  // A dialog's field (Start run over the epic's cards) is the one to pick in; else the page's only one.
+  const field = (): ParentNode => $('[role="dialog"] .model-choice') ?? document
+  const chip = (): HTMLElement | null => $('.model-choice .model-picker-chip', field())
+  await until(() => $('.model-picker-label', field())?.textContent === 'Default', 'the model chip reading Default')
+  await clickWhenPresent(chip, 'the model chip')
+  await clickWhenPresent(() => [...document.querySelectorAll('.model-picker-menu [data-model]')]
+    .find((item) => text($('.model-picker-name', item)) === model) ?? null, `${model} in the open menu`)
+  await clickWhenPresent(() => buttonNamed(effort, $('.model-picker-menu [role="group"][aria-label="Effort"]') ?? document.createElement('div')),
+    `Effort ${effort}`)
+  await until(() => $('.model-picker-label', field())?.textContent === `${model} · ${effort}`, `the chip reading ${model} · ${effort}`)
+  await clickWhenPresent(chip, 'the model chip again')
+  await until(() => $('.model-picker-menu [role="group"][aria-label="Effort"]'), 'the reopened menu with its Effort control')
+}
+
+/** An epic with a saved plan and no run, a signed-in Skitarii agent connected, and the Windows host's catalog. */
+function seedSkitariiEpic(context: Seeded): void {
+  context.chats.length = 0
+  context.backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: null, checkpoint: null }))
+  context.backend.agentChat.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) }
+  context.agents = [agentView({ kind: 'omp' })]
+  context.statuses = { omp: { state: 'signed_in', reason: 'Signed in.' } }
+}
 
 // ---------------------------------------------------------------------------------------------- seeds
 
@@ -833,6 +863,38 @@ const STATES: Record<string, StateDef> = {
       await until(() => buttonNamed('Start')?.disabled === false, 'an enabled Start')
     }
   },
+  // A Skitarii folder's New chat: the Magos on Sonnet 5.5 · Low from the host's catalog, the menu open over the choice.
+  'new-chat-model': {
+    mount: 'newChatModel',
+    seed: (context) => { context.chatApi.modelsResult = { ok: true, data: chatModelOptions(hostCatalog) } },
+    reach: async () => {
+      await until(() => document.querySelectorAll('.arp svg[role="img"]').length === 2, 'both role cards with their art')
+      await chooseCatalogModel('Sonnet 5.5', 'Low')
+    }
+  },
+  // The Magos card opens Start run with the signed-in Skitarii agent: GPT-6 Astra · High from its catalog.
+  'start-run-model': {
+    mount: 'epic',
+    seed: seedSkitariiEpic,
+    reach: async () => {
+      await openAgentTab()
+      await until(() => roleCardsShown('.eap-empty'), 'the epic’s Magos and Lexmechanic cards')
+      await clickWhenPresent(() => [...document.querySelectorAll('.eap-empty .arc')].find((card) => text($('.arc-name', card)) === 'Magos') ?? null,
+        'the Magos card')
+      await until(() => $('[role="dialog"] .model-choice'), 'Start run’s Model field')
+      await chooseCatalogModel('GPT-6 Astra', 'High')
+    }
+  },
+  // The epic's Lexmechanic card with the Skitarii agent main will pick: Opus 5.5 · Max chosen under the cards.
+  'lexmechanic-model': {
+    mount: 'epic',
+    seed: seedSkitariiEpic,
+    reach: async () => {
+      await openAgentTab()
+      await until(() => roleCardsShown('.eap-empty'), 'the epic’s Magos and Lexmechanic cards')
+      await chooseCatalogModel('Opus 5.5', 'Max')
+    }
+  },
   ...deliveryStates
 }
 
@@ -1202,10 +1264,18 @@ function modelMenuContents(menu: HTMLElement): Record<string, unknown> {
 
 /** The model-picker state's chip and its open menu; null on a page without both. */
 function modelPickerObservations(): Record<string, unknown> | null {
-  const chip = $('.model-picker-chip')
   const menu = $('.model-picker-menu')
+  const chip = menu === null ? null : $('.model-picker-chip', menu.closest('.model-picker') ?? document)
   if (chip === null || menu === null) return null
   return { chip: text($('.model-picker-label', chip)), ...modelMenuPlacement(chip, menu), ...modelMenuContents(menu) }
+}
+
+/** A start surface's Model field (`CatalogModelChoice`): its label, the dialog it is in (null outside one) and its hint. */
+function modelChoiceObservations(): Record<string, unknown> | null {
+  const field = $('[role="dialog"] .model-choice') ?? $('.model-choice')
+  if (field === null) return null
+  const dialog = field.closest<HTMLElement>('[role="dialog"]')
+  return { label: text($('.field-label', field)), dialog: dialog === null ? null : accessibleName(dialog), hint: text($('.field-hint', field)) }
 }
 
 /** A composer's rendered height in px: the idle one shows Send, the busy one Stop; null without such a composer. */
@@ -1273,6 +1343,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     chatImages: chatImageObservations(),
     evidence: evidenceObservations(context),
     modelPicker: modelPickerObservations(),
+    modelChoice: modelChoiceObservations(),
     ...deliveryObservations(),
     ...polishObservations(),
     errors: [...window.__errors]
@@ -1303,7 +1374,7 @@ function seeded(): Seeded {
   const chatApi = new FakeAgentChat()
   return {
     backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), epicMail: false,
-    clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], agents: [],
+    clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], agents: [], statuses: {},
     folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
 }
@@ -1321,13 +1392,24 @@ function mailChat(context: Seeded): JSX.Element {
   </div></AgentMailContext.Provider></ClockContext.Provider>
 }
 
+/** The folder New chat dialog; a Skitarii folder's (`newChatModel`) asks for the model from the seeded catalog too. */
+function newChatDialog(mount: 'newChat' | 'newChatModel', context: Seeded): JSX.Element {
+  if (mount === 'newChat') {
+    return <div className="preview-roles"><FirstPromptDialog roles onSubmit={async () => false} onClose={() => undefined} /></div>
+  }
+  const dm = new FakeDm()
+  dm.agentChat = context.chatApi
+  window.dm = dm
+  return <div className="preview-roles">
+    <FirstPromptDialog roles catalog={{ folder: FOLDER.path, agent: 'omp' }} onSubmit={async () => false} onClose={() => undefined} />
+  </div>
+}
+
 function render(mount: Mount, context: Seeded): JSX.Element {
   if (mount === 'roles') {
     return <div className="preview-roles"><AgentRolePicker onChoose={() => undefined} /></div>
   }
-  if (mount === 'newChat') {
-    return <div className="preview-roles"><FirstPromptDialog roles onSubmit={async () => false} onClose={() => undefined} /></div>
-  }
+  if (mount === 'newChat' || mount === 'newChatModel') return newChatDialog(mount, context)
   if (mount === 'settings') {
     window.dm = new FakeDm()
     return <ToastProvider scheduler={browserScheduler}><div className="preview-settings"><NotificationSettings /></div></ToastProvider>
@@ -1359,7 +1441,7 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   return <ClockContext.Provider value={clock}><ViewMemoryContext.Provider value={createViewMemory()}>
     <AgentMailContext.Provider value={context.epicMail ? epicMailStore(context) : null}><div className="preview-epic-agent">
       <EpicWorkspace folder={context.folder} epicId="ep_1" refreshToken={0} onChanged={() => undefined} onOpenEpic={() => undefined}
-        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats, agents: context.agents })}
+        onDeleted={() => undefined} orchestration={fakeOrchestration({ chats: context.chats, agents: context.agents, statuses: context.statuses })}
         landing={context.landing} onLanded={() => undefined} />
     </div></AgentMailContext.Provider>
   </ViewMemoryContext.Provider></ClockContext.Provider>

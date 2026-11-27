@@ -246,3 +246,9 @@
   color: var(--ink);
   font-size: 13px;
 }
+
+/* A form's chip sits at the field's left edge, so its menu opens upward from there instead of from Send's side. */
+.model-choice .model-picker-menu {
+  right: auto;
+  left: 0;
+}

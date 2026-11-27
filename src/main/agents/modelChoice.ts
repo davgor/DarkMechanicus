@@ -15,7 +15,7 @@ export interface ModelChoice {
   thinking?: ThinkingLevel | null
 }
 
-export interface ModelChoiceDeps {
+interface ModelChoiceDeps {
   agents: { get(id: AgentId): AgentView | null }
   /** The Skitarii catalogs (`omp models --json`); without them a Skitarii chat cannot be given a model. */
   models?: Pick<OmpModels, 'catalogModels'>
