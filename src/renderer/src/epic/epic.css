@@ -316,6 +316,38 @@
   flex-wrap: wrap;
 }
 
+/* A sprint delivery holding the next claims: the line, its named checks and the Waive… reason, wrapping as needed. */
+.ew-bar-delivery {
+  flex-wrap: wrap;
+}
+
+.ew-delivery-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.ew-delivery-checks > li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.ew-delivery-waive {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ew-delivery-waive > .input {
+  width: 280px;
+}
+
 .ew-bar-warning {
   margin: 6px 0 0;
   color: var(--st-blocked);
