@@ -17,6 +17,7 @@ import type {
   PlannedTestCase,
   ReasoningEffort,
   RelationKind,
+  SprintDelivery,
   TicketBudget,
   TicketKind,
   TicketPriority,
@@ -200,6 +201,8 @@ export interface SprintInput {
   exitCriteria?: (CriterionInput | string)[]
   concurrencyCap?: number | null
   checkpoint?: { mode: CheckpointMode }
+  /** A structured delivery declaration; null clears the sprint's. */
+  delivery?: SprintDelivery | null
 }
 
 /** A ticket or sprint may be referenced by stable id or by a client-local ref declared in the same request. */

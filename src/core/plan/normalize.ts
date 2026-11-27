@@ -8,6 +8,7 @@ import {
   type EpicContent,
   type PlanBundle,
   type SprintDef,
+  type SprintDelivery,
   type TicketBudget,
   type TicketContent,
   type TicketCriterion,
@@ -307,6 +308,26 @@ export function buildAcceptanceTicket(
   return buildTicket({ title: acceptanceTitle(sprint.ordinal), kind: 'acceptance' }, identity)
 }
 
+/** A delivery copied in a fixed key order, so equal declarations hash alike. */
+function deliveryOf(delivery: SprintDelivery): SprintDelivery {
+  return { target: delivery.target, release: delivery.release, verifyInstalled: delivery.verifyInstalled }
+}
+
+/** Sets the delivery of a copy of the sprint: null removes the key (never stored as null), undefined keeps it. */
+function delivered(sprint: SprintDef, delivery: SprintDelivery | null | undefined): SprintDef {
+  if (delivery === undefined) {
+    return sprint
+  }
+  const next = { ...sprint }
+  if (delivery === null) {
+    delete next.delivery
+  } else {
+    next.delivery = deliveryOf(delivery)
+  }
+  return next
+}
+
+/** A new sprint; `delivery` is stored only when the input declares one. */
 export function buildSprint(input: SprintInput, identity: { id: string; ordinal: number }): SprintDef {
   return {
     id: identity.id,
@@ -317,12 +338,14 @@ export function buildSprint(input: SprintInput, identity: { id: string; ordinal:
     entryCriteria: normalizeCriteria(input.entryCriteria ?? [], [], 'n'),
     exitCriteria: normalizeCriteria(input.exitCriteria ?? [], [], 'x'),
     concurrencyCap: input.concurrencyCap ?? null,
-    checkpoint: input.checkpoint ?? { mode: 'human' }
+    checkpoint: input.checkpoint ?? { mode: 'human' },
+    ...(input.delivery !== undefined && input.delivery !== null && { delivery: deliveryOf(input.delivery) })
   }
 }
 
+/** Applies a patch to a sprint; a null `delivery` removes the key and a given one replaces it. */
 export function patchSprint(sprint: SprintDef, patch: Partial<SprintInput>): SprintDef {
-  return {
+  const patched: SprintDef = {
     ...sprint,
     ...(patch.deploymentVerification !== undefined && { deploymentVerification: patch.deploymentVerification }),
     goal: patch.goal === undefined ? sprint.goal : patch.goal.trim(),
@@ -337,6 +360,7 @@ export function patchSprint(sprint: SprintDef, patch: Partial<SprintInput>): Spr
     concurrencyCap: patch.concurrencyCap === undefined ? sprint.concurrencyCap : patch.concurrencyCap,
     checkpoint: patch.checkpoint ?? sprint.checkpoint
   }
+  return delivered(patched, patch.delivery)
 }
 
 /** Identities for the first sprint of a new plan and the acceptance node it starts with. */
