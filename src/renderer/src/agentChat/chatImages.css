@@ -1,0 +1,59 @@
+/* Images on a transcript item: lazy thumbnails at most 160 px wide that open the shared lightbox. */
+
+.chat-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-msg-user > .chat-images {
+  justify-content: flex-end;
+}
+
+.chat-tool > .chat-images {
+  padding: 0 10px 10px;
+}
+
+.chat-image {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 160px;
+}
+
+.chat-image-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 160px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.chat-image-thumb:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* 152 px plus the 3 px padding and 1 px border each side: the button is 160 px wide. The width and height attributes
+   give the box its aspect ratio before a lazy image loads. */
+.chat-image-picture {
+  display: block;
+  width: 152px;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+.chat-image-picture.attachment-missing {
+  width: 152px;
+  height: 96px;
+  font-size: 12px;
+}
