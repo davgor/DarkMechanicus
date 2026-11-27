@@ -73,11 +73,11 @@ describe('EpicAgentPanel: chat and tree', () => {
     openAgent(backendWith(), [orchestrator])
     const stage = await agentStage()
     const chat = within(stage).getByRole('region', { name: 'Magos chat' })
-    expect(await within(chat).findByText('Starting the sprint now')).toBeTruthy()
+    fireEvent.click(await within(chat).findByRole('button', { name: /^Worked for/ })) // the idle chat's ended turn is folded
+    expect(within(chat).getByText('Starting the sprint now')).toBeTruthy()
     const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
     expect(chat.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    const magos = await within(rail).findByRole('treeitem', { name: 'Magos' })
-    expect(magos.getAttribute('aria-selected')).toBe('true')
+    expect((await within(rail).findByRole('treeitem', { name: 'Magos' })).getAttribute('aria-selected')).toBe('true')
     expect(within(rail).getByRole('treeitem', { name: 'Acolyte:DM-201' })).toBeTruthy()
   })
 
@@ -138,7 +138,7 @@ describe('EpicAgentPanel: shared composer', () => {
     openAgent(backendWith(), [orchestrator])
     const stage = await agentStage()
     const chat = within(stage).getByRole('region', { name: 'Magos chat' })
-    await within(chat).findByText('Starting the sprint now')
+    await within(chat).findByRole('button', { name: /^Worked for/ })
     const input = within(chat).getByRole('textbox', { name: 'Message Magos' })
     expect(input.getAttribute('placeholder')).toBe('Reply to Magos…')
     expect(within(chat).getByLabelText(/^Agent: Magos · \S/)).toBeTruthy()

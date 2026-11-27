@@ -21,12 +21,13 @@ import {
   agentChatSendSchema,
   agentChatSetSurfaceSchema,
   agentChatSnapshotRequestSchema,
+  agentChatStageImageSchema,
   agentChatStartSchema,
   type AgentChatEvent,
   type AgentChatSnapshot,
   type AttentionItem
 } from '../../shared/agents/agentChat'
-import type { ChatRecord } from '../../shared/agents/chat'
+import type { ChatImageRef, ChatRecord } from '../../shared/agents/chat'
 import type { ChatModelOption } from '../../shared/agents/models'
 import type { CommandResult } from '../../shared/desktop/api'
 import { answer, chatFolder } from '../agents/chatHandlers'
@@ -38,7 +39,7 @@ import type { OmpModels } from './ompModels'
 
 interface AgentChatHandlerDeps<S> {
   registry: Pick<FolderRegistry, 'resolve'>
-  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention'>
+  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'stageImage'>
   /** The native confirmation, modal to the window that sent the request (`nativeTerminalStopConfirmation`). */
   confirmTerminalStop: (sender: S, chat: ChatRecord) => Promise<boolean>
   /** Skitarii model catalogs (`ompModels.ts`). */
@@ -55,6 +56,8 @@ interface AgentChatHandlers<S> {
   setSurface(sender: S, input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   snapshot(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   attention(input: unknown): Promise<CommandResult<AttentionItem[]>>
+  /** Keeps a PNG or JPEG the person staged for the chat; the bytes cross only as plain base64. */
+  stageImage(input: unknown): Promise<CommandResult<{ image: ChatImageRef }>>
   models(input: unknown): Promise<CommandResult<ChatModelOption[]>>
 }
 
@@ -74,7 +77,7 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
     }),
     send: input => answer(deps, async () => {
       const { ref, request } = chatRequest(registry, agentChatSendSchema, input)
-      await sessions.send(ref, { text: request.text })
+      await sessions.send(ref, { text: request.text, ...(request.imageIds === undefined ? {} : { imageIds: request.imageIds }) })
       return null
     }),
     interrupt: input => answer(deps, async () => {
@@ -98,6 +101,10 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       const { folder } = parseInput(agentChatAttentionSchema, input, 'agent chat attention request')
       return sessions.attention(folder === null ? null : chatFolder({ registry }, folder))
     }),
+    stageImage: input => answer(deps, async () => {
+      const { ref, request } = chatRequest(registry, agentChatStageImageSchema, input)
+      return { image: await sessions.stageImage(ref, Buffer.from(request.data, 'base64')) }
+    }),
     models: input => answer(deps, () => {
       const request = parseInput(agentChatModelsSchema, input, 'agent chat models request')
       const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
@@ -115,6 +122,7 @@ export function registerAgentChatIpc<S>(ipcMain: Pick<IpcMain, 'handle'>, handle
   ipcMain.handle(AGENT_CHAT_CHANNELS.setSurface, (event, request: unknown) => handlers.setSurface(senderOf(event), request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.snapshot, (_event, request: unknown) => handlers.snapshot(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.attention, (_event, request: unknown) => handlers.attention(request))
+  ipcMain.handle(AGENT_CHAT_CHANNELS.stageImage, (_event, request: unknown) => handlers.stageImage(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.models, (_event, request: unknown) => handlers.models(request))
 }
 

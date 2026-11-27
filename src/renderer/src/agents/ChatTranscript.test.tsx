@@ -260,4 +260,110 @@ describe('ChatTranscript: mail cards', () => {
       .map((row) => row.classList.contains('chat-mail') ? row.className.replace('chat-mail chat-mail-', 'mail ') : row.className.split(' ')[0])
     expect(rows).toEqual(['chat-msg', 'mail sent', 'chat-tool', 'chat-thread', 'mail received', 'chat-msg', 'mail received'])
   })
+
+  it('keeps a card outside a folded turn, ahead of its “Worked for” row', () => {
+    render(<ChatTranscript agentName="Skitarii" folder="/repo" status="idle" entries={[
+      ...turn.slice(0, 3), { kind: 'mail', id: 'mail:mid', at: at(25), mail: mailEntry({ id: 'mid' }) }, ...turn.slice(3)
+    ]} />)
+    const log = screen.getByRole('log', { name: 'Transcript' })
+    const rows = Array.from(log.querySelectorAll(':scope > ol > li')).map((row) => row.className)
+    expect(rows).toEqual(['chat-msg chat-msg-user', 'chat-mail chat-mail-received', 'chat-work', 'chat-msg chat-msg-assistant'])
+  })
+})
+
+const at = (seconds: number): string => new Date(Date.parse(AT) + seconds * 1_000).toISOString()
+const call = (id: string, seconds: number): ChatItem =>
+  ({ id, at: at(seconds), kind: 'tool_call', name: id, input: { command: id }, status: 'completed', resultSummary: 'ok' })
+/** 3 tool calls, an intermediate text, then the final reply 28m 51s after the message. */
+const turn: ChatItem[] = [
+  { id: 'u', at: at(0), kind: 'user_message', text: 'Fix the build' },
+  call('Read', 10),
+  { id: 'mid', at: at(20), kind: 'assistant_text', text: 'Looking at the config' },
+  call('Edit', 30),
+  call('Bash', 40),
+  { id: 'final', at: at(1_731), kind: 'assistant_text', text: 'The build passes now.' }
+]
+
+function showLive(entries: ChatItem[], status: 'idle' | 'busy'): HTMLElement {
+  render(<ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} status={status} />)
+  return screen.getByRole('log', { name: 'Transcript' })
+}
+
+const toolNames = (root: HTMLElement): string[] =>
+  within(root).queryAllByRole('listitem', { name: /^Tool call: / }).map((row) => row.getAttribute('aria-label') ?? '')
+
+describe('ChatTranscript: each ended turn’s work behind one disclosure', () => {
+  it('shows one “Worked for” row and the final reply of an idle chat’s turn, with its tool cards hidden', () => {
+    const log = showLive(turn, 'idle')
+
+    const toggle = within(log).getByRole('button', { name: /^Worked for 28m 51s/ })
+    expect(toggle.textContent).toBe('Worked for 28m 51s›')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toolNames(log)).toEqual([])
+    expect(within(log).queryByText('Looking at the config')).toBe(null)
+    expect(within(log).getByText('The build passes now.')).toBeTruthy()
+    const rows = Array.from(log.querySelectorAll(':scope > ol > li'))
+    expect(rows.map((row) => row.className)).toEqual(['chat-msg chat-msg-user', 'chat-work', 'chat-msg chat-msg-assistant'])
+  })
+
+  it('reveals the hidden items in their order on a click, and folds them again', () => {
+    const log = showLive(turn, 'idle')
+    const toggle = within(log).getByRole('button', { name: /^Worked for/ })
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    const work = within(log).getByRole('list', { name: 'Work' })
+    expect(toggle.getAttribute('aria-controls')).toBe(work.id)
+    expect(toolNames(work)).toEqual(['Tool call: Read', 'Tool call: Edit', 'Tool call: Bash'])
+    const texts = Array.from(work.querySelectorAll(':scope > li')).map((row) => row.getAttribute('aria-label') ?? row.textContent)
+    expect(texts).toEqual(['Tool call: Read', expect.stringContaining('Looking at the config'), 'Tool call: Edit', 'Tool call: Bash'])
+    expect(within(work).queryByText('The build passes now.')).toBe(null)
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toolNames(log)).toEqual([])
+  })
+
+  it('leaves the live turn of a busy chat open', () => {
+    const log = showLive(turn, 'busy')
+
+    expect(within(log).queryByRole('button', { name: /^Worked for/ })).toBe(null)
+    expect(toolNames(log)).toEqual(['Tool call: Read', 'Tool call: Edit', 'Tool call: Bash'])
+  })
+})
+
+describe('ChatTranscript: what a folded turn never hides', () => {
+  it('keeps an error and a stop notice visible under a “Stopped after” row', () => {
+    const log = showLive([
+      { id: 'u', at: at(0), kind: 'user_message', text: 'Run it' },
+      call('Bash', 60),
+      { id: 'err', at: at(90), kind: 'error', code: 'tool_failed', message: 'Bash failed' },
+      { id: 'stop', at: at(182), kind: 'turn_stopped' }
+    ], 'idle')
+
+    expect(within(log).getByRole('button', { name: /^Stopped after 3m 02s/ })).toBeTruthy()
+    expect(within(log).getByRole('article', { name: 'Error' }).textContent).toContain('Bash failed')
+    expect(within(log).getByText('You stopped this turn before the agent finished.')).toBeTruthy()
+    expect(toolNames(log)).toEqual([])
+  })
+
+  it('opens the turn that holds a thread a RevealThreadContext request names', () => {
+    const entries: ChatItem[] = [
+      { id: 'u', at: at(0), kind: 'user_message', text: 'Delegate it' },
+      { id: 'spawn', at: at(1), kind: 'tool_call', name: 'Task', input: { description: 'Work' }, status: 'completed', resultSummary: null },
+      { id: 'th', at: at(2), kind: 'thread', parentItemId: 'spawn', label: 'Worker', state: 'done' },
+      { id: 'inner', at: at(3), kind: 'assistant_text', text: 'Inside the worker', threadId: 'th' },
+      { id: 'final', at: at(4), kind: 'assistant_text', text: 'Delegated.' }
+    ]
+    Element.prototype.scrollIntoView = vi.fn()
+    render(
+      <RevealThreadContext.Provider value={{ path: new Set(['th']), target: 'th', nonce: 1, handled: new Map() }}>
+        <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} status="idle" />
+      </RevealThreadContext.Provider>
+    )
+
+    expect(screen.getByRole('button', { name: /^Worked for 4s/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Inside the worker')).toBeTruthy()
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
 })

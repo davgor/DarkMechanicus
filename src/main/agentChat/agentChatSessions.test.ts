@@ -1,11 +1,15 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createActivityBindings } from '../agents/activityBindings'
 import { createChatStore, type ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
 import { createAgentChatSessions, type AgentChatSessionsDeps } from './agentChatSessions'
+import { folderStoreId } from './folderStoreId'
+import { DomainError } from '../../core/errors'
 import type { ArbiterOutcome, AttentionEvent } from './pendingPrompts'
 import { createPromptArbitration } from './promptArbitration'
 import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
@@ -1561,5 +1565,115 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} run-stalled att
   for (const [name, fires, run] of stallCases) it(name, async () => {
     const { fired, event } = await run(kind)
     expect(fired).toEqual(Array.from({ length: fires }, () => event))
+  })
+})
+
+const SWATCH = readFileSync(fileURLToPath(new URL('./__fixtures__/images/swatch.png', import.meta.url)))
+/** The fake CLI's echo of one received image: its type, decoded length and SHA-256 prefix. */
+const SWATCH_ECHO = `received image image/png ${SWATCH.length} ${createHash('sha256').update(SWATCH).digest('hex').slice(0, 12)}`
+const inputFrames = (writes: readonly string[]) => writes.map(line => JSON.parse(line)).filter(frame => ['user', 'prompt', 'follow_up'].includes(frame.type))
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images`, () => {
+  it('sends a staged image by id: the agent receives its bytes and the transcript names only its ref', async () => {
+    const r = rig(kind), chat = r.newChat()
+    const image = await r.sessions.stageImage(chat, SWATCH)
+    expect(image).toMatchObject({ mime: 'image/png', bytes: SWATCH.length })
+    await r.sessions.send(chat, { text: '[tool] look', imageIds: [image.id] })
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle'
+      && r.sessions.snapshot(chat).items.some(item => item.kind === 'assistant_text' && item.text.includes(SWATCH_ECHO)))
+    const items = r.store.readTranscript(chat)!.items
+    expect(items.filter(item => item.kind === 'user_message')).toEqual([expect.objectContaining({ text: '[tool] look', images: [image] })])
+    expect(r.pushes.find(event => event.type === 'item' && event.item.kind === 'user_message')).toMatchObject({ item: { images: [image] } })
+    expect(inputFrames(r.writes).filter(frame => JSON.stringify(frame).includes(SWATCH.toString('base64')))).toHaveLength(1)
+    const transcript = filesUnder(join(r.userData, 'agents', 'chats')).join('\n')
+    expect(transcript).toContain(image.id)
+    expect(transcript).not.toContain(SWATCH.toString('base64'))
+    expect(JSON.stringify(r.pushes)).not.toContain(SWATCH.toString('base64'))
+  })
+
+  it('refuses an unknown id or one staged for another chat, writing nothing to the agent and storing nothing', async () => {
+    const r = rig(kind), chat = r.newChat(), other = r.newChat()
+    const foreign = await r.sessions.stageImage(other, SWATCH)
+    const unknown = `ci_${'0'.repeat(26)}`
+    // Refused before the chat starts: no process is spawned for it.
+    await expect(r.sessions.send(chat, { text: 'look', imageIds: [foreign.id] })).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(r.children).toHaveLength(0)
+    await r.sessions.start(chat)
+    const before = [...r.writes]
+    for (const id of [foreign.id, unknown]) {
+      await expect(r.sessions.send(chat, { text: 'look', imageIds: [id] })).rejects.toMatchObject({ code: 'invalid_input' })
+    }
+    expect(r.writes).toEqual(before)
+    expect(inputFrames(r.writes)).toEqual([])
+    expect(r.store.readTranscript(chat)!.items).toEqual([])
+    expect(r.pushes.filter(event => event.type === 'item')).toEqual([])
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images, queued and from tools`, () => {
+  it('keeps a queued send’s images', async () => {
+    const r = rig(kind), chat = r.newChat()
+    const image = await r.sessions.stageImage(chat, SWATCH)
+    await r.sessions.send(chat, { text: '[slow]' })
+    await r.sessions.send(chat, { text: '', imageIds: [image.id] })
+    const frames = inputFrames(r.writes)
+    expect(frames.map(frame => frame.type)).toEqual(kind === 'claude' ? ['user', 'user'] : ['prompt', 'follow_up'])
+    expect(JSON.stringify(frames[1])).toContain(SWATCH.toString('base64'))
+    expect(r.store.readTranscript(chat)!.items.filter(item => item.kind === 'user_message').map(item => item.images)).toEqual([undefined, [image]])
+  })
+
+  it('keeps an [image] tool result under the chat’s image directory and stores its tool_call with the one ref', async () => {
+    const r = rig(kind), chat = r.newChat()
+    await r.sessions.send(chat, { text: '[image]' })
+    const withImage = () => r.store.readTranscript(chat)!.items.filter((item): item is Extract<ChatItem, { kind: 'tool_call' }> => item.kind === 'tool_call')
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && withImage().some(item => (item.images?.length ?? 0) > 0))
+    const calls = withImage()
+    expect(calls).toHaveLength(1)
+    expect(calls[0].images).toHaveLength(1)
+    const [image] = calls[0].images!
+    expect(image).toMatchObject({ mime: 'image/png' })
+    const dir = join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id)
+    expect(readdirSync(dir)).toEqual([`${image.id}.png`])
+    const stored = await r.chatImages.read({ folder: chat.folder, chatId: chat.id }, image.id)
+    expect(stored?.bytes.byteLength).toBe(image.bytes)
+    expect(r.pushes.some(event => event.type === 'item' && event.item.kind === 'tool_call' && event.item.images?.[0]?.id === image.id)).toBe(true)
+    expect(filesUnder(join(r.userData, 'agents', 'chats')).join('\n')).not.toContain(Buffer.from(stored!.bytes).toString('base64'))
+  })
+
+  it('drops a tool image the store refuses and notes it on the item', async () => {
+    const r = rig(kind), chat = r.newChat()
+    r.deps.chatImages = { ...r.chatImages, putToolImage: async () => { throw new DomainError('invalid_input', 'Refused image.') } }
+    await r.sessions.send(chat, { text: '[image]' })
+    const call = () => r.store.readTranscript(chat)!.items.find((item): item is Extract<ChatItem, { kind: 'tool_call' }> => item.kind === 'tool_call')
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && (call()?.resultSummary ?? '').includes('image not shown (invalid)'))
+    expect(call()!.images).toBeUndefined()
+    expect(existsSync(join(r.userData, 'agents', 'chat-images'))).toBe(false)
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images across a restart`, () => {
+  it('deletes a restarted chat only after the old process’s tool image has landed, leaving no image directory', async () => {
+    const r = rig(kind), chat = r.newChat()
+    let release = (): void => undefined, storing = false
+    const landed = new Promise<void>(resolve => { release = resolve })
+    // A failing assertion still lets the held image land before the rig's dispose waits for it.
+    cleanups.unshift(async () => release())
+    const images = r.chatImages
+    r.deps.chatImages = { ...images, putToolImage: async (ref, bytes) => { storing = true; await landed; return images.putToolImage(ref, bytes) } }
+    await r.sessions.send(chat, { text: '[image]' })
+    await eventually(() => storing)
+    await r.sessions.stop(chat)
+    await r.sessions.start(chat)
+    const steps: string[] = []
+    const deleting = r.sessions.deleteChat(chat, async () => { steps.push('remove'); r.store.deleteChat(chat) })
+    // The restarted process has fully stopped; a macrotask turn flushes the deletion's remaining microtasks, so only the
+    // old tool image can still hold it.
+    await eventually(() => steps.length > 0 || !r.sessions.isLive(chat))
+    await new Promise(resolve => setImmediate(resolve))
+    expect(steps).toEqual([])
+    release()
+    await deleting
+    expect(steps).toEqual(['remove'])
+    expect(existsSync(join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id))).toBe(false)
   })
 })

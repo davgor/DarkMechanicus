@@ -5,7 +5,8 @@
  * Markdown renderer; everything else is plain text. Mail cards (`MailCard`) sit between the chat's own rows where
  * the stream placed them; they are never stored items.
  */
-import { Fragment, memo, useMemo, type ReactNode } from 'react'
+import { memo, useMemo, type ReactNode } from 'react'
+import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import { IDLE_STOP_CODE, type ErrorProblem } from '../../../shared/agents/chat'
 import { ChatImages, type ChatImageSrc } from '../agentChat/ChatImages'
 import { CopyButton } from '../agentChat/CopyButton'
@@ -17,6 +18,7 @@ import { decisionText, problemNotice, resetText, STOPPED_TEXT, type TranscriptEn
 import { ThreadBlock } from './ThreadBlock'
 import { transcriptTree, type TreeRow } from './threadModel'
 import { ToolCallRow } from './ToolCallRow'
+import { TurnRows } from './TurnWork'
 
 interface MessageProps {
   who: 'You' | 'Assistant'
@@ -173,6 +175,8 @@ interface ChatTranscriptProps {
   entries: readonly TranscriptLine[]
   /** Set by GUI chats, whose items carry images; terminal transcripts leave it out and show none. */
   imageSrc?: ChatImageSrc
+  /** A live chat's status: given, each ended turn's work folds into one `Worked for …` row; a stored or thread transcript leaves it out. */
+  status?: AgentChatSnapshot['status'] | null
 }
 
 const NO_MAIL: readonly MailLine[] = []
@@ -197,20 +201,22 @@ function placeMail(entries: readonly TranscriptLine[], rows: readonly TreeRow[])
 }
 
 /** The stored conversation, in the order it happened. */
-export function ChatTranscript({ agentName, folder, entries, imageSrc }: ChatTranscriptProps): JSX.Element {
+export function ChatTranscript({ agentName, folder, entries, imageSrc, status }: ChatTranscriptProps): JSX.Element {
   const items = useMemo(() => entries.filter((entry): entry is TranscriptEntry => entry.kind !== 'mail'), [entries])
   const rows = useMemo(() => transcriptTree(items), [items])
-  const before = useMemo(() => placeMail(entries, rows), [entries, rows])
-  const cards = (anchor: string | null): JSX.Element[] => (before.get(anchor) ?? NO_MAIL).map((line) => <MailCard key={line.id} mail={line.mail} />)
+  const placedMail = useMemo(() => placeMail(entries, rows), [entries, rows])
+  const cards = (anchor: string | null): JSX.Element[] => (placedMail.get(anchor) ?? NO_MAIL).map((line) => <MailCard key={line.id} mail={line.mail} />)
+  const before = (row: TreeRow): JSX.Element[] => cards(row.entry.id)
+  const renderRow = (row: TreeRow): JSX.Element => (
+    <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName}
+      imageSrc={imageSrc} />
+  )
   return (
     <div className="chat-transcript" role="log" aria-label="Transcript" tabIndex={0}>
       <ol className="chat-rows">
-        {rows.map((row) => (
-          <Fragment key={row.entry.id}>
-            {cards(row.entry.id)}
-            <TranscriptRow entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName} imageSrc={imageSrc} />
-          </Fragment>
-        ))}
+        {status === undefined
+          ? rows.flatMap((row) => [...before(row), renderRow(row)])
+          : <TurnRows entries={items} rows={rows} status={status} renderRow={renderRow} before={before} />}
         {cards(null)}
       </ol>
     </div>
