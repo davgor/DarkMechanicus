@@ -38,6 +38,7 @@ import type {
   BoardRemovalView,
   CheckpointView,
   CommentView,
+  DeliveryCheckView,
   EpicDetailView,
   EventView,
   PlanView,
@@ -466,10 +467,35 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
     grantRetry: () => updateRun(state, { state: 'running' }),
     acknowledgeAutoRetry: (input: { runId: string; ticketId: string; number: number }) => acknowledgeAutoRetry(state, input),
     approveAndAdvance: () => updateRun(state, { state: 'running', activeSprintOrdinal: 3 }),
+    waiveDelivery: (input: { sprintId: string; reason: string }) => waiveDelivery(state, input),
     acceptAttempt: () => state.ticket.attempts[0],
     rejectAttempt: () => state.ticket.attempts[0],
     reconcileAttempt: () => state.ticket.attempts[0]
   }
+}
+
+/** Records the person's waiver as the run's next delivery record, as the core does. */
+function waiveDelivery(state: Scenario, input: { sprintId: string; reason: string }): DeliveryCheckView {
+  const run = state.run ?? runView()
+  const waiver: DeliveryCheckView = {
+    id: `dc_${run.deliveries.length + 1}`,
+    runId: run.id,
+    sprintId: input.sprintId,
+    number: run.deliveries.length + 1,
+    kind: 'waiver',
+    commit: null,
+    releaseTag: null,
+    releaseVersion: null,
+    installedVersion: null,
+    checks: [],
+    reasons: [],
+    reason: input.reason.trim(),
+    passed: true,
+    recordedBy: null,
+    createdAt: iso(0)
+  }
+  updateRun(state, { deliveries: [...run.deliveries, waiver] })
+  return waiver
 }
 
 interface SaveProfileRequest {

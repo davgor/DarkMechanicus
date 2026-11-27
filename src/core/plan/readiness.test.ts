@@ -3,13 +3,8 @@ import type { PlanBundle, SprintDelivery } from '../../shared/domain/bundle'
 import type { AttemptState } from '../../shared/domain/status'
 import type { DeliveryCheckView, TicketExecutionView } from '../../shared/domain/views'
 import { makeBundle, makeSprint, sid, tid } from '../../test/bundles'
-import {
-  type AttemptSnapshot,
-  computeExecution,
-  deliverySatisfied,
-  type ExecutionSnapshot,
-  type ReadinessInput
-} from './readiness'
+import { deliverySatisfied } from './delivery'
+import { type AttemptSnapshot, computeExecution, type ExecutionSnapshot, type ReadinessInput } from './readiness'
 
 function snap(
   ticket: number,

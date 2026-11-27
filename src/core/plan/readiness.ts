@@ -19,6 +19,7 @@ import type {
   TicketExecutionView
 } from '../../shared/domain/views'
 import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket } from './acceptance'
+import { deliverySatisfied } from './delivery'
 import { planRows, sortedSprints, type SprintRow } from './graph'
 
 export interface AttemptSnapshot {
@@ -243,26 +244,6 @@ function rowCheckBlockers(model: Readiness, ticketId: string): Blocker[] {
     }
   }
   return [...failed.values()]
-}
-
-/**
- * A sprint's delivery is satisfied when any waiver exists for it, or when its highest-numbered check passed.
- * A later failed check overrides an earlier pass; a waiver is never overridden.
- */
-export function deliverySatisfied(sprintId: string, deliveries: DeliveryCheckView[]): boolean {
-  let latest: DeliveryCheckView | null = null
-  for (const delivery of deliveries) {
-    if (delivery.sprintId !== sprintId) {
-      continue
-    }
-    if (delivery.kind === 'waiver') {
-      return true
-    }
-    if (delivery.number > (latest?.number ?? 0)) {
-      latest = delivery
-    }
-  }
-  return latest?.passed ?? false
 }
 
 /**
