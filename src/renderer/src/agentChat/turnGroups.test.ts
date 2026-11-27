@@ -68,6 +68,27 @@ describe('turnGroups: collapse bounds', () => {
   it('folds everything when the turn has no reply', () => {
     expect(shape(turnGroups([user('u'), tool('t1', 3)], 'idle'))).toEqual(['m:u', 'w:[t1]'])
   })
+
+  it('folds a text that work came after with the rest, so nothing folded sits above the reply out of order', () => {
+    const request: ChatItem = { id: 'q', at: at(5), kind: 'approval_request', requestId: 'r', category: 'command', tool: 'Bash', summary: 'Run it' }
+    const decision: ChatItem = { id: 'd', at: at(6), kind: 'approval_decision', requestId: 'r', decision: 'deny', decidedBy: 'magos' }
+
+    expect(shape(turnGroups([user('u'), text('said', 2), request, decision], 'idle'))).toEqual(['m:u', 'w:[said,q,d]'])
+  })
+
+  it('folds a stopped turn’s text and tools, keeping only the stop notice', () => {
+    const stopped: ChatItem = { id: 'stop', at: at(30), kind: 'turn_stopped' }
+    const entries = turnGroups([user('u'), text('check', 2), tool('Read', 5), tool('Bash', 9), stopped], 'idle')
+
+    expect(shape(entries)).toEqual(['m:u', 'w:[check,Read,Bash]', 'i:stop'])
+    expect(workLabel(work(entries))).toBe('Stopped after 30s')
+  })
+
+  it('keeps the reply final when only an error or a stop notice follows it', () => {
+    const error: ChatItem = { id: 'err', at: at(12), kind: 'error', message: 'Lost the connection' }
+
+    expect(shape(turnGroups([user('u'), tool('t1', 3), text('final', 10), error], 'idle'))).toEqual(['m:u', 'w:[t1]', 'i:final', 'i:err'])
+  })
 })
 
 describe('turnGroups: never hidden', () => {

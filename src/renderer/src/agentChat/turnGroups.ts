@@ -39,9 +39,12 @@ function turnEntries(start: UserMessage, body: readonly ChatItem[], ended: boole
   const open: TurnEntry[] = [{ kind: 'message', item: start }, ...body.map((item): TurnEntry => ({ kind: 'item', item }))]
   // A waiting prompt inside a thread would be hidden with the call that spawned the thread: such a turn stays open.
   if (!ended || body.some((item) => item.threadId !== undefined && waiting.has(item.id))) return open
-  const final = [...body].reverse().find((item) => item.kind === 'assistant_text' && item.threadId === undefined)
-  const shown = (item: ChatItem): boolean =>
-    item === final || (item.threadId === undefined && (item.kind === 'error' || item.kind === 'turn_stopped' || waiting.has(item.id)))
+  const kept = (item: ChatItem): boolean =>
+    item.threadId === undefined && (item.kind === 'error' || item.kind === 'turn_stopped' || waiting.has(item.id))
+  // The final reply is the chat's own last text only when nothing that folds comes after it; otherwise all the work folds.
+  const last = [...body].reverse().find((item) => item.threadId === undefined && !kept(item))
+  const final = last?.kind === 'assistant_text' ? last : undefined
+  const shown = (item: ChatItem): boolean => item === final || kept(item)
   const items = body.filter((item) => !shown(item))
   if (items.length === 0) return open
   const work: WorkEntry = {

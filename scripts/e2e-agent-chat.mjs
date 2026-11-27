@@ -934,10 +934,17 @@ async function stream(session, signal) {
   return { streamed, messages: shown.messages, screenshot: await capture(session, 'e2e-stream.png', WINDOW) }
 }
 
+/** The tool card's state; an ended turn folds its work behind a `Worked for` row, so a missing card opens the newest folded row. */
 function toolCard(_h, name, state) {
-  const card = document.querySelector(`section.agent-chat .chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
-  const pill = card?.querySelector('[data-state]')
-  return { ok: pill?.getAttribute('data-state') === state, found: !!card, state: pill?.getAttribute('data-state') ?? null, pill: pill?.textContent ?? null }
+  const section = document.querySelector('section.agent-chat')
+  const card = section?.querySelector(`.chat-transcript li.chat-tool[aria-label="Tool call: ${name}"]`)
+  if (!card) {
+    const folded = [...(section?.querySelectorAll('.chat-work-toggle[aria-expanded="false"]') ?? [])].at(-1)
+    folded?.click()
+    return { ok: false, found: false, opened: folded?.textContent ?? null }
+  }
+  const pill = card.querySelector('[data-state]')
+  return { ok: pill?.getAttribute('data-state') === state, found: true, state: pill?.getAttribute('data-state') ?? null, pill: pill?.textContent ?? null }
 }
 
 /** Step 3: `[tool]` shows a tool card that finishes. */
@@ -959,7 +966,7 @@ function dockedPrompt(h, chatId) {
   }
 }
 
-/** Step 4: `[approval]` docks a card above the composer; Allow once finishes the turn, and no earlier turn collapses. */
+/** Step 4: `[approval]` docks a card above the composer; Allow once finishes the turn, whose folded work holds the Bash card. */
 async function approval(session, signal) {
   const { chatId } = session.chat
   await until(session, signal, composeAndSend, chatId, '[approval]')
@@ -969,7 +976,7 @@ async function approval(session, signal) {
   await until(session, signal, clickButton, 'section.agent-chat section.agent-prompt', 'Allow once')
   await until(session, signal, turnDone, session.folderPath, chatId, { text: '[approval]' })
   const bash = await until(session, signal, toolCard, 'Bash', 'accepted')
-  // Step 2's own reply is still the bubble right after its `hello`: the approval turn collapsed no earlier turn.
+  // Step 2's own reply is still the bubble right after its `hello`: a turn with nothing but its reply folds nothing.
   const { messages, answered } = await until(session, signal, guiShows, chatId, 'hello', 'Hello world')
   const asked = messages.filter((message) => message.who === 'You').map((message) => message.text)
   const expected = ['hello first', 'hello', '[tool]', '[approval]']
