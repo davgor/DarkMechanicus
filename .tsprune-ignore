@@ -177,6 +177,7 @@ src/shared/domain/api.ts - StartRunInput
 src/shared/domain/api.ts - SubmitAttemptInput
 src/shared/domain/api.ts - SubmitKanbanCardInput
 src/shared/domain/api.ts - TicketCriterionInput
+src/shared/domain/api.ts - WaiveDeliveryInput
 src/shared/domain/bundle.ts - CHECKPOINT_MODES
 src/shared/domain/bundle.ts - EpicContent
 src/shared/domain/bundle.ts - REFERENCE_KINDS
