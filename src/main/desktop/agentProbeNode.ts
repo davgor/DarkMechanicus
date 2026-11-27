@@ -11,7 +11,7 @@ import { accessSync, constants, statSync } from 'node:fs'
 import { killProcessTree, startsOwnGroup } from '../agents/processTree'
 import type { FileCheck, ProbeLaunch, ProcessOutcome, ProcessRunner } from './agentProbe'
 
-/** A version line is a few bytes; a program that prints more than this is cut off. */
+/** A version line is a few bytes; a program that prints more than this (or the caller's own cap) is cut off. */
 const MAX_OUTPUT_CHARS = 64 * 1024
 
 function spawnFailure(error: unknown): ProcessOutcome {
@@ -40,7 +40,7 @@ function startProcess(launch: ProbeLaunch): ChildProcess {
  * stdout and stderr together, capped; the process tree is killed when `timeoutMs` passes, and the
  * timeout is reported once it is gone.
  */
-export const runProcess: ProcessRunner = (launch, timeoutMs) =>
+export const runProcess: ProcessRunner = (launch, timeoutMs, maxOutputChars = MAX_OUTPUT_CHARS) =>
   new Promise<ProcessOutcome>((resolve) => {
     let output = ''
     let settled = false
@@ -69,7 +69,7 @@ export const runProcess: ProcessRunner = (launch, timeoutMs) =>
       })
     }, timeoutMs)
     const collect = (chunk: string): void => {
-      output = (output + chunk).slice(0, MAX_OUTPUT_CHARS)
+      output = (output + chunk).slice(0, maxOutputChars)
     }
     child.stdout?.setEncoding('utf8').on('data', collect)
     child.stderr?.setEncoding('utf8').on('data', collect)

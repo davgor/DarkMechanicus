@@ -4,7 +4,7 @@ import type { OmpCommand, OmpEvent, OmpState } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { ompTodoPhases } from './todoLists'
 import { ompAnswerPrompt, ompHoldPrompt } from './ompPrompts'
-import { threadClaim, type ThreadClaimEvent } from './translatorEvents'
+import { threadClaim, type CommandResultEvent, type ThreadClaimEvent } from './translatorEvents'
 
 type ObjectValue = Record<string, unknown>
 type ToolItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -36,7 +36,7 @@ function threadStatus(value: unknown): 'done' | 'failed' | 'running' {
 /** One reduction transaction; never retained by the session or exposed over IPC. */
 export class OmpReducer {
   readonly events: OmpEvent[] = []
-  readonly internalEvents: ThreadClaimEvent[] = []
+  readonly internalEvents: (ThreadClaimEvent | CommandResultEvent)[] = []
   constructor(readonly state: OmpState, readonly at: string) {}
 
   emit(event: OmpEvent): void { this.events.push(maskAgentChatSecretsDeep(event)) }
@@ -238,13 +238,21 @@ export class OmpReducer {
     const id = string(frame.id)
     const command = this.state.commands.get(id)
     this.state.commands.delete(id)
+    if (command?.type === 'get_available_models') { this.commandResult(id, command.type, frame); return }
     if (frame.success === false) { this.commandError(frame, command?.type); return }
     if (frame.success !== true) { this.state.skipped++; return }
     if (!command || frame.command !== command.type) return
-    const data = object(frame.data)
+    this.commandData(command, object(frame.data))
+  }
+  commandData(command: { type: string; threadId?: string }, data: ObjectValue): void {
     if (command.type === 'negotiate_protocol') this.state.protocolVersion = 2
     if (command.type === 'get_state') this.stateResponse(data)
     if (command.type === 'get_subagent_messages' && command.threadId) this.tail(data, command.threadId)
+  }
+  /** Main's own request: its reply (or failure) goes only to the caller awaiting it, never into the transcript. */
+  commandResult(id: string, type: string, frame: ObjectValue): void {
+    const ok = frame.success === true && frame.command === type
+    this.internalEvents.push({ type: 'command_result', id, ok, data: ok ? frame.data : undefined })
   }
   commandError(frame: ObjectValue, type?: string): void {
     this.error(string(frame.error) || string(object(frame.error).message) || 'OMP command failed')
@@ -307,6 +315,7 @@ export class OmpReducer {
       }
       case 'interrupt': return { type: 'abort', id: command.id }
       case 'get_subagent_messages': return { type: command.type, id: command.id, subagentId: command.subagentId, fromByte: command.fromByte }
+      case 'get_available_models': return { type: command.type, id: command.id }
       case 'answer': return this.answer(command)
     }
   }

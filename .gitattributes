@@ -3,6 +3,7 @@
 
 # Agent protocol transcripts are byte-for-byte fixtures on Windows too.
 src/main/agentChat/__fixtures__/**/*.jsonl text eol=lf
+src/main/agentChat/__fixtures__/**/*.json text eol=lf
 src/main/agentChat/__fixtures__/*.mjs text eol=lf
 
 # Recorded Scorecard worlds (rewritten by src/test/recordScorecardWorlds.ts)
