@@ -16,6 +16,7 @@ import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
 import type { PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
+import type { ChatItem } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 
 /** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
@@ -1293,6 +1294,29 @@ describe('callsigns across a restart', () => {
     expect(Object.fromEntries(pushed)).toEqual(before)
     expect(readFileSync(r.bindingsFile, 'utf8')).toBe(stored)
     await reopened.dispose()
+  })
+})
+
+describe('callsigns of threads stored before callsigns existed', () => {
+  it('stamps a live legacy thread with the Servitor ordinal the renderer already shows, never a stamped one', async () => {
+    const r = rig()
+    const chat = orchestratorChat(r, 'claude', '[subagent]')
+    const stored = (id: string, state: 'running' | 'done', callsign?: Callsign): ChatItem => ({
+      id, at: '2026-11-25T10:00:00.000Z', kind: 'thread', parentItemId: null, label: 'Explore', state, ...(callsign ? { callsign } : {})
+    })
+    // Stored before callsigns: two legacy threads among stamped Servitors 1 and 2; the live one comes back last.
+    r.store.appendItems(chat, [
+      stored('thread:old1', 'done', servitor(1, null)), stored('thread:old2', 'done'),
+      stored('thread:old3', 'done', servitor(2, null)), stored('thread:toolu_T1_worker', 'running')
+    ])
+    const live = (): Callsign | undefined => {
+      const found = item(r.store, chat, 'thread:toolu_T1_worker')
+      return found?.kind === 'thread' ? found.callsign : undefined
+    }
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle' && live() !== undefined)
+    // The renderer names thread:old2 Servitor-3 and the live thread Servitor-4 from the start; main keeps both.
+    expect(live()).toEqual(servitor(4, null))
   })
 })
 

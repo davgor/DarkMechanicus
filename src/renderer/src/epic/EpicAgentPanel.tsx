@@ -15,6 +15,7 @@ import { useNeedsYou } from '../agentChat/useNeedsYou'
 import { AgentTree, type NeedsYouControls } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentTreeNode, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { ChatTranscript } from '../agents/ChatTranscript'
+import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailTab } from '../components/RightRail'
 import {
@@ -152,7 +153,8 @@ function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
   name: string
   items: readonly ChatItem[]
 }): JSX.Element {
-  const entries = useMemo(() => withoutTodoCalls(threadTranscript(items, threadId)), [items, threadId])
+  // Legacy threads are numbered over the whole chat before the subset is taken, so nested ones keep their tree names.
+  const entries = useMemo(() => withoutTodoCalls(threadTranscript(withLegacyNames(items), threadId)), [items, threadId])
   return (
     <section className="agent-chat" aria-label={`${name} thread`}>
       <header className="agent-chat-header"><h2>{name}</h2></header>

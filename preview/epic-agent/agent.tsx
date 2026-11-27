@@ -243,6 +243,17 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('[aria-label="Acolyte:DM-2 thread"]') && $('.agent-chat-hint'), 'the worker thread with its relay note')
     }
   },
+  'agent-legacy-thread': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, scenarios.legacy.snapshot),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => treeItem('Servitor-2') && treeItem('Servitor-3'), 'the legacy parent and its nested legacy helper in the tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Servitor-2 thread"] [aria-label="Thread: Servitor-3"]'),
+        'the nested legacy helper named Servitor-3 in its parent’s thread view')
+    }
+  },
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),
@@ -377,6 +388,16 @@ const STATES: Record<string, StateDef> = {
       await clickWhenPresent(() => buttonNamed('Collapse Chat agents'), 'Collapse Chat agents')
       await until(() => $('aside[aria-label="Chat agents"]') === null && $('.agent-chat-agents')?.getAttribute('aria-pressed') === 'false',
         'the rail closed by its chevron and the Agents toggle released')
+    }
+  },
+  'chat-rail-legacy': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios.legacy.snapshot } },
+    reach: async () => {
+      await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+      await until(() => treeItem('Servitor-1') && treeItem('Servitor-2'), 'both Servitors in the agent tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Thread: Servitor-2"]') && $('[aria-label="Thread: Servitor-1"]'), 'both Servitor thread blocks in the transcript')
     }
   },
   'settings-notifications': {

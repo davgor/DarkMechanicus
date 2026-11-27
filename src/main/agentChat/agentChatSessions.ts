@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
 import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
-import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, type Callsign } from '../../shared/agents/callsign'
+import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
@@ -265,13 +265,12 @@ class SessionManager {
     }
     return state
   }
-  /** The stored thread items and the Servitor ordinals they were stamped with. */
+  /** The stored thread items and the Servitor ordinals they hold, legacy threads' included, so a later stamp keeps the name shown. */
   private storedCallsigns(chat: ChatRecord): Callsigns {
     const threads = (this.deps.store.readTranscript(chat)?.items ?? []).filter((item): item is ThreadItem => item.kind === 'thread')
-    const stamped = threads.flatMap(thread => thread.callsign ? [[thread.id, thread.callsign] as const] : [])
-    const ordinals = new Map(stamped.flatMap(([id, callsign]) => callsign.role === 'Servitor' && callsign.ordinal !== null ? [[id, callsign.ordinal]] : []))
+    const ordinals = servitorOrdinals(threads)
     return { threads: new Map(threads.map(thread => [thread.id, thread])), ordinals,
-      next: nextServitorOrdinal(stamped.map(([, callsign]) => callsign)), attempts: new Map(), requests: new Map() }
+      next: nextServitorOrdinal(ordinals), attempts: new Map(), requests: new Map() }
   }
   /** Records decide identity: the chat's role and run, the verified attempt's ticket key, then the masked label. */
   private threadCallsign(entry: Entry, threadId: string, label: string): Callsign | null {

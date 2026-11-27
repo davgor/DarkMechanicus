@@ -106,6 +106,47 @@ describe('EpicAgentPanel: chat and tree', () => {
   })
 })
 
+describe('EpicAgentPanel: legacy thread names in a thread view', () => {
+  const servitor1 = { role: 'Servitor' as const, ticketKey: null, ordinal: 1, purpose: null, ticketVerified: false }
+  const legacy = (id: string, label: string, threadId?: string): ChatItem => ({
+    id, at: AT, kind: 'thread', parentItemId: null, label, state: 'running', ...(threadId === undefined ? {} : { threadId })
+  })
+  const allLegacy: ChatItem[] = [
+    { id: 'u1', at: AT, kind: 'user_message', text: 'Run the sprint' },
+    legacy('th_p', 'Parent helper'),
+    { id: 'pw', at: AT, threadId: 'th_p', kind: 'assistant_text', text: 'Parent is delegating' },
+    legacy('th_c', 'Child helper', 'th_p'),
+    { id: 'cw', at: AT, threadId: 'th_c', kind: 'assistant_text', text: 'Child is reading files' }
+  ]
+  const withStamped: ChatItem[] = [
+    { id: 'th_s', at: AT, kind: 'thread', parentItemId: null, label: 'Stamped helper', state: 'running', callsign: servitor1 },
+    ...allLegacy
+  ]
+  /** The live child once main stamps it with the ordinal it reserved: its name must not change. */
+  const childStamped: ChatItem[] = allLegacy.map((item) => item.id === 'th_c' && item.kind === 'thread'
+    ? { ...item, callsign: { ...servitor1, ordinal: 2 } }
+    : item)
+
+  it.each([
+    ['an all-legacy chat', allLegacy, 'Servitor-1', 'Servitor-2'],
+    ['a chat with a stamped Servitor-1', withStamped, 'Servitor-2', 'Servitor-3'],
+    ['a chat whose live child main has since stamped', childStamped, 'Servitor-1', 'Servitor-2']
+  ])('names a nested legacy thread in its parent’s view as the tree does, in %s', async (_case, chatItems, parent, child) => {
+    openAgent(backendWith(chatItems), [orchestrator])
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    const parentRow = await within(rail).findByRole('treeitem', { name: parent })
+    expect(within(rail).getByRole('treeitem', { name: child })).toBeTruthy()
+    fireEvent.click(within(parentRow).getByText(parent))
+    const view = await within(stage).findByRole('region', { name: `${parent} thread` })
+    expect(within(view).getByText('Parent is delegating')).toBeTruthy()
+    const block = within(view).getByRole('listitem', { name: `Thread: ${child}` })
+    fireEvent.click(within(block).getByRole('button', { expanded: false }))
+    expect(within(block).getByText('Child is reading files')).toBeTruthy()
+    expect(within(view).queryByRole('listitem', { name: `Thread: ${parent}` })).toBeNull()
+  })
+})
+
 describe('EpicAgentPanel: selection across views', () => {
 
   it('keeps the selected worker thread while every other view opens in the View order and Agent returns', async () => {

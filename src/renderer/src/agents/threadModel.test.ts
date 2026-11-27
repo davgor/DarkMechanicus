@@ -107,6 +107,15 @@ describe('transcriptTree: threads that are not as stored, and requests', () => {
     expect(only(transcriptTree([asked('q', 'lost')])[0]).item.callsign).toBeUndefined()
   })
 
+  it('names a thread stored before callsigns by the Servitor ordinal stamped threads leave free, as the agent tree does', () => {
+    const servitor: Callsign = { role: 'Servitor', ticketKey: null, ordinal: 1, purpose: null, ticketVerified: false }
+    const stamped: ChatItem = { id: 'stamped', at: AT, kind: 'thread', parentItemId: null, label: 'Label of stamped', state: 'running', callsign: servitor }
+    const rows = transcriptTree([thread('legacy', null), text('n', 'legacy'), stamped])
+    expect(rows.map((row) => only(row).item.callsign)).toEqual([{ ...servitor, ordinal: 2 }, servitor])
+    expect(only(rows[0]).item).toMatchObject({ id: 'legacy', label: 'Label of legacy' })
+    expect(ids(only(rows[0]).rows)).toEqual(['n'])
+  })
+
   it('places unknown-spawner threads at the root without attaching to an unrelated tool', () => {
     const rows = transcriptTree([call('unrelated'), thread('worker', null), text('answer', 'worker')])
     expect(ids(rows)).toEqual(['unrelated', 'worker'])
