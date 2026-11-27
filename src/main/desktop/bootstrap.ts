@@ -1394,6 +1394,16 @@ function startRestartResume({ registry, pool, store, terminals, agentChats }: {
   })
 }
 
+/** The settings channels over the main store's settings; an unexpected failure is logged. */
+function startSettings(ipc: Pick<IpcMain, 'handle'>, settings: AppSettings): void {
+  registerSettingsIpc(ipc, createSettingsHandlers({
+    settings,
+    onUnexpectedError: (error) => {
+      logger.error('Settings request failed:', error)
+    }
+  }))
+}
+
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
@@ -1426,12 +1436,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
   const handlers = bridgeHandlers({ registry: gates, pool, releaseFolder: releasing, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
-  registerSettingsIpc(ipc, createSettingsHandlers({
-    settings,
-    onUnexpectedError: (error) => {
-      logger.error('Settings request failed:', error)
-    }
-  }))
+  startSettings(ipc, settings)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)
