@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveClaudeExecutable } from '../src/main/terminals/claudeExecutable'
+import { resolveAgentExecutable } from '../src/main/terminals/agentExecutable'
 import {
   assertHandoffOrder,
   assertToggleLaunches,
@@ -15,6 +15,7 @@ import {
   fakeAgentPids,
   isAlive,
   isolatedEnv,
+  newChatLaunch,
   newerVersion,
   parseArgs,
   pngSize,
@@ -25,6 +26,7 @@ import {
   restartResumeText,
   restartTurn,
   runStep,
+  seededAgents,
   staleRoots,
   turnEnded,
   verdict,
@@ -155,7 +157,7 @@ describe('writeShim', () => {
     expect(shim).toBe(join(directory, 'fake-claude.cmd'))
     const text = readFileSync(shim, 'utf8')
     expect(text).toBe('@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-claude.js" %*\r\n')
-    expect(resolveClaudeExecutable(shim, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
+    expect(resolveAgentExecutable(shim, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
     expect(readFileSync(join(directory, 'fake-claude.js'), 'utf8'))
       .toBe(`import(require('node:url').pathToFileURL(${JSON.stringify(FIXTURE)}).href)\n`)
   })
@@ -189,6 +191,81 @@ describe('writeShim', () => {
     const result = spawnSync(shim, ['auth', 'status'], { env, encoding: 'utf8' })
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('{"loggedIn":true}')
+  })
+})
+
+describe('writeShim: fake-omp', () => {
+  it('writes a fake-omp .cmd and .js beside fake-claude; the .js names the OMP persona before loading the fake', () => {
+    const directory = temp()
+    const claude = writeShim(directory, FIXTURE, 'win32')
+    const omp = writeShim(directory, FIXTURE, 'win32', 'omp')
+    expect(omp).toBe(join(directory, 'fake-omp.cmd'))
+    expect(readFileSync(omp, 'utf8')).toBe('@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-omp.js" %*\r\n')
+    expect(resolveAgentExecutable(omp, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-omp.js'))
+    expect(readFileSync(join(directory, 'fake-omp.js'), 'utf8'))
+      .toBe(`process.env.FAKE_AGENT_PERSONA = 'omp'\nimport(require('node:url').pathToFileURL(${JSON.stringify(FIXTURE)}).href)\n`)
+    expect(resolveAgentExecutable(claude, 'win32', (path) => readFileSync(path, 'utf8'))).toBe(join(directory, 'fake-claude.js'))
+  })
+
+  it('writes an executable fake-omp sh shim that exports the OMP persona on POSIX', () => {
+    const directory = temp()
+    const shim = writeShim(directory, '/repo/fakeAgentCli.mjs', 'darwin', 'omp')
+    expect(shim).toBe(join(directory, 'fake-omp'))
+    expect(readFileSync(shim, 'utf8')).toBe(`#!/bin/sh\nexport FAKE_AGENT_PERSONA=omp\nexec node '/repo/fakeAgentCli.mjs' "$@"\n`)
+  })
+
+  /** Runs a seeded shim as the app's probes do: through cmd.exe on Windows, directly on POSIX. */
+  const runShim = (shim, args) => {
+    const env = { ...process.env }
+    delete env.FAKE_AGENT_SIGNED_OUT
+    delete env.FAKE_AGENT_LOG
+    delete env.FAKE_AGENT_PERSONA
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH'
+    env[pathKey] = [dirname(process.execPath), env[pathKey]].filter(Boolean).join(delimiter)
+    return process.platform === 'win32'
+      ? spawnSync('cmd.exe', ['/d', '/s', '/c', `"${shim}" ${args.join(' ')}`], { env, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true })
+      : spawnSync(shim, args, { env, encoding: 'utf8' })
+  }
+
+  it('seeds both shims in one folder, each answering version and sign-in as its own CLI', () => {
+    const directory = temp()
+    const claude = writeShim(directory, FIXTURE, process.platform)
+    const omp = writeShim(directory, FIXTURE, process.platform, 'omp')
+    const results = [[claude, ['--version']], [claude, ['auth', 'status']], [omp, ['--version']], [omp, ['usage', '--json']]].map(([shim, args]) => runShim(shim, args))
+    for (const result of results) expect(result.status, result.stderr).toBe(0)
+    expect(results.map((result) => result.stdout.trim())).toEqual([
+      '2.1.329 (Claude Code)',
+      '{"loggedIn":true}',
+      'omp/18.16.0',
+      '{"reports":[{"provider":"fixture","accounts":1}],"accountsWithoutUsage":[],"disabledCredentials":[]}'
+    ])
+  })
+})
+
+describe('seededAgents', () => {
+  const shims = { claude: 'C:\\run\\shim\\fake-claude.cmd', omp: 'C:\\run\\shim\\fake-omp.cmd' }
+
+  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp', () => {
+    expect(seededAgents(shims, 'claude')).toEqual([{ kind: 'claude', executablePath: shims.claude, version: '2.1.329' }])
+    expect(seededAgents(shims, 'omp')).toEqual([
+      { kind: 'claude', executablePath: shims.claude, version: '2.1.329' },
+      { kind: 'omp', executablePath: shims.omp, version: '18.16.0' }
+    ])
+  })
+})
+
+describe('newChatLaunch', () => {
+  const entry = (mode, persona, pid) => JSON.stringify({ mode, persona, pid, at: pid, argv: [`--${mode}`], cwd: 'C:\\repo' })
+
+  it('finds the one GUI launch whose mode and persona are the selected kind', () => {
+    const log = [entry('version', 'omp', 1), entry('auth', 'omp', 2), entry('claude', 'claude', 3), entry('omp', 'omp', 4)].join('\n')
+    expect(newChatLaunch(log, 'omp')).toEqual({ mode: 'omp', persona: 'omp', pid: 4, cwd: 'C:\\repo', argv: ['--omp'] })
+    expect(newChatLaunch(log, 'claude')).toMatchObject({ mode: 'claude', persona: 'claude', pid: 3 })
+  })
+
+  it('refuses none or more than one', () => {
+    expect(() => newChatLaunch(entry('claude', 'claude', 3), 'omp')).toThrow('Expected one omp GUI launch; the log has 0.')
+    expect(() => newChatLaunch([entry('omp', 'omp', 4), entry('omp', 'omp', 5)].join('\n'), 'omp')).toThrow('the log has 2')
   })
 })
 
@@ -360,6 +437,15 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x']).exe).toBeNull()
     expect(parseArgs(['--out', 'x', '--exe', 'app/DarkMechanicus.exe'])).toMatchObject({ exe: resolve('app/DarkMechanicus.exe'), out: resolve('x') })
     expect(() => parseArgs(['--out', 'x', '--exe'])).toThrow('--exe needs the path')
+  })
+
+  it('selects the fixture chats\' agent kind: claude by default, omp only for the steps the omp fake runs', () => {
+    expect(parseArgs(['--out', 'x']).agent).toBe('claude')
+    expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
+    expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
+    expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
   })
 })
 

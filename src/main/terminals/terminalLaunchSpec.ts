@@ -26,7 +26,7 @@ import { isSafeModelId } from '../../shared/agents/models'
 import type { AgentView } from '../../shared/desktop/api'
 import { windowsProgramKind } from '../desktop/agentProbe'
 import { planShimLaunch } from '../agents/shimLaunch'
-import { readShimFile, resolveClaudeExecutable } from './claudeExecutable'
+import { readShimFile, resolveAgentExecutable, SHIM_HELP } from './agentExecutable'
 import type { ReachTarget } from '../agents/chatReach'
 import { pinnedCliScript } from './dmLauncher'
 import { LOGIN_ARGS } from '../desktop/agentAuth'
@@ -314,11 +314,12 @@ function shimNode(shimPath: string, env: TerminalLaunchInput['env'], shimFs: Shi
 /** What choosing the program and building its line reads: the agent's program, main's environment, the platform. */
 type ProgramInput = Pick<TerminalLaunchInput, 'env' | 'platform' | 'shimFs'> & { agent: Pick<AgentView, 'kind' | 'executablePath'> }
 
+/** Claude and OMP npm shims are followed to their program; one that is not an npm shim is never started through cmd.exe. */
 function windowsProgram(input: ProgramInput): Program {
   const shimFs = input.shimFs ?? nodeShimFs
   const { executablePath } = input.agent
-  const path = input.agent.kind === 'claude' || input.agent.kind === 'omp'
-    ? resolveClaudeExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
+  const followsShims = input.agent.kind === 'claude' || input.agent.kind === 'omp'
+  const path = followsShims ? resolveAgentExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
   if (path !== executablePath && path.toLowerCase().endsWith('.js')) {
     return { file: shimNode(executablePath, input.env, shimFs), leading: [path], viaShim: false }
   }
@@ -326,10 +327,16 @@ function windowsProgram(input: ProgramInput): Program {
   if (kind === null) {
     throw new DomainError('invalid_input', 'That file is not a program Windows can run (.exe or .cmd).')
   }
+  if (followsShims && kind === 'shim') {
+    throw new Error(SHIM_HELP)
+  }
   return { file: path, leading: [], viaShim: kind === 'shim' }
 }
 
-/** The shell-free program shared by terminal, GUI and arbiter launches. Callers must refuse `viaShim` for stdio. */
+/**
+ * The shell-free program shared by terminal, GUI and arbiter launches. Claude and OMP never come back `viaShim`
+ * (their shims are followed or refused); callers of other kinds must refuse `viaShim` for stdio.
+ */
 export function windowsAgentProgram(
   agent: ProgramInput['agent'],
   env: ProgramInput['env'],

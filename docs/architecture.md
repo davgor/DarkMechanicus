@@ -545,7 +545,7 @@ A `gui` chat runs the agent's CLI in its own structured mode, with no vendor SDK
 
 | Kind | Arguments main builds |
 |------|-----------------------|
-| Claude Code | `--append-system-prompt-file <instructions>`, `--settings <file>`, `--model <id>` when set, `--session-id <uuid>` or, once `claudeSession.ts` finds the session file, `--resume <uuid>`; on a first start of an orchestrator chat (a run's, a transfer's or a card's) the kickoff as the positional prompt. On Windows a `claude.cmd` is followed to the program it runs (`resolveClaudeExecutable`) |
+| Claude Code | `--append-system-prompt-file <instructions>`, `--settings <file>`, `--model <id>` when set, `--session-id <uuid>` or, once `claudeSession.ts` finds the session file, `--resume <uuid>`; on a first start of an orchestrator chat (a run's, a transfer's or a card's) the kickoff as the positional prompt. On Windows a `claude.cmd` is followed to the program it runs (`resolveAgentExecutable`) |
 | Autonomous | `start <folder>` (or `resume` once the chat was typed into), `--append-system-prompt <text>` (not through a `.cmd`), `--approval-mode always-ask`, `--model <id>` when set |
 | Codex | `-C <folder>` or `resume <id>`, `-m <model>` when set (inferred in the design; not checked against a real Codex) |
 | Cursor | `--resume <id>` when resuming, `-m <model>` when set (inferred, as Codex) |

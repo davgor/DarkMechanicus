@@ -15,10 +15,15 @@ const outputFormat = argv.includes('--output-format') ? option('--output-format'
 const arbiter = argv.includes('-p') && (outputFormat === 'json' || argv.includes('--no-tools'))
 const protocol = outputFormat === 'json' || outputFormat === 'stream-json' ? 'claude' : 'omp'
 const mode = argv.includes('--version') ? 'version'
-  : argv[0] === 'auth' && argv[1] === 'status' ? 'auth'
+  : (argv[0] === 'auth' && argv[1] === 'status') || (argv[0] === 'usage' && argv.includes('--json')) ? 'auth'
     : arbiter ? 'arbiter'
       : argv.includes('--mode') && ['rpc-ui', 'rpc'].includes(option('--mode')) ? 'omp'
         : argv.includes('-p') && outputFormat === 'stream-json' ? 'claude' : 'tui'
+/**
+ * The CLI this run plays: OMP for an rpc-ui (or rpc) run and for OMP's own auth probe (`usage --json`), and for any run
+ * of a `fake-omp` shim, which sets FAKE_AGENT_PERSONA so `--version` names OMP; Claude Code otherwise.
+ */
+const persona = mode === 'omp' || argv[0] === 'usage' || process.env.FAKE_AGENT_PERSONA === 'omp' ? 'omp' : 'claude'
 const root = dirname(fileURLToPath(import.meta.url))
 /** The `[slow]` scenario's pause between lines; a test raises it to hold a busy turn silent while it advances fake time. */
 const slowMs = Number(process.env.FAKE_AGENT_SLOW_MS) || 200
@@ -31,7 +36,7 @@ const log = (extra = {}) => {
   if (process.env.FAKE_AGENT_LOG) {
     const token = process.env.DM_SESSION_TOKEN
     appendFileSync(process.env.FAKE_AGENT_LOG, `${JSON.stringify({
-      mode, pid: process.pid, at: Date.now(), argv, cwd: process.cwd(),
+      mode, persona, pid: process.pid, at: Date.now(), argv, cwd: process.cwd(),
       env: { DM_SESSION_TOKEN: token === undefined ? 'absent' : 'present' },
       grantHash: token === undefined ? null : createHash('sha256').update(token.trim()).digest('hex'), ...extra,
     })}\n`)
@@ -395,10 +400,13 @@ if (mode === 'arbiter') {
   }
 } else {
   log()
+  const loggedIn = process.env.FAKE_AGENT_SIGNED_OUT !== '1'
   if (mode === 'version') {
-    emit('2.1.329 (Claude Code)')
+    emit(persona === 'omp' ? 'omp/18.16.0' : '2.1.329 (Claude Code)')
+  } else if (mode === 'auth' && persona === 'omp') {
+    // OMP's `usage --json` (docs/reports/omp-cli.md section 5): signed in lists an account, signed out every list is empty; both exit 0.
+    emit({ reports: loggedIn ? [{ provider: 'fixture', accounts: 1 }] : [], accountsWithoutUsage: [], disabledCredentials: [] })
   } else if (mode === 'auth') {
-    const loggedIn = process.env.FAKE_AGENT_SIGNED_OUT !== '1'
     emit({ loggedIn })
     process.exitCode = loggedIn ? 0 : 1
   } else {
