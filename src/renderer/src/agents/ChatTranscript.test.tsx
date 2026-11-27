@@ -115,16 +115,17 @@ describe('ChatTranscript: notices and errors', () => {
 })
 
 describe('ChatTranscript: subagent threads', () => {
-  it('shows a subagent under the call that started it, and its own items once opened', () => {
+  it('shows a subagent under the call that started it, and its own items once opened; a legacy thread is a Servitor, not its label', () => {
     const log = show([
       { id: 'spawn', at: AT, kind: 'tool_call', name: 'Task', input: { description: 'Work DM-9' }, status: 'completed', resultSummary: null },
       { id: 'th', at: AT, kind: 'thread', parentItemId: 'spawn', label: 'Worker DM-9', state: 'done' },
       { id: 'inner', at: AT, kind: 'assistant_text', text: 'Inside the worker', threadId: 'th' }
     ])
 
-    const thread = within(log).getByRole('listitem', { name: 'Thread: Worker DM-9' })
+    const thread = within(log).getByRole('listitem', { name: 'Thread: Servitor-1' })
     expect(within(log).queryByText('Inside the worker')).toBe(null)
-    fireEvent.click(within(thread).getByRole('button', { name: /Worker DM-9/ }))
+    expect(within(log).queryByText('Worker DM-9')).toBe(null)
+    fireEvent.click(within(thread).getByRole('button', { name: /Servitor-1/ }))
     expect(within(thread).getByText('Inside the worker')).toBeTruthy()
   })
 
@@ -144,10 +145,10 @@ describe('ChatTranscript: subagent threads', () => {
         <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} />
       </RevealThreadContext.Provider>
     )
-    const outer = screen.getByRole('listitem', { name: 'Thread: Outer worker' })
-    const inner = within(outer).getByRole('listitem', { name: 'Thread: Inner reviewer' })
-    expect(within(outer).getAllByRole('button', { name: /Outer worker/ })[0].getAttribute('aria-expanded')).toBe('true')
-    expect(within(inner).getByRole('button', { name: /Inner reviewer/ }).getAttribute('aria-expanded')).toBe('true')
+    const outer = screen.getByRole('listitem', { name: 'Thread: Servitor-1' })
+    const inner = within(outer).getByRole('listitem', { name: 'Thread: Servitor-2' })
+    expect(within(outer).getAllByRole('button', { name: /Servitor-1/ })[0].getAttribute('aria-expanded')).toBe('true')
+    expect(within(inner).getByRole('button', { name: /Servitor-2/ }).getAttribute('aria-expanded')).toBe('true')
     expect(within(inner).getByText('Inside the reviewer')).toBeTruthy()
     expect(inner.getAttribute('data-thread-id')).toBe('inner')
     expect(scroll.mock.contexts).toEqual([inner])
