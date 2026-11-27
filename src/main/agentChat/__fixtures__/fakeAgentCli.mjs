@@ -178,9 +178,13 @@ function requestId(frame) {
   return null
 }
 
-/** `[image]` replays the image tool result; an image turn without a scenario keyword replays `image_in`. */
+/**
+ * `[image]` replays the image tool result; an image turn without a scenario keyword replays `image_in`. OMP
+ * `[ask-multi-q]` replays the recorded OMP 18.20.2 ask tool form (`ask_multi_q`), one request at a time.
+ */
 function scenario(prompt, hasImages) {
-  const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+)\]/g)].map((match) => match[1] === 'image' ? 'image_result' : match[1])
+  const aliases = { image: 'image_result', 'ask-multi-q': 'ask_multi_q' }
+  const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+|ask-multi-q)\]/g)].map((match) => Object.hasOwn(aliases, match[1]) ? aliases[match[1]] : match[1])
   if (mode === 'omp' && keywords.includes('tasks')) return 'todo'
   if (mode === 'claude' && keywords.includes('todo_clear')) return 'text'
   return keywords.find((key) => ['slow', 'hung', 'leak', 'multiselect', 'echo', 'markdown', 'mail'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? (hasImages ? 'image_in' : 'text')
@@ -291,9 +295,16 @@ function leakToken(lines) {
   })
 }
 
-/** A replayed `answers: …` text says what the app answered, so a multiselect run shows the answers that reached the CLI. */
-function echoAnswers(line, message) {
-  const answers = mode === 'claude' ? message?.response?.response?.updatedInput?.answers : message?.answers
+/**
+ * A replayed `answers: …` text says what the app answered, so a multiselect run shows the answers that reached the CLI.
+ * An OMP ask tool form (`[ask_multi_q]`) is answered by one response per request: the echo lists every one received.
+ */
+function receivedAnswers(message, responses) {
+  if (mode === 'claude') return message?.response?.response?.updatedInput?.answers
+  return message?.answers ?? (responses.length ? responses : undefined)
+}
+function echoAnswers(line, message, responses) {
+  const answers = receivedAnswers(message, responses)
   if (answers === undefined || !line.includes('"answers: ')) return line
   const echo = (value) => typeof value === 'string' ? value.startsWith('answers: ') ? `answers: ${JSON.stringify(answers)}` : value
     : Array.isArray(value) ? value.map(echo)
@@ -479,7 +490,7 @@ class ProtocolReplay {
       return false
     }
     this.active.waiting = requestId(frame)
-    emit(echoAnswers(line, this.active.answer))
+    emit(echoAnswers(line, this.active.answer, this.active.responses ?? []))
     return true
   }
 
@@ -530,7 +541,7 @@ class ProtocolReplay {
     let lines = scriptedReply(name, echoImages(this.turnLines(replay, message), echo, replay, message), content)
     if (name === 'leak') lines = leakToken(lines)
     this.tailQueries.clear()
-    this.active = { lines, index: 0, waiting: null, slow: name === 'slow', hung: name === 'hung', promptId: message.id, tails: tailBindings(replay, this.turn) }
+    this.active = { lines, index: 0, waiting: null, slow: name === 'slow', hung: name === 'hung', promptId: message.id, tails: tailBindings(replay, this.turn), responses: [] }
     this.pump()
   }
 
@@ -602,6 +613,7 @@ class ProtocolReplay {
     if (id && this.active?.waiting === id) {
       this.active.waiting = null
       this.active.answer = message
+      this.active.responses?.push(message)
       this.pump()
     }
   }

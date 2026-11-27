@@ -1,0 +1,17 @@
+{
+  "omp": "omp/18.20.2",
+  "recorded": "2026-11-27",
+  "host": "Windows 10.0.26200 x64, %LOCALAPPDATA%/omp/omp.exe",
+  "argv": ["--mode", "rpc-ui", "--cwd", "<OS temp dir>", "--no-session", "--no-lsp", "--tools", "ask"],
+  "startup": ["set_ask_dialog {enabled:true}", "set_event_filter {events:null,messageUpdates:delta}"],
+  "pairs": {
+    "ask_multi_q": "Every default left untouched: Done on the checkbox group (SQLite, Postgres pre-checked), the radio default US, text 'No'.",
+    "ask_multi_q_changed": "SQLite unchecked, MySQL checked, Other 'Redis', radio APAC, text 'Use the fixture cluster'."
+  },
+  "normalization": [
+    "Observed (O): every extension_ui_request/response payload, the ask tool call html, tool_execution_start/end and the tool result OMP returned, frame order.",
+    "Removed: ready/startup command replies, available_commands_update, setWidget requests, message_update deltas, timestamps, durations, response/credential ids, requestControls, cache TTLs; usage zeroed.",
+    "Renamed: UI request ids to ui_T1_ask_<n> in arrival order; the tool call id to toolu_T1_ask.",
+    "Inferred (I): the final assistant text, recorded as DONE, is replaced by the `answers: …` echo of the recorded responses the fake CLI rewrites."
+  ]
+}
