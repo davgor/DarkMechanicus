@@ -1035,7 +1035,7 @@ export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers, c
     })
     return null
   }
-  const watcher = attachMailWatcher(pi, client, timers, undefined, cult === undefined ? undefined : cultWakeOf(pi, cult.gate))
+  const watcher = attachMailWatcher(pi, client, timers, cult === undefined ? {} : { cultWake: cultWakeOf(pi, cult.gate) })
   registerMailTools(pi, client, support.type, watcher)
   for (const tool of cultTools(client, support.type, cult?.role)) pi.registerTool?.(tool as unknown as MailToolDefinition)
   if (!hasRecoverySchemas(support.type)) pi.on('session_start', (_event, ctx) => {
@@ -1053,8 +1053,8 @@ function cultWakeOf(pi: MailApi, gate: Pick<CultWakeGate, 'take'>): NonNullable<
 }
 
 /** World chats install one watcher per member, while registering the project-selecting tools only once. */
-export function attachMailWatcher(pi: MailApi, client: DmClient, timers: Timers, project?: string, cultWake?: MailWatcherDeps['cultWake']): MailWatcher {
-  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi), ...(project === undefined ? {} : { project }), ...(cultWake === undefined ? {} : { cultWake }) })
+export function attachMailWatcher(pi: MailApi, client: DmClient, timers: Timers, options: Pick<MailWatcherDeps, 'project' | 'cultWake'> = {}): MailWatcher {
+  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi), ...options })
   pi.on('session_start', (_event, ctx) => {
     const entries = (): readonly unknown[] => ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? []
     if (ctx.agent?.kind === 'main') watcher.start(ctx.ui, entries(), entries, ctx.isIdle?.bind(ctx))

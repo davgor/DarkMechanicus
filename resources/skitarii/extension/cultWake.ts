@@ -19,14 +19,20 @@ export const CULT_WAKE_REMINDER =
   '[Dark Mechanicus desktop] New Skitarii mail from a member of your cult run is waiting. It is delivered to you as task data; act on it within your cult rules.'
 const MAX_TEXT = 4096
 
-/** The armed wake number in `text` for this chat's launch, or null when disarmed; throws on anything else. */
-export function parseCultWake(text: string, chatId: string, epoch: string): number | null {
+const KEYS = ['version', 'chatId', 'epoch', 'wake']
+
+function wakeRecord(text: string): Record<string, unknown> {
   if (text.length > MAX_TEXT) throw new Error('invalid cult wake: too large')
   const doc = JSON.parse(text) as unknown
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('invalid cult wake: not an object')
-  const d = doc as Record<string, unknown>
-  const keys = Object.keys(d)
-  if (keys.length !== 4 || !['version', 'chatId', 'epoch', 'wake'].every((key) => keys.includes(key))) throw new Error('invalid cult wake: keys')
+  const keys = Object.keys(doc)
+  if (keys.length !== KEYS.length || !KEYS.every((key) => keys.includes(key))) throw new Error('invalid cult wake: keys')
+  return doc as Record<string, unknown>
+}
+
+/** The armed wake number in `text` for this chat's launch, or null when disarmed; throws on anything else. */
+export function parseCultWake(text: string, chatId: string, epoch: string): number | null {
+  const d = wakeRecord(text)
   if (d.version !== 1 || d.chatId !== chatId || d.epoch !== epoch) throw new Error('invalid cult wake: foreign')
   if (d.wake === null) return null
   if (!Number.isSafeInteger(d.wake) || (d.wake as number) < 1) throw new Error('invalid cult wake: wake')

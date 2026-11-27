@@ -86,13 +86,13 @@ export function createCultWake(deps: CultWakeDeps): CultWake {
 function cultWakeAllowed(deps: CultWakeDeps, folder: string, sender: string, recipient: string): boolean {
   if (sender === recipient) return false
   const chats = deps.chats.listChats(folder)
-  const from = chats.find((chat) => chat.endpointId === sender)
-  const to = chats.find((chat) => chat.endpointId === recipient)
-  if (from?.cultRunId === undefined || to?.cultRunId === undefined || from.cultRunId !== to.cultRunId) return false
-  const a = deps.supervisor.memberOf(from.id)
-  const b = deps.supervisor.memberOf(to.id)
-  if (a === null || b === null || a.run.id !== b.run.id || a.run.id !== to.cultRunId) return false
-  return deps.supervisor.isWakeOpen(a.run.id)
+  const runs = [sender, recipient].map((endpoint) => {
+    const chat = chats.find((candidate) => candidate.endpointId === endpoint)
+    // The chat's own record and the supervisor's live membership must agree on the run.
+    const member = chat?.cultRunId === undefined ? null : deps.supervisor.memberOf(chat.id)
+    return member !== null && member.run.id === chat?.cultRunId ? member.run.id : null
+  })
+  return runs[0] !== null && runs[0] === runs[1] && deps.supervisor.isWakeOpen(runs[0])
 }
 
 async function publish(deps: CultWakeDeps, chatId: string, state: ChatWake, arm: boolean): Promise<void> {
