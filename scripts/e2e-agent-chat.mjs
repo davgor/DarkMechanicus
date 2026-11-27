@@ -7,11 +7,12 @@
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
  *
- * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted). Both shims are
- * always written, but the omp agent is only connected with `--agent omp`: the app prefers a signed-in OMP for a planner,
- * and the Claude steps after `new-chat` drive Claude-protocol scenarios. So `--agent omp` runs only `ready`, `new-chat`
- * and `quit`.
+ * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
+ * coord step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`: the app
+ * prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios. So
+ * `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord steps.
  *
  * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
  * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
@@ -21,7 +22,13 @@
  * folder chat's composer, and `image-result` has the seeded epic's Magos (started through Start run) return it from a
  * tool, opens it and attaches it to the epic as evidence.
  *
- * Without `--steps` every step but the polish and image ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `coord-*` steps (the epic's Lexmechanic and Magos as tabs, coordinating over Skitarii mail) also run only when
+ * named, and they run the omp fake (`--agent omp` is implied; `--agent claude` is refused): `coord-tabs` starts the
+ * seeded epic's Magos through Start run and a Lexmechanic from the tab strip's "+", `coord-mail` has the Lexmechanic's
+ * fake find the Magos by epic and role and mail it with the real `dm` CLI, `coord-wake` stops the Lexmechanic and has
+ * the Magos mail it awake in the GUI, and `coord-close` stops it for good from its tab.
+ *
+ * Without `--steps` every step but the polish, image and coord ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -347,16 +354,22 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
   return { ...env, [key]: [folder, env[key]].filter(Boolean).join(separator) }
 }
 
+/**
+ * A run's state. With a coord step the fakes deliver their inbox at startup (`FAKE_AGENT_DELIVER_MAIL`), as the
+ * Skitarii extension delivers mail; other runs never make that `dm` call.
+ */
 function createSession(out, exe, agent = 'claude', keys = []) {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
   writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
+  const env = withNodeFirst(isolatedEnv(process.env, root))
+  if (keys.some((key) => STEPS[key].coord)) env.FAKE_AGENT_DELIVER_MAIL = '1'
   return {
-    out, root, exe, agent, env: withNodeFirst(isolatedEnv(process.env, root)),
+    out, root, exe, agent, env,
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null, console: []
+    store: null, restart: null, console: [], coord: null
   }
 }
 
@@ -2207,6 +2220,226 @@ async function imageResult(session, signal) {
   }
 }
 
+/** The body the fake's `[mail] <role> <epicId>` sends (`fakeAgentCli.mjs`, mailPeer), shown on both mail cards. */
+export function coordMailBody(role) {
+  return `Fake coordination mail for the ${role}.`
+}
+
+/** The tab strip over the epic's Agent stage: each tab's chat, name, selection, unread dot and stopped look, and the chat shown. */
+function tabStrip(_h) {
+  const tabs = [...document.querySelectorAll('section.eap .ats [role="tab"]')].map((tab) => ({
+    chatId: tab.dataset.chatId, name: tab.querySelector('.ats-name')?.textContent ?? null, label: tab.getAttribute('aria-label'),
+    selected: tab.getAttribute('aria-selected') === 'true', unread: tab.querySelector('.ats-unread') !== null,
+    stopped: tab.closest('.ats-tab')?.classList.contains('is-stopped') ?? false
+  }))
+  const shown = document.querySelector('section.eap .eap-centre section.agent-chat, section.eap .eap-centre section.eap-terminal')
+  const dialog = document.querySelector('.dialog[role="dialog"] .dialog-title')?.textContent ?? null
+  return { ok: true, tabs, shown: shown?.getAttribute('aria-label') ?? null, dialog }
+}
+
+/** Polls the tab strip until `test` accepts it, which it returns. */
+function tabsWhere(session, signal, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const strip = await page(session, tabStrip)
+    session.lastProbe = strip
+    return test(strip) && strip
+  }, signal)
+}
+
+const tabOf = (strip, chatId) => strip.tabs.find((tab) => tab.chatId === chatId)
+
+/** Clicks the chat's tab until it is the selected one and its chat (`name chat`) fills the stage. */
+async function selectTab(session, signal, chatId, name) {
+  await until(session, signal, clickSelector, `section.eap .ats [role="tab"][data-chat-id="${chatId}"]`)
+  return tabsWhere(session, signal, (strip) => tabOf(strip, chatId)?.selected && strip.shown === `${name} chat`)
+}
+
+/** A real Ctrl+Tab in the page, as the person cycles the tabs. */
+async function pressCtrlTab(session) {
+  const key = { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9, modifiers: 2 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+}
+
+/** Clicks the Start an agent dialog's Lexmechanic card once; ok once it is clicked. */
+function pickLexmechanic(_h) {
+  const card = document.querySelector('.dialog[role="dialog"] .arc[data-role="planner"]')
+  if (!card || card.getAttribute('aria-disabled') === 'true') return { ok: false, card: !!card }
+  card.click()
+  return { ok: true }
+}
+
+/** The long-lived fake launches of the chat: an OMP session folder names its chat id, a PTY would run the fake TUI. */
+export function coordLaunches(logText, chatId) {
+  return fakeAgentLog(logText)
+    .filter((entry) => LONG_LIVED_MODES.has(entry.mode) && entry.argv.some((arg) => arg.includes(chatId)))
+    .map((entry) => ({ mode: entry.mode, surface: entry.mode === 'tui' ? 'terminal' : 'gui', pid: entry.pid, at: entry.at }))
+}
+
+/** The chat's one live GUI fake process, its launches and that no terminal (PTY) launch ran for it. */
+function liveGuiLaunch(session, chatId) {
+  const launches = coordLaunches(readLog(session), chatId)
+  const live = launches.filter((launch) => isAlive(launch.pid))
+  const terminal = launches.filter((launch) => launch.surface === 'terminal')
+  return live.length === 1 && live[0].mode === 'omp' && terminal.length === 0 ? { launch: live[0], launches, terminalLaunches: terminal } : null
+}
+
+/** The mail card the chat's transcript shows `body` on, the newest of `direction`: its header, text normalized. */
+function mailCard(_h, name, direction, body) {
+  const section = document.querySelector(`section.eap .eap-centre section.agent-chat[aria-label="${name} chat"]`)
+  if (!section) return { ok: false, section: false }
+  const cards = [...section.querySelectorAll(`.chat-transcript li.chat-mail-${direction} article.chat-mail-card`)]
+    .filter((card) => card.querySelector('.chat-mail-body')?.textContent === body)
+  const card = cards.at(-1)
+  const head = card?.querySelector('.chat-mail-head')?.textContent.replace(/\s+/g, ' ').trim() ?? null
+  return { ok: card !== undefined, head, label: card?.getAttribute('aria-label') ?? null, cards: cards.length }
+}
+
+/** Sends `[mail] <role> <epic>` from the chat and waits for its turn: the fake's reply names the endpoint it mailed. */
+async function sendMail(session, signal, chatId, role) {
+  const text = `[mail] ${role} ${session.epicId}`
+  await until(session, signal, composeAndSend, chatId, text)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnItems, session.folderPath, chatId, text)
+  if (!turn.reply?.startsWith(`mailed the ${role} at `)) throw new Error(`The fake did not mail the ${role}: ${turn.reply}`)
+  return { text, reply: turn.reply }
+}
+
+/** Clicks the tab's ✕ and answers the Stop confirmation with `button` (Cancel or Stop). */
+async function answerTabStop(session, signal, name, button) {
+  await until(session, signal, clickSelector, `section.eap .ats button.ats-close[aria-label="Stop ${name}"]`)
+  await tabsWhere(session, signal, (strip) => strip.dialog === `Stop the ${name}?`)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', button)
+  return tabsWhere(session, signal, (strip) => strip.dialog === null)
+}
+
+function coordChats(session) {
+  if (session.coord === null) throw new Error('The coord steps after coord-tabs drive its two chats: run coord-tabs first.')
+  return session.coord
+}
+
+/** The OMP session file the fake keeps for the chat holds an inbox delivery: the app counts its mail delivered. */
+function inboxDelivered(session, chatId) {
+  const sessions = join(session.userData, 'agents', 'omp', chatId, 'sessions')
+  return existsSync(sessions) && readdirSync(sessions).some((name) => readFileSync(join(sessions, name), 'utf8').includes('"customType":"dm-inbox-delivery"'))
+}
+
+/**
+ * Coord 1: the seeded epic's Magos through Start run, then a Lexmechanic from the tab strip's "+", both Skitarii
+ * (omp-kind) GUI chats. Two tabs show; a click on each shows its chat, and Ctrl+Tab cycles between them.
+ */
+async function coordTabs(session, signal) {
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await until(session, signal, startRunDialog)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Run with agent')
+  const { chat: magos } = await until(session, signal, chatRecord, session.folderPath, { role: 'orchestrator', epicId: session.epicId })
+  // Run with agent opens the Magos as a folder chat; the tabs live in the epic's Agent tab.
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await tabsWhere(session, signal, (strip) => tabOf(strip, magos.id)?.selected)
+  await until(session, signal, clickSelector, 'section.eap .ats button.ats-new')
+  await until(session, signal, pickLexmechanic)
+  const { chat: lex } = await until(session, signal, chatRecord, session.folderPath, { role: 'planner', epicId: session.epicId })
+  for (const chat of [magos, lex]) {
+    if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The ${chat.role} is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  }
+  session.coord = { magos, lex }
+  const both = await tabsWhere(session, signal, (strip) => strip.tabs.length === 2 && strip.tabs[0].chatId === magos.id && tabOf(strip, lex.id)?.selected && strip.shown === 'Lexmechanic chat')
+  const clicked = [await selectTab(session, signal, magos.id, 'Magos'), await selectTab(session, signal, lex.id, 'Lexmechanic')]
+  const cycled = []
+  for (const [chat, name] of [[magos, 'Magos'], [lex, 'Lexmechanic']]) {
+    await pressCtrlTab(session)
+    cycled.push(await tabsWhere(session, signal, (strip) => tabOf(strip, chat.id)?.selected && strip.shown === `${name} chat`))
+  }
+  const launches = [magos, lex].map((chat) => liveGuiLaunch(session, chat.id))
+  if (launches.includes(null)) throw new Error(`Expected one live GUI fake per chat: ${JSON.stringify([magos, lex].map((chat) => coordLaunches(readLog(session), chat.id)))}`)
+  return {
+    magos, lexmechanic: lex, tabs: both.tabs, clicked: clicked.map((strip) => strip.shown), ctrlTab: cycled.map((strip) => strip.shown),
+    pids: { magos: launches[0].launch.pid, lexmechanic: launches[1].launch.pid }, screenshot: await capture(session, 'e2e-coord-tabs.png', WINDOW)
+  }
+}
+
+/**
+ * Coord 2: the Lexmechanic's fake finds the Magos by epic and role with its own grant and mails it (`[mail]`). The
+ * Lexmechanic's transcript shows the sent card, the unselected Magos tab its unread dot, and once selected the Magos's
+ * transcript the received card.
+ */
+async function coordMail(session, signal) {
+  const { magos, lex } = coordChats(session)
+  await selectTab(session, signal, lex.id, 'Lexmechanic')
+  const body = coordMailBody('orchestrator')
+  const mailed = await sendMail(session, signal, lex.id, 'orchestrator')
+  const sent = await until(session, signal, mailCard, 'Lexmechanic', 'sent', body)
+  const dot = await tabsWhere(session, signal, (strip) => tabOf(strip, magos.id)?.unread && !tabOf(strip, magos.id).selected)
+  const sentShot = await capture(session, 'e2e-coord-mail-sent.png', WINDOW)
+  await selectTab(session, signal, magos.id, 'Magos')
+  const received = await until(session, signal, mailCard, 'Magos', 'received', body)
+  const expected = { sent: '✉ Lexmechanic → Magos Sent', received: '✉ Lexmechanic → Magos Received' }
+  if (sent.head !== expected.sent || received.head !== expected.received) throw new Error(`Unexpected mail card headers: ${JSON.stringify({ sent, received })}`)
+  return {
+    mailed, body, sentCard: sent, receivedCard: received, magosTabBeforeSelect: tabOf(dot, magos.id),
+    screenshots: [sentShot, await capture(session, 'e2e-coord-mail.png', WINDOW)]
+  }
+}
+
+/**
+ * Coord 3: the Lexmechanic stopped from its tab (✕ → Stop) is gone with its process; the Magos's fake mails it. The
+ * Lexmechanic restarts in the GUI (a new fake process, no terminal launch), its tab comes back with the unread dot,
+ * and its fake delivers the mail into its session as the Skitarii extension does.
+ */
+async function coordWake(session, signal) {
+  const { magos, lex } = coordChats(session)
+  const before = liveGuiLaunch(session, lex.id)
+  if (before === null) throw new Error(`The Lexmechanic has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), lex.id))}`)
+  await answerTabStop(session, signal, 'Lexmechanic', 'Stop')
+  await waitFor(() => !isAlive(before.launch.pid), signal)
+  const stopped = await tabsWhere(session, signal, (strip) => strip.tabs.length === 1 && strip.tabs[0].chatId === magos.id)
+  const mailed = await sendMail(session, signal, magos.id, 'planner')
+  const woken = await waitFor(() => {
+    const live = liveGuiLaunch(session, lex.id)
+    return live !== null && live.launch.pid !== before.launch.pid && live
+  }, signal)
+  const back = await tabsWhere(session, signal, (strip) => tabOf(strip, lex.id)?.unread && !tabOf(strip, lex.id).stopped)
+  await waitFor(() => inboxDelivered(session, lex.id), signal)
+  const sent = await until(session, signal, mailCard, 'Magos', 'sent', coordMailBody('planner'))
+  const { chat: record } = await until(session, signal, chatRecord, session.folderPath, { id: lex.id })
+  if (record.surface !== 'gui') throw new Error(`The woken Lexmechanic is on ${record.surface}, not gui.`)
+  return {
+    stoppedPid: before.launch.pid, tabsWhileStopped: stopped.tabs, mailed, magosSentCard: sent, wokenPid: woken.launch.pid,
+    launches: woken.launches, terminalLaunches: woken.terminalLaunches, surface: record.surface, lexmechanicTab: tabOf(back, lex.id),
+    inboxDelivered: true, screenshot: await capture(session, 'e2e-coord-wake.png', WINDOW)
+  }
+}
+
+/** How long coord-close watches a stopped Lexmechanic stay stopped: past one mail sweep (`agentMailDesktop.ts`, 2 s). */
+const STAYS_STOPPED_MS = 3_000
+
+/**
+ * Coord 4: ✕ → Cancel leaves the Lexmechanic's tab and process; ✕ → Stop removes the tab once its fake has exited,
+ * and the delivered mail wakes it no more.
+ */
+async function coordClose(session, signal) {
+  const { magos, lex } = coordChats(session)
+  const live = liveGuiLaunch(session, lex.id)
+  if (live === null) throw new Error(`The Lexmechanic has no one live GUI fake: ${JSON.stringify(coordLaunches(readLog(session), lex.id))}`)
+  const cancelled = await answerTabStop(session, signal, 'Lexmechanic', 'Cancel')
+  if (!tabOf(cancelled, lex.id) || !isAlive(live.launch.pid)) throw new Error(`Cancel stopped the Lexmechanic: ${JSON.stringify(cancelled.tabs)}`)
+  await answerTabStop(session, signal, 'Lexmechanic', 'Stop')
+  await waitFor(() => !isAlive(live.launch.pid), signal)
+  const closed = await tabsWhere(session, signal, (strip) => strip.tabs.length === 1 && strip.tabs[0].chatId === magos.id)
+  const launchesBefore = coordLaunches(readLog(session), lex.id).length
+  await delay(STAYS_STOPPED_MS, undefined, { signal })
+  const after = await page(session, tabStrip)
+  const launches = coordLaunches(readLog(session), lex.id)
+  if (launches.length !== launchesBefore || tabOf(after, lex.id)) throw new Error(`The stopped Lexmechanic came back: ${JSON.stringify({ launches, tabs: after.tabs })}`)
+  return {
+    tabsAfterCancel: cancelled.tabs, stoppedPid: live.launch.pid, tabsAfterStop: closed.tabs, stayedStoppedMs: STAYS_STOPPED_MS,
+    launches, screenshot: await capture(session, 'e2e-coord-close.png', WINDOW)
+  }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -2235,7 +2468,11 @@ const STEPS = {
   'polish-worked-for': { name: 'polish-worked-for', run: polishWorkedFor, polish: true },
   'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true },
   'image-send': { name: 'image-send', run: imageSend, image: true },
-  'image-result': { name: 'image-result', run: imageResult, image: true }
+  'image-result': { name: 'image-result', run: imageResult, image: true },
+  'coord-tabs': { name: 'coord-tabs', run: coordTabs, coord: true },
+  'coord-mail': { name: 'coord-mail', run: coordMail, coord: true },
+  'coord-wake': { name: 'coord-wake', run: coordWake, coord: true },
+  'coord-close': { name: 'coord-close', run: coordClose, coord: true }
 }
 
 async function captureFailure(session, step) {
@@ -2284,17 +2521,34 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
+/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, coord ones with the claude fake. */
+function refuseOtherKind(keys, agent) {
+  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].coord)]
+  const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
+  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
+  const coord = agent === 'claude' ? keys.filter((key) => STEPS[key].coord) : []
+  if (coord.length > 0) throw new Error(`${coord.join(', ')} drive the omp fake: leave out --agent claude.`)
+}
+
 /**
- * The steps to run: `--steps`, else every step but the polish ones (only OMP_STEPS for `--agent omp`); unknown or
- * Claude-only ones are refused. A list that neither starts the app nor names `ready` gets `ready` first.
+ * The steps to run: `--steps`, else every step but the polish, image and coord ones (only OMP_STEPS for `--agent
+ * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
+ * nor names `ready` gets `ready` first.
  */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].coord))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
-  const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
-  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${OMP_STEPS.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
+  refuseOtherKind(keys, agent)
   return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
+}
+
+/** `--agent`, else `omp` when a coord step is named (the coord steps run Skitarii chats), else `claude`. */
+function agentOf(argv, requested) {
+  const coord = requested?.split(',').some((key) => STEPS[key]?.coord) ?? false
+  const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : coord ? 'omp' : 'claude'
+  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  return agent
 }
 
 export function parseArgs(argv) {
@@ -2304,10 +2558,10 @@ export function parseArgs(argv) {
     throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent ${AGENT_KINDS.join('|')}] [--steps ${Object.keys(STEPS).join(',')}]`)
   }
   if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
-  const agent = argv.includes('--agent') ? value('--agent') : 'claude'
-  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  const requested = value('--steps')
+  const agent = agentOf(argv, requested)
   const exe = value('--exe')
-  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys: stepKeys(value('--steps'), agent) }
+  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys: stepKeys(requested, agent) }
 }
 
 async function main(argv) {

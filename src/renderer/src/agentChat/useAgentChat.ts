@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentChatAnswer, AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import type { AgentChatAnswer, AgentChatApi, AgentChatEvent, AgentChatModelChoice, AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import type { ChatItem } from '../../../shared/agents/chat'
 import type { ChatMailEntry } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
@@ -289,6 +289,12 @@ export function useAgentChat(
   const answer = useCallback((request: AgentChatAnswer) => api.answer({ ...identity, ...request }), [api, identity])
   const setSurface = useCallback((surface: AgentChatSnapshot['surface']) =>
     load(() => api.setSurface({ ...identity, surface }), true), [api, identity, load])
+  const models = useCallback(() => api.models(identity), [api, identity])
+  // A refused switch keeps the chat as it was; its snapshot carries the switched model and effort into every view.
+  const setModel = useCallback((choice: AgentChatModelChoice) =>
+    load(() => api.setModel({ ...identity, ...choice }), true), [api, identity, load])
 
-  return { state: view.identity === identity ? view.state : agentChatState(), start, send, stageImage, interrupt, answer, setSurface }
+  return {
+    state: view.identity === identity ? view.state : agentChatState(), start, send, stageImage, interrupt, answer, setSurface, models, setModel
+  }
 }

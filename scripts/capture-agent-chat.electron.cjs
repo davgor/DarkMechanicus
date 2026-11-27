@@ -1,6 +1,6 @@
 /**
- * The Electron side of `capture-agent-chat.mjs`: for each state, a fresh hidden window of the requested content size
- * (1280×800 unless `--viewport` says otherwise) loads the preview URL,
+ * The Electron side of `capture-agent-chat.mjs`: for each state, a fresh hidden window of that state's content size
+ * (1280×800 unless `--viewport` says otherwise; 1024×768 or 1440×900 for a `-1024` or `-1440` state) loads the preview URL,
  * waits (up to the per-state deadline) for `#observations[data-ready="1"]`, reads the observations, then writes
  * `capturePage()` to `<out>/<state>.png`. Each state's record goes to the parent over IPC; the parent judges it.
  * A parent that goes away closes the IPC channel, and the app then quits, so it never outlives the run.
@@ -62,9 +62,20 @@ async function waitForObservations(window) {
   return null
 }
 
-/** A hidden offscreen window of the requested content size, as every state and the warm-up open it. */
-function captureWindow() {
-  const { width, height } = config.viewport
+/** How many distinct colours a capture holds among up to 4096 pixels sampled on an even grid; a blank page holds one or two. */
+function distinctColors(image) {
+  const { width, height } = image.getSize()
+  const bitmap = image.toBitmap()
+  const step = Math.max(1, Math.floor(Math.sqrt((width * height) / 4096)))
+  const colors = new Set()
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) colors.add(bitmap.readUInt32LE((y * width + x) * 4))
+  }
+  return colors.size
+}
+
+/** A hidden offscreen window of the given content size, as every state and the warm-up open it. */
+function captureWindow({ width, height }) {
   // Offscreen rendering keeps painting while hidden, so `capturePage()` shows the reached state rather than the first
   // frame, and the page's viewport is exactly the requested size (no native frame or display scaling in between).
   return new BrowserWindow({
@@ -78,13 +89,13 @@ function captureWindow() {
  * deadline holds only that state's own page as every later state's does.
  */
 async function warmUp() {
-  const window = captureWindow()
+  const window = captureWindow(config.states[0].viewport)
   try { await window.loadURL('about:blank') } finally { window.destroy() }
 }
 
-async function captureState(state) {
+async function captureState({ state, viewport }) {
   const startedAt = Date.now()
-  const window = captureWindow()
+  const window = captureWindow(viewport)
   try {
     const url = `${config.base}?state=${encodeURIComponent(state)}`
     const loaded = window.loadURL(url).then(() => null, (error) => error.message)
@@ -103,6 +114,7 @@ async function captureState(state) {
     if (!image.isEmpty()) writeFileSync(file, png)
     return {
       state, ready: true, ms: Date.now() - startedAt, observations, empty: image.isEmpty(), bytes: png.length, file,
+      colors: image.isEmpty() ? 0 : distinctColors(image),
       viewport: { width: pageWidth, height: pageHeight }, image: image.getSize()
     }
   } finally {
