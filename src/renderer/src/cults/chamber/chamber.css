@@ -179,14 +179,14 @@
 }
 
 .cc-chamber .cc-spark {
-  fill: #ffd27a;
-  filter: drop-shadow(0 0 3px #ff9b2e);
+  fill: var(--chamber-spark);
+  filter: drop-shadow(0 0 3px var(--chamber-spark-glow));
 }
 
 /* ---- Run-state theatrics on the scene root ---- */
 
 .cc-chamber .cc-shade {
-  background: #000;
+  background: var(--chamber-shade);
   opacity: 0;
 }
 
@@ -215,10 +215,10 @@
 
 .cc-chamber .cc-stasis-plate {
   padding: 6px 22px;
-  border: 2px solid #9fc4e0;
+  border: 2px solid var(--chamber-stasis-edge);
   border-radius: 6px;
   background: rgb(10 18 26 / 82%);
-  color: #cfe6f5;
+  color: var(--chamber-stasis-ink);
   font: 700 22px var(--font-mono);
   letter-spacing: 0.4em;
 }

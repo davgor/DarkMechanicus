@@ -18,11 +18,11 @@ import { getOmpSignIn } from '../desktop/agentAuth'
 import { planCliLaunch, type AgentProbeDeps, type ProcessOutcome } from '../desktop/agentProbe'
 
 /** At or below this output price (USD per 1M tokens) a model is `low`. */
-export const LOW_TIER_MAX_OUTPUT_COST = 5
+const LOW_TIER_MAX_OUTPUT_COST = 5
 /** At or above this output price (USD per 1M tokens) a model is `high`; between the two it is `normal`. */
-export const HIGH_TIER_MIN_OUTPUT_COST = 25
+const HIGH_TIER_MIN_OUTPUT_COST = 25
 
-export type CultModelTier = 'low' | 'normal' | 'high' | 'unpriced'
+type CultModelTier = 'low' | 'normal' | 'high' | 'unpriced'
 
 export interface CultModelOption {
   /** OMP's `provider/id` selector, the value of `--model`. */
@@ -33,7 +33,7 @@ export interface CultModelOption {
 }
 
 /** The models offered, cheapest first, or none with the reason why. */
-export interface CultModelList {
+interface CultModelList {
   options: readonly CultModelOption[]
   reason: string | null
 }
@@ -151,7 +151,7 @@ interface OmpModelCatalogOptions {
 }
 
 /** A cached model list: asked once, again on `refresh`, and again after OMP's sign-in status changes. */
-export interface OmpModelCatalog {
+interface OmpModelCatalog {
   list(): Promise<CultModelList>
   refresh(): Promise<CultModelList>
   /** Tells the catalog OMP's current sign-in state; a state other than the cached list's drops the cache. */

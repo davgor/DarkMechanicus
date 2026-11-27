@@ -27,7 +27,7 @@ import type { ProjectWorkspace } from '../desktop/workspaceClient'
 import type { PlanBinding, SynthesisView } from './cultPlanRecords'
 import type { CultStore } from './cultStore'
 
-export interface PlanForgeCouncilDeps {
+interface PlanForgeCouncilDeps {
   cults: Pick<CultStore, 'getCult' | 'listMembers' | 'listReports' | 'listWorkerTypes' | 'bindPlanTarget' | 'getPlanBinding' | 'recordSynthesis' | 'latestSynthesis'>
   /** The run folder's workspace through the desktop's tracked-folder gate and pool; never the database directly. */
   workspaceFor: (folder: string) => Pick<ProjectWorkspace, 'validatePlan' | 'call'>

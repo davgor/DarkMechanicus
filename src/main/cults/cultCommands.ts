@@ -27,7 +27,7 @@ import { createWorkerType, listWorkerTypes, requireSummonableType, retireWorkerT
 import { cheapest, type CultModelOption, TIER_RANK } from './ompModels'
 
 /** One order: one mailbox message from the sender's own endpoint to each recipient, returning the message ids in order. */
-export interface CultOrderSend {
+interface CultOrderSend {
   folder: string
   senderChatId: string
   recipientChatIds: string[]

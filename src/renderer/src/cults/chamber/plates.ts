@@ -1,6 +1,6 @@
 /** Name-plate placement: plates stagger into rows under the feet so crowded rooms stay legible. */
 
-export interface PlateInput {
+interface PlateInput {
   id: string
   /** The acolyte's feet x in room pixels; the plate is centred on it. */
   x: number
@@ -13,7 +13,7 @@ export interface PlateInput {
 
 export interface PlatePlacement { row: number; hidden: boolean; width: number }
 
-export const PLATE_ROWS = 3
+const PLATE_ROWS = 3
 const PLATE_GAP = 4
 const PLATE_MAX_WIDTH = 120
 

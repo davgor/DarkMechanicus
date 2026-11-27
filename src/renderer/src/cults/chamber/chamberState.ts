@@ -5,19 +5,19 @@ import {
 } from './effects'
 import type { ChamberLayout } from './layout'
 
-export type RunState = 'idle' | 'running' | 'paused' | 'ending' | 'ended' | 'killed'
+type RunState = 'idle' | 'running' | 'paused' | 'ending' | 'ended' | 'killed'
 /** An acolyte that finished leaving is removed from the chamber (gone). */
-export type AcolyteMode = 'arriving' | 'wandering' | 'working' | 'saluting' | 'leaving'
-export type AcolytePose = MotionAction | 'drill' | 'type' | 'salute'
-export type MagosOneShot = 'chronicle' | 'order_all' | 'order_one' | 'summon' | 'speak'
+type AcolyteMode = 'arriving' | 'wandering' | 'working' | 'saluting' | 'leaving'
+type AcolytePose = MotionAction | 'drill' | 'type' | 'salute'
+type MagosOneShot = 'chronicle' | 'order_all' | 'order_one' | 'summon' | 'speak'
 export type MagosAction = MagosOneShot | 'petition' | 'idle'
 
 /** Highest first: the Magos performs one action at a time and picks the highest one wanted. */
-export const MAGOS_PRIORITY: readonly MagosAction[] =
+const MAGOS_PRIORITY: readonly MagosAction[] =
   ['chronicle', 'petition', 'order_all', 'order_one', 'summon', 'speak', 'idle']
 export const MAGOS_ID = 'magos'
-export const BUBBLE_MIN_MS = 2500
-export const BUBBLE_MAX_MS = 6000
+const BUBBLE_MIN_MS = 2500
+const BUBBLE_MAX_MS = 6000
 export const BUBBLE_MAX_CHARS = 60
 const WALK_SPEED = 110
 const DROP_SPEED = 420
@@ -64,7 +64,7 @@ export interface ChamberMagos {
   petition: boolean
 }
 
-export interface ChamberBubble { text: string; age: number; pending: string | null }
+interface ChamberBubble { text: string; age: number; pending: string | null }
 
 export interface ChamberState {
   randomState: number

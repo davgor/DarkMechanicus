@@ -2,8 +2,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   baselineKey,
+  deadInEveryProject,
   findNewDeadExports,
   normalizeTsPruneLine,
+  projectFiles,
   readIgnoreSet
 } from './deadcode-check.mjs'
 
@@ -65,5 +67,40 @@ describe('findNewDeadExports', () => {
     expect(findNewDeadExports(['src/other.ts:1 - AutoUpdateApi'], ignore)).toEqual([
       'src/other.ts:1 - AutoUpdateApi'
     ])
+  })
+})
+
+describe('deadInEveryProject', () => {
+  const node = { files: new Set(['src/shared/contract.ts', 'src/main/only.ts']) }
+  const web = { files: new Set(['src/shared/contract.ts', 'src/renderer/only.ts']) }
+
+  it('keeps an export flagged by only one of two projects that include its file: the other uses it', () => {
+    expect(deadInEveryProject([
+      { ...node, lines: [] },
+      { ...web, lines: ['src/shared/contract.ts:4 - usedByMain'] }
+    ])).toEqual([])
+  })
+
+  it('reports an export flagged by every project that includes its file, once', () => {
+    expect(deadInEveryProject([
+      { ...node, lines: ['src/shared/contract.ts:7 - unused'] },
+      { ...web, lines: ['src/shared/contract.ts:7 - unused'] }
+    ])).toEqual(['src/shared/contract.ts:7 - unused'])
+  })
+
+  it('reports a file only one project includes exactly as that project flags it', () => {
+    expect(deadInEveryProject([
+      { ...node, lines: ['src/main/only.ts:2 - helper', 'src/main/only.ts:9 - Shape'] },
+      { ...web, lines: ['src/renderer/only.ts:3 - Props'] }
+    ])).toEqual(['src/main/only.ts:2 - helper', 'src/main/only.ts:9 - Shape', 'src/renderer/only.ts:3 - Props'])
+  })
+})
+
+describe('projectFiles', () => {
+  it('lists the files a tsconfig includes, relative and with forward slashes', () => {
+    const web = projectFiles('tsconfig.web.json')
+    expect(web.has('src/shared/cults/cult.ts')).toBe(true)
+    expect(web.has('src/main/cults/cultSupervisor.ts')).toBe(false)
+    expect(projectFiles('tsconfig.node.json').has('src/main/cults/cultSupervisor.ts')).toBe(true)
   })
 })

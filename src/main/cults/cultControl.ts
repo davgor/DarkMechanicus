@@ -35,7 +35,7 @@ export function cultControlPath(userData: string, chatId: string): string {
   return join(dirname(ompFilePaths(userData, chatId).config), CULT_CONTROL_FILE)
 }
 
-export interface CultControlOptions {
+interface CultControlOptions {
   userData: string
   /** The generation of the chat's running launch (`TerminalSessions.generationOf`); null while none runs. */
   epochOf: (chatId: string) => string | null

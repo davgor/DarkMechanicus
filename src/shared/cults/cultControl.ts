@@ -120,7 +120,7 @@ export const cultRetireWorkerTypeArgsSchema = z.strictObject({
 export type CultRetireWorkerTypeArgs = z.infer<typeof cultRetireWorkerTypeArgsSchema>
 
 /** One recommendation of the Plan Forge synthesis: which specialist made it, and the Magos's decision with its reason. */
-export const MAX_SYNTHESIS_ITEMS = 96
+const MAX_SYNTHESIS_ITEMS = 96
 const recommendationSchema = z.strictObject({
   workerType: id.describe('The slot id (a fixed type) or run worker type id (dyn_<n>) whose report made it.'),
   recommendation: line(2000),
@@ -177,9 +177,8 @@ export const LONG_TEXT_OPERATIONS: readonly string[] = ['cult_conclude_run', 'cu
  * `collecting` a required type has no report, `resolving` the synthesis is missing or behind the draft, `invalid` the
  * draft does not validate, `valid` the run may conclude.
  */
-export const PLAN_FORGE_STATES = ['collecting', 'resolving', 'valid', 'stale', 'invalid'] as const
-export type PlanForgeState = (typeof PLAN_FORGE_STATES)[number]
-export const planForgeStatusSchema = z.strictObject({
+const PLAN_FORGE_STATES = ['collecting', 'resolving', 'valid', 'stale', 'invalid'] as const
+const planForgeStatusSchema = z.strictObject({
   state: z.enum(PLAN_FORGE_STATES),
   /** Fixed six types without a distinct member's report. */
   missingFixed: z.array(z.string().max(80)).max(MAX_CAP),
@@ -330,7 +329,7 @@ export const CULT_ERROR_CODES = [
   'worker_type_unknown',
   'invalid_state'
 ] as const satisfies readonly DomainErrorCode[]
-export type CultErrorCode = (typeof CULT_ERROR_CODES)[number]
+type CultErrorCode = (typeof CULT_ERROR_CODES)[number]
 
 export const CULT_ERROR_MESSAGES: Readonly<Record<CultErrorCode, string>> = {
   cap_reached: 'The run is at its acolyte cap. Petition for more acolytes (kind "acolytes") and wait for the decision.',

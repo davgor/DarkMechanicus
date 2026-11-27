@@ -31,7 +31,7 @@ function wakeRecord(text: string): Record<string, unknown> {
 }
 
 /** The armed wake number in `text` for this chat's launch, or null when disarmed; throws on anything else. */
-export function parseCultWake(text: string, chatId: string, epoch: string): number | null {
+function parseCultWake(text: string, chatId: string, epoch: string): number | null {
   const d = wakeRecord(text)
   if (d.version !== 1 || d.chatId !== chatId || d.epoch !== epoch) throw new Error('invalid cult wake: foreign')
   if (d.wake === null) return null
@@ -39,7 +39,7 @@ export function parseCultWake(text: string, chatId: string, epoch: string): numb
   return d.wake as number
 }
 
-export interface CultWakeDeps {
+interface CultWakeDeps {
   readFile: (path: string) => Promise<string>
   path: string
   chatId: string

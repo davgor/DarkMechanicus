@@ -12,7 +12,7 @@ import walkImage from '../assets/mascot/walk.png'
 import type { MotionAction, MotionFacing } from './motion'
 
 interface Point { x: number; y: number }
-export interface SpriteFrame { x: number; y: number; width: number; height: number; footAnchor?: Point }
+interface SpriteFrame { x: number; y: number; width: number; height: number; footAnchor?: Point }
 export interface SpriteClip { fps: number; loop: boolean; renderScale: number; footAnchor: Point; frames: SpriteFrame[] }
 
 /** One character's atlases: the shared 3×2-cell contract (`docs/mascot-sprites.md`) plus its sheet images. */
@@ -40,7 +40,7 @@ export const MASCOT_SHEET: SpriteSheet<MascotAction> = {
 const SHEET_COLUMNS = 3
 const SHEET_ROWS = 2
 
-export interface FramePick { clip: SpriteClip; frame: SpriteFrame; index: number }
+interface FramePick { clip: SpriteClip; frame: SpriteFrame; index: number }
 
 /** The frame to show: by clip rate, except that jump and stumble follow the movement's progress. */
 export function frameForMotion(action: MascotAction, elapsed: number, progress: number): FramePick
@@ -61,7 +61,7 @@ export function frameForMotion(action: string, elapsed: number, progress: number
 }
 
 /** The placement makes the current frame's foot pixel equal the movement engine's (x,y). */
-export interface SpritePose<A extends string = MascotAction> {
+interface SpritePose<A extends string = MascotAction> {
   action: A
   elapsed: number
   progress: number
@@ -72,7 +72,7 @@ export interface SpritePose<A extends string = MascotAction> {
   scale?: number
 }
 
-export interface SpritePlacement extends FramePick {
+interface SpritePlacement extends FramePick {
   image: string
   scale: number
   mirrored: boolean

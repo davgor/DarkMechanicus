@@ -4,7 +4,9 @@ import '../../src/renderer/src/styles.css'
 import '../../src/renderer/src/graph/graph.css'
 import './preview.css'
 import { CultChamber, type ChamberMember } from '../../src/renderer/src/cults/chamber/CultChamber'
-import type { ChamberEvent, RunState } from '../../src/renderer/src/cults/chamber/chamberState'
+import type { ChamberEvent } from '../../src/renderer/src/cults/chamber/chamberState'
+
+type RunState = Extract<ChamberEvent, { type: 'runState' }>['runState']
 
 const NAMES = ['Vexa-9', 'Orlok Teth', 'Kryz', 'Amaranth-3', 'Dorn Vel', 'Ixia', 'Thessaly', 'Corvax-7', 'Mordent',
   'Sable Quill', 'Hexa', 'Tarsis-2', 'Velk', 'Oriel', 'Brask', 'Nyx-4', 'Calder', 'Ferrum', 'Lumen', 'Gorrin',

@@ -22,7 +22,7 @@ export interface ChamberMember {
   hue: number
 }
 
-export interface CultChamberProps {
+interface CultChamberProps {
   /** An append-only log: entries past those already applied are applied once, in order. A shorter log starts afresh
    * from its end, replaying nothing. */
   events: readonly ChamberEvent[]
@@ -54,7 +54,7 @@ export function backdropRect(layout: ChamberLayout, backdrop: { width: number; h
 }
 
 /** The door stands open while a departing acolyte is passing through it. */
-export function doorOpen(state: ChamberState, layout: ChamberLayout): boolean {
+function doorOpen(state: ChamberState, layout: ChamberLayout): boolean {
   const reach = layout.door.bounds.x + layout.door.bounds.width + layout.spriteSize.width
   return state.acolytes.some((acolyte) => acolyte.mode === 'leaving' && acolyte.x <= reach)
 }
