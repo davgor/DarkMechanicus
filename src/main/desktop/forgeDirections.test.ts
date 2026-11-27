@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RenameRetryNote } from '../../core/repo/forgeManifest'
-import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { RENAME_PAUSES_MS, type RenameRetryNote } from '../../core/repo/forgeManifest'
+import { refuseRenames, refuseUntilLocked, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { ensureForgeDirections, FORGE_DIRECTIONS, FORGE_REPOSITORY_GUIDANCE } from './forgeDirections'
 
@@ -107,13 +107,13 @@ describe('a busy rename onto the directions', () => {
     expect(readdirSync(fixture.path)).toEqual([FORGE_DIRECTIONS])
   })
 
-  it('throws the last busy refusal after the bound and leaves the directions unchanged', () => {
+  it('throws that the directions stayed locked after the bound and leaves them unchanged', () => {
     const file = join(fixture.path, FORGE_DIRECTIONS)
     writeFileSync(file, custom)
-    refuseRenames('EPERM', 'EACCES', 'EBUSY', 'EPERM')
-    expect(() => ensureForgeDirections(fixture.path, onRetry)).toThrow('EPERM: rename refused')
-    expect(renamesAsked()).toBe(4)
-    expect(onRetry.mock.calls).toEqual([['EPERM', file], ['EACCES', file], ['EBUSY', file]])
+    const codes = refuseUntilLocked(RENAME_PAUSES_MS.length + 1)
+    expect(() => ensureForgeDirections(fixture.path, onRetry)).toThrow('stayed locked for 2550 ms (EPERM: rename refused)')
+    expect(renamesAsked()).toBe(codes.length)
+    expect(onRetry.mock.calls).toEqual(codes.slice(0, -1).map((code) => [code, file]))
     expect(readFileSync(file, 'utf8')).toBe(custom)
     expect(readdirSync(fixture.path)).toEqual([FORGE_DIRECTIONS])
   })
