@@ -1,9 +1,10 @@
 /**
  * A working `window.dm.cults` for cult renderer tests and the sidebar preview: seeded cults and runs, a model list
- * (or a signed-out reason), recorded changes, and `push` to deliver a `cults:event` as main would.
+ * (or a signed-out reason), recorded changes, each run's pipeline paged as main pages it, and `push` to deliver a
+ * `cults:event` as main would.
  */
 import { ARCHETYPE_INFO } from '../../../shared/cults/archetypes'
-import type { CultDefinitionInput, CultMemberDetail, CultModelsView, CultPushEvent, CultRunDetail, CultsApi } from '../../../shared/cults/cultApi'
+import type { CultDefinitionInput, CultMemberDetail, CultModelsView, CultPipelineEntry, CultPipelinePage, CultPushEvent, CultRunDetail, CultsApi } from '../../../shared/cults/cultApi'
 import type { CultMemberView, CultPetitionView, CultRunView, CultView } from '../../../shared/cults/cult'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { idleCults } from './idleCults'
@@ -162,7 +163,16 @@ export class FakeCults implements CultsApi {
     const member = Object.values(this.runsByCult).flat().flatMap((run) => run.members).find((candidate) => candidate.chatId === chatId)
     return member ? ok<CultMemberView>(member) : Promise.resolve<CommandResult<CultMemberView>>({ ok: false, error: { code: 'not_found', message: `No member ${chatId}.` } })
   }
-  pipeline = this.idle.pipeline
+  /** Each run's pipeline in `seq` order, as main has stored it; a test appends to it. */
+  pipelines: Record<string, CultPipelineEntry[]> = {}
+  /** Every pipeline request, as `[runId, request]`, oldest first. */
+  pipelineCalls: [string, Parameters<CultsApi['pipeline']>[1]][] = []
+  pipeline = (runId: string, request: Parameters<CultsApi['pipeline']>[1]) => {
+    this.pipelineCalls.push([runId, request])
+    const after = (this.pipelines[runId] ?? []).filter((entry) => entry.seq > (request.afterSeq ?? 0))
+    const entries = after.slice(0, request.limit)
+    return ok<CultPipelinePage>({ entries, nextAfterSeq: entries.at(-1)?.seq ?? request.afterSeq ?? 0, hasMore: after.length > entries.length })
+  }
   runs = (cultId: string) => ok(this.runsByCult[cultId] ?? [])
   onEvent = (listener: (event: CultPushEvent) => void) => {
     this.listeners.add(listener)
