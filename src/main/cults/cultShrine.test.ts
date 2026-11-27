@@ -210,7 +210,9 @@ describe('the published Shrine, live (c3)', () => {
     expect(run().shrineRevision).toBe('2')
     expect(f.changed).toHaveLength(1)
   })
+})
 
+describe('the Shrine reconcile: an edit whose watch event is lost still bumps (c3)', () => {
   it('bumps for an edit made before the watch was live: the start reconcile compares the stat publish recorded', async () => {
     const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
     await f.shrines.publish(run(), MAGOS, 'index.html')
