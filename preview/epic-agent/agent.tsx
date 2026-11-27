@@ -10,6 +10,7 @@ import type { TrackedFolderView } from '../../src/shared/desktop/api'
 import type { PlanView } from '../../src/shared/domain/views'
 import { AgentRolePicker } from '../../src/renderer/src/agentRoles/AgentRolePicker'
 import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
+import { FirstPromptDialog } from '../../src/renderer/src/agents/ChatDialogs'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
@@ -29,14 +30,15 @@ import { NotificationSettings } from '../../src/renderer/src/settings/Notificati
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
- * `AgentChat` / `NotificationSettings` / `AgentRolePicker`) over the renderer test fakes, seeded from `agentChatScenario.ts`. `?state=`
+ * `AgentChat` / `NotificationSettings` / `AgentRolePicker` / New chat `FirstPromptDialog`) over the renderer test fakes, seeded from
+ * `agentChatScenario.ts`. `?state=`
  * picks the state; the page reaches it with real DOM clicks after mount, then writes `#observations` (data-ready).
  */
 declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -573,6 +575,16 @@ const STATES: Record<string, StateDef> = {
         'the Magos and Lexmechanic cards with their art')
     }
   },
+  'new-chat-picker': {
+    mount: 'newChat',
+    reach: async () => {
+      const field = await until(() => $('[role="dialog"] textarea') as HTMLTextAreaElement | null, 'the New chat dialog’s prompt field')
+      await until(() => document.querySelectorAll('.arp svg[role="img"]').length === 2, 'both role cards with their art')
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(field, 'Plan the sign-in refresh repair')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      await until(() => buttonNamed('Start')?.disabled === false, 'an enabled Start')
+    }
+  },
   ...deliveryStates
 }
 
@@ -707,6 +719,21 @@ function rolePickerObservations(): Record<string, unknown> | null {
   return cards.length === 0 ? null : { cards: cards.map(roleCardObservation) }
 }
 
+/**
+ * The New chat dialog: its accessible name, whether the role picker sits wholly above the First prompt field, and
+ * whether the dialog scrolls (which would hide Start below the fold).
+ */
+function newChatObservations(): Record<string, unknown> | null {
+  const dialog = $('[role="dialog"]')
+  const picker = dialog?.querySelector<HTMLElement>('.arp') ?? null
+  const field = dialog?.querySelector('textarea') ?? null
+  if (dialog === null || picker === null || field === null) return null
+  return {
+    title: accessibleName(dialog), pickerAbovePrompt: picker.getBoundingClientRect().bottom <= field.getBoundingClientRect().top,
+    scrolls: dialog.scrollHeight > dialog.clientHeight + 1
+  }
+}
+
 /** Each shared composer on the page: its glass card, text-area height in lines, chips and Send or Stop button. */
 function composerObservations(): Record<string, unknown>[] {
   const shape = (button: HTMLElement | null): Record<string, unknown> | null => {
@@ -795,6 +822,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),
+    newChat: newChatObservations(),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     ticketPanel: $('.tp') !== null,
@@ -830,6 +858,9 @@ function seeded(): Seeded {
 function render(mount: Mount, context: Seeded): JSX.Element {
   if (mount === 'roles') {
     return <div className="preview-roles"><AgentRolePicker onChoose={() => undefined} /></div>
+  }
+  if (mount === 'newChat') {
+    return <div className="preview-roles"><FirstPromptDialog roles onSubmit={async () => false} onClose={() => undefined} /></div>
   }
   if (mount === 'settings') {
     window.dm = new FakeDm()

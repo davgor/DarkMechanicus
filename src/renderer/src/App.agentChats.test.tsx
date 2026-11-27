@@ -142,6 +142,7 @@ describe('AGENTS section: summoning an agent with no project', () => {
 
     fireEvent.click(agentsSection().getByRole('button', { name: 'Summon Claude Code without a project' }))
     const dialog = screen.getByRole('dialog', { name: 'Start a new chat' })
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull()
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'First prompt' }), { target: { value: 'Tidy every board' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }))
     await settle()

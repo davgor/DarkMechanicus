@@ -49,6 +49,8 @@ const ROLE_CARDS = [
   { ...ROLE_CARD, name: 'Magos', checked: true, art: 'Magos: a hooded tech-priest with a cog halo' },
   { ...ROLE_CARD, name: 'Lexmechanic', checked: false, art: 'Lexmechanic: a scribe-priest with a data-slate, scrolls and a quill-servo arm' }
 ]
+/** The new-chat-picker state's dialog: its name, the picker above the First prompt field, and no scrolling. */
+const NEW_CHAT = { title: 'Start a new chat', pickerAbovePrompt: true, scrolls: false }
 const STANDALONE = { viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null }
 /** The agent-composer state's idle and busy composers, as Chromium reports the shipped styles. */
 const COMPOSER = {
@@ -168,6 +170,7 @@ function passing() {
       ...STANDALONE, settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
     }),
     'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
+    'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT }),
     'question-multi': ready('question-multi', { questionCard: QUESTION })
   }
 }
@@ -203,21 +206,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 32 states once each, in capture order', () => {
+  it('lists the 33 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'question-multi', 'agent-transcript',
-      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-role-picker', 'new-chat-picker', 'question-multi',
+      'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(32)
+    expect(new Set(STATES).size).toBe(33)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 495 s overall bound: 32 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 510 s overall bound: 33 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(495_000)
+    expect(OVERALL_LIMIT_MS).toBe(510_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -447,6 +450,27 @@ describe('capture-agent-chat: agent-role-picker observations', () => {
     expect(picker([magos, { ...lex, background: 'rgb(40, 33, 29)', backdropFilter: 'none' }])).toEqual(['agent-role-picker: expected both cards are frosted glass'])
     expect(picker([magos, { ...lex, clipped: true }])).toEqual(['agent-role-picker: expected no card clips its text or leaves the window'])
     expect(validateObservations('agent-role-picker', ready('agent-role-picker', STANDALONE))).toHaveLength(4)
+  })
+})
+
+describe('capture-agent-chat: new-chat-picker observations', () => {
+  const dialog = (patch) => validateObservations('new-chat-picker',
+    ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT, ...patch }))
+
+  it('passes the New chat dialog with both role cards above the prompt', () => {
+    expect(dialog({})).toEqual([])
+  })
+
+  it('fails a picker below the prompt, a scrolling dialog, a missing dialog and the role picker checks', () => {
+    expect(dialog({ newChat: { ...NEW_CHAT, pickerAbovePrompt: false } })).toEqual([
+      'new-chat-picker: expected the Start a new chat dialog shows the role picker above the First prompt field; '
+        + 'got {"title":"Start a new chat","pickerAbovePrompt":false,"scrolls":false}'
+    ])
+    expect(dialog({ newChat: { ...NEW_CHAT, scrolls: true } })).toEqual(['new-chat-picker: expected the dialog shows Start without scrolling'])
+    expect(dialog({ newChat: null })).toHaveLength(2)
+    expect(dialog({ rolePicker: { cards: [{ ...ROLE_CARDS[0], clipped: true }, ROLE_CARDS[1]] } })).toEqual([
+      'new-chat-picker: expected no card clips its text or leaves the window'
+    ])
   })
 })
 
