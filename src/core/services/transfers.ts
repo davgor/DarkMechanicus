@@ -24,6 +24,7 @@ import type {
 import type { EpicOutcome } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
+import { contentHash } from '../canonical'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { epicOutcome } from '../repo/portable'
@@ -117,7 +118,7 @@ function buildCurrentPacket(ctx: Ctx, epicId: string): LinearTransferPacket | nu
     revisionId: saved.revisionId,
     revisionNumber: saved.number,
     ticketStatuses: Object.fromEntries(statuses.map((row) => [row.ticket_id, row.status]))
-  })
+  }, contentHash)
 }
 
 function requireOpenTransfer(ctx: Ctx, epicId: string): TransferRow {

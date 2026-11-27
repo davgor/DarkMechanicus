@@ -418,6 +418,8 @@ Claude queue accounting consumes each queued turn once: on its first main text/t
 
 Native input tests use the fake CLI's opt-in `FAKE_AGENT_SESSION_FILES=1` identity/persistence mode; ordinary golden replay remains byte-for-byte unchanged. With `FAKE_AGENT_CONTINUE_TURNS=1` as well, a Claude-protocol run records its turns in its session file and a `--resume` of it continues the turn numbering, so a resumed process never reuses an earlier turn's message ids (the built-app e2e sets both). `[hung]` emits its first turn frame but never completes or acknowledges interrupt, providing a real-child watchdog test without network or credentials.
 
+With `FAKE_AGENT_NAME_CHATS=1` (the built-app e2e sets it), a protocol run whose instructions file holds the "First-message chat naming" section names its chat on the first user message as a real agent does: it runs the instructions' own `dm` line with `call name_chat '{"title":"Fake agent conversation"}'`, beside the turn, and reports a failing call on stderr. Without it the chat stays "Naming chat…".
+
 ## Arbiter (not GUI launch configuration)
 
 Claude arbiter argv contract:
