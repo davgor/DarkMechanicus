@@ -9,7 +9,7 @@ import { createDesktopClient } from '../../core/desktop/desktopClient'
 import type { NamingOperation, NamingReply } from '../../shared/agents/chatNaming'
 import { CULT_ARCHETYPES, STANDARD_WORKER_TYPES } from '../../shared/cults/archetypes'
 import type { CultView } from '../../shared/cults/cult'
-import { CULT_EVENT_CHANNEL, type CultPushEvent, type CultRunDetail } from '../../shared/cults/cultApi'
+import { CULT_EVENT_CHANNEL, type CultPipelinePage, type CultPushEvent, type CultRunDetail } from '../../shared/cults/cultApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
 import { eventually, FakeClock, settle } from '../terminals/__mocks__/terminalSessionsRig'
@@ -19,6 +19,7 @@ import { createCultDispatcher, planTargetRevision } from './cultCommands'
 import { cultControlPath } from './cultControl'
 import { announcingDispatcher, createCultHandlers, forwardCultEvents, registerCultIpc } from './cultHandlers'
 import { createCultLedger } from './cultLedger'
+import { createCultPipeline } from './cultPipeline'
 import { createCultSupervisor, type CultSupervisor } from './cultSupervisor'
 import { parseOmpModels } from './ompModels'
 
@@ -76,8 +77,13 @@ beforeEach(async () => {
     targetRevision: planTargetRevision(h.cults, (folder, epicId) => h.pool.get(folder).getEpic({ epicId }))
   }), supervisor)
   const pipe = await createControlPipe({ authorize: (token) => h.grants.authorizeNaming(token), dispatch })
+  const pipeline = createCultPipeline({
+    db: h.appDb, cults: h.cults,
+    endpointOf: (run, chatId) => h.rig.store.getChat({ folder: run.workDir, id: chatId })?.endpointId ?? null,
+    readInbox: (run, endpointId, window) => h.pool.get(run.workDir).call('cultMailRead', endpointId, window)
+  })
   const services = {
-    cults: h.cults, supervisor, launcher: h.launcher,
+    cults: h.cults, supervisor, launcher: h.launcher, pipeline,
     models: { list: async () => ({ options: MODELS, reason: null }), refresh: async () => ({ options: MODELS.slice(0, 1), reason: null }) },
     // The Folders registry alone: never a sanctum.
     folders: { resolve: (path: string) => (h.rig.tracked.has(path) ? path : null) },
@@ -173,7 +179,9 @@ describe('cults IPC: channels and validation (c1)', () => {
     ['a decision that is not a boolean', 'decidePetition', ['cp_1', 'yes']],
     ['a chat id with a separator', 'dismissAcolyte', ['cr_1', 'a/b']],
     ['a refresh that is not a boolean', 'models', ['yes']],
-    ['a pipeline page with no limit', 'pipeline', ['cr_1', {}]]
+    ['a pipeline page with no limit', 'pipeline', ['cr_1', {}]],
+    ['a pipeline page over 200 entries', 'pipeline', ['cr_1', { limit: 201 }]],
+    ['a pipeline page with an unknown key', 'pipeline', ['cr_1', { limit: 50, endpointId: 'me_1' }]]
   ])('refuses %s with invalid_input', async (_label, method, args) => {
     expect(await invoke(method, ...args)).toMatchObject(refused('invalid_input'))
     expect(f.h.cults.listCults()).toEqual([])
@@ -189,15 +197,17 @@ describe('cults IPC: channels and validation (c1)', () => {
     expect(f.h.cults.listCults()).toEqual([])
   })
 
-  it('answers the model list, refreshed on request, the archetype catalog, and pipeline as unavailable until it is served', async () => {
+  it('answers the model list, refreshed on request, the archetype catalog, and the run pipeline; an unknown run is not_found', async () => {
     expect(await data(invoke('models'))).toEqual({ options: MODELS, reason: null })
     expect(await data(invoke('models', true))).toEqual({ options: MODELS.slice(0, 1), reason: null })
     const catalog = await data(invoke<{ archetypes: { id: string; preset: unknown[] }[]; standardWorkerTypes: { id: string; origin: string }[] }>('archetypes'))
     expect(catalog.archetypes.map((archetype) => archetype.id)).toEqual([...CULT_ARCHETYPES])
     expect(catalog.archetypes.find((archetype) => archetype.id === 'plan_forge')?.preset).toHaveLength(6)
     expect(catalog.standardWorkerTypes.map((type) => [type.id, type.origin])).toEqual(STANDARD_WORKER_TYPES.map((type) => [type, 'standard']))
-    const { run } = await startedRun()
-    expect(await invoke('pipeline', run.id, { limit: 50 })).toMatchObject(refused('operation_unavailable'))
+    const { run, magos } = await startedRun()
+    const page = await data(invoke<CultPipelinePage>('pipeline', run.id, { limit: 50 }))
+    expect(page.entries.map((entry) => [entry.kind, entry.eventKind, entry.sender?.displayName])).toEqual([['event', 'summoned', magos.displayName]])
+    expect(await invoke('pipeline', 'cr_unknown', { limit: 50 })).toMatchObject(refused('not_found'))
   })
 })
 

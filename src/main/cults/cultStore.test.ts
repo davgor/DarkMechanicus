@@ -81,7 +81,7 @@ afterEach(() => {
 describe('cult store on a database migrated from v4', () => {
   it('migrates, keeps earlier rows and persists a cult and run across reopen', () => {
     const h = fromV4()
-    expect(h.db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(7)
+    expect(h.db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
     const cult = h.store.createCult(GENERAL)
     expect(cult.id).toMatch(/^ct_/)
     const run = h.store.startRun(cult.id, { workDir: '/tmp/work' })

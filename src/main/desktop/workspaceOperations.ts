@@ -157,6 +157,11 @@ function mailReadOperations(ctx: Context) {
       const context = ctx()
       return markHumanAgentMailSeen(context, { endpointId: endpoint(context, chat), throughSeq })
     },
+    /**
+     * The cult pipeline (`cultPipeline.ts`): one page of a run member's inbox by the endpoint main's own chat record
+     * gave it, kept after the chat is gone; the human read path, so it neither acknowledges nor marks seen.
+     */
+    cultMailRead: (endpointId: string, window: MailWindow) => readHumanAgentInbox(ctx(), { ...window, endpointId }),
   }
 }
 

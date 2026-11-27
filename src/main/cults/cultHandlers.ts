@@ -15,8 +15,10 @@ import { ARCHETYPE_INFO, CULT_ARCHETYPES, CUSTOM_WORKER_TYPE, STANDARD_WORKER_TY
 import type { CultInput, CultMemberView, CultPetitionView, CultView } from '../../shared/cults/cult'
 import {
   CULT_EVENT_CHANNEL,
+  MAX_PIPELINE_PAGE,
   type CultCatalogView,
   type CultMemberDetail,
+  type CultPipelinePage,
   type CultPushEvent,
   type CultModelsView,
   type CultRunDetail,
@@ -27,6 +29,7 @@ import type { CommandResult } from '../../shared/desktop/api'
 import { answer } from '../agents/chatHandlers'
 import { sendToWindows, type ChatWindow } from '../agents/chatIpc'
 import type { CultLauncher } from './cultLauncher'
+import type { CultPipeline } from './cultPipeline'
 import type { CultStore } from './cultStore'
 import { CULT_CHANGED, type CultRunSnapshot, type CultSupervisor } from './cultSupervisor'
 import type { NamingDispatcher } from '../naming/controlPipe'
@@ -72,12 +75,18 @@ const overridesSchema = z.strictObject({
   acolyteGraceMs: timing.optional(),
   magosWindowMs: timing.optional()
 })
-const pipelineSchema = z.strictObject({ afterSeq: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(500) })
+const pipelineSchema = z.strictObject({
+  afterSeq: z.number().int().min(0).optional(),
+  limit: z.number().int().min(1).max(MAX_PIPELINE_PAGE),
+  full: z.boolean().optional()
+})
 
 export interface CultHandlerDeps {
   cults: Pick<CultStore, 'getCult' | 'listCults' | 'createCult' | 'updateCult' | 'listRuns' | 'getRun' | 'listMembers' | 'listPetitions' | 'slotCoverage' | 'listWorkerTypes' | 'listReports' | 'latestSynthesis'>
   supervisor: Pick<CultSupervisor, 'start' | 'pause' | 'resume' | 'stop' | 'killNow' | 'raiseCap' | 'decidePetition' | 'dismissAcolyte' | 'endRun' | 'on' | 'snapshot'>
   launcher: Pick<CultLauncher, 'deleteCult'>
+  /** The run pipeline (`cultPipeline.ts`): member messages and run events, read from main's own records. */
+  pipeline: Pick<CultPipeline, 'page'>
   /** The Folders registry only: a sanctum is never a folder the renderer may name. */
   folders: { resolve(path: string): string | null }
   /** The OMP model catalog (`OmpModelCatalog`): cached, or asked again on refresh. */
@@ -107,7 +116,7 @@ export interface CultHandlers {
   decidePetition(petitionId: unknown, approve: unknown, granted: unknown): Answer<CultPetitionView>
   dismissAcolyte(runId: unknown, chatId: unknown): Answer<CultMemberView>
   runs(cultId: unknown): Answer<CultRunDetail[]>
-  pipeline(runId: unknown, request: unknown): Answer<never>
+  pipeline(runId: unknown, request: unknown): Answer<CultPipelinePage>
 }
 
 type Cults = CultHandlerDeps['cults']
@@ -217,12 +226,6 @@ function runsOf(deps: CultHandlerDeps, cultId: unknown): CultRunDetail[] {
     runDetail(deps, deps.supervisor.snapshot(run.id)))
 }
 
-function pipeline(runId: unknown, request: unknown): never {
-  parseInput(id, runId, 'cult run id')
-  parseInput(pipelineSchema, request, 'pipeline request')
-  return fail('operation_unavailable', 'The run pipeline is not served yet.')
-}
-
 const runIdOf = (runId: unknown): string => parseInput(id, runId, 'cult run id')
 
 function controls(deps: CultHandlerDeps) {
@@ -262,7 +265,8 @@ export function createCultHandlers(deps: CultHandlerDeps): CultHandlers {
     archetypes: () => answer(deps, catalog),
     ...controls(deps),
     runs: (cultId: unknown) => answer(deps, () => runsOf(deps, cultId)),
-    pipeline: (runId: unknown, request: unknown) => answer(deps, () => pipeline(runId, request))
+    pipeline: (runId: unknown, request: unknown) => answer(deps, () =>
+      deps.pipeline.page(runIdOf(runId), parseInput(pipelineSchema, request, 'pipeline request')))
   }
 }
 
