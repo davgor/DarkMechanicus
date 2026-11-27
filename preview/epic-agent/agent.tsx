@@ -253,6 +253,29 @@ function transcriptSnapshot(): AgentChatSnapshot {
   return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 }
 
+/** The agent-worked-for state's two ended turns: three tool calls and a note before each final reply, 28m 51s and 4m 05s long. */
+function workedForSnapshot(): AgentChatSnapshot {
+  const start = Date.parse(AT)
+  const at = (seconds: number): string => new Date(start + seconds * 1_000).toISOString()
+  const call = (id: string, seconds: number, name: string, input: Record<string, string>): ChatItem =>
+    ({ id, at: at(seconds), kind: 'tool_call', name, input, status: 'completed', resultSummary: 'Done' })
+  const items: ChatItem[] = [
+    { id: 'wf-ask-1', at: at(0), kind: 'user_message', text: 'Find why the nightly build is slow.' },
+    call('wf-grep', 12, 'Grep', { pattern: 'buildStart' }),
+    { id: 'wf-note-1', at: at(40), kind: 'assistant_text', text: 'The bundler runs twice; checking its config.' },
+    call('wf-read-1', 65, 'Read', { path: 'electron.vite.config.ts' }),
+    call('wf-bash-1', 900, 'Bash', { command: 'npm run build -- --profile' }),
+    { id: 'wf-reply-1', at: at(1_731), kind: 'assistant_text', text: 'The renderer is bundled twice: `build.watch` stays on in CI. Turning it off halves the build.' },
+    { id: 'wf-ask-2', at: at(1_800), kind: 'user_message', text: 'Turn it off and check the build.' },
+    call('wf-read-2', 1_810, 'Read', { path: 'electron.vite.config.ts' }),
+    { id: 'wf-note-2', at: at(1_830), kind: 'assistant_text', text: 'Removing the watch flag.' },
+    call('wf-edit', 1_840, 'Edit', { file_path: 'electron.vite.config.ts' }),
+    call('wf-bash-2', 2_000, 'Bash', { command: 'npm run build' }),
+    { id: 'wf-reply-2', at: at(2_045), kind: 'assistant_text', text: 'Done — the build now takes 198 s instead of 412 s.' }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
 const relay = (event: AgentChatEvent): AgentChatEvent => ({ ...event, folder: FOLDER.path, chatId: ORCHESTRATOR.id })
 
 // ---------------------------------------------------------------------------------------------- states
@@ -433,6 +456,8 @@ const agentStates: Record<string, StateDef> = {
     seed: (context) => snapshot(context, magosDecided()),
     reach: async () => {
       await openAgentTab()
+      // The idle chat folds the ended turn: the record shows once its work is opened.
+      await clickWhenPresent(() => $('.chat-work-toggle'), 'the turn’s Worked for row')
       await until(() => /Denied by the Magos/.test(text($('.chat-approval-card')) ?? ''), 'the Magos decision record')
     }
   },
@@ -605,6 +630,14 @@ const STATES: Record<string, StateDef> = {
       // Keyboard focus, as Tab would leave it: the bubble's Copy shows without a pointer over it.
       copy.focus()
       await until(() => getComputedStyle($('.chat-msg-user > .chat-msg-actions')!).opacity === '1', 'the bubble’s Copy revealed by focus')
+    }
+  },
+  'agent-worked-for': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: workedForSnapshot() } },
+    reach: async () => {
+      await clickWhenPresent(() => [...document.querySelectorAll<HTMLButtonElement>('.chat-work-toggle')][1] ?? null, 'the second turn’s Worked for row')
+      await until(() => document.querySelectorAll('.chat-work-rows [aria-label^="Tool call: "]').length === 3, 'the opened turn’s three tool cards')
     }
   },
   'settings-notifications': {
@@ -855,6 +888,21 @@ function transcriptObservations(): Record<string, unknown> | null {
   }
 }
 
+/** The agent-worked-for state: each turn's disclosure and whether it is open, what follows a folded one, and the tool cards shown. */
+function workedForObservations(): Record<string, unknown> | null {
+  const toggles = [...document.querySelectorAll<HTMLButtonElement>('.chat-work-toggle')]
+  if (toggles.length === 0) return null
+  const tools = (root: ParentNode): string[] => [...root.querySelectorAll('[aria-label^="Tool call: "]')].map((row) => row.getAttribute('aria-label') ?? '')
+  const folded = toggles.find((toggle) => toggle.getAttribute('aria-expanded') === 'false')?.closest('li')
+  const opened = $('.chat-work-rows')
+  return {
+    toggles: toggles.map((toggle) => [(toggle.textContent ?? '').replace('›', '').trim(), toggle.getAttribute('aria-expanded') === 'true']),
+    afterFolded: folded?.nextElementSibling?.querySelector('article')?.getAttribute('aria-label') ?? null,
+    openedTools: opened === null ? [] : tools(opened),
+    toolsOutside: tools(document).length - (opened === null ? 0 : tools(opened).length)
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -891,6 +939,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     composers: composerObservations(),
     transcript: transcriptObservations(),
+    workedFor: workedForObservations(),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }

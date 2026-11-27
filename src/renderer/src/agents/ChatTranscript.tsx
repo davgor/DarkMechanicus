@@ -5,6 +5,7 @@
  * Markdown renderer; everything else is plain text.
  */
 import { memo, useMemo, type ReactNode } from 'react'
+import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import { IDLE_STOP_CODE, type ErrorProblem } from '../../../shared/agents/chat'
 import { CopyButton } from '../agentChat/CopyButton'
 import { Markdown } from '../markdown/Markdown'
@@ -13,6 +14,7 @@ import { decisionText, problemNotice, resetText, STOPPED_TEXT, type TranscriptEn
 import { ThreadBlock } from './ThreadBlock'
 import { transcriptTree, type TreeRow } from './threadModel'
 import { ToolCallRow } from './ToolCallRow'
+import { TurnRows } from './TurnWork'
 
 interface MessageProps {
   who: 'You' | 'Assistant'
@@ -160,17 +162,20 @@ interface ChatTranscriptProps {
   /** The chat's folder. */
   folder: string
   entries: readonly TranscriptEntry[]
+  /** A live chat's status: given, each ended turn's work folds into one `Worked for …` row; a stored or thread transcript leaves it out. */
+  status?: AgentChatSnapshot['status'] | null
 }
 
 /** The stored conversation, in the order it happened. */
-export function ChatTranscript({ agentName, folder, entries }: ChatTranscriptProps): JSX.Element {
+export function ChatTranscript({ agentName, folder, entries, status }: ChatTranscriptProps): JSX.Element {
   const rows = useMemo(() => transcriptTree(entries), [entries])
+  const renderRow = (row: TreeRow): JSX.Element => (
+    <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName} />
+  )
   return (
     <div className="chat-transcript" role="log" aria-label="Transcript" tabIndex={0}>
       <ol className="chat-rows">
-        {rows.map((row) => (
-          <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName} />
-        ))}
+        {status === undefined ? rows.map(renderRow) : <TurnRows entries={entries} rows={rows} status={status} renderRow={renderRow} />}
       </ol>
     </div>
   )
