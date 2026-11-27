@@ -95,7 +95,8 @@ describe('browser replies', () => {
       { enabled: true, owner: 'agent', tab, pendingOrigin: null },
       { enabled: false, owner: 'stopped', tab: null, pendingOrigin: 'https://other.example' },
       { url: tab.url, title: tab.title, untrusted: true, content: 'text', truncated: false },
-      { image, url: tab.url },
+      { image, url: tab.url, path: 'C:\\Temp\\dm-browser-shot-a1\\shot.png' },
+      { image, url: tab.url, path: '/tmp/dm-browser-shot-a1/shot.png' },
       { tab }
     ]
     for (const data of replies) {
@@ -105,7 +106,11 @@ describe('browser replies', () => {
     expect(ok({ url: tab.url, title: tab.title, untrusted: false, content: 'text', truncated: false })).toBe(false)
     expect(ok({ url: tab.url, title: tab.title, untrusted: true, content: 'c'.repeat(48_001), truncated: true })).toBe(false)
     expect(ok({ enabled: true, owner: 'magos', tab: null, pendingOrigin: null })).toBe(false)
-    expect(ok({ image: { ...image, path: 'C:/x.png' }, url: tab.url })).toBe(false)
+    expect(ok({ image: { ...image, path: 'C:/x.png' }, url: tab.url, path: '/tmp/x.png' })).toBe(false)
+    for (const path of ['shot.png', '..\\shot.png', '\\\\server\\share\\shot.png', '//server/share/shot.png', '\\\\?\\C:\\shot.png', '/tmp/a\nb.png', `/${'a'.repeat(1024)}`]) {
+      expect(ok({ image, url: tab.url, path })).toBe(false)
+    }
+    expect(ok({ image, url: tab.url })).toBe(false)
   })
 })
 

@@ -27,10 +27,11 @@ const baselinePaths = [join(process.env.USERPROFILE, '.omp', 'agent', 'config.ym
 const hash = (path) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : null
 const baseline = baselinePaths.map((path) => ({ path, sha256: hash(path) }))
 const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming'), LOCALAPPDATA: join(home, 'AppData', 'Local'), PI_CODING_AGENT_DIR: join(home, '.omp', 'agent'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), DARKMECHANICUS_HOME: dmHome, DM515_OMP: omp, DM515_MODEL: model }
-for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
+for (const key of Object.keys(env)) if (/^(?:DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE|ELECTRON_.*|NODE_OPTIONS)$/iu.test(key)) delete env[key]
 const authEnv = { ...process.env }
 delete authEnv.DM_SESSION_TOKEN
 delete authEnv.DM_DESKTOP_PIPE
+delete authEnv.DM_BROWSER_PIPE
 let child, socket, active, closed
 let nextId = 0
 const rendererErrors = []

@@ -79,7 +79,7 @@ export function mediaOf(state) {
 }
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
-const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE)$/i
+const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE)$/i
 
 /** The window's content size when `--viewport` is not given: the ticket's 1280×800. */
 export const DEFAULT_VIEWPORT = Object.freeze({ width: 1280, height: 800 })

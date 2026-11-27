@@ -5,4 +5,5 @@
  * `vi.stubEnv` or an explicit `env` option. Not shipped.
  */
 delete process.env.DM_DESKTOP_PIPE
+delete process.env.DM_BROWSER_PIPE
 delete process.env.DM_SESSION_TOKEN

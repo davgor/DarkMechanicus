@@ -112,6 +112,7 @@ describe('a grant decides what a CLI session may do', () => {
       'attempt.fail',
       'attempt.heartbeat',
       'attempt.submit',
+      'browser.drive',
       'chat.name',
       'comment.write',
       'human.ask',
