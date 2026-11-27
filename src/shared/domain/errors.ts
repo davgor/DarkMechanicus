@@ -78,6 +78,7 @@ export const DOMAIN_ERROR_CODES = [
   'reports_missing',
   'target_stale',
   'plan_invalid',
+  'synthesis_missing',
   'internal'
 ] as const
 

@@ -4,7 +4,7 @@ import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import {
   cultConcludeRunArgsSchema, cultConcludeServiceArgsSchema, cultCreateWorkerTypeArgsSchema, cultDismissArgsSchema, cultOrderAllArgsSchema,
-  cultPetitionArgsSchema, cultSummonArgsSchema
+  cultPetitionArgsSchema, cultRecordSynthesisArgsSchema, cultSummonArgsSchema
 } from '../shared/cults/cultControl'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
@@ -240,6 +240,7 @@ export const COMMAND_SCHEMAS = {
   cultConcludeRun: cultConcludeRunArgsSchema,
   cultConcludeService: cultConcludeServiceArgsSchema,
   cultCreateWorkerType: cultCreateWorkerTypeArgsSchema,
+  cultRecordSynthesis: cultRecordSynthesisArgsSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   standardizeProjectWork: z.strictObject({
     expectedRevision: z.number().int().positive(),
@@ -272,7 +273,8 @@ export const COMMAND_SCHEMAS = {
     role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
     label: z.string().min(1).max(LIMITS.grantLabel),
     minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES).optional(),
-    allowSave: z.boolean().optional()
+    allowSave: z.boolean().optional(),
+    runSave: z.boolean().optional()
   }),
   revokeGrant: z.strictObject({ grantId: stableId }),
   renewGrant: z.strictObject({ grantId: stableId, minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES) }),

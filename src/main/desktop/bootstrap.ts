@@ -115,6 +115,7 @@ import { createCultStore } from '../cults/cultStore'
 import { createCultControl } from '../cults/cultControl'
 import { createCultLedger, systemLeftovers } from '../cults/cultLedger'
 import { createCultLauncher } from '../cults/cultLauncher'
+import { createPlanForgeCouncil } from '../cults/planForgeCouncil'
 import { createCultSupervisor, type CultSupervisor } from '../cults/cultSupervisor'
 import { createCultWake, type CultWake } from '../cults/cultWake'
 import { cheapest, createOmpModelCatalog } from '../cults/ompModels'
@@ -1183,11 +1184,16 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
   const models = createOmpModelCatalog({
     ompPath: () => deps.agents.list().find((agent) => agent.kind === 'omp')?.executablePath ?? null, deps: agentRunDeps()
   })
+  const council = createPlanForgeCouncil({
+    cults, workspaceFor: (folder) => desktopWorkspace(deps.gates, deps.pool, folder),
+    grantIdsOf: (run, chatId) => store.getChat({ folder: run.workDir, id: chatId })?.grantIds ?? []
+  })
   const launcher = createCultLauncher({
     cults, folders: deps.registry, sanctums: deps.sanctums, chats, terminals, control, userData, dmHome: darkMechanicusHome(),
     workspaceFor: (folder) => desktopWorkspace(deps.gates, deps.pool, folder),
     closeWorkspace: (folder) => deps.pool.close(folder),
-    cheapestModel: async () => cheapest((await models.list()).options)?.id ?? null
+    cheapestModel: async () => cheapest((await models.list()).options)?.id ?? null,
+    bindTarget: (run) => council.bind(run)
   })
   const ledger = createCultLedger({ userData })
   const supervisor = createCultSupervisor({
@@ -1204,7 +1210,7 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     onError: (error) => logger.error('Cult wake failed:', error)
   }))
   deps.processes.setCultDispatcher(createCultDispatcher({
-    supervisor, cults,
+    supervisor, cults, council,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
     targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),

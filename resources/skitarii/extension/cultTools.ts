@@ -16,7 +16,7 @@ export type CultRole = 'magos' | 'acolyte'
 
 export const MAGOS_CULT_TOOLS = [
   'cult_status', 'cult_summon_acolyte', 'cult_dismiss_acolyte', 'cult_list_acolytes', 'cult_petition', 'cult_order_all',
-  'cult_conclude_run', 'cult_create_worker_type'
+  'cult_conclude_run', 'cult_create_worker_type', 'cult_record_synthesis'
 ] as const
 export const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service'] as const
 export type CultToolName = (typeof MAGOS_CULT_TOOLS)[number] | (typeof ACOLYTE_CULT_TOOLS)[number]
@@ -44,6 +44,16 @@ const text = (max: number): Check => (value) => typeof value === 'string' && val
 const bool: Check = (value) => typeof value === 'boolean'
 const count: Check = (value) => Number.isSafeInteger(value) && (value as number) >= 1 && (value as number) <= 24
 const kind: Check = (value) => value === 'acolytes' || value === 'allow_save' || value === 'folder_access'
+const revision: Check = (value) => Number.isSafeInteger(value) && (value as number) >= 1
+const decision = (value: Record<string, unknown>): boolean => value['decision'] === 'accepted' || value['decision'] === 'rejected'
+/** One synthesis item: the four strings, a known decision, nothing else; main checks the rest. */
+const recommendation = (value: unknown): boolean => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  const keys = Object.keys(item).sort().join(',')
+  return keys === 'decision,reason,recommendation,workerType' && decision(item) && text(80)(item['workerType']) && text(2000)(item['recommendation']) && text(2000)(item['reason'])
+}
+const recommendations: Check = (value) => Array.isArray(value) && value.length >= 1 && value.length <= 96 && value.every(recommendation)
 const str = (type: TypeBuilder, description: string, maxLength: number): unknown => type.String({ description, minLength: 1, maxLength })
 const opt = (type: TypeBuilder, description: string, maxLength: number): unknown => type.Optional(str(type, description, maxLength))
 
@@ -89,6 +99,20 @@ const SPECS: Record<CultToolName, Spec> = {
     args: { displayName: [text(80), true], description: [text(500), true], mission: [text(4000), true], rationale: [text(1000), true], requiredForConclusion: [bool, true] },
     schema: (t) => ({ displayName: str(t, 'Its name.', 80), description: str(t, 'What it does.', 500), mission: str(t, 'Its first prompt.', 4000),
       rationale: str(t, 'Why the run needs it.', 1000), requiredForConclusion: t.Boolean({ description: 'Whether the run may conclude only once it reported.' }) })
+  },
+  cult_record_synthesis: {
+    description: 'Plan Forge: record your synthesis of the specialist reports for your latest edit of the target draft: each recommendation, its worker type, and whether you accepted or rejected it, with a reason. Required before cult_conclude_run.',
+    approval: 'write',
+    args: { draftRevision: [revision, true], recommendations: [recommendations, true] },
+    schema: (t) => ({
+      draftRevision: t.Integer({ description: 'The target draft revision your edit produced.', minimum: 1 }),
+      recommendations: t.Array(t.Object({
+        workerType: str(t, 'The slot id or run worker type id whose report made it.', 80),
+        recommendation: str(t, 'The recommendation.', 2000),
+        decision: t.String({ pattern: '^(accepted|rejected)$', description: 'accepted or rejected.' }),
+        reason: str(t, 'Why.', 2000)
+      }, { additionalProperties: false }), { minItems: 1, maxItems: 96 })
+    })
   }
 }
 

@@ -103,6 +103,11 @@ interface IssueGrantInput {
   minutes?: number
   /** Only a planner or orchestrator grant can carry it; ignored for any other role. */
   allowSave?: boolean
+  /**
+   * False: the grant never saves through the DM-900 run-ownership exception (`requireSaveAuthority` in `plans.ts`), so
+   * only Allow save lets it save. A cult Magos grant is issued so (docs/design/cults.md section 10). Default true.
+   */
+  runSave?: boolean
 }
 
 /**
@@ -132,11 +137,12 @@ export function issueGrant(ctx: Ctx, input: IssueGrantInput): { grant: GrantView
     last_used_at: null
   }
   ctx.db.run(
-    `INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, issued_by_session, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO grants (id, role, allow_save, run_save, label, token_hash, machine_id, issued_by_session, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.role,
     bool(canSave),
+    bool(input.runSave !== false),
     row.label,
     hashToken(token),
     row.machine_id,

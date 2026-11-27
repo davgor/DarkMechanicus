@@ -44,7 +44,8 @@ export const CULT_TOOLS = {
   orderAll: 'cult_order_all',
   concludeRun: 'cult_conclude_run',
   concludeService: 'cult_conclude_service',
-  createWorkerType: 'cult_create_worker_type'
+  createWorkerType: 'cult_create_worker_type',
+  recordSynthesis: 'cult_record_synthesis'
 } as const
 
 /** The epic a Plan Forge cult works on, with its revisions as read when the member started. */
@@ -153,8 +154,11 @@ function planForgeRoster(run: CultRunContext): string[] {
     '- every specialist reports independently: never pass one report to another specialist before it has reported;',
     '- resolve conflicts between recommendations explicitly, naming each conflict and your decision;',
     '- make one edit of the target draft that applies the reports, then validate it;',
+    `- record your synthesis with \`${T.recordSynthesis}\` for that draft revision: every recommendation you accepted or`,
+    '  rejected, with its worker type and a reason, naming every required type (a required type you created included);',
     '- petition for allow_save before Save, and Save only once it is approved;',
-    '- conclude only when every mandatory slot has reported.'
+    '- conclude only when every required type has a report from its own acolyte, your synthesis is recorded for your',
+    '  latest edit, and the draft validates. No one outside this run may change the target meanwhile.'
   ]
 }
 

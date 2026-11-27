@@ -279,6 +279,8 @@ interface GrantOptions {
   role: ChatRole
   allowSave: boolean
   label: string
+  /** False for a cult Magos: it saves only with Allow save, never through the run-ownership exception (DM-738). */
+  runSave?: boolean
 }
 
 /**
@@ -1152,7 +1154,9 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
   const repairCheckout = await step(recheckFolder(context))
   const files = await step(writeStartFiles(context, repairCheckout))
   await step(recheckFolder(context))
-  const grant = { role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title) }
+  const grant = {
+    role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title), ...(chat.cultRole === 'magos' ? { runSave: false } : {})
+  }
   const revokeAll = (grantIds: readonly string[]): void => {
     for (const grantId of grantIds) {
       void revokeGrant(manager, grantId)

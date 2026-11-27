@@ -246,6 +246,51 @@ const V6 = `
 ALTER TABLE cult_events ADD COLUMN data TEXT CHECK (data IS NULL OR json_valid(data));
 `
 
+/**
+ * Plan Forge (DM-738): the target a run is bound to at start (its epic, saved and draft revisions, and the folder's event
+ * high-water mark), and each synthesis the Magos records: its accepted and rejected recommendations as inert JSON text.
+ * A specialist report now belongs to a roster slot or to a run worker type (a Magos-created specialist), never both.
+ */
+const V7 = `
+CREATE TABLE cult_specialist_reports_v7 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  member_chat_id TEXT NOT NULL,
+  slot_id TEXT,
+  run_worker_type_id TEXT,
+  text TEXT NOT NULL CHECK (length(CAST(text AS BLOB)) BETWEEN 1 AND 32768),
+  target_revision TEXT,
+  submitted_at TEXT NOT NULL,
+  FOREIGN KEY (run_id, member_chat_id) REFERENCES cult_members(run_id, chat_id) ON DELETE CASCADE,
+  CHECK ((slot_id IS NULL) <> (run_worker_type_id IS NULL))
+);
+INSERT INTO cult_specialist_reports_v7 (id, run_id, member_chat_id, slot_id, run_worker_type_id, text, target_revision, submitted_at)
+  SELECT id, run_id, member_chat_id, slot_id, NULL, text, target_revision, submitted_at FROM cult_specialist_reports;
+DROP TABLE cult_specialist_reports;
+ALTER TABLE cult_specialist_reports_v7 RENAME TO cult_specialist_reports;
+CREATE INDEX cult_specialist_reports_slot ON cult_specialist_reports(run_id, slot_id, id);
+CREATE INDEX cult_specialist_reports_type ON cult_specialist_reports(run_id, run_worker_type_id, id);
+
+CREATE TABLE cult_plan_bindings (
+  run_id TEXT PRIMARY KEY REFERENCES cult_runs(id) ON DELETE CASCADE,
+  epic_id TEXT NOT NULL,
+  saved_revision INTEGER,
+  draft_revision INTEGER,
+  event_seq INTEGER NOT NULL CHECK (event_seq >= 0),
+  bound_at TEXT NOT NULL
+);
+
+CREATE TABLE cult_syntheses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL REFERENCES cult_runs(id) ON DELETE CASCADE,
+  member_chat_id TEXT NOT NULL,
+  draft_revision INTEGER NOT NULL CHECK (draft_revision >= 1),
+  recommendations TEXT NOT NULL CHECK (json_valid(recommendations) AND length(CAST(recommendations AS BLOB)) <= 32768),
+  recorded_at TEXT NOT NULL
+);
+CREATE INDEX cult_syntheses_run ON cult_syntheses(run_id, id);
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
 export const APP_MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
@@ -253,7 +298,8 @@ export const APP_MIGRATIONS: Migration[] = [
   { version: 3, sql: V3 },
   { version: 4, sql: V4 },
   { version: 5, sql: V5 },
-  { version: 6, sql: V6 }
+  { version: 6, sql: V6 },
+  { version: 7, sql: V7 }
 ]
 
 /**

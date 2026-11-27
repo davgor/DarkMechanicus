@@ -18,6 +18,7 @@ import { getAttachment, readAttachmentBytes } from '../../core/services/attachme
 import { claimedAttemptOf } from '../../core/services/attempts'
 import { assertGrantCapability, assertGrantUsable, revokeGrant, setGrantAllowSave } from '../../core/services/grants'
 import { appendEvent } from '../../core/services/events'
+import { planTrace } from '../../core/services/planTrace'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
 import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, renameAgentMailEndpoint, suspendAgentMailEndpoint } from '../../core/services/agentMail'
@@ -122,7 +123,9 @@ function cultOrderOperations(ctx: Context) {
           acceptMessage(context, { senderEndpointId: sender, to: open(chatId), clientMessageId: `${order.orderId}:${index + 1}`, body: order.body }).messageId
         )
       })
-    }
+    },
+    /** Plan Forge: the target epic's revisions and its draft changes after `afterSeq`, with the grant of each (`planTrace`). */
+    cultPlanTrace: (epicId: string, afterSeq: number | null) => planTrace(ctx(), epicId, afterSeq)
   }
 }
 
