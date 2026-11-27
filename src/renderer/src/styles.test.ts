@@ -313,3 +313,14 @@ describe('the chat composer card', () => {
     expect(rules.get('.chat-composer-input')?.outline).toBeUndefined()
   })
 })
+
+describe('the docked multi-select card beside the transcript', () => {
+  it('keeps the transcript at its declared minimum and the options to one line each', () => {
+    const chat = rulesOf(SHEETS['./agentChat/agentChat.css'] ?? '')
+    expect(chat.get('.agent-chat')?.['--agent-transcript-min']).toBe('96px')
+    expect(chat.get('.agent-chat-scroll')?.['min-height']).toBe('var(--agent-transcript-min)')
+    const prompt = rulesOf(SHEETS['./agentChat/pendingPrompt.css'] ?? '')
+    expect(prompt.get('.agent-prompt-check-description')).toMatchObject({ 'white-space': 'nowrap', 'text-overflow': 'ellipsis' })
+    expect(prompt.get('.agent-prompt-check-text')?.display).toBe('flex')
+  })
+})

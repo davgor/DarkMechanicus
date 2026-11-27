@@ -65,11 +65,15 @@ function startingEffort(option: ChatModelOption, thinking: ThinkingLevel | null)
 
 /**
  * What the chip reads: the switch in flight, else the chat's model by its catalog name (its id before the catalog
- * arrives); with no model, Default where the picker offers it (`onDefault`).
+ * arrives). A chat that reports no model starts on OMP's own default, so it reads Default, with no effort: the
+ * thinking level a modelless session reports (`off`) is not one the person chose.
  */
-function chipText(current: ChatModelOption | null, { model, thinking }: { model: string | null; thinking: ThinkingLevel | null }, pending: Choice | null, offersDefault: boolean): string {
-  const known = current === null ? null : shortName(current)
-  const name = pending === null ? known ?? model?.slice(model.indexOf('/') + 1) ?? (offersDefault ? DEFAULT_LABEL : 'Model') : shortName(pending.option)
+function chipText(current: ChatModelOption | null, { model, thinking }: { model: string | null; thinking: ThinkingLevel | null }, pending: Choice | null): string {
+  let name: string
+  if (pending !== null) name = shortName(pending.option)
+  else if (current !== null) name = shortName(current)
+  else if (model !== null) name = model.slice(model.indexOf('/') + 1)
+  else return DEFAULT_LABEL
   const effort = pending === null ? thinking : pending.effort
   return effort === null ? name : `${name} · ${EFFORT_LABELS[effort]}`
 }
@@ -166,7 +170,7 @@ export function ModelPicker({ state, load, choose, onDefault }: ModelPickerProps
   return (
     <div className="model-picker" ref={anchor}>
       {change.error !== null && <span className="model-picker-error" role="alert">{change.error}</span>}
-      <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, { model: state.model ?? null, thinking }, change.pending, onDefault !== undefined)}
+      <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, { model: state.model ?? null, thinking }, change.pending)}
         spinning={change.pending !== null} queued={change.queued} busy={busy} toggle={toggle} close={close} />
       {open && <ModelMenu id={menuId} anchor={anchor} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={change.queued}
         retry={retry} close={close} apply={(option, effort) => {

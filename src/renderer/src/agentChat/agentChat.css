@@ -1,4 +1,6 @@
 .agent-chat {
+  /* The transcript's least height beside a docked prompt card, which shrinks (its options scroll) before it does. */
+  --agent-transcript-min: 96px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -58,7 +60,7 @@
 
 .agent-chat-scroll {
   flex: 1;
-  min-height: 0;
+  min-height: var(--agent-transcript-min);
   overflow-y: auto;
   overflow-wrap: anywhere;
   padding: 20px 24px;

@@ -384,7 +384,12 @@ const STATE_CHECKS = {
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
     (o) => JSON.stringify(o.questionCard)],
     ['an enabled Submit', (o) => o.questionCard?.submitEnabled === true, (o) => JSON.stringify(o.questionCard)],
-    ['two options checked', (o) => o.checkedCount === 2, (o) => JSON.stringify(o.checkedCount)]
+    ['two options checked', (o) => o.checkedCount === 2, (o) => JSON.stringify(o.checkedCount)],
+    ['both checked options in view in the option list', (o) => JSON.stringify(o.questionCard?.checkedInView) === '["Lint","Unit tests"]',
+      (o) => JSON.stringify(o.questionCard)],
+    ['Submit in view', (o) => o.questionCard?.submitInView === true, (o) => JSON.stringify(o.questionCard)],
+    ['the transcript keeps at least its declared minimum height beside the card', (o) => o.questionCard?.transcriptMin > 0
+      && o.questionCard?.transcriptHeight >= o.questionCard?.transcriptMin, (o) => JSON.stringify(o.questionCard)]
   ],
   'model-picker': [
     ...MODEL_PICKER_CHECKS,

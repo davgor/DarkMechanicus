@@ -202,10 +202,14 @@ function passingChatStates() {
   }
 }
 
-/** The question-multi state's docked card: the first of two questions, two options checked, Submit enabled. */
+/**
+ * The question-multi state's docked card: the first of two questions, two options checked and both in view, Submit
+ * enabled and in view, and the transcript at its 96 px minimum or more.
+ */
 const QUESTION = {
   legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
-  checked: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true
+  checked: ['Lint', 'Unit tests'], checkedInView: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true,
+  submitInView: true, transcriptHeight: 110, transcriptMin: 96
 }
 
 /** The model-picker state: the chip on Opus 5.5 · High before Send, its menu open upward over the host's catalog. */
@@ -895,7 +899,14 @@ describe('capture-agent-chat: question-multi observations', () => {
     expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
     expect(question({ count: '1 selected' })).toHaveLength(1)
     expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
-    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(4)
+    expect(validateObservations('question-multi', ready('question-multi'))).toHaveLength(7)
+  })
+
+  it('fails a checked option scrolled out of view, Submit out of view and a transcript squeezed below its minimum', () => {
+    expect(question({ checkedInView: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected both checked options in view/)])
+    expect(question({ submitInView: false })).toEqual([expect.stringMatching(/^question-multi: expected Submit in view/)])
+    expect(question({ transcriptHeight: 42 })).toEqual([expect.stringMatching(/^question-multi: expected the transcript keeps at least its declared minimum/)])
+    expect(question({ transcriptMin: null })).toHaveLength(1)
   })
 
   it('reads the checked count and fails any other', () => {

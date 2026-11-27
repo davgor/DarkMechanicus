@@ -965,20 +965,46 @@ function deliveryObservations(): Record<string, unknown> {
   }
 }
 
-/** The docked multi-select question: its legend, progress, checked option labels, count and Submit; null without one. */
+/** Whether `inner` lies wholly inside `outer`, to a pixel. */
+function boxInside(inner: DOMRect, outer: DOMRect): boolean {
+  return inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1 && inner.left >= outer.left - 1 && inner.right <= outer.right + 1
+}
+
+/** Which checked options and whether Submit show in the card, and the transcript's height beside it against its minimum. */
+function questionLayout(form: HTMLElement, checkedRows: HTMLElement[]): Record<string, unknown> {
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  const list = form.querySelector<HTMLElement>('.agent-prompt-choices')
+  const card = form.closest<HTMLElement>('.agent-prompt')
+  const transcript = card?.closest('.agent-chat')?.querySelector<HTMLElement>('.agent-chat-scroll') ?? null
+  const viewport = new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+  const shown = (element: HTMLElement, within: HTMLElement): boolean =>
+    boxInside(element.getBoundingClientRect(), within.getBoundingClientRect()) && boxInside(element.getBoundingClientRect(), viewport)
+  return {
+    checkedInView: list === null ? [] : checkedRows.filter((row) => shown(row, list)).map((row) => text(row.querySelector('.agent-prompt-check-label'))),
+    submitInView: submit === null || card === null ? null : shown(submit, card),
+    transcriptHeight: transcript === null ? null : Math.round(transcript.getBoundingClientRect().height),
+    transcriptMin: transcript === null ? null : parseFloat(getComputedStyle(transcript).getPropertyValue('--agent-transcript-min'))
+  }
+}
+
+/**
+ * The docked multi-select question: its legend, progress, checked option labels, count and Submit, whether each checked
+ * option and Submit are in view, and the transcript's height beside it against its declared minimum; null without one.
+ */
 function questionObservations(): Record<string, unknown> | null {
   const form = $('.agent-prompt .agent-prompt-multi')
   if (form === null) return null
   const rows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')]
+  const checkedRows = rows.filter((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked === true)
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
   return {
     legend: text(form.querySelector('legend')),
     progress: text($('.agent-prompt .agent-prompt-progress')),
     checkboxes: rows.length,
-    checked: rows.filter((row) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked === true)
-      .map((row) => text(row.querySelector('.agent-prompt-check-label'))),
+    checked: checkedRows.map((row) => text(row.querySelector('.agent-prompt-check-label'))),
     count: text(form.querySelector('.agent-prompt-count')),
-    submitEnabled: submit === null ? null : !submit.matches(':disabled')
+    submitEnabled: submit === null ? null : !submit.matches(':disabled'),
+    ...questionLayout(form, checkedRows)
   }
 }
 

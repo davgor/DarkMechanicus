@@ -241,7 +241,7 @@ it('keeps the selection and shows the error inline when the answer fails', async
 
 it('keeps one-click answers for a single question and shows its progress', async () => {
   const { api } = await mount({ ...question, progress: { index: 2, total: 3 } })
-  expect(screen.getByText('Question 2 of 3')).toBeTruthy()
+  expect(screen.getByText('Question 2 of 3').closest('.agent-prompt-submit')).toBeNull()
   expect(screen.queryByRole('checkbox')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Small' }))
   await settle()
@@ -250,7 +250,8 @@ it('keeps one-click answers for a single question and shows its progress', async
 
 it('shows the next question of an ask as a new step with nothing checked', async () => {
   const { emit } = await mount(multi)
-  expect(screen.getByText('Question 1 of 2')).toBeTruthy()
+  // A multi question's progress shares the Submit row, so the docked card's height goes to its options.
+  expect([...submitButton().parentElement!.children].map((child) => child.textContent)).toEqual(['Question 1 of 2', '0 selected', 'Submit'])
   fireEvent.click(checkbox('Lint'))
   fireEvent.click(checkbox('Build'))
   emit({ ...multi, id: 'multi-2', title: 'Which targets?', progress: { index: 2, total: 2 } })

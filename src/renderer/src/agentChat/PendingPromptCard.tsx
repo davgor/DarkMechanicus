@@ -86,8 +86,7 @@ function Prompt({ prompt, answer }: { prompt: PendingPrompt; answer: Props['answ
   return (
     <section className={multi ? 'agent-prompt agent-prompt-multi-card glass-strong' : 'agent-prompt glass'} role="alertdialog"
       aria-label={title} aria-busy={busy}>
-      <Progress prompt={prompt} />
-      {!multi && <h3>{title}</h3>}
+      {!multi && <><Progress prompt={prompt} /><h3>{title}</h3></>}
       {prompt.tool && <p className="agent-prompt-tool">Tool: {clip(prompt.tool.name, 120)}</p>}
       {!multi && <Detail text={prompt.detail} />}
       <Arbitration prompt={prompt} />
@@ -170,8 +169,10 @@ function MultiChoice({ prompt, title, choices, freeText, busy, submit }: ChoiceP
           </div>}
         </div>
         <div className="agent-prompt-submit">
+          {/* A multi question's progress shares the Submit row, leaving the docked card's height to its options. */}
+          <Progress prompt={prompt} />
           <span className="agent-prompt-count" aria-live="polite">{optionIds.length} selected</span>
-          <button className="btn btn-primary" type="submit" disabled={optionIds.length === 0}>Submit</button>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={optionIds.length === 0}>Submit</button>
         </div>
       </fieldset>
     </form>

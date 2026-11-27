@@ -58,12 +58,23 @@
   font-size: 12px;
 }
 
-/* A multi question keeps its question, count and Submit in view; only the options scroll. */
+/*
+ * A multi question keeps its question, count and Submit in view; only the options scroll. Its rows are one line each
+ * (label, then the description cut to the row), so two or three options show even where the transcript keeps only its
+ * minimum height (`--agent-transcript-min`).
+ */
 .agent-prompt.agent-prompt-multi-card {
   display: flex;
   flex-direction: column;
   max-height: 60%;
   overflow: hidden;
+  margin-top: 8px;
+  padding: 8px 12px;
+}
+
+.agent-prompt-multi-card .agent-prompt-tool,
+.agent-prompt-multi-card .agent-prompt-detail {
+  margin: 0;
 }
 
 .agent-prompt-multi-card > * {
@@ -80,7 +91,7 @@
 .agent-prompt-multi fieldset {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -90,13 +101,13 @@
 
 .agent-prompt-choices {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-height: 0;
   overflow: auto;
 }
 
 .agent-prompt-multi legend {
-  margin: 0 0 6px;
+  margin: 0;
   padding: 0;
   font-size: 14px;
   font-weight: 600;
@@ -104,9 +115,9 @@
 
 .agent-prompt-check {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 3px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   cursor: pointer;
@@ -126,19 +137,30 @@
   flex: none;
   width: 16px;
   height: 16px;
-  margin: 2px 0 0;
+  margin: 0;
   accent-color: var(--accent);
 }
 
 .agent-prompt-check-text {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-prompt-check-label {
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .agent-prompt-check-description {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-prompt-other {
@@ -158,7 +180,11 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 2px;
+}
+
+.agent-prompt-submit .agent-prompt-progress {
+  margin: 0 auto 0 0;
 }
 
 .agent-prompt-count {

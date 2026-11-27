@@ -253,10 +253,11 @@ it('names the model by its id before the catalog arrives, and reads the catalog 
   expect(model('Plain').getAttribute('aria-checked')).toBe('true')
 })
 
-it('says when the catalog holds no model, and names a chat with no model and no Default plainly', async () => {
-  picker({ load: ready() })
+it('reads Default with no effort for a chat that reports no model, and says when the catalog holds no model', async () => {
+  // A modelless OMP session reports thinking `off`: the chip read `Model · Off` before.
+  picker({ load: ready(), thinking: 'off' })
   await settle()
-  expect(chipText()).toBe('Model')
+  expect(chipText()).toBe('Default')
   fireEvent.click(chip())
   expect(within(menu()).getByText('No models are available.')).toBeTruthy()
 })
