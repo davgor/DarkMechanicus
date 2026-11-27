@@ -40,6 +40,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   cultListWorkerTypes: 'cult.act',
   cultRetireWorkerType: 'cult.act',
   cultRecordSynthesis: 'cult.act',
+  cultPublishShrine: 'cult.act',
   getCapabilities: 'read',
   getProject: 'read',
   standardizeProjectWork: 'project.definition_of_done',

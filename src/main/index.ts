@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import appIcon from '../../build/icon.png?asset'
 import { SKILLS } from '../mcp/skills'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
+import { registerShrineScheme } from './cults/shrineProtocol'
 import { registerAttachmentScheme } from './desktop/attachmentProtocol'
 import { startDesktopBridge } from './desktop/bootstrap'
 import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
@@ -75,6 +76,7 @@ function startDesktop(): void {
   applyColorProfile(app.commandLine)
   // Must run before the app is ready; the protocol handler itself is registered in startDesktopBridge.
   registerAttachmentScheme(protocol)
+  registerShrineScheme(protocol)
 
   app.whenReady().then(() => {
     app.dock?.setIcon(appIcon)

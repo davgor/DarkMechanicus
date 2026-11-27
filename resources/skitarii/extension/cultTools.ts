@@ -2,7 +2,9 @@
  * The native Skitarii cult tools: strict wrappers over the core `dm` cult commands (`src/core/commands/cults.ts`),
  * run through the chat's private client (`dmClient.ts`) with the grant this process holds. They are registered only in
  * a cult member's chat (its client descriptor carries `cultRole`), and only the ones that role may call: the Magos
- * gets every Magos command and `cult_status`, an acolyte `cult_status` and `cult_conclude_service`. The names are the
+ * gets every Magos command, `cult_status` and `cult_shrine`, an acolyte `cult_status`, `cult_conclude_service` and
+ * `cult_shrine`. Each tool runs the core command of its own name, except `cult_shrine`, which runs
+ * `cult_publish_shrine`. The names are the
  * contract the cult rules teach (`CULT_TOOLS` in `src/main/cults/cultRules.ts`). Main decides everything else from the
  * bound grant: arguments never name a run, a role or a sender. Results are inert task data.
  *
@@ -16,9 +18,10 @@ export type CultRole = 'magos' | 'acolyte'
 
 export const MAGOS_CULT_TOOLS = [
   'cult_status', 'cult_summon_acolyte', 'cult_dismiss_acolyte', 'cult_list_acolytes', 'cult_petition', 'cult_order_all',
-  'cult_conclude_run', 'cult_create_worker_type', 'cult_list_worker_types', 'cult_retire_worker_type', 'cult_record_synthesis'
+  'cult_conclude_run', 'cult_create_worker_type', 'cult_list_worker_types', 'cult_retire_worker_type', 'cult_record_synthesis',
+  'cult_shrine'
 ] as const
-const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service'] as const
+const ACOLYTE_CULT_TOOLS = ['cult_status', 'cult_conclude_service', 'cult_shrine'] as const
 type CultToolName = (typeof MAGOS_CULT_TOOLS)[number] | (typeof ACOLYTE_CULT_TOOLS)[number]
 
 interface CultToolDefinition {
@@ -33,6 +36,8 @@ interface CultToolDefinition {
 
 type Check = (value: unknown) => boolean
 interface Spec {
+  /** The core command it runs, when not its own name. */
+  command?: string
   description: string
   approval: 'read' | 'write'
   /** Each argument's check, and whether it is required. */
@@ -119,6 +124,13 @@ const SPECS: Record<CultToolName, Spec> = {
         reason: str(t, 'Why.', 2000)
       }, { additionalProperties: false }), { minItems: 1, maxItems: 96 })
     })
+  },
+  cult_shrine: {
+    command: 'cult_publish_shrine',
+    description: 'Show one file of this run\'s work dir on the cult\'s Shrine, live: a png, jpg, jpeg, svg or html file of at most 10 MiB. Editing the file later updates the Shrine; HTML runs sandboxed with no network.',
+    approval: 'write',
+    args: { path: [text(4096), true] },
+    schema: (t) => ({ path: str(t, 'The file, relative to the run\'s work dir.', 4096) })
   }
 }
 
@@ -147,7 +159,7 @@ function cultTool(client: DmClient, type: TypeBuilder, name: CultToolName): Cult
     execute: async (_id, params, signal) => {
       const args = checked(spec, params)
       if (!args.ok) return refusal(name, args.message)
-      const result = await client.run(name, args.value, signal)
+      const result = await client.run(spec.command ?? name, args.value, signal)
       if (!result.ok) {
         return { content: [{ type: 'text', text: `${name} failed:\n${inertJson({ source: result.error.source, code: result.error.code, message: result.error.message })}` }], isError: true }
       }

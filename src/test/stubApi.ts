@@ -35,6 +35,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   cultListWorkerTypes: true,
   cultRetireWorkerType: true,
   cultRecordSynthesis: true,
+  cultPublishShrine: true,
   getProject: true,
   standardizeProjectWork: true,
   setDeliveryStandards: true,

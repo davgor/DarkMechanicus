@@ -4,7 +4,7 @@ import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import {
   cultConcludeRunArgsSchema, cultConcludeServiceArgsSchema, cultCreateWorkerTypeArgsSchema, cultDismissArgsSchema, cultOrderAllArgsSchema,
-  cultPetitionArgsSchema, cultRecordSynthesisArgsSchema, cultRetireWorkerTypeArgsSchema, cultSummonArgsSchema
+  cultPetitionArgsSchema, cultPublishShrineArgsSchema, cultRecordSynthesisArgsSchema, cultRetireWorkerTypeArgsSchema, cultSummonArgsSchema
 } from '../shared/cults/cultControl'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
@@ -243,6 +243,7 @@ export const COMMAND_SCHEMAS = {
   cultListWorkerTypes: noInput,
   cultRetireWorkerType: cultRetireWorkerTypeArgsSchema,
   cultRecordSynthesis: cultRecordSynthesisArgsSchema,
+  cultPublishShrine: cultPublishShrineArgsSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   standardizeProjectWork: z.strictObject({
     expectedRevision: z.number().int().positive(),

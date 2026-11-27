@@ -54,7 +54,8 @@ export const CULT_OPERATION_NAMES = [
   'cult_create_worker_type',
   'cult_list_worker_types',
   'cult_retire_worker_type',
-  'cult_record_synthesis'
+  'cult_record_synthesis',
+  'cult_publish_shrine'
 ] as const
 export type CultOperationName = (typeof CULT_OPERATION_NAMES)[number]
 
@@ -135,6 +136,11 @@ export const cultRecordSynthesisArgsSchema = z
   .refine((args) => encoder.encode(JSON.stringify(args.recommendations)).byteLength <= MAX_LONG_TEXT_BYTES, 'The synthesis is at most 32 KiB.')
 export type CultRecordSynthesisArgs = z.infer<typeof cultRecordSynthesisArgsSchema>
 
+/** The file to show on the run's Shrine: main resolves it and requires it inside the run's work dir (`shrine.ts`). */
+export const cultPublishShrineArgsSchema = z.strictObject({
+  path: z.string().min(1).max(4096).regex(LINE, 'Use one path.').describe('The file, relative to the run\'s work dir or absolute inside it: png, jpg, jpeg, svg or html, at most 10 MiB.')
+})
+
 const operation = <N extends CultOperationName, A extends z.ZodType>(op: N, args: A) => z.strictObject({ op: z.literal(op), args })
 
 /** Each cult operation as the pipe carries it, without the request's authority fields. */
@@ -150,7 +156,8 @@ export const CULT_OPERATION_SCHEMAS = [
   operation('cult_create_worker_type', cultCreateWorkerTypeArgsSchema),
   operation('cult_list_worker_types', none),
   operation('cult_retire_worker_type', cultRetireWorkerTypeArgsSchema),
-  operation('cult_record_synthesis', cultRecordSynthesisArgsSchema)
+  operation('cult_record_synthesis', cultRecordSynthesisArgsSchema),
+  operation('cult_publish_shrine', cultPublishShrineArgsSchema)
 ] as const
 export type CultOperation = z.infer<(typeof CULT_OPERATION_SCHEMAS)[number]>
 
@@ -288,6 +295,8 @@ export const cultWorkerTypesResultSchema = z.strictObject({
 export type CultWorkerTypesResult = z.infer<typeof cultWorkerTypesResultSchema>
 export const cultRetireWorkerTypeResultSchema = z.strictObject({ retired: z.string().max(80) })
 export const cultSynthesisResultSchema = z.strictObject({ draftRevision: z.number().int(), accepted: z.number().int(), rejected: z.number().int() })
+/** The published Shrine: its path inside the work dir, as given resolved, its kind and its new revision. */
+export const cultShrineResultSchema = z.strictObject({ shrinePath: z.string().max(4096), kind: z.enum(['image', 'html']), revision: z.string().max(80) })
 
 /** Every cult result, for the pipe's reply schema; each command parses its own. */
 export const CULT_RESULT_SCHEMAS = [
@@ -302,7 +311,8 @@ export const CULT_RESULT_SCHEMAS = [
   cultWorkerTypeResultSchema,
   cultWorkerTypesResultSchema,
   cultRetireWorkerTypeResultSchema,
-  cultSynthesisResultSchema
+  cultSynthesisResultSchema,
+  cultShrineResultSchema
 ] as const
 
 // --- errors ----------------------------------------------------------------------------------------------------
@@ -327,6 +337,7 @@ export const CULT_ERROR_CODES = [
   'worker_type_required',
   'worker_type_assigned',
   'worker_type_unknown',
+  'shrine_refused',
   'invalid_state'
 ] as const satisfies readonly DomainErrorCode[]
 type CultErrorCode = (typeof CULT_ERROR_CODES)[number]
@@ -351,6 +362,7 @@ export const CULT_ERROR_MESSAGES: Readonly<Record<CultErrorCode, string>> = {
   worker_type_required: 'A required worker type cannot be retired.',
   worker_type_assigned: 'An acolyte has held that worker type: it can no longer be retired.',
   worker_type_unknown: 'The run has no active worker type with that id. List them with cult_list_worker_types.',
+  shrine_refused: 'A Shrine is one png, jpg, jpeg, svg or html file of at most 10 MiB inside this run\'s work dir (no symlink out of it).',
   invalid_state: 'The run is not in a state that allows this.'
 }
 
