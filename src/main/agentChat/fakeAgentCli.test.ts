@@ -158,13 +158,16 @@ for (const protocol of protocols) {
         const harness = await initialize(protocol)
         harness.send(prompt(protocol, `[${scenario}]`, 1, protocol === 'omp' ? goldenPromptId(scenario) : undefined))
         const expected = golden(protocol, scenario)
-        const request = lines(expected).find((line) => {
+        const requests = lines(expected).filter((line) => {
           const frame = JSON.parse(line)
-          return frame.type === 'control_request' || frame.type === 'extension_ui_request' && ['select', 'ask'].includes(frame.method)
+          return frame.type === 'control_request' || frame.type === 'extension_ui_request' && ['select', 'ask', 'input', 'editor'].includes(frame.method)
         })
-        if (request) {
+        // An OMP ask tool form (`ask_multi_q*`) asks one request at a time; each gets the golden response with its id.
+        const responses = lines(golden(protocol, scenario, 'in')).slice(1)
+        for (const [index, request] of requests.entries()) {
           await harness.until(() => harness.stdout.includes(request))
-          harness.send(lines(golden(protocol, scenario, 'in'))[1])
+          const id = JSON.parse(request).id
+          harness.send(protocol === 'omp' ? responses.find((line) => JSON.parse(line).id === id)! : responses[index])
         }
         await sendGoldenCommands(harness, protocol, scenario)
         await harness.until(() => completed(protocol, harness.stdout))
@@ -247,6 +250,28 @@ for (const protocol of protocols) {
       expect(await finish(harness)).toBe(0)
       expect(expected).toContain(goldenEcho)
       expect(harness.stdout).toBe(expected.replaceAll(goldenEcho, echo(holder.answers)))
+    })
+
+    if (protocol === 'omp') it('[ask-multi-q] replays the recorded OMP 18.20.2 ask form one request at a time and echoes every response it received', async () => {
+      const harness = await initialize(protocol)
+      harness.send(prompt(protocol, '[ask-multi-q]'))
+      const expected = golden(protocol, 'ask_multi_q')
+      const requests = lines(expected).filter((line) => JSON.parse(line).type === 'extension_ui_request')
+      expect(requests.map((line) => JSON.parse(line).method)).toEqual(['select', 'select', 'input'])
+      // Not the golden's answers: the echo must report what reached the CLI, in arrival order.
+      const sent = lines(golden(protocol, 'ask_multi_q', 'in')).slice(1).map((line) => JSON.parse(line))
+      sent[2].value = 'Something else'
+      for (const [index, request] of requests.entries()) {
+        await harness.until(() => harness.stdout.includes(request))
+        expect(completed(protocol, harness.stdout)).toBe(false)
+        harness.send(sent[index])
+      }
+      await harness.until(() => completed(protocol, harness.stdout))
+      expect(await finish(harness)).toBe(0)
+      const echo = (value: unknown): string => JSON.stringify(`answers: ${JSON.stringify(value)}`)
+      const original = lines(golden(protocol, 'ask_multi_q', 'in')).slice(1).map((line) => JSON.parse(line))
+      expect(expected).toContain(echo(original))
+      expect(harness.stdout).toBe(expected.replaceAll(echo(original), echo(sent)))
     })
 
     it('interrupt during slow ends the turn with the golden interrupt tail', async () => {

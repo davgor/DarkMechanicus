@@ -2,6 +2,7 @@ import type { AgentChatAnswer, AgentChatEvent } from '../../shared/agents/agentC
 import { fail } from '../../core/errors'
 import type { ChatItem, ThinkingLevel } from '../../shared/agents/chat'
 import { ompReadFrame, ompWriteFrame, type OmpFraming } from './ompFraming'
+import type { OmpAskDrive } from './ompAskForm'
 import type { OmpHeldPrompt } from './ompPrompts'
 import { OmpReducer } from './ompReducer'
 import type { ToolResultBlob, TurnImage } from './toolResultImages'
@@ -29,7 +30,8 @@ export interface OmpState extends OmpFraming {
   /** Threads whose first raw task has been inspected; ids only, never claim credentials. */
   claimTasksSeen: Set<string>
   pending: OmpHeldPrompt[]
-  /** In-flight commands by id; `awaited` marks main's own requests (`OmpRequest`). */
+  /** The main thread's current `ask` tool form (`ompAskForm.ts`), from its tool call until its last request is answered. */
+  ask: OmpAskDrive | null
   commands: Map<string, CommandRecord>
   tailOffsets: Map<string, number>
   terminalErrors: Map<string | null, Set<string>>
@@ -61,15 +63,16 @@ const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 export function createOmpState(idNamespace = ''): OmpState {
   return { maxFrameBytes: 1_048_576, maxReassembledFrameBytes: 67_108_864, protocolVersion: 1, chunk: null, rejectedChunks: [], recoveringChunks: false,
     idNamespace, skipped: 0, initialized: false, inFlight: false, sequence: 0, messageSequence: 0, message: null,
-    tools: new Map(), threads: new Map(), claimTasksSeen: new Set(), pending: [], commands: new Map(), tailOffsets: new Map(), terminalErrors: new Map(), sessionId: null, sessionFile: null,
+    tools: new Map(), threads: new Map(), claimTasksSeen: new Set(), pending: [], ask: null, commands: new Map(), tailOffsets: new Map(), terminalErrors: new Map(), sessionId: null, sessionFile: null,
     model: null, thinking: null }
 }
 
 /**
  * No I/O, clocks or raw-line events. Only `events` are safe for storage/IPC, never `internalEvents`. `blobs` are
- * tool-result image bytes for the named items: never in an event, and the caller stores them as bytes.
+ * tool-result image bytes for the named items: never in an event, and the caller stores them as bytes. `lines` are
+ * stdin lines main writes at once: the answers to a submitted ask form's later requests (`ompAskForm.ts`).
  */
-export function translateOmpLine(line: string, previous: OmpState, at: string): Result & { internalEvents: (ThreadClaimEvent | CommandResultEvent)[]; blobs: ToolResultBlob[] } {
+export function translateOmpLine(line: string, previous: OmpState, at: string): Result & { internalEvents: (ThreadClaimEvent | CommandResultEvent)[]; blobs: ToolResultBlob[]; lines: string[] } {
   const state = structuredClone(previous)
   const reducer = new OmpReducer(state, at)
   const result = ompReadFrame(line, state)
@@ -79,10 +82,11 @@ export function translateOmpLine(line: string, previous: OmpState, at: string): 
     try { reducer.consume(object(result.frame)) }
     catch {
       // Oversized/deep or malformed vendor values are not host exceptions or raw error messages.
-      return { events: [], internalEvents: [], blobs: [], state: { ...previous, skipped: previous.skipped + 1 } }
+      return { events: [], internalEvents: [], blobs: [], lines: [], state: { ...previous, skipped: previous.skipped + 1 } }
     }
   }
-  return { events: reducer.events, internalEvents: reducer.internalEvents, blobs: reducer.blobs, state }
+  const lines = reducer.outbound.flatMap(frame => ompWriteFrame(frame, state, string(frame.id)))
+  return { events: reducer.events, internalEvents: reducer.internalEvents, blobs: reducer.blobs, lines, state }
 }
 
 /** Call once after ready and before send; IDs are supplied by the owning session. */
