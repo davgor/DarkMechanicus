@@ -45,6 +45,8 @@ interface Seeded {
   chatApi: FakeAgentChat
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
+  /** agent-tree: whether the Finished 1 group was expanded when the tree first showed it, before any click. */
+  finishedExpandedAtStart: boolean | null
 }
 
 const STEP_MS = 12_000
@@ -239,8 +241,10 @@ const agentStates: Record<string, StateDef> = {
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),
-    reach: async () => {
+    reach: async (context) => {
       await openAgentTab()
+      const finished = await until(() => treeItem('Finished 1'), 'the Finished 1 group')
+      context.finishedExpandedAtStart = finished.getAttribute('aria-expanded') === 'true'
       await clickWhenPresent(() => buttonNamed('Expand Finished 1'), 'the Finished 1 group')
       await until(() => treeItem('Acolyte:DM-1') && treeItem('Inquisitor:DM-2') && treeItem('Servitor-1'), 'the expanded agent tree')
     }
@@ -384,7 +388,7 @@ function todoObservations(): Record<string, unknown> {
   }
 }
 
-function observe(state: string): Record<string, unknown> {
+function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
   return {
@@ -402,6 +406,7 @@ function observe(state: string): Record<string, unknown> {
       expanded: row.hasAttribute('aria-expanded') ? row.getAttribute('aria-expanded') === 'true' : null,
       selected: row.getAttribute('aria-selected') === 'true'
     })),
+    finishedExpandedAtStart: context?.finishedExpandedAtStart ?? null,
     ...todoObservations(),
     changesHeader: text($('.acc-header')),
     cardHeading: text($('.agent-prompt h3')),
@@ -429,7 +434,7 @@ function publish(observations: Record<string, unknown>): void {
 function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
-  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR] }
+  return { backend, chatApi, clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR], finishedExpandedAtStart: null }
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -463,7 +468,7 @@ async function main(): Promise<void> {
   const definition = STATES[state]
   if (definition === undefined) {
     window.__errors.push(`Unknown state "${state}"`)
-    publish(observe(state))
+    publish(observe(state, null))
     return
   }
   const context = seeded()
@@ -475,7 +480,7 @@ async function main(): Promise<void> {
   } catch (cause) {
     window.__errors.push(cause instanceof Error ? cause.message : String(cause))
   }
-  publish(observe(state))
+  publish(observe(state, context))
 }
 
 void main()
