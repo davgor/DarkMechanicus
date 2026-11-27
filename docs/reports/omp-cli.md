@@ -612,6 +612,25 @@ Tradeoffs found, for any later change:
 - **Session approvals widen what runs unasked.** In `always-ask` and `always-ask-cached`, answering "Approve bash for this session" (or write) lets every later call of that tool run unasked, inside the folder or out, until the chat ends. Critical patterns and restricted folders still ask.
 - **The person controls this today.** Setting `tools.approvalMode` in their OMP config applies to every Skitarii chat, and the app passes nothing that would override it. A built-in OMP agent has no per-agent arguments (`writeBuiltInAgent` stores `[]`, and `ompLaunch` ignores `agent.args`), so there is no per-chat override.
 
+## 12. Switching model mid-turn (DM-1054)
+
+Recorded on 2026-11-27 on Windows 11 against `omp/18.20.2`, signed in with the person's existing credentials, in a throwaway folder with `--no-session` (nothing written to `~/.omp/agent/config.yml`). One RPC session, `omp --mode rpc --no-session --model anthropic/claude-haiku-5-5 --thinking low`, one prompt that runs `echo one` and then `echo two` with `bash` before answering `done`. At the first `message_update` of the first assistant message (a `toolcall_start`, so the turn was streaming), the host sent `set_model` (`openai-codex`/`gpt-6-luna`), `set_thinking_level` (`medium`) and `get_state`, without waiting. Times are milliseconds after launch.
+
+| t (ms) | Frame | What it shows |
+| --- | --- | --- |
+| 1961 | `get_state` reply: `anthropic/claude-haiku-5-5`, `thinkingLevel: "low"`, `isStreaming: false` | the launch flags took effect |
+| 3794 | `message_start` assistant, `anthropic` `claude-haiku-5-5` | the first model request is streaming |
+| 3823 | `set_model` reply `success: true` | accepted mid-stream |
+| 3865 | `set_thinking_level` reply `success: true` | accepted mid-stream |
+| 3866 | `get_state` reply: `openai-codex/gpt-6-luna`, `thinkingLevel: "medium"`, `isStreaming: true` | the session reports the new model while the old request still streams |
+| 4105 | `message_end` assistant, still `anthropic` `claude-haiku-5-5`, `stopReason: "toolUse"` | the request in flight finished on the old model; nothing was interrupted |
+| 4111-4260 | `bash` `echo one` runs, `turn_end` | the tool ran as asked |
+| 8116 | `message_start` assistant, `openai-codex` `gpt-6-luna` (`openai-codex-responses`) | the next model request of the same turn used the new model |
+| 9095-10213 | `bash` `echo two`, final `done` from `gpt-6-luna`, `prompt_result` `completed` | the turn finished normally |
+| 10221 | `get_state` reply: `openai-codex/gpt-6-luna`, `medium`, `isStreaming: false` | the switch stands after the turn |
+
+**Finding.** `set_model` and `set_thinking_level` are accepted while a turn streams. The request already in flight finishes on the old model; the switch applies from the next model request, even within the same turn. So the app sends a busy chat's switch at once and never queues or interrupts it (`AgentChatSessions.setModel`).
+
 ## Open items for the next tickets
 
 - A hands-on key test (Shift+Enter, paste, resize) and an animated-frame (DEC 2026) check in the app pane; item 9 covered idle frames only.

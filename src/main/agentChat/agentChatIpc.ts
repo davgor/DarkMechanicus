@@ -1,8 +1,9 @@
 /**
  * The `agentChat:*` IPC channels behind `window.dm.agentChat`: each takes one untrusted payload, validated by the
  * strict contract schemas (`shared/agents/agentChat.ts`), resolves the chat's folder through the folder registry
- * (`chatFolder`), and answers a `CommandResult`. The renderer names a chat (or, for `models`, an agent) and nothing
- * else: never an executable, arguments, a cwd, an environment, or a confirmation. Stopping a live terminal for
+ * (`chatFolder`), and answers a `CommandResult`. The renderer names a chat (or, for `models`, an agent; for `setModel`,
+ * one model and effort of the chat's own catalog) and nothing else: never an executable, arguments, a cwd, an
+ * environment, or a confirmation. Stopping a live terminal for
  * `setSurface` is confirmed only by the Main-owned native dialog of that one request. Events reach the window on
  * `agentChat:event`, validated.
  * Register through the sender guard (`guardIpc`), like every other channel.
@@ -19,6 +20,7 @@ import {
   agentChatInterruptSchema,
   agentChatModelsSchema,
   agentChatSendSchema,
+  agentChatSetModelSchema,
   agentChatSetSurfaceSchema,
   agentChatSnapshotRequestSchema,
   agentChatStartSchema,
@@ -38,7 +40,7 @@ import type { OmpModels } from './ompModels'
 
 interface AgentChatHandlerDeps<S> {
   registry: Pick<FolderRegistry, 'resolve'>
-  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention'>
+  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'setModel'>
   /** The native confirmation, modal to the window that sent the request (`nativeTerminalStopConfirmation`). */
   confirmTerminalStop: (sender: S, chat: ChatRecord) => Promise<boolean>
   /** Skitarii model catalogs (`ompModels.ts`). */
@@ -56,6 +58,7 @@ interface AgentChatHandlers<S> {
   snapshot(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   attention(input: unknown): Promise<CommandResult<AttentionItem[]>>
   models(input: unknown): Promise<CommandResult<ChatModelOption[]>>
+  setModel(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
 }
 
 /** Validates a request naming one chat and resolves its tracked folder (null for a project-less chat). */
@@ -103,6 +106,12 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
       const folder = request.folder === null ? null : chatFolder({ registry }, request.folder)
       const options = { refresh: request.refresh === true }
       return 'chatId' in request ? deps.models.chatModels({ folder, id: request.chatId }, options) : deps.models.catalogModels(request.agentId, options)
+    }),
+    // The catalog is the chat's current one, asked only after main knows the chat is a Skitarii chat.
+    setModel: input => answer(deps, () => {
+      const { ref, request } = chatRequest(registry, agentChatSetModelSchema, input)
+      const { provider, modelId, effort } = request
+      return sessions.setModel(ref, { provider, modelId, ...(effort === undefined ? {} : { effort }) }, () => deps.models.chatModels(ref))
     })
   }
 }
@@ -116,6 +125,7 @@ export function registerAgentChatIpc<S>(ipcMain: Pick<IpcMain, 'handle'>, handle
   ipcMain.handle(AGENT_CHAT_CHANNELS.snapshot, (_event, request: unknown) => handlers.snapshot(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.attention, (_event, request: unknown) => handlers.attention(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.models, (_event, request: unknown) => handlers.models(request))
+  ipcMain.handle(AGENT_CHAT_CHANNELS.setModel, (_event, request: unknown) => handlers.setModel(request))
 }
 
 /** Sends each validated agent chat event to every open window on `agentChat:event`; anything else is dropped. */

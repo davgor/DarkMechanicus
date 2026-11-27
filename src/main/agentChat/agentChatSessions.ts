@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import { GUI_PROTOCOL_KINDS, type AgentChatAnswer, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
+import { GUI_PROTOCOL_KINDS, type AgentChatAnswer, type AgentChatEvent, type AgentChatModelChoice, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ChatModelOption } from '../../shared/agents/models'
 import type { AgentId, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { ActivityBinding, ActivityBindings } from '../agents/activityBindings'
@@ -20,7 +21,7 @@ import type { TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
 import { claudeInitLines, claudeInputClipped, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
-import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
+import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpRequest, type OmpState } from './ompProtocol'
 import { PendingPrompts, type ArbitrationGate, type AttentionEvent } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import type { CommandResultEvent, ThreadClaimEvent } from './translatorEvents'
@@ -82,6 +83,14 @@ export interface AgentChatSessions {
    * failed reply, exit, stop or `OMP_REQUEST_TIMEOUT_MS`). Null when the chat has no live, initialized OMP process.
    */
   ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null
+  /**
+   * Switches a Skitarii chat to `choice`, checked against `catalog` (the chat's current one, `OmpModels.chatModels`, asked
+   * only once the chat is known to be a Skitarii chat): a live session gets `set_model`, then `set_thinking_level` with
+   * an effort, then `get_state`; a stopped one only its record. A busy session takes the switch at once and uses it
+   * from its next model request (omp 18.20.2 accepts `set_model` mid-turn); the turn is never interrupted. The record
+   * keeps the model and thinking level for every later launch, and a changed model appends a `model_change` item.
+   */
+  setModel(ref: ChatRef, choice: AgentChatModelChoice, catalog: () => Promise<readonly ChatModelOption[]>): Promise<AgentChatSnapshot>
   /** Stops the GUI process (refusing new starts meanwhile), then runs `remove`, which deletes the record. */
   deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
   /**
@@ -169,6 +178,16 @@ const message = (error: unknown): string => error instanceof Error ? error.messa
 /** How long main waits for a live OMP process to answer one of its own requests (`ompRequest`). */
 const OMP_REQUEST_TIMEOUT_MS = 15_000
 
+/** The catalog's entry for `choice` (`to` is its `provider/id`); refused when the catalog lacks the model or the model the effort. */
+function catalogChoice(catalog: readonly ChatModelOption[], choice: AgentChatModelChoice, to: string): ChatModelOption {
+  const option = catalog.find(model => model.provider === choice.provider && model.id === choice.modelId)
+  if (!option) throw new DomainError('invalid_input', `${to} is not in this chat's model catalog.`)
+  if (choice.effort !== undefined && !option.efforts.includes(choice.effort)) {
+    throw new DomainError('invalid_input', `${to} does not take the ${choice.effort} thinking level.`)
+  }
+  return option
+}
+
 function newEntry(chat: ChatRecord, previous?: Entry): Entry {
   // The repository's ES library predates Promise.withResolvers.
   let cancel!: () => void, admit!: () => void, rejectReady!: (error: unknown) => void
@@ -205,6 +224,8 @@ class SessionManager {
   private readonly confirming = new Set<string>()
   /** Folders being untracked (`releaseFolder`): no GUI chat of theirs may start until the untrack has finished. */
   private readonly releasing = new Set<string>()
+  /** Chats with a model switch in flight (`setModel`): a second one is refused until it settles. */
+  private readonly modelSwitches = new Set<string>()
   private closing = false
   private disposing?: Promise<void>
 
@@ -246,7 +267,12 @@ class SessionManager {
     const chat = this.chatFor(ref), entry = this.entries.get(chat.id)
     return mask({ items: this.deps.store.readTranscript(chat)?.items ?? [], status: entry?.status ?? 'exited',
       pending: entry?.prompts ? entry.prompts.snapshot() : null, queued: entry ? entry.queued : 0, surface: chat.surface ?? 'terminal',
-      todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [] })
+      todos: entry ? [...entry.todos].map(([threadId, phases]) => ({ threadId, phases })) : [], ...this.modelOf(chat, entry) })
+  }
+  /** The chat's model and thinking level: as its live OMP session's last `get_state` reported them, else as its record keeps them. */
+  private modelOf(chat: ChatRecord, entry: Entry | undefined): Required<Pick<AgentChatSnapshot, 'model' | 'thinking'>> {
+    const live = entry?.process && entry.protocol === 'omp' ? entry.omp : null
+    return { model: live?.model ?? chat.model, thinking: live?.thinking ?? chat.thinking ?? null }
   }
   attention(folder: string | null): AttentionItem[] {
     return [...this.entries.values()].filter(entry => entry.chat.folder === folder).flatMap(entry => this.attentionOf(entry))
@@ -393,21 +419,81 @@ class SessionManager {
     if (result.ok) request.resolve(result.data)
     else request.reject(new DomainError('operation_unavailable', 'The agent refused the request.'))
   }
+  /** A live OMP session that has finished initializing and is neither stopping nor ending. */
+  private ompLive(entry: Entry | undefined): entry is Entry {
+    return entry?.process !== undefined && entry.protocol === 'omp' && entry.omp.initialized && !entry.cancelled && !entry.ending
+  }
   ompRequest(ref: ChatRef, type: 'get_available_models'): Promise<unknown> | null {
     const entry = this.entries.get(this.chatFor(ref).id)
-    if (!entry?.process || entry.protocol !== 'omp' || !entry.omp.initialized || entry.cancelled || entry.ending) return null
-    const id = randomUUID()
-    const encoded = encodeOmpCommand({ type, id }, entry.omp, this.now())
+    return this.ompLive(entry) ? this.request(entry, { type, id: randomUUID() }) : null
+  }
+  /** Writes main's own request to the live session and resolves with its reply's `data`; see `ompRequest`. */
+  private request(entry: Entry, command: OmpRequest): Promise<unknown> {
+    const encoded = encodeOmpCommand(command, entry.omp, this.now())
     this.write(entry, encoded.lines)
     entry.omp = encoded.state
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        entry.requests.delete(id)
+        entry.requests.delete(command.id)
         reject(new DomainError('timeout', `The agent did not answer within ${OMP_REQUEST_TIMEOUT_MS / 1000} seconds.`))
       }, OMP_REQUEST_TIMEOUT_MS)
       timer.unref()
-      entry.requests.set(id, { resolve, reject, timer })
+      entry.requests.set(command.id, { resolve, reject, timer })
     })
+  }
+  async setModel(ref: ChatRef, choice: AgentChatModelChoice, catalog: () => Promise<readonly ChatModelOption[]>): Promise<AgentChatSnapshot> {
+    const chat = this.chatFor(ref)
+    if (this.deps.agentFor(chat.agent)?.kind !== 'omp') throw new DomainError('unsupported_agent', 'Only a Skitarii chat can switch its model.')
+    if (this.modelSwitches.has(chat.id)) throw new DomainError('busy', 'The chat is already switching its model.')
+    this.modelSwitches.add(chat.id)
+    try {
+      const to = `${choice.provider}/${choice.modelId}`, option = catalogChoice(await catalog(), choice, to)
+      this.assertOpen(chat)
+      if (this.deps.terminalLive(chat)) throw new DomainError('busy_elsewhere', 'The chat is running in its terminal.')
+      const entry = this.entries.get(chat.id)
+      if (entry?.process === undefined && !this.startingEntries.has(chat.id)) this.switchStored(this.chatFor(ref), choice, option, to)
+      else if (this.ompLive(entry)) await this.switchLive(entry, choice, to)
+      else throw new DomainError('busy', 'The chat is starting or stopping.')
+      return this.snapshot(ref)
+    } finally {
+      this.modelSwitches.delete(chat.id)
+    }
+  }
+  /**
+   * `set_model`, then `set_thinking_level` with an effort, each awaited; a refused model changes nothing. `get_state`
+   * then reads the session back; the model the reply confirmed stands if it cannot. A refused effort keeps the switched
+   * model and is reported after it is recorded.
+   */
+  private async switchLive(entry: Entry, choice: AgentChatModelChoice, to: string): Promise<void> {
+    const from = entry.omp.model ?? entry.chat.model
+    await this.request(entry, { type: 'set_model', id: randomUUID(), provider: choice.provider, modelId: choice.modelId })
+    entry.omp.model = to
+    let refused: unknown
+    if (choice.effort !== undefined) {
+      try {
+        await this.request(entry, { type: 'set_thinking_level', id: randomUUID(), level: choice.effort })
+        entry.omp.thinking = choice.effort
+      } catch (error) { refused = error }
+    }
+    if (this.ompLive(entry)) await this.request(entry, { type: 'get_state', id: randomUUID() }).catch(() => undefined)
+    this.update(entry, { model: to, thinking: entry.omp.thinking })
+    if (from !== to) this.emit(entry, { type: 'item', item: this.modelChange(from, to) })
+    if (refused !== undefined) throw refused
+  }
+  /** A chat without a live session: only its record, read by its next launch; a kept level the new model lacks is dropped. */
+  private switchStored(chat: ChatRecord, choice: AgentChatModelChoice, option: ChatModelOption, to: string): void {
+    const kept = chat.thinking && option.efforts.includes(chat.thinking) ? chat.thinking : null
+    const updated = this.deps.store.updateChat(chat, { model: to, thinking: choice.effort ?? kept })
+    const entry = this.entries.get(chat.id)
+    if (entry) entry.chat = updated
+    this.deps.onChatChanged?.(updated)
+    if (chat.model === to) return
+    const item = this.modelChange(chat.model, to)
+    this.deps.store.appendItems(updated, [item])
+    this.deps.push(mask({ type: 'item', folder: updated.folder, chatId: updated.id, item }))
+  }
+  private modelChange(from: string | null, to: string): Extract<ChatItem, { kind: 'model_change' }> {
+    return { kind: 'model_change', id: `model:${randomUUID()}`, at: this.now(), from, to }
   }
   private tracked<T>(work: Promise<T>): Promise<T> {
     this.cleanup.add(work)
@@ -522,7 +608,8 @@ class SessionManager {
     const init = initLines(frame, entry.omp, randomUUID)
     entry.omp = init.state
     this.write(entry, init.lines)
-    if (entry.omp.initialized) entry.admit()
+    // Admitted once the start's own get_state has answered, so the start's snapshot carries the session's model.
+    if (entry.omp.initialized && ![...entry.omp.commands.values()].some(command => command.type === 'get_state' && !command.awaited)) entry.admit()
   }
   private consumeClaudeQueue(entry: Entry, events: OmpEvent[], mainStarted: boolean): void {
     if (entry.turnActive || entry.queued === 0) return
@@ -961,5 +1048,5 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
     releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
     busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder),
-    ompRequest: (ref, type) => manager.ompRequest(ref, type) }
+    ompRequest: (ref, type) => manager.ompRequest(ref, type), setModel: (ref, choice, catalog) => manager.setModel(ref, choice, catalog) }
 }

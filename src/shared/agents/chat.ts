@@ -66,6 +66,11 @@ const toolImages = z.array(toolImageRefSchema).max(8).optional()
 
 const timestampSchema = z.string().min(1)
 
+/** OMP's thinking levels (`--thinking`, `set_thinking_level`), lowest first. */
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export const thinkingLevelSchema = z.enum(THINKING_LEVELS)
+export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>
+
 export const chatRecordSchema = z.object({
   id: chatIdSchema,
   /**
@@ -78,6 +83,11 @@ export const chatRecordSchema = z.object({
   agent: agentIdSchema,
   /** The model the chat currently runs on; null until one is chosen. */
   model: z.string().min(1).nullable(),
+  /**
+   * A Skitarii chat's thinking level, set with its model (`agentChat:setModel`) and passed back as `--thinking` on every
+   * later launch; null or absent leaves it to the agent's own default, as for every other chat.
+   */
+  thinking: thinkingLevelSchema.nullable().optional(),
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),

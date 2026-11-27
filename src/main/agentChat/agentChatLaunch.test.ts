@@ -216,6 +216,20 @@ describe('launch input boundaries', () => {
     expect(() => agentChatLaunch(input)).toThrow('UUID')
   })
 
+  it('relaunches a switched Skitarii chat on its stored model and thinking level, and nothing else takes --thinking', () => {
+    const input = inputFor('omp')
+    prepareResume(input, true)
+    input.chat.model = 'anthropic/claude-sonnet-5-5'
+    input.chat.thinking = 'medium'
+    const args = agentChatLaunch(input).args
+    expect(args.slice(args.indexOf('--model'))).toEqual(['--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'medium', '--resume', SESSION])
+    input.chat.thinking = null
+    expect(agentChatLaunch(input).args).not.toContain('--thinking')
+    const claude = inputFor('claude')
+    claude.chat.thinking = 'medium'
+    expect(agentChatLaunch(claude).args).not.toContain('--thinking')
+  })
+
   it('refuses mismatched agents, unsupported kinds and an unpinned grant', () => {
     const input = inputFor('claude')
     expect(() => agentChatLaunch({ ...input, chat: { ...input.chat, agent: 'omp' } })).toThrow('do not match')

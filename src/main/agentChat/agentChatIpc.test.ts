@@ -32,7 +32,8 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [AGENT_CHAT_CHANNELS.setSurface]: { folder: REPO, chatId: 'chat_1', surface: 'gui' },
   [AGENT_CHAT_CHANNELS.snapshot]: { folder: REPO, chatId: 'chat_1' },
   [AGENT_CHAT_CHANNELS.attention]: { folder: REPO },
-  [AGENT_CHAT_CHANNELS.models]: { folder: REPO, chatId: 'chat_1' }
+  [AGENT_CHAT_CHANNELS.models]: { folder: REPO, chatId: 'chat_1' },
+  [AGENT_CHAT_CHANNELS.setModel]: { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }
 }
 
 function rig() {
@@ -41,7 +42,7 @@ function rig() {
   const sessions = {
     start: record('start', SNAPSHOT), send: record('send', undefined), interrupt: record('interrupt', undefined),
     answer: record('answer', undefined), setSurface: record('setSurface', SNAPSHOT), snapshot: vi.fn((...args: unknown[]) => { calls.push(['snapshot', ...args]); return SNAPSHOT }),
-    attention: vi.fn((...args: unknown[]) => { calls.push(['attention', ...args]); return [] })
+    attention: vi.fn((...args: unknown[]) => { calls.push(['attention', ...args]); return [] }), setModel: record('setModel', SNAPSHOT)
   } as unknown as AgentChatSessions
   const confirmTerminalStop = vi.fn(async () => false)
   const listeners = new Map<string, Listener>()
@@ -74,7 +75,7 @@ describe('agent chat IPC registration', () => {
     // `INVOKED` is sorted by channel name, so the manager is reached in that order.
     const ref = { folder: REPO, id: 'chat_1' }
     expect(state.calls.map(call => [call[0], call[1]])).toEqual([
-      ['answer', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setSurface', ref], ['snapshot', ref], ['start', ref]
+      ['answer', ref], ['attention', REPO], ['interrupt', ref], ['chatModels', ref], ['send', ref], ['setModel', ref], ['setSurface', ref], ['snapshot', ref], ['start', ref]
     ])
   })
 
@@ -116,6 +117,30 @@ describe('agent chat models IPC', () => {
     expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO }))).toBe('invalid_input')
     expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: REPO, agentId: '../omp' }))).toBe('invalid_input')
     expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.models, { folder: '/elsewhere', agentId: 'omp' }))).toBe('unauthorized')
+    expect(state.calls).toEqual([])
+  })
+})
+
+describe('agent chat setModel IPC', () => {
+  it('passes the chat, the choice and a loader of the chat’s own catalog to the session manager', async () => {
+    const state = rig()
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol', effort: 'medium' })).toEqual({ ok: true, data: SNAPSHOT })
+    expect(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { folder: null, chatId: 'chat_1', provider: 'anthropic', modelId: 'claude-opus-5-5' })).toEqual({ ok: true, data: SNAPSHOT })
+    const [first, second] = state.calls
+    expect(first.slice(0, 3)).toEqual(['setModel', { folder: REPO, id: 'chat_1' }, { provider: 'openai-codex', modelId: 'gpt-6-sol', effort: 'medium' }])
+    expect(second.slice(0, 3)).toEqual(['setModel', { folder: null, id: 'chat_1' }, { provider: 'anthropic', modelId: 'claude-opus-5-5' }])
+    // The loader is the chat's catalog, asked only when the session manager calls it.
+    expect(state.calls).toHaveLength(2)
+    await (first[3] as () => Promise<unknown>)()
+    expect(state.calls.at(-1)).toEqual(['chatModels', { folder: REPO, id: 'chat_1' }])
+  })
+
+  it('refuses an unknown effort, a missing model, an extra field or an untracked folder before reaching the session manager', async () => {
+    const state = rig(), base = { folder: REPO, chatId: 'chat_1', provider: 'openai-codex', modelId: 'gpt-6-sol' }
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { ...base, effort: 'turbo' }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { ...base, modelId: '' }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { ...base, executable: 'omp.exe' }))).toBe('invalid_input')
+    expect(codeOf(await state.invoke(AGENT_CHAT_CHANNELS.setModel, { ...base, folder: '/elsewhere' }))).toBe('unauthorized')
     expect(state.calls).toEqual([])
   })
 })
