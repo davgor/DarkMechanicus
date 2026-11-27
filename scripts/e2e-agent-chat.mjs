@@ -5,13 +5,18 @@
  * exactly once under a 10 s condition-based deadline with no retries.
  *
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted). Both shims are
  * always written, but the omp agent is only connected with `--agent omp`: the app prefers a signed-in OMP for a planner,
  * and the Claude steps after `new-chat` drive Claude-protocol scenarios. So `--agent omp` runs only `ready`, `new-chat`
  * and `quit`.
  *
- * Without `--steps` every step runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
+ * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
+ * folder. A step list that does not start the app itself (`ready` or `restart-resume`) gets `ready` first.
+ *
+ * Without `--steps` every step but the polish ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -28,7 +33,7 @@
  * Each run first removes the isolated roots that earlier runs left behind when they were killed before their own
  * cleanup (`harness.json` names the harness that owns a root; a root whose harness is gone is stale).
  */
-import { spawn, spawnSync } from 'node:child_process'
+import { execFile, spawn, spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
@@ -78,6 +83,13 @@ const OWNER_FILE = 'harness.json'
 const UNOWNED_GRACE_MS = 6 * 60 * 60_000
 /** The title the fake agent names a new chat with (`fakeAgentCli.mjs`, FAKE_CHAT_TITLE); scripts cannot import it. */
 const FAKE_CHAT_TITLE = 'Fake agent conversation'
+/** The second fixture folder, seeded and tracked only for `polish-untrack`, which untracks it. */
+const SECOND_FOLDER_NAME = 'e2e-repo-2'
+/** The fake's `[markdown]` reply (`fakeAgentCli.mjs`, MARKDOWN_REPLY) and the code of its fenced block. */
+const MARKDOWN_REPLY = 'Here is the **fix**:\n\n```js\nconst answer = 42\nconsole.log(answer)\n```'
+const MARKDOWN_CODE = 'const answer = 42\nconsole.log(answer)'
+/** The steps that start the app themselves; a step list starting with any other step gets `ready` first. */
+const APP_STARTING_STEPS = ['ready', 'restart-resume']
 
 /**
  * The environment the app and its children get: `base` minus the stripped variables, with every home and config
@@ -325,35 +337,42 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
   return { ...env, [key]: [folder, env[key]].filter(Boolean).join(separator) }
 }
 
-function createSession(out, exe, agent = 'claude') {
+function createSession(out, exe, agent = 'claude', keys = []) {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
   writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
   return {
     out, root, exe, agent, env: withNodeFirst(isolatedEnv(process.env, root)),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
+    second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
     store: null, restart: null
   }
 }
 
-function git(session, args) {
-  const result = spawnSync('git', args, { cwd: session.folder, env: session.env, encoding: 'utf8', windowsHide: true })
+function git(session, folder, args) {
+  const result = spawnSync('git', args, { cwd: folder, env: session.env, encoding: 'utf8', windowsHide: true })
   if (result.status !== 0) throw new Error(`git ${args.at(-1)} failed: ${result.stderr || result.error}`)
 }
 
-function seedRepository(session) {
-  mkdirSync(session.folder)
-  git(session, ['init', '-q'])
-  writeFileSync(join(session.folder, 'README.md'), '# e2e fixture\n')
-  git(session, ['add', 'README.md'])
-  git(session, ['-c', 'user.name=DM e2e', '-c', 'user.email=e2e@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Seed'])
+function seedRepository(session, folder) {
+  mkdirSync(folder)
+  git(session, folder, ['init', '-q'])
+  writeFileSync(join(folder, 'README.md'), '# e2e fixture\n')
+  git(session, folder, ['add', 'README.md'])
+  git(session, folder, ['-c', 'user.name=DM e2e', '-c', 'user.email=e2e@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Seed'])
+}
+
+/** The folders a run seeds as Git repositories: the fixture folder, and the second one when `polish-untrack` runs. */
+function fixtureFolders(session) {
+  return session.second === null ? [session.folder] : [session.folder, session.second]
 }
 
 /**
  * The fakes are built-in agents (`seededAgents`): a custom agent is terminal-only and its sign-in is never checked. The
  * folder is set up in database mode (its records live under the isolated Dark Mechanicus home, so the Git tree stays
- * clean) with one saved epic, whose id the seed prints, and its default agent is the kind `--agent` selects.
+ * clean) with one saved epic, whose id the seed prints, and its default agent is the kind `--agent` selects. A second
+ * folder (`polish-untrack`) is set up and tracked the same way, without an epic.
  * Notifications are on while the window is focused, as an unattended run's window is.
  */
 const SEED_SOURCE = `
@@ -381,12 +400,21 @@ async function main() {
   } finally {
     workspace.close()
   }
-  const { folder } = createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome }).track(seed.folder)
+  if (seed.second !== null) {
+    const second = openWorkspace({ repoRoot: seed.second, homeDir: seed.dmHome, role: 'desktop', transport: 'desktop', label: 'e2e seed' })
+    try {
+      await second.initializeRepository({ name: 'E2E second fixture', keyPrefix: 'DM', mode: 'db' })
+    } finally {
+      second.close()
+    }
+  }
+  const folders = createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome })
+  const tracked = [seed.folder, ...(seed.second === null ? [] : [seed.second])].map((path) => folders.track(path).folder)
   const db = openAppDatabase(seed.userData)
   try {
     const registry = createAgentRegistry({ db })
     for (const agent of seed.agents) registry.upsert({ ...agent, connectedVia: 'found' })
-    createFolderAgentDefaults({ db }).set(folder.path, seed.defaultAgent)
+    for (const folder of tracked) createFolderAgentDefaults({ db }).set(folder.path, seed.defaultAgent)
     await createAppSettings({ db, confirm: async () => false, logger: console })
       .setNotifications({ ...DEFAULT_NOTIFICATION_SETTINGS, whenFocused: 'notify' })
   } finally {
@@ -406,7 +434,7 @@ function seedStores(session) {
   const seed = {
     userData: session.userData, agents: seededAgents(session.shims, session.agent), defaultAgent: session.agent,
     folders: join(session.userData, 'folders.json'), home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME,
-    folder: session.folder, epicTitle: EPIC_TITLE
+    folder: session.folder, second: session.second, epicTitle: EPIC_TITLE
   }
   const result = spawnSync(process.execPath, [bundle, JSON.stringify(seed)], { env: session.env, encoding: 'utf8', windowsHide: true })
   if (result.status !== 0) throw new Error(`Seeding the app stores failed: ${result.stderr || result.error}`)
@@ -494,7 +522,7 @@ function setup(session) {
   }
   const shimDirectory = join(session.root, 'shim')
   session.shims = Object.fromEntries(AGENT_KINDS.map((kind) => [kind, writeShim(shimDirectory, FAKE_AGENT_CLI, process.platform, kind)]))
-  seedRepository(session)
+  for (const folder of fixtureFolders(session)) seedRepository(session, folder)
   seedStores(session)
   if (session.exe === null) {
     const { version } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
@@ -503,7 +531,7 @@ function setup(session) {
   }
   if (process.platform === 'win32') startDialogHelper(session)
   return {
-    shims: session.shims, agent: session.agent, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
+    shims: session.shims, agent: session.agent, folder: session.folder, second: session.second, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
     app: session.exe ?? BUILT_MAIN
   }
 }
@@ -1066,23 +1094,27 @@ function guiResumed(h, folder, chatId) {
   })
 }
 
-function grantDatabase(session) {
+/** Every seeded project's database: the fixture folder's and, for `polish-untrack`, the second folder's. */
+function grantDatabases(session) {
   const projects = join(session.env.DARKMECHANICUS_HOME, 'projects')
-  const [project, ...others] = readdirSync(projects)
-  if (project === undefined || others.length > 0) throw new Error(`Expected one project under ${projects}.`)
-  return join(projects, project, 'local', 'state.sqlite')
+  const expected = session.second === null ? 1 : 2
+  const found = readdirSync(projects)
+  if (found.length !== expected) throw new Error(`Expected ${expected} project(s) under ${projects}; found ${found.length}.`)
+  return found.map((project) => join(projects, project, 'local', 'state.sqlite'))
 }
 
-/** The grant row a launch's `grantHash` names, read-only from the project's database. */
+/** The grant row a launch's `grantHash` names, read-only from the project database that holds it. */
 function grantOf(session, grantHash) {
-  const db = new DatabaseSync(grantDatabase(session), { readOnly: true })
-  try {
-    const row = db.prepare('SELECT id, created_at, revoked_at FROM grants WHERE token_hash = ?').get(grantHash)
-    if (row === undefined) throw new Error('No grant row matches the terminal launch.')
-    return { id: row.id, createdAt: row.created_at, revokedAt: row.revoked_at }
-  } finally {
-    db.close()
+  for (const file of grantDatabases(session)) {
+    const db = new DatabaseSync(file, { readOnly: true })
+    try {
+      const row = db.prepare('SELECT id, created_at, revoked_at FROM grants WHERE token_hash = ?').get(grantHash)
+      if (row !== undefined) return { id: row.id, createdAt: row.created_at, revokedAt: row.revoked_at }
+    } finally {
+      db.close()
+    }
   }
+  throw new Error('No grant row matches the launch.')
 }
 
 /**
@@ -1603,6 +1635,329 @@ async function restartEqualVersion(session, signal) {
   return { waitedMs: NO_RESUME_WINDOW_MS, launches: launches.length, markerRemoved: true, turn, ...exited, ...await fakeProcessesExited(session, signal) }
 }
 
+/** The chat `polish-picker` started, which the later polish steps drive. */
+function polishChat(session) {
+  if (session.chat === null) throw new Error('The polish steps after polish-picker drive its chat: run polish-picker first.')
+  return session.chat
+}
+
+/** Checks the New chat dialog's `role` card; ok once it is the checked radio. Clicking a checked card again is harmless. */
+function chooseRole(_h, role) {
+  const card = document.querySelector(`.dialog[role="dialog"] .first-prompt-roles .arc[data-role="${role}"]`)
+  if (!card) return { ok: false, card: false }
+  if (card.querySelector('[role="radio"]')?.getAttribute('aria-checked') !== 'true') {
+    card.click()
+    return { ok: false, checked: false }
+  }
+  return { ok: true, role, name: card.querySelector('.arc-name')?.textContent ?? null }
+}
+
+/** Polish 1: folder New chat with the Lexmechanic card stores a planner GUI chat, which opens with its first turn. */
+async function polishPicker(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  const picked = await until(session, signal, chooseRole, 'planner')
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: 'hello' })
+  if (chat.role !== 'planner' || chat.surface !== 'gui') throw new Error(`The new chat is a ${chat.role} on ${chat.surface}, not a planner on gui.`)
+  session.chat = { chatId: chat.id, sessionId: chat.sessionId }
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'hello' })
+  const shown = await until(session, signal, guiShows, chat.id, 'hello', 'Hello world')
+  return { picked, chat, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-polish-picker.png', WINDOW) }
+}
+
+function focusComposer(_h, chatId) {
+  const input = document.getElementById(`agent-message-${chatId}`)
+  if (!input || input.disabled) return { ok: false, found: !!input }
+  input.focus()
+  return { ok: document.activeElement === input }
+}
+
+function composerValue(_h, chatId, text) {
+  const input = document.getElementById(`agent-message-${chatId}`)
+  return { ok: input?.value === text, value: input?.value ?? null, height: input ? Math.round(input.getBoundingClientRect().height) : null }
+}
+
+/** A real Enter key press in the focused element, with Shift held when `shift`. */
+async function pressEnter(session, shift = false) {
+  const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, modifiers: shift ? 8 : 0 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', unmodifiedText: '\r', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+}
+
+/** The kinds of the items after the last user message `text` in the stored transcript, and the last reply text among them. */
+async function turnItems(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items, status } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return { ok: sent >= 0, status, kinds: after.map((item) => item.kind), reply: after.findLast((item) => item.kind === 'assistant_text')?.text ?? null }
+}
+
+/** Clicks the composer's Stop, which replaces Send while the agent works. */
+function clickStop(_h, chatId) {
+  const form = document.getElementById(`agent-message-${chatId}`)?.form
+  const stop = form?.querySelector('button[aria-label="Stop"]') ?? null
+  if (!stop || stop.disabled) return { ok: false, stop: !!stop }
+  const send = !!form.querySelector('button[aria-label="Send"]')
+  stop.click()
+  return { ok: true, title: stop.title, sendShown: send }
+}
+
+const TWO_LINES = '[echo] first line\nsecond line'
+
+/**
+ * Polish 2: two lines typed with real keys (Shift+Enter between them) go out on Enter and the fake echoes both; then
+ * `[slow]` shows Stop in place of Send, and Stop ends that turn as `turn_stopped`.
+ */
+async function polishComposer(session, signal) {
+  const { chatId } = polishChat(session)
+  const folder = session.folderPath
+  await until(session, signal, focusComposer, chatId)
+  const [first, second] = TWO_LINES.split('\n')
+  await cdp(session, 'Input.insertText', { text: first })
+  await pressEnter(session, true)
+  await cdp(session, 'Input.insertText', { text: second })
+  const typed = await until(session, signal, composerValue, chatId, TWO_LINES)
+  await pressEnter(session)
+  await until(session, signal, turnDone, folder, chatId, { text: TWO_LINES })
+  const echoed = await until(session, signal, turnItems, folder, chatId, TWO_LINES)
+  if (echoed.reply !== 'first line\nsecond line') throw new Error(`The fake did not echo both lines: ${JSON.stringify(echoed.reply)}`)
+  await until(session, signal, composeAndSend, chatId, '[slow]')
+  const stop = await until(session, signal, clickStop, chatId)
+  if (stop.sendShown) throw new Error('Send was shown beside Stop while the agent worked.')
+  await until(session, signal, turnDone, folder, chatId, { text: '[slow]' })
+  const stopped = await until(session, signal, turnItems, folder, chatId, '[slow]')
+  if (!stopped.kinds.includes('turn_stopped')) throw new Error(`Stop did not end the turn as turn_stopped: ${JSON.stringify(stopped.kinds)}`)
+  return {
+    typed, echo: echoed.reply, stop, stoppedTurn: stopped.kinds,
+    screenshot: await capture(session, 'e2e-polish-composer.png', WINDOW)
+  }
+}
+
+/** Clicks the newest reply's message Copy or its code block's Copy once; ok once it says Copied or Copy failed. */
+function clickCopy(_h, which) {
+  const reply = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-msg-assistant')].at(-1)
+  const button = which === 'code' ? reply?.querySelector('.md-code-block .md-code-copy') : reply?.querySelector(':scope > .chat-msg-actions .copy-button')
+  if (!button) return { ok: false, reply: !!reply, button: false }
+  if (button.dataset.e2eClicked !== '1') {
+    button.dataset.e2eClicked = '1'
+    button.click()
+  }
+  const state = button.getAttribute('data-state')
+  return { ok: state !== 'idle', state, title: button.title }
+}
+
+/** Copies through `which`'s button and reads the clipboard back in the page. */
+async function copyAndRead(session, signal, which) {
+  const clicked = await until(session, signal, clickCopy, which)
+  if (clicked.state !== 'copied') throw new Error(`${clicked.title} says ${clicked.state}.`)
+  return { button: clicked.title, clipboard: await evaluate(session, 'navigator.clipboard.readText()') }
+}
+
+/** Polish 3: the reply's Copy puts its raw Markdown on the clipboard; its code block's Copy puts only the code. */
+async function polishCopy(session, signal) {
+  const { chatId } = polishChat(session)
+  // The page reads the clipboard only while it has focus, which an unattended window may not: focus is emulated here.
+  await cdp(session, 'Emulation.setFocusEmulationEnabled', { enabled: true })
+  await until(session, signal, composeAndSend, chatId, 'Show the fix [markdown]')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: 'Show the fix [markdown]' })
+  const stored = await until(session, signal, turnItems, session.folderPath, chatId, 'Show the fix [markdown]')
+  if (stored.reply !== MARKDOWN_REPLY) throw new Error(`The stored reply is not the fake's Markdown: ${JSON.stringify(stored.reply)}`)
+  const message = await copyAndRead(session, signal, 'message')
+  const code = await copyAndRead(session, signal, 'code')
+  // The Windows clipboard holds text with CRLF line ends (Chromium converts on write); every other byte is the copy's.
+  const clipped = (text) => (process.platform === 'win32' ? text.replaceAll('\n', '\r\n') : text)
+  if (message.clipboard !== clipped(MARKDOWN_REPLY)) throw new Error(`Copy message gave ${JSON.stringify(message.clipboard)}, not the raw Markdown.`)
+  if (code.clipboard !== clipped(MARKDOWN_CODE)) throw new Error(`Copy code gave ${JSON.stringify(code.clipboard)}, not the code alone.`)
+  return { stored: stored.reply, message, code, codeExpected: MARKDOWN_CODE, screenshot: await capture(session, 'e2e-polish-copy.png', WINDOW) }
+}
+
+const MULTI_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-multi-card[role="alertdialog"]'
+const SINGLE_CARD = 'section.agent-chat section.agent-prompt[role="alertdialog"]:not(.agent-prompt-multi-card)'
+
+/** Checks exactly `labels` on the multi-select card, one checkbox per poll so React renders each change. */
+function checkOptions(_h, selector, labels) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  const text = (element) => element?.textContent ?? null
+  const options = [...card.querySelectorAll('label.agent-prompt-check')].map((label) => ({
+    label: text(label.querySelector('.agent-prompt-check-label')), input: label.querySelector('input[type="checkbox"]')
+  }))
+  const wrong = options.find((option) => labels.includes(option.label) !== option.input.checked)
+  if (wrong) {
+    wrong.input.click()
+    return { ok: false, toggled: wrong.label }
+  }
+  const count = text(card.querySelector('.agent-prompt-count'))
+  return {
+    ok: options.length > 0 && count === `${labels.length} selected`, count, legend: text(card.querySelector('legend')),
+    progress: text(card.querySelector('.agent-prompt-progress')), options: options.map((option) => option.label)
+  }
+}
+
+function singleQuestion(h, selector, label) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  const progress = card.querySelector('.agent-prompt-progress')?.textContent ?? null
+  return { ok: progress === 'Question 2 of 2' && !!h.button(card, label), progress, heading: card.getAttribute('aria-label') }
+}
+
+/**
+ * Polish 4: `[multiselect]` docks the multi question; two checked options and Submit bring the single second question,
+ * "Question 2 of 2", and once it is answered the fake echoes the answers it received, both labels included.
+ */
+async function polishMultiselect(session, signal) {
+  const { chatId } = polishChat(session)
+  await until(session, signal, composeAndSend, chatId, '[multiselect]')
+  const multi = await until(session, signal, checkOptions, MULTI_CARD, ['A', 'C'])
+  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
+  await until(session, signal, clickButton, MULTI_CARD, 'Submit')
+  const second = await until(session, signal, singleQuestion, SINGLE_CARD, 'SQLite')
+  await until(session, signal, clickButton, SINGLE_CARD, 'SQLite')
+  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[multiselect]' })
+  const { reply } = await until(session, signal, turnItems, session.folderPath, chatId, '[multiselect]')
+  if (!reply?.includes('"Which letters?":"A, C"') || !reply.includes('"Which database?":"SQLite"')) {
+    throw new Error(`The fake did not echo both checked labels: ${JSON.stringify(reply)}`)
+  }
+  return { multi, second, echo: reply, screenshot }
+}
+
+/** The newest `Worked for` row: its label, whether it is open, and the state of its `name` tool card (null when hidden). */
+function workRow(_h, name) {
+  const row = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-work')].at(-1)
+  const toggle = row?.querySelector(':scope > .chat-work-toggle')
+  if (!toggle) return { ok: false, row: !!row }
+  const card = row.querySelector(`.chat-work-rows li.chat-tool[aria-label="Tool call: ${name}"]`)
+  return {
+    ok: true, label: toggle.textContent.replace('›', '').trim(), expanded: toggle.getAttribute('aria-expanded'),
+    card: card === null ? null : card.querySelector('[data-state]')?.getAttribute('data-state') ?? 'unknown'
+  }
+}
+
+/** The newest row is folded: `Worked for <time>`, collapsed, its `name` card hidden. */
+async function workFolded(session, signal, name) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const row = session.lastProbe = await page(session, workRow, name)
+    return row.ok && /^Worked for \d/.test(row.label) && row.expanded === 'false' && row.card === null && row
+  }, signal)
+}
+
+function openNewestWork(_h) {
+  const toggle = [...document.querySelectorAll('section.agent-chat .chat-transcript li.chat-work > .chat-work-toggle')].at(-1)
+  if (toggle?.getAttribute('aria-expanded') !== 'false') return { ok: false, found: !!toggle }
+  toggle.click()
+  return { ok: true }
+}
+
+/** Opens the newest row (one click) until it shows its `name` card, finished. */
+async function workOpened(session, signal, name) {
+  await until(session, signal, openNewestWork)
+  return waitFor(async () => {
+    const row = session.lastProbe = await page(session, workRow, name)
+    return row.ok && row.expanded === 'true' && row.card === 'accepted' && row
+  }, signal)
+}
+
+/** Polish 5: a finished `[tool]` turn folds its work behind a collapsed `Worked for` row; opening it shows the Read card. */
+async function polishWorkedFor(session, signal) {
+  const { chatId } = polishChat(session)
+  const shown = await sendInChat(session, signal, { chatId, text: '[tool]', reply: 'alpha' })
+  const folded = await workFolded(session, signal, 'Read')
+  const opened = await workOpened(session, signal, 'Read')
+  return { folded, opened, messages: shown.messages, screenshot: await capture(session, 'e2e-polish-worked-for.png', WINDOW) }
+}
+
+/** Clicks the folder's New chat, expanding the folder first when its body is collapsed. */
+function newChatIn(_h, name) {
+  const button = document.querySelector(`button[aria-label="New chat in ${name}"]`)
+  if (button && !button.disabled) {
+    button.click()
+    return { ok: true }
+  }
+  document.querySelector(`button[aria-label="Expand ${name}"]`)?.click()
+  return { ok: false, button: !!button }
+}
+
+async function trackedFolder(_h, name) {
+  const folders = await window.dm.listFolders()
+  const folder = folders.find((entry) => entry.name === name)
+  return { ok: folder?.available === true && folder.initialized === true, path: folder?.path ?? null, names: folders.map((entry) => entry.name) }
+}
+
+async function folderGone(_h, name) {
+  const names = (await window.dm.listFolders()).map((entry) => entry.name)
+  return { ok: !names.includes(name), names }
+}
+
+function clickMenuItem(_h, menu, label) {
+  const item = [...document.querySelectorAll(`.menu[role="menu"][aria-label="${menu}"] [role="menuitem"]`)].find((entry) => entry.textContent.trim() === label)
+  if (!item) return { ok: false, menu }
+  item.click()
+  return { ok: true }
+}
+
+/** Runs `dm --repo <repo> call <command>` as the app's chats run it: this build's runtime as Node, on the isolated home. */
+function dmCall(session, { repo, command, args }, signal) {
+  const runtime = session.exe ?? require('electron')
+  const script = session.exe === null ? join(REPO, 'out', 'main', 'cli.js') : join(dirname(session.exe), 'resources', 'app.asar', 'out', 'main', 'cli.js')
+  const options = { env: { ...session.env, ELECTRON_RUN_AS_NODE: '1' }, signal, windowsHide: true, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+  return new Promise((resolveCall, reject) => {
+    execFile(runtime, [script, '--repo', repo, 'call', command, JSON.stringify(args)], options, (error, stdout, stderr) => {
+      if (error) reject(new Error(`dm call ${command} failed: ${stderr.trim() || error.message}`))
+      else resolveCall(JSON.parse(stdout))
+    })
+  })
+}
+
+/** A GUI chat of the second folder, started from its New chat and live: its record, its one fake process and its grant. */
+async function startSecondChat(session, signal) {
+  if (session.second === null) throw new Error('polish-untrack needs the second fixture folder, seeded only when it is requested.')
+  const { path: folder } = await until(session, signal, trackedFolder, SECOND_FOLDER_NAME)
+  await until(session, signal, newChatIn, SECOND_FOLDER_NAME)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello second')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, folder, { firstPrompt: 'hello second' })
+  await until(session, signal, turnDone, folder, chat.id, { text: 'hello second' })
+  const launches = chatLaunches(readLog(session), chat.sessionId)
+  const [gui] = launches
+  if (launches.length !== 1 || gui.surface !== 'gui') throw new Error(`Expected one GUI launch of the second folder's chat: ${JSON.stringify(launches)}`)
+  if (!isAlive(gui.pid)) throw new Error(`The second folder's fake (pid ${gui.pid}) is not running.`)
+  const grant = grantOf(session, gui.grantHash)
+  if (grant.revokedAt !== null) throw new Error(`The live chat's grant is already revoked: ${JSON.stringify(grant)}`)
+  return { folder, chat, gui, grant }
+}
+
+/**
+ * Polish 6: a live GUI chat in the second fixture folder, then Stop tracking that folder from its sidebar menu: within
+ * the deadline the chat's fake process has exited and its grant is revoked, as `dm call list_grants` shows.
+ */
+async function polishUntrack(session, signal) {
+  const { folder, chat, gui, grant: before } = await startSecondChat(session, signal)
+  const menu = `Actions for ${SECOND_FOLDER_NAME}`
+  await until(session, signal, clickSelector, `button[aria-label="${menu}"]`)
+  await until(session, signal, clickMenuItem, menu, 'Stop tracking folder')
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Stop tracking')
+  const untrackedAt = Date.now()
+  await waitFor(() => !isAlive(gui.pid), signal)
+  const exitedWithinMs = Date.now() - untrackedAt
+  const revoked = await waitFor(() => {
+    const grant = grantOf(session, gui.grantHash)
+    return grant.revokedAt !== null && grant
+  }, signal)
+  const gone = await until(session, signal, folderGone, SECOND_FOLDER_NAME)
+  const listed = await dmCall(session, { repo: folder, command: 'list_grants', args: {} }, signal)
+  const grant = listed.ok ? listed.data.find((entry) => entry.id === before.id) : undefined
+  if (grant === undefined || grant.revokedAt === null || grant.active) throw new Error(`list_grants does not show the chat's grant revoked: ${JSON.stringify(listed)}`)
+  return {
+    chat: { id: chat.id, role: chat.role, surface: chat.surface }, folder, fakePid: gui.pid, fakeExited: true, exitedWithinMs,
+    grant: { id: before.id, revokedAt: revoked.revokedAt }, listGrants: grant, folders: gone.names,
+    screenshot: await capture(session, 'e2e-polish-untrack.png', WINDOW)
+  }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -1623,7 +1978,13 @@ const STEPS = {
       { name: 'restart-resume equal-version launch', run: restartEqualLaunch },
       { name: 'restart-resume equal version', run: restartEqualVersion }
     ]
-  }
+  },
+  'polish-picker': { name: 'polish-picker', run: polishPicker, polish: true },
+  'polish-composer': { name: 'polish-composer', run: polishComposer, polish: true },
+  'polish-copy': { name: 'polish-copy', run: polishCopy, polish: true },
+  'polish-multiselect': { name: 'polish-multiselect', run: polishMultiselect, polish: true },
+  'polish-worked-for': { name: 'polish-worked-for', run: polishWorkedFor, polish: true },
+  'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true }
 }
 
 async function captureFailure(session, step) {
@@ -1636,17 +1997,20 @@ async function captureFailure(session, step) {
   return { ...detail, screenshot: file }
 }
 
+/** The phases `keys` run, in order, each verdict step named after its phase: a step without phases is its own one. */
+export function stepPhases(keys) {
+  return keys.flatMap((key) => STEPS[key].phases ?? [STEPS[key]])
+}
+
 async function runSteps(session, keys, steps) {
   const onFailure = (step) => captureFailure(session, step)
   steps.push(await runStep('stale isolated roots removed', async () => removeStaleRoots()))
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
-  steps: for (const key of prepared.ok ? keys : []) {
-    for (const phase of STEPS[key].phases ?? [STEPS[key]]) {
-      const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
-      steps.push(result)
-      if (!result.ok) break steps
-    }
+  for (const phase of prepared.ok ? stepPhases(keys) : []) {
+    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
+    steps.push(result)
+    if (!result.ok) break
   }
   // Whatever stopped before the quit step still ends the app and checks its fakes.
   if (session.child === null || isRunning(session.child)) {
@@ -1669,14 +2033,17 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
-/** The steps to run: `--steps`, else every step (only OMP_STEPS for `--agent omp`); unknown or Claude-only ones are refused. */
+/**
+ * The steps to run: `--steps`, else every step but the polish ones (only OMP_STEPS for `--agent omp`); unknown or
+ * Claude-only ones are refused. A list that neither starts the app nor names `ready` gets `ready` first.
+ */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
   if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${OMP_STEPS.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
-  return keys
+  return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
 }
 
 export function parseArgs(argv) {
@@ -1695,7 +2062,7 @@ export function parseArgs(argv) {
 async function main(argv) {
   const { out, exe, agent, keys } = parseArgs(argv)
   mkdirSync(out, { recursive: true })
-  const session = createSession(out, exe, agent)
+  const session = createSession(out, exe, agent, keys)
   const steps = []
   try {
     await runSteps(session, keys, steps)

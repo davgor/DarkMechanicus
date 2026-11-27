@@ -547,6 +547,24 @@ for (const protocol of protocols) {
     expect(frames.at(-1)).toEqual({ type: 'prompt_result', id: 'req_T1_prompt', agentInvoked: true, status: 'completed' })
     expect(JSON.parse(lines(harness.stdout).at(-1) ?? '')).toMatchObject({ type: 'prompt_result', id: 'req_T2_prompt' })
   })
+
+  for (const [keyword, text, reply] of [
+    ['echo', '[echo] first line\nsecond line', 'first line\nsecond line'],
+    ['markdown', 'Show the fix [markdown]', 'Here is the **fix**:\n\n```js\nconst answer = 42\nconsole.log(answer)\n```']
+  ] as const) {
+    it(`${protocol} [${keyword}] streams and stores the same scripted reply on the text golden`, async () => {
+      const harness = await initialize(protocol)
+      harness.send(prompt(protocol, text))
+      await harness.until(() => completed(protocol, harness.stdout))
+      expect(await finish(harness)).toBe(0)
+      expect(replyText(protocol, harness.stdout)).toBe(reply)
+      const deltas = lines(harness.stdout).map((line) => JSON.parse(line)).map((frame) => protocol === 'claude'
+        ? frame.event?.delta?.type === 'text_delta' ? frame.event.delta.text : null
+        : frame.assistantMessageEvent?.type === 'text_delta' ? frame.assistantMessageEvent.delta : null).filter((delta) => delta !== null)
+      expect(deltas).toEqual([reply])
+      expect(lines(harness.stdout)).toHaveLength(lines(golden(protocol, 'text')).length - 1)
+    })
+  }
 }
 
 /**
