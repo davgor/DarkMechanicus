@@ -47,6 +47,7 @@ import type { ChatRecords } from './chatRecords'
 import { byRecency, type ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
+import type { WorkerCatalog } from './workerCatalog'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
 import { startPlannerChat, type PlannerAgents } from './plannerStart'
 import { startChatOnSurface } from './chatSurfaceStart'
@@ -176,6 +177,8 @@ interface ChatHandlerDeps {
   push?: (event: ChatPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
+  /** Writes a Skitarii Magos's worker-model catalog for Start run (`workerCatalog.ts`); without it none is written. */
+  workerCatalog?: WorkerCatalog
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
@@ -253,8 +256,12 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
-  const { runs, chats, terminals, agentChats, onUnexpectedError } = deps
-  const started = await startOrchestratorRun({ runs, chats, terminals, agentChats, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const { runs, chats, terminals, agentChats, onUnexpectedError, workerCatalog } = deps
+  const started = await startOrchestratorRun({
+    runs, chats, terminals, agentChats,
+    ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }),
+    ...(workerCatalog === undefined ? {} : { workerCatalog })
+  }, { ...request, folder })
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }

@@ -560,7 +560,7 @@ async function writeStartFiles(context: StartContext, repairCheckout: string | u
   if (agent.kind === 'omp') {
     // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
     await installSkitariiTheme(ompAgentDir(manager.deps.env, platform === 'win32' ? undefined : manager.deps.env['HOME']))
-    return { ...files, omp: { ...(await writeOmpFiles(userData, chat.id, fresh)), extension: manager.deps.ompExtension } }
+    return { ...files, omp: { ...(await writeOmpFiles(userData, chat.id, { fresh, role: chat.role })), extension: manager.deps.ompExtension } }
   }
   if (agent.kind !== 'claude') {
     return files
