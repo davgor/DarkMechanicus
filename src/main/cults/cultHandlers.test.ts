@@ -17,7 +17,7 @@ import { eventually, FakeClock, settle } from '../terminals/__mocks__/terminalSe
 import { backstopMs } from '../../shared/cults/runState'
 import { cultHarness, disposeCultHarness, folderCultInput, ptyOf, type CultHarness } from './__mocks__/cultRig'
 import { createCultDispatcher, planTargetRevision } from './cultCommands'
-import { cultControlPath } from './cultControl'
+import { cultControlPath, type CultControl } from './cultControl'
 import { announcingDispatcher, createCultHandlers, forwardCultEvents, registerCultIpc } from './cultHandlers'
 import { createCultLedger } from './cultLedger'
 import { createCultShrines, type CultShrines } from './cultShrine'
@@ -43,13 +43,37 @@ interface Fixture {
   hearing: { exits: boolean }
   /** The run Shrines on the real file watch, as `startCults` wires them, with their reconcile on the run's fake clock. */
   shrines: CultShrines
+  /** The supervisor's control-file clears: each waits while `held` does, counted in `pending` until it is done. */
+  clears: HeldClears
+}
+
+interface HeldClears {
+  held: Promise<void>
+  pending: number
+  release: () => void
+}
+
+/** The members' control files as the supervisor sees them: a clear waits for `clears.held`, then clears the real file. */
+function heldControl(control: CultControl, clears: HeldClears): CultControl {
+  return {
+    send: (chatId, request) => control.send(chatId, request),
+    clear: async (chatId) => {
+      clears.pending += 1
+      try {
+        await clears.held
+        await control.clear(chatId)
+      } finally {
+        clears.pending -= 1
+      }
+    }
+  }
 }
 
 let f: Fixture
 
-function supervisorOver(h: CultHarness, clock: FakeClock, hearing: Fixture['hearing']): CultSupervisor {
+function supervisorOver(h: CultHarness, clock: FakeClock, hearing: Fixture['hearing'], clears: HeldClears): CultSupervisor {
   return createCultSupervisor({
-    cults: h.cults, launcher: h.launcher, control: h.control, ledger: createCultLedger({ userData: h.rig.userData }),
+    cults: h.cults, launcher: h.launcher, control: heldControl(h.control, clears), ledger: createCultLedger({ userData: h.rig.userData }),
     terminals: {
       isRunning: (chatId) => h.rig.sessions.isRunning(chatId),
       attachGrant: (chatId, grantId) => h.rig.sessions.attachGrant(chatId, grantId),
@@ -73,7 +97,8 @@ beforeEach(async () => {
   const clock = new FakeClock()
   const h = await cultHarness({ now: () => new Date(BASE + clock.now).toISOString(), exitOnKill: true })
   const hearing = { exits: true }
-  const supervisor = supervisorOver(h, clock, hearing)
+  const clears: HeldClears = { held: Promise.resolve(), pending: 0, release: () => {} }
+  const supervisor = supervisorOver(h, clock, hearing, clears)
   const shrines = createCultShrines({ cults: h.cults, supervisor, clock: { after: (callback, ms) => clock.after(callback, ms) } })
   const dispatch = announcingDispatcher(createCultDispatcher({
     supervisor, cults: h.cults, council: h.council, shrines, models: async () => MODELS,
@@ -95,10 +120,11 @@ beforeEach(async () => {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send: (channel: string, event: unknown) => channel === CULT_EVENT_CHANNEL && pushed.push(event as CultPushEvent) }
   }
-  f = { h, supervisor, clock, pipe, channels, pushed, hearing, shrines, stopForwarding: forwardCultEvents(services, () => [window]) }
+  f = { h, supervisor, clock, pipe, channels, pushed, hearing, shrines, clears, stopForwarding: forwardCultEvents(services, () => [window]) }
 })
 
 afterEach(async () => {
+  f.clears.release()
   f.shrines.dispose()
   f.stopForwarding()
   await f.pipe.close()
@@ -161,6 +187,24 @@ async function startedRun(overrides: object = {}) {
   const cult = await createdCult(overrides)
   const detail = await data(invoke<CultRunDetail>('start', cult.id, {}))
   return { cult, detail, run: detail.run, magos: detail.members[0]! }
+}
+
+/** Holds every control-file clear of the supervisor until `f.clears.release()`. */
+function holdClears(): void {
+  f.clears.held = new Promise((resolve) => {
+    f.clears.release = resolve
+  })
+}
+
+/** Each `launcher.deleteCult` call, as the number of control-file clears not yet finished when it was made. */
+function deletionsSeen(): number[] {
+  const seen: number[] = []
+  const deleteCult = f.h.launcher.deleteCult
+  f.h.launcher.deleteCult = (cultId) => {
+    seen.push(f.clears.pending)
+    return deleteCult(cultId)
+  }
+  return seen
 }
 
 describe('cults IPC: channels and validation (c1)', () => {
@@ -328,6 +372,38 @@ describe('cults IPC: Kill now, run history, unsubscribe and delete (c3)', () => 
     expect(f.pushed.some((event) => event.snapshot.run.id === run.id && event.snapshot.run.state === 'ended' && event.snapshot.run.endReason === 'stopped')).toBe(true)
     expect(f.h.cults.getCult(cult.id)).toBeNull()
     expect(await invoke('get', cult.id)).toMatchObject(refused('not_found'))
+  })
+})
+
+describe('cults IPC: deleting a cult waits for its runs to settle', () => {
+  it('deletes the cult only once its stopped run has settled, never while a member control file is still being cleared', async () => {
+    const { cult, run } = await startedRun()
+    const deletions = deletionsSeen()
+    holdClears()
+    const deleting = invoke('delete', cult.id)
+    await pastBackstop(run.id)
+    // The end is told, but the members' control files are still being cleared: their chat folders are not removed under them.
+    expect(deletions).toEqual([])
+    f.clears.release()
+    expect(await data(deleting)).toBeNull()
+    expect(deletions).toEqual([0])
+    expect(f.h.cults.getCult(cult.id)).toBeNull()
+  })
+
+  it('waits for a run that has ended but is still settling (Kill now) before deleting the cult', async () => {
+    const { cult, run } = await startedRun()
+    const deletions = deletionsSeen()
+    holdClears()
+    const killing = invoke('killNow', run.id)
+    await eventually(() => lastSnapshot(run.id)?.run.state === 'ended', 'the killed run to end')
+    const deleting = invoke('delete', cult.id)
+    await settle()
+    expect(deletions).toEqual([])
+    f.clears.release()
+    await data(killing)
+    expect(await data(deleting)).toBeNull()
+    expect(deletions).toEqual([0])
+    expect(f.h.cults.getCult(cult.id)).toBeNull()
   })
 })
 

@@ -212,11 +212,13 @@ function catalog(): CultCatalogView {
   }
 }
 
-/** Ends the cult's active run first (Stop, then waits for its end), then deletes the cult with its chats and sanctum. */
+/**
+ * Ends the cult's active run first (Stop), and waits until every run of it still supervised here has settled (one that
+ * has just ended may still be writing its members' files), then deletes the cult with its chats and sanctum.
+ */
 async function deleteCult(deps: CultHandlerDeps, cultId: unknown): Promise<null> {
   const cult = requireCult(deps, cultId)
-  const active = deps.cults.listRuns(cult.id).find((run) => run.state !== 'ended')
-  if (active !== undefined) await deps.supervisor.endRun(active.id)
+  await Promise.all(deps.cults.listRuns(cult.id).map((run) => deps.supervisor.endRun(run.id)))
   await deps.launcher.deleteCult(cult.id)
   return null
 }
