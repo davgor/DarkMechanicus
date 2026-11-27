@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import { chatModelOptions } from '../../../shared/agents/models'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
@@ -174,4 +174,32 @@ it('gives a Claude chat no model chip and reads no catalog for it', async () => 
   expect(document.querySelector('.model-picker')).toBe(null)
   expect(api.callsOf('models')).toEqual([])
   expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
+})
+
+it('bounds the menu to the room above the chip inside the stage that scrolls it, within 160–600 px', async () => {
+  // jsdom lays nothing out: the epic stage starts 165 px down, and the picker sits at `pickerTop`.
+  let pickerTop = 680
+  const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.classList.contains('preview-stage') ? 165 : this.classList.contains('model-picker') ? pickerTop : 0
+    return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) } as DOMRect
+  })
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: OPUS_HIGH }
+  api.modelsResult = { ok: true, data: CATALOG }
+  // jsdom does not expand the `overflow` shorthand; the epic stage's `overflow: auto` computes to this in Chromium.
+  render(<div className="preview-stage" style={{ overflowY: 'auto' }}>
+    <AgentChat {...ref} agentLabel="Magos" api={api} scheduler={new ManualScheduler()} skitarii />
+  </div>)
+  await settle()
+  fireEvent.click(chip())
+  expect(menu().style.maxHeight).toBe(`${680 - 165 - 18}px`)
+  fireEvent.click(chip())
+  pickerTop = 2_000
+  fireEvent.click(chip())
+  expect(menu().style.maxHeight).toBe('600px')
+  fireEvent.click(chip())
+  pickerTop = 200
+  fireEvent.click(chip())
+  expect(menu().style.maxHeight).toBe('160px')
+  spy.mockRestore()
 })

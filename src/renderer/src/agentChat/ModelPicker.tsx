@@ -12,6 +12,10 @@ const EFFORT_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'XHigh', max: 'Max'
 }
 const BUSY_HINT = 'Applies to next response'
+/** The menu's height bounds, and the gap it keeps between its top and the edge of whatever clips it. */
+const MENU_MIN_PX = 160
+const MENU_MAX_PX = 600
+const MENU_CLEARANCE_PX = 18
 
 interface ModelPickerProps {
   /** The chat's model (`provider/id`) and thinking level as its snapshot reports them, and whether it is busy. */
@@ -154,7 +158,7 @@ export function ModelPicker({ state, load, choose }: ModelPickerProps): JSX.Elem
       {change.error !== null && <span className="model-picker-error" role="alert">{change.error}</span>}
       <ModelChip chipRef={chip} open={open} menuId={menuId} label={chipText(current, state.model ?? null, thinking, change.pending)}
         spinning={change.pending !== null} queued={change.queued} busy={busy} toggle={toggle} close={close} />
-      {open && <ModelMenu id={menuId} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={change.queued}
+      {open && <ModelMenu id={menuId} anchor={anchor} catalog={catalog} current={current} thinking={thinking} busy={busy} queued={change.queued}
         retry={retry} close={close} apply={(option, effort) => {
           close(true)
           void change.apply(option, effort)
@@ -198,6 +202,8 @@ function ModelChip({ chipRef, open, menuId, label, spinning, queued, busy, toggl
 }
 
 interface MenuProps {
+  /** The picker the menu opens upward from. */
+  anchor: RefObject<HTMLElement>
   id: string
   catalog: Catalog
   current: ChatModelOption | null
@@ -207,6 +213,25 @@ interface MenuProps {
   retry(): void
   apply: Apply
   close(focusChip: boolean): void
+}
+
+/**
+ * The height free above `element` inside the window and every ancestor that clips or scrolls (the epic stage), less a
+ * clearance, bounded to 160–600 px: the menu opens upward from the chip and must not run past what clips it.
+ */
+function roomAbove(element: HTMLElement): number {
+  let top = 0
+  for (let node = element.parentElement; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).overflowY !== 'visible') top = Math.max(top, node.getBoundingClientRect().top)
+  }
+  return Math.max(MENU_MIN_PX, Math.min(MENU_MAX_PX, element.getBoundingClientRect().top - top - MENU_CLEARANCE_PX))
+}
+
+/** Bounds the open menu's height to the room above its anchor, measured once as it opens. */
+function useMenuRoom(menu: RefObject<HTMLElement>, anchor: RefObject<HTMLElement>): void {
+  useLayoutEffect(() => {
+    if (menu.current !== null && anchor.current !== null) menu.current.style.maxHeight = `${roomAbove(anchor.current)}px`
+  }, [menu, anchor])
 }
 
 type FocusTarget = 'model' | 'effort' | 'first'
@@ -260,13 +285,14 @@ function visibleModels({ featured, more }: { featured: ChatModelOption[]; more: 
 }
 
 /** The open menu: models by provider, More models, Effort; arrows move, typing filters by name, Escape closes. */
-function ModelMenu({ id, catalog, current, thinking, busy, queued, retry, apply, close }: MenuProps): JSX.Element {
+function ModelMenu({ id, anchor, catalog, current, thinking, busy, queued, retry, apply, close }: MenuProps): JSX.Element {
   const groups = useMemo(() => featuredModels(catalog.status === 'ready' ? catalog.options : []), [catalog])
   const [draft, setDraft] = useState(current)
   const [query, setQuery] = useState('')
   const [moreOpen, setMoreOpen] = useState(() => current !== null && !groups.featured.includes(current))
   const menu = useRef<HTMLDivElement>(null)
   const focus = useMenuFocus(menu)
+  useMenuRoom(menu, anchor)
   const shown = visibleModels(groups, query)
   const showMore = moreOpen || query !== ''
   function pick(option: ChatModelOption): void {
