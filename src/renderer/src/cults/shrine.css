@@ -1,0 +1,103 @@
+/* The cult Shrine (ShrinePanel.tsx): sized by its container; compact is the chamber viewscreen's content-only mode. */
+.shrine-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.shrine-view {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.shrine-panel[data-compact='true'] .shrine-view {
+  border: 0;
+  border-radius: 0;
+}
+
+.shrine-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Untrusted HTML paints its own page; a white canvas keeps a page without a background readable. */
+.shrine-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--shrine-canvas);
+}
+
+.shrine-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.shrine-details dt {
+  color: var(--muted);
+}
+
+.shrine-details dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.shrine-enlarge {
+  align-self: flex-end;
+}
+
+.shrine-panel[data-compact='true'] .shrine-enlarge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: var(--overlay);
+}
+
+.shrine-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.shrine-empty-title {
+  font-family: var(--font-display, inherit);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lens);
+}
+
+/* The Enlarge dialog: wider than the default dialog, the view tall enough to use. */
+.dialog:has(.shrine-enlarged) {
+  width: min(1100px, 100%);
+}
+
+.shrine-enlarged {
+  flex: none;
+  height: min(70vh, 720px);
+}

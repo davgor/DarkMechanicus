@@ -92,6 +92,8 @@ export interface CultShrines {
   publish(run: CultRunView, member: CultMemberView, path: string): Promise<{ shrinePath: string; kind: ShrineKind; revision: string }>
   /** Whether the run's published file is being watched. */
   watching(runId: string): boolean
+  /** Resolves once every change check already started has finished (what a test awaits instead of a delay). */
+  settled(): Promise<void>
   /** Stops every watch and stops hearing run changes. */
   dispose(): void
 }
@@ -111,6 +113,8 @@ interface State {
   watch: WatchDir
   onError: (error: unknown) => void
   watches: Map<string, Watch>
+  /** Change checks in flight. */
+  checks: Set<Promise<void>>
 }
 
 async function signatureOf(path: string): Promise<string | null> {
@@ -141,7 +145,10 @@ function startWatch(s: State, runId: string, path: string, signature: string | n
   entry.watcher = s.watch(dirname(path), (filename) => {
     if (filename !== null && filename !== name) return
     entry.cancelDebounce()
-    entry.cancelDebounce = s.clock.after(() => void settleChange(s, runId, entry).catch(s.onError), DEBOUNCE_MS)
+    entry.cancelDebounce = s.clock.after(() => {
+      const check = settleChange(s, runId, entry).catch(s.onError).finally(() => s.checks.delete(check))
+      s.checks.add(check)
+    }, DEBOUNCE_MS)
   }, s.onError)
   s.watches.set(runId, entry)
 }
@@ -159,13 +166,16 @@ async function publish(s: State, run: CultRunView, member: CultMemberView, path:
 }
 
 export function createCultShrines(deps: CultShrineDeps): CultShrines {
-  const s: State = { deps, clock: deps.clock ?? systemClock, watch: deps.watch ?? watchDir, onError: deps.onError ?? (() => {}), watches: new Map() }
+  const s: State = { deps, clock: deps.clock ?? systemClock, watch: deps.watch ?? watchDir, onError: deps.onError ?? (() => {}), watches: new Map(), checks: new Set() }
   const unsubscribe = deps.supervisor.on(CULT_CHANGED, (snapshot) => {
     if (snapshot.run.state === 'ended') stop(s, snapshot.run.id)
   })
   return {
     publish: (run, member, path) => publish(s, run, member, path),
     watching: (runId) => s.watches.has(runId),
+    settled: async () => {
+      await Promise.all([...s.checks])
+    },
     dispose: () => {
       unsubscribe()
       for (const runId of [...s.watches.keys()]) stop(s, runId)

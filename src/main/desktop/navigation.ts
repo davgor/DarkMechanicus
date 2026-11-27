@@ -66,6 +66,19 @@ interface HardenableWebContents {
     event: 'will-navigate' | 'will-redirect',
     listener: (details: NavigationDetails) => void
   ): unknown
+  on(event: 'will-frame-navigate', listener: (details: NavigationDetails & { isMainFrame: boolean }) => void): unknown
+}
+
+/**
+ * The only addresses a frame inside the app page may navigate to: a cult Shrine (`dm-shrine:`). A sandboxed Shrine page
+ * may run script, but never takes its own frame to the network or anywhere else.
+ */
+export function isAllowedFrameUrl(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'dm-shrine:'
+  } catch {
+    return false
+  }
 }
 
 interface HardenOptions {
@@ -76,7 +89,8 @@ interface HardenOptions {
 
 /**
  * Locks a window's contents to the app: new windows are always denied (allowed links go to the
- * system browser instead) and navigation away from the app page or dev server is prevented.
+ * system browser instead), navigation away from the app page or dev server is prevented, and a
+ * frame inside the page may navigate only to a cult Shrine (`isAllowedFrameUrl`).
  */
 export function hardenWebContents(contents: HardenableWebContents, options: HardenOptions): void {
   contents.setWindowOpenHandler(({ url }) => {
@@ -93,4 +107,9 @@ export function hardenWebContents(contents: HardenableWebContents, options: Hard
   }
   contents.on('will-navigate', guard)
   contents.on('will-redirect', guard)
+  contents.on('will-frame-navigate', (details) => {
+    if (!details.isMainFrame && !isAllowedFrameUrl(details.url)) {
+      details.preventDefault()
+    }
+  })
 }
