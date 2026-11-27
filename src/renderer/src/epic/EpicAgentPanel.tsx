@@ -158,7 +158,7 @@ function ThreadView({ ws, owner, ownerName, threadId, name, items }: {
   return (
     <section className="agent-chat" aria-label={`${name} thread`}>
       <header className="agent-chat-header"><h2>{name}</h2></header>
-      <div className="agent-chat-scroll">
+      <div className="agent-chat-scroll glass-strong">
         {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
         <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />
       </div>
@@ -200,7 +200,7 @@ function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
   }
   const inputId = `eap-relay-${threadId}`
   return (
-    <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
+    <form className="agent-chat-composer glass" onSubmit={(event) => { event.preventDefault(); void send() }}>
       {problem !== null && <p className="agent-chat-command-error" role="alert">{problem}</p>}
       <label className="agent-chat-label" htmlFor={inputId}>Message {name}</label>
       <textarea className="input" id={inputId} value={text} maxLength={18_000} rows={3} placeholder="Send a message…"

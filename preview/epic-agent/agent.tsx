@@ -344,6 +344,14 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('.agent-prompt .agent-prompt-arbitration'), 'the named approval card')
     }
   },
+  'agent-glass': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, namedApproval()),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
+    }
+  },
   'agent-magos-decided': {
     mount: 'epic',
     seed: (context) => snapshot(context, magosDecided()),
@@ -550,6 +558,23 @@ function deliveryObservations(): Record<string, unknown> {
   }
 }
 
+/** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
+function glassObservations(): Record<string, unknown> | null {
+  const stage = $('section.eap')
+  if (stage === null) return null
+  const surface = (element: HTMLElement | null): { background: string; backdropFilter: string } | null => {
+    if (element === null) return null
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, backdropFilter: style.backdropFilter }
+  }
+  return {
+    backdrop: getComputedStyle(stage).backgroundImage,
+    rail: surface($('aside.rr')),
+    card: surface($('.agent-prompt')),
+    transcript: surface($('.agent-chat-scroll'))
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -575,6 +600,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
     approvalRecord: text($('.chat-approval-card')),
+    glass: glassObservations(),
     needsYouHeader: text($('.at-header')),
     badgedRows: document.querySelectorAll('button.at-needs').length,
     ticketPanel: $('.tp') !== null,

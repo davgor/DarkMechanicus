@@ -2,6 +2,12 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  background: var(--agent-backdrop);
+}
+
+/* One backdrop for the whole stage: the chat inside lets it show through rather than painting its own. */
+.eap .agent-chat {
+  background: transparent;
 }
 
 .eap-centre {

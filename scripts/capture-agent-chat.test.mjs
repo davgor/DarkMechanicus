@@ -35,6 +35,14 @@ const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servi
 const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 const HELD = 'Sprint 1 delivery to main: the latest check failed'
 const PLAN = { agentChatRegion: false, railWidth: null, railRightOfStage: null }
+/** The agent-glass state's computed glass, as Chromium reports the shipped tokens. */
+const GLASS = {
+  backdrop: 'radial-gradient(75% 85% at 85% 0%, rgba(214, 155, 74, 0.28), rgba(0, 0, 0, 0) 70%), '
+    + 'radial-gradient(70% 85% at 0% 100%, rgba(181, 26, 31, 0.3), rgba(0, 0, 0, 0) 70%), none',
+  rail: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
+  card: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
+  transcript: { background: 'rgba(21, 18, 17, 0.9)', backdropFilter: 'blur(16px) saturate(1.2)' }
+}
 
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
@@ -50,7 +58,10 @@ function passingDeliveryStates() {
   }
 }
 
-/** Passing records for the rail states: the tree, the collapsed rail, and the landings that expand it on their own. */
+/**
+ * Passing records for the rail states: the tree, the collapsed rail, the landings that expand it on their own, and
+ * the glass rail beside a docked approval card.
+ */
 function passingRailStates() {
   return {
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
@@ -58,7 +69,8 @@ function passingRailStates() {
     'landing-notification': ready('landing-notification', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
     'landing-activity': ready('landing-activity', {
       treeRows: TREE.map((entry) => entry.name === 'Acolyte:DM-1' ? { ...entry, selected: true } : entry)
-    })
+    }),
+    'agent-glass': ready('agent-glass', { cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: GLASS })
   }
 }
 
@@ -145,20 +157,21 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 27 states once each, in capture order', () => {
+  it('lists the 28 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'settings-notifications', 'delivery-editor', 'delivery-pending',
+      'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(27)
+    expect(new Set(STATES).size).toBe(28)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 420 s overall bound: 27 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 435 s overall bound: 28 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(420_000)
+    expect(OVERALL_LIMIT_MS).toBe(435_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 })
@@ -301,6 +314,20 @@ describe('capture-agent-chat: per-state observations', () => {
     const settings = passing()['settings-notifications']
     expect(validateObservations('settings-notifications', { ...settings, observations: { ...settings.observations, settingsControls: ['Save', ''] } }))
       .toEqual(['settings-notifications: expected the controls have accessible names'])
+  })
+})
+
+describe('capture-agent-chat: agent-glass observations', () => {
+  it('requires agent-glass to show the glows, a frosted rail and card, and a near-solid transcript', () => {
+    const glass = (patch) => validateObservations('agent-glass', ready('agent-glass', {
+      cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: { ...GLASS, ...patch }
+    }))
+    expect(glass({ backdrop: 'none' })).toEqual(['agent-glass: expected the stage paints the brass and crimson radial glows; got none'])
+    expect(glass({ rail: { background: 'rgb(40, 33, 29)', backdropFilter: 'none' } }))
+      .toEqual(['agent-glass: expected the open rail is frosted glass; got {"background":"rgb(40, 33, 29)","backdropFilter":"none"}'])
+    expect(glass({ card: { background: 'rgba(33, 27, 24, 0.95)', backdropFilter: 'blur(16px) saturate(1.2)' } })).toHaveLength(1)
+    expect(glass({ transcript: { background: 'rgba(21, 18, 17, 0.5)', backdropFilter: 'none' } })).toHaveLength(1)
+    expect(validateObservations('agent-glass', ready('agent-glass'))).toHaveLength(4)
   })
 })
 

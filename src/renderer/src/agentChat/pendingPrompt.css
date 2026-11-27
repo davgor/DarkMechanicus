@@ -3,11 +3,8 @@
   min-height: 0;
   max-height: 45%;
   overflow: auto;
-  margin: 0 16px;
+  margin: 12px 16px 0;
   padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
   overflow-wrap: anywhere;
 }
 
