@@ -23,14 +23,14 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer', 'agent-role-picker',
+  'agent-glass', 'agent-composer', 'agent-role-picker', 'agent-transcript',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 30 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 465_000
+/** A declared bound: 31 states at up to 15 s each, plus the Vite and Electron start. */
+export const OVERALL_LIMIT_MS = 480_000
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
@@ -73,7 +73,9 @@ const BASE_FIELDS = [
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form and the role picker. */
-const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'settings-notifications', 'agent-role-picker'])
+const CHAT_STATES = new Set([
+  'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'agent-transcript', 'settings-notifications', 'agent-role-picker'
+])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
 const PLAN_STATES = new Set(['graph', 'header-long', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'])
@@ -236,6 +238,22 @@ const STATE_CHECKS = {
     ['the idle draft grew to two lines and the empty busy composer holds one', (o) => composersOf(o)[0]?.lines === 2
       && composersOf(o)[1]?.lines === 1, (o) => JSON.stringify(composersOf(o).map((card) => card.lines))],
     ['both placeholders reply to the Magos', (o) => composersOf(o).every((card) => card.placeholder === 'Reply to Magos…')]
+  ],
+  'agent-transcript': [
+    ['a centred reading column at most 760 px wide', (o) => o.transcript?.columnWidth <= 760 && o.transcript.columnWidth >= 600
+      && o.transcript.columnOffset <= 1, (o) => JSON.stringify([o.transcript?.columnWidth, o.transcript?.columnOffset])],
+    ['the person’s message is a rounded bubble against the column’s right edge', (o) => parseFloat(o.transcript?.bubble?.radius) >= 12
+      && alphaOf(o.transcript.bubble.background) > 0 && near(o.transcript.bubble.rightGap, 0) && o.transcript.bubble.leftGap > 40,
+    (o) => JSON.stringify(o.transcript?.bubble)],
+    ['the reply is plain text across the column, with no bubble', (o) => alphaOf(o.transcript?.reply?.background) === 0
+      && o.transcript.reply.border === '0px' && near(o.transcript.reply.width, o.transcript.columnWidth), (o) => JSON.stringify(o.transcript?.reply)],
+    ['the reply’s action row holds Copy', (o) => JSON.stringify(o.transcript?.replyActions) === '["Copy"]',
+      (o) => JSON.stringify(o.transcript?.replyActions)],
+    ['the bubble’s Copy shows under keyboard focus', (o) => o.transcript?.bubbleCopy === 'Copy' && o.transcript.bubbleCopyFocused === true,
+      (o) => JSON.stringify([o.transcript?.bubbleCopy, o.transcript?.bubbleCopyFocused])],
+    ['the code block’s Copy sits in its top-right corner', (o) => o.transcript?.codeCopy === 'Copy'
+      && o.transcript.codeCopyCorner?.top <= 12 && o.transcript.codeCopyCorner.right <= 12,
+    (o) => JSON.stringify([o.transcript?.codeCopy, o.transcript?.codeCopyCorner])]
   ],
   'agent-planners': [
     ['the tree names the Magos and nine planners apart, Lexmechanic-2 selected', (o) => rowNamed(o, 'Magos')
