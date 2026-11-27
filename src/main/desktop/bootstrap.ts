@@ -112,8 +112,8 @@ import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createCrossRepoCorrectionHandlers, registerCrossRepoCorrectionIpc } from './crossRepoCorrections'
 import { createFolderAgentDefaults, type FolderAgentDefaults } from './folderAgentDefaults'
 import { createSanctumRegistry, withSanctums, type SanctumRegistry } from '../cults/sanctumRegistry'
-import { createCultStore } from '../cults/cultStore'
-import { createCultPipeline } from '../cults/cultPipeline'
+import { createCultStore, type CultStore } from '../cults/cultStore'
+import { createCultPipeline, type CultPipeline } from '../cults/cultPipeline'
 import { createCultControl } from '../cults/cultControl'
 import { createCultLedger, systemLeftovers } from '../cults/cultLedger'
 import { createCultLauncher } from '../cults/cultLauncher'
@@ -1237,19 +1237,23 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
       grant.runId === runId && grant.chatId === chatId && grant.kind === 'folder_access' && grant.tokenFile !== null ? [{ folder: grant.folder, tokenFile: grant.tokenFile }] : []),
     onError: (error) => logger.error('Cult member conclusion failed:', error)
   }), supervisor))
-  const pipeline = createCultPipeline({
+  serveCults(deps, { cults, supervisor, launcher, models, pipeline: cultPipeline(deps, cults) })
+  // Quitting ends every run (which stops its Shrine watch), then closes what is left.
+  return { ...supervisor, dispose: async () => { await supervisor.dispose(); shrines.dispose() } }
+}
+
+/** The run pipeline: member inboxes read through the human read path in the run's work folder, merged with its events. */
+function cultPipeline(deps: CultServiceDeps, cults: CultStore): CultPipeline {
+  return createCultPipeline({
     db: deps.appDb, cults,
     // Only main's own record of a member chat of this run names its mailbox.
     endpointOf: (run, chatId) => {
-      const chat = store.getChat({ folder: run.workDir, id: chatId })
+      const chat = deps.processes.store.getChat({ folder: run.workDir, id: chatId })
       return chat?.cultRunId === run.id ? (chat.endpointId ?? null) : null
     },
     readInbox: (run, endpointId, window) => desktopWorkspace(deps.gates, deps.pool, run.workDir).call('cultMailRead', endpointId, window),
     onError: (error) => logger.error('Cult pipeline read failed:', error)
   })
-  serveCults(deps, { cults, supervisor, launcher, models, pipeline })
-  // Quitting ends every run (which stops its Shrine watch), then closes what is left.
-  return { ...supervisor, dispose: async () => { await supervisor.dispose(); shrines.dispose() } }
 }
 
 /** The quit also ends every cult run first: it is recorded interrupted and its upgrades revoked before the chats end. */

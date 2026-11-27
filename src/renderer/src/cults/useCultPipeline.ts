@@ -13,12 +13,12 @@ import type { Scheduler } from '../app/scheduler'
 /** The recovery poll while a run is live: slower than the mail monitor's own 2 s sweep that feeds it. */
 export const PIPELINE_POLL_MS = 5_000
 
-export type CultPipelineState =
+type CultPipelineState =
   | { status: 'loading'; entries: CultPipelineEntry[] }
   | { status: 'ready'; entries: CultPipelineEntry[] }
   | { status: 'error'; entries: CultPipelineEntry[]; message: string }
 
-export interface CultPipelineModel {
+interface CultPipelineModel {
   state: CultPipelineState
   /** The whole body of a message entry shown as a preview; null when it could not be read. */
   fullText(seq: number): Promise<string | null>

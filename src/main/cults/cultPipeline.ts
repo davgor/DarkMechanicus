@@ -25,7 +25,7 @@ export const PIPELINE_PREVIEW_CHARS = 600
 const INBOX_PAGE = 50
 const EVENT_PAGE = 500
 
-export interface CultPipelineDeps {
+interface CultPipelineDeps {
   db: Db
   cults: Pick<CultStore, 'getRun' | 'listMembers' | 'pageEvents'>
   /** The member chat's mailbox endpoint, from main's chat records in the run's work folder; null while it has none. */
@@ -146,17 +146,22 @@ function arrivalOf(message: AgentMailMessageView, members: ReadonlyMap<string, s
   }]
 }
 
+/** A row's message columns: the message's, or all null for an event. */
+function messageColumns(arrival: Arrival): (string | null)[] {
+  const m = arrival.message
+  return m === null ? [null, null, null, null, null] : [m.id, m.sender, m.recipient, m.inReplyTo, m.body]
+}
+
 /** Appends the batch after the run's last row and moves the cursors, in one transaction. */
 function append(db: Db, runId: string, arrivals: readonly Arrival[], cursors: readonly Cursor[]): void {
   db.tx(() => {
     let seq = db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM cult_pipeline WHERE run_id = ?', runId)?.seq ?? 0
     for (const arrival of arrivals) {
       seq += 1
-      const m = arrival.message
       db.run(
         `INSERT INTO cult_pipeline (run_id, seq, at, event_seq, message_id, sender_chat_id, recipient_chat_id, in_reply_to, body)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        runId, seq, arrival.at, arrival.eventSeq, m?.id ?? null, m?.sender ?? null, m?.recipient ?? null, m?.inReplyTo ?? null, m?.body ?? null
+        runId, seq, arrival.at, arrival.eventSeq, ...messageColumns(arrival)
       )
     }
     for (const cursor of cursors) {
@@ -222,18 +227,21 @@ function textOf(body: string, full: boolean): { text: string; truncated: boolean
 }
 
 function entryOf(reader: Reader, row: PipelineRow): CultPipelineEntry {
+  if (row.message_id !== null) return messageEntry(reader, row, row.message_id)
   const base = { seq: row.seq, at: row.at, orderId: null, inReplyTo: null }
-  if (row.message_id !== null) {
-    const sender = row.sender_chat_id === null ? null : (reader.byChat.get(row.sender_chat_id) ?? null)
-    const recipient = row.recipient_chat_id === null ? undefined : reader.byChat.get(row.recipient_chat_id)
-    return {
-      ...base, kind: 'message', eventKind: null, sender, recipients: recipient === undefined ? [] : [recipient],
-      messageIds: [row.message_id], inReplyTo: row.in_reply_to, ...textOf(row.body ?? '', reader.full)
-    }
-  }
   const sender = row.member_name === null ? null : (reader.byName.get(row.member_name) ?? null)
   if (row.kind === 'order_all' && row.data !== null) return orderEntry(reader, { ...base, sender }, JSON.parse(row.data) as CultOrderData, row.summary ?? '')
   return { ...base, kind: 'event', eventKind: row.kind, sender, recipients: [], messageIds: [], truncated: false, text: row.summary ?? '' }
+}
+
+/** One message, its sender and recipient named from main's member records. */
+function messageEntry(reader: Reader, row: PipelineRow, messageId: string): CultPipelineEntry {
+  const sender = row.sender_chat_id === null ? undefined : reader.byChat.get(row.sender_chat_id)
+  const recipient = row.recipient_chat_id === null ? undefined : reader.byChat.get(row.recipient_chat_id)
+  return {
+    seq: row.seq, at: row.at, kind: 'message', eventKind: null, sender: sender ?? null, recipients: recipient === undefined ? [] : [recipient],
+    orderId: null, messageIds: [messageId], inReplyTo: row.in_reply_to, ...textOf(row.body ?? '', reader.full)
+  }
 }
 
 /** One `order_all`: its recipients by name and the one body its messages share (the summary until they are read). */

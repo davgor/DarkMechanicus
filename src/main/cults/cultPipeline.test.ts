@@ -132,32 +132,39 @@ describe('cult pipeline: merged, named and ordered (c1)', () => {
     ])
     expect(entries[4]).toMatchObject({ messageIds: [order], sender: { chatId: 'chat_magos', role: 'magos' }, recipients: [{ chatId: 'chat_ferrum', role: 'acolyte' }] })
     expect(entries[8]?.messageIds).toEqual([reply])
-    expect(entries.map((entry) => entry.at)).toEqual([...entries.map((entry) => entry.at)].sort())
+    expect(entries.map((entry) => entry.at)).toEqual(entries.map((entry) => entry.at).sort())
   })
 
-  it('pages without gaps or duplicates, appends what arrives later after what was shown, and keeps a departed member’s name', async () => {
+  it('pages without gaps or duplicates', async () => {
     for (let n = 1; n <= 5; n += 1) send(n % 2 === 0 ? 'vox' : 'magos', n % 2 === 0 ? 'magos' : 'vox', `round ${n}`)
     const whole = await pageAll(200)
     const paged = await pageAll(2)
     expect(paged.entries).toEqual(whole.entries)
     expect(paged.pages).toBe(Math.ceil(whole.entries.length / 2))
     expect(new Set(paged.entries.map((entry) => entry.seq)).size).toBe(paged.entries.length)
-    expect(paged.entries.map((entry) => entry.seq)).toEqual([...paged.entries.map((entry) => entry.seq)].sort((a, b) => a - b))
+    expect(paged.entries.map((entry) => entry.seq)).toEqual(paged.entries.map((entry) => entry.seq).sort((a, b) => a - b))
+  })
 
+  it('appends what arrives later after what was shown, and keeps a departed member’s name', async () => {
+    send('vox', 'magos', 'round 1')
+    const shown = await pageAll(2)
     rig.clock.advanceSeconds(1)
     rig.cults.updateMember(rig.run.id, 'chat_vox', { state: 'dismissed' })
     send('vox', 'magos', 'Leaving my notes.')
-    const later = await pageAll(2, paged.last)
+    const later = await pageAll(2, shown.last)
     expect(later.entries.map(line)).toEqual([
       `event:dismissed ${NAMES.vox} -> -: ${later.entries[0]?.text}`,
       `message ${NAMES.vox} -> ${NAMES.magos}: Leaving my notes.`
     ])
-    expect(later.entries[0]!.seq).toBeGreaterThan(paged.last)
+    expect(later.entries[0]!.seq).toBeGreaterThan(shown.last)
     // Shown entries never move: a full read is the earlier pages followed by the new ones.
-    expect((await pageAll(200)).entries).toEqual([...whole.entries, ...later.entries])
-    expect((await pageAll(200)).entries.filter((entry) => entry.sender?.chatId === 'chat_vox').every((entry) => entry.sender?.displayName === NAMES.vox)).toBe(true)
+    const all = (await pageAll(200)).entries
+    expect(all).toEqual([...shown.entries, ...later.entries])
+    expect(all.filter((entry) => entry.sender?.chatId === 'chat_vox').every((entry) => entry.sender?.displayName === NAMES.vox)).toBe(true)
   })
+})
 
+describe('cult pipeline: bodies and unknown runs (c1, c3)', () => {
   it('returns a long body as a preview unless the whole body is asked for, as inert text', async () => {
     const body = `<script>alert(1)</script> ${'x'.repeat(PIPELINE_PREVIEW_CHARS)}`
     send('magos', 'aurum', body)

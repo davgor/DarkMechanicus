@@ -93,7 +93,9 @@ describe('PipelinePanel', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Filter by member' }), { target: { value: '' } })
     expect(rows()).toHaveLength(5)
   })
+})
 
+describe('PipelinePanel live and past', () => {
   it('appends new entries live, a grouped order_all reading Magos → all (N) that expands to its recipients', async () => {
     await show()
     cults.pipelines.run_1!.push(entry(7, {
