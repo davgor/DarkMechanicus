@@ -109,3 +109,24 @@ describe('graph shake input filtering', () => {
     expect(stepShake(state, view(0), 570, true)).toEqual({ ...state, detected: false })
   })
 })
+
+describe('graph shake direction and zoom', () => {
+  it('detects a shake that starts leftward or upward, ending with the opposite sign of its first leg', () => {
+    expect(feed(createShakeState(), [[0, 0], [-40, 50], [40, 100], [-40, 150]]).detected).toBe(true)
+    let state = createShakeState()
+    for (const [y, time] of [[0, 0], [-32, 50], [32, 100], [-32, 150]]) state = stepShake(state, view(0, y), time, true)
+    expect(state.detected).toBe(true)
+  })
+
+  it('discards a gesture half-built before a zoom change', () => {
+    let state = feed(createShakeState(), [[0, 0], [40, 50], [-40, 100]])
+    state = stepShake(state, view(40, 0, 1.5), 150, true)
+    expect(state.detected).toBe(false)
+    state = stepShake(state, view(-40, 0, 1.5), 200, true)
+    expect(state.detected).toBe(false)
+    state = stepShake(state, view(40, 0, 1.5), 250, true)
+    expect(state.detected).toBe(false)
+    state = stepShake(state, view(-40, 0, 1.5), 300, true)
+    expect(state.detected).toBe(true)
+  })
+})
