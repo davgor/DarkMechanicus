@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VIEWPORT,
   MIN_PNG_BYTES,
   OVERALL_LIMIT_MS,
+  START_ALLOWANCE_MS,
   STATES,
   STATE_DEADLINE_MS,
   electronEnv,
@@ -145,21 +147,22 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 27 states once each, in capture order', () => {
-    expect(STATES).toEqual([
-      'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
-      'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
-      'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
-    ])
-    expect(new Set(STATES).size).toBe(27)
+  it('captures exactly the states the preview page declares, once each, one per line', () => {
+    const preview = readFileSync(new URL('../preview/epic-agent/agent.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    const registry = preview.slice(preview.indexOf('const agentStates'), preview.indexOf('function accessibleName'))
+    const declared = [...registry.matchAll(/^ {2}'?([a-z][a-z-]*)'?: \{/gm)].map((match) => match[1])
+    expect(declared.length).toBeGreaterThan(0)
+    expect([...STATES].sort()).toEqual([...declared].sort())
+    expect(new Set(STATES).size).toBe(STATES.length)
     expect(Object.isFrozen(STATES)).toBe(true)
+    const script = readFileSync(new URL('./capture-agent-chat.mjs', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    for (const state of STATES) expect(script).toContain(state === STATES.at(-1) ? `\n  '${state}'\n])` : `\n  '${state}',\n`)
   })
 
-  it('declares 15 s per state within a 420 s overall bound: 27 states at 15 s plus 15 s to start', () => {
+  it('derives the overall bound from the state list: 15 s per state plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(420_000)
-    expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+    expect(START_ALLOWANCE_MS).toBe(15_000)
+    expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + START_ALLOWANCE_MS)
   })
 })
 

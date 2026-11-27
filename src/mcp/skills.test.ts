@@ -9,6 +9,7 @@ import spaceGrading from '../../docs/space-grading.md?raw'
 import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import linearRunbook from '../../docs/runbooks/linear-transfer.md?raw'
 import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
+import { heartbeatProgress } from '../core/schemas'
 import { parseFact } from '../core/knowledge/fact'
 import { SKILLS_VERSION } from '../core/version'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
@@ -196,6 +197,35 @@ describe('the worker-relay marker', () => {
     expect(orchestratorFactBodies('orchestrator.worker-relay').join('\n')).toMatch(/Pass the text to that worker now, then post its answer/)
     expect(skill('orchestrator').body).toContain('`orchestrator.worker-relay`')
     expect(skill('worker').body).toMatch(/person's own words, relayed to you by the orchestrator/)
+  })
+})
+
+describe('the heartbeat progress shape and shared-stash rule', () => {
+  const PROGRESS_EXAMPLE = /`progress: \{ note: "([^"]+)" \}`/g
+
+  it('moved past 1.18.0 when the guides started giving heartbeat progress as an object and forbidding git stash', () => {
+    const [major = 0, minor = 0, patch = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && (minor > 18 || (minor === 18 && patch >= 1)))).toBe(true)
+  })
+
+  it.each([
+    ['worker', () => skill('worker').body],
+    ['orchestrator.heartbeat', () => orchestratorFactBodies('orchestrator.heartbeat').join('\n')]
+  ] as const)('gives %s heartbeat progress examples the heartbeat_attempt schema accepts', (_name, guide) => {
+    const body = guide()
+    const notes = [...body.matchAll(PROGRESS_EXAMPLE)].map((match) => match[1] ?? '')
+    expect(notes.length).toBeGreaterThan(0)
+    for (const note of notes) expect(heartbeatProgress.safeParse({ note }).success).toBe(true)
+    expect(heartbeatProgress.safeParse(notes[0]).success).toBe(false)
+    expect(body).toMatch(/never (?:as )?a bare string/)
+    expect(body).not.toMatch(/as a `progress` note|send a `progress` note/)
+  })
+
+  it('tells the worker never to use git stash, because worktrees share refs/stash', () => {
+    const body = skill('worker').body
+    expect(body).toContain('Never use `git stash`')
+    expect(body).toMatch(/every worktree of a repository shares one `refs\/stash`/)
+    expect(body).toMatch(/WIP commit on your working branch or as a patch file/)
   })
 })
 

@@ -17,19 +17,46 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PREVIEW = join(REPO, 'preview', 'epic-agent')
 const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
-/** Every state the preview page knows, in capture order. */
+/**
+ * Every state the preview page knows, in capture order, one per line so tickets adding states touch only their own
+ * lines. The count and the overall bound derive from this list; nothing else restates them.
+ */
 export const STATES = Object.freeze([
-  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
-  'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
-  'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-  'agent-planners', 'chat-rail-legacy',
-  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+  'graph',
+  'header-long',
+  'agent-empty',
+  'agent-streaming',
+  'agent-tool',
+  'agent-approval',
+  'agent-worker',
+  'agent-legacy-thread',
+  'agent-tree',
+  'rail-collapsed',
+  'landing-notification',
+  'landing-activity',
+  'chat-rail',
+  'chat-rail-collapsed',
+  'agent-todos',
+  'agent-todos-collapsed',
+  'agent-stalled',
+  'agent-changes',
+  'agent-approval-named',
+  'agent-magos-decided',
+  'agent-needs-you',
+  'agent-planners',
+  'chat-rail-legacy',
+  'settings-notifications',
+  'delivery-editor',
+  'delivery-pending',
+  'delivery-checkpoint'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 27 states at up to 15 s each, plus the Vite and Electron start. */
-export const OVERALL_LIMIT_MS = 420_000
+/** Starting Vite and Electron before the first state. */
+export const START_ALLOWANCE_MS = 15_000
+/** A declared bound: every state at up to its deadline, plus the start. */
+export const OVERALL_LIMIT_MS = STATES.length * STATE_DEADLINE_MS + START_ALLOWANCE_MS
 export const MIN_PNG_BYTES = 10 * 1024
 
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
