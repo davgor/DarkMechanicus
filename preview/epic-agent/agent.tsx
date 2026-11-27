@@ -13,8 +13,10 @@ import { AgentChat } from '../../src/renderer/src/agentChat/AgentChat'
 import { FirstPromptDialog } from '../../src/renderer/src/agents/ChatDialogs'
 import { agentChatScenarioClockStart, agentChatScenarios } from '../../src/renderer/src/agentChat/__mocks__/agentChatScenario'
 import { FakeAgentChat } from '../../src/renderer/src/__mocks__/fakeAgentChat'
+import { FakeChatMail, mailEntry } from '../../src/renderer/src/__mocks__/fakeChatMail'
 import { FakeChats } from '../../src/renderer/src/__mocks__/fakeChats'
 import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
+import { AgentMailContext, createAgentMailStore } from '../../src/renderer/src/agents/useAgentMail'
 import { chatRecord } from '../../src/renderer/src/__mocks__/fixtures'
 import { createManualClock } from '../../src/renderer/src/__mocks__/manualClock'
 import { browserScheduler } from '../../src/renderer/src/app/scheduler'
@@ -31,14 +33,14 @@ import { NotificationSettings } from '../../src/renderer/src/settings/Notificati
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
  * `AgentChat` / `NotificationSettings` / `AgentRolePicker` / New chat `FirstPromptDialog`) over the renderer test fakes, seeded from
- * `agentChatScenario.ts`. `?state=`
+ * `agentChatScenario.ts`; the `mail` mount is a standalone Skitarii chat with its mailbox. `?state=`
  * picks the state; the page reaches it with real DOM clicks after mount, then writes `#observations` (data-ready).
  */
 declare global {
   interface Window { __errors: string[] }
 }
 
-type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat'
+type Mount = 'epic' | 'chat' | 'composer' | 'settings' | 'roles' | 'newChat' | 'mail'
 interface StateDef {
   mount: Mount
   /** Seeds the fakes before the page mounts. */
@@ -51,6 +53,8 @@ interface Seeded {
   chatApi: FakeAgentChat
   /** The `composer` mount's second chat, shown busy beside the idle one. */
   busyChatApi: FakeAgentChat
+  /** The `mail` mount's chat mailboxes (`window.dm.chats.mail`). */
+  chatMail: FakeChatMail
   clock: Clock & { advance(ms: number): void }
   chats: ChatRecord[]
   folder: TrackedFolderView
@@ -251,6 +255,36 @@ function transcriptSnapshot(): AgentChatSnapshot {
     }
   ]
   return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
+/** The mail-card state's Magos chat: the person's ask and the reply, with the Lexmechanic exchange between them. */
+const MAIL_CHAT = 'fixture-magos'
+const after = (seconds: number): string => new Date(Date.parse(AT) + seconds * 1000).toISOString()
+
+function mailSnapshot(): AgentChatSnapshot {
+  const items: ChatItem[] = [
+    { id: 'mc-user', at: after(0), kind: 'user_message', text: 'Check with the Lexmechanic whether DM-1050 can start.' },
+    { id: 'mc-reply', at: after(20), kind: 'assistant_text', text: 'The Lexmechanic confirmed the order; **DM-1050** starts once DM-1049 is accepted.' }
+  ]
+  return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
+/** A received card, then the Magos's answer to it as a sent card; the body's markup shows as the text it is. */
+function seedMail(mail: FakeChatMail): void {
+  const ref = { folder: FOLDER.path, chatId: MAIL_CHAT }
+  const lexmechanic = { label: 'Lexmechanic', kind: 'callsign' as const }
+  const magos = { label: 'Magos', kind: 'callsign' as const }
+  mail.put({ ...ref, unseenCount: 1, pendingCount: 1, retainedCount: 1 })
+  mail.setConversation(ref.folder, ref.chatId, [
+    mailEntry({
+      id: 'mm_plan14', seq: 1, from: lexmechanic, to: magos, acceptedAt: after(5),
+      body: 'Plan revision 14 is saved. DM-1050 now depends on DM-1049; start it only after DM-1049 is accepted.\n<b>Not markup</b>: shown as typed.'
+    }),
+    mailEntry({
+      id: 'mm_ack14', direction: 'sent', seq: null, from: magos, to: lexmechanic, acceptedAt: after(12), inReplyTo: 'mm_plan14',
+      body: 'Understood. DM-1049 is in review; DM-1050 stays queued until it is accepted.'
+    })
+  ])
 }
 
 const relay = (event: AgentChatEvent): AgentChatEvent => ({ ...event, folder: FOLDER.path, chatId: ORCHESTRATOR.id })
@@ -607,6 +641,17 @@ const STATES: Record<string, StateDef> = {
       await until(() => getComputedStyle($('.chat-msg-user > .chat-msg-actions')!).opacity === '1', 'the bubble’s Copy revealed by focus')
     }
   },
+  'mail-card': {
+    mount: 'mail',
+    seed: (context) => {
+      context.chatApi.snapshotResult = { ok: true, data: mailSnapshot() }
+      seedMail(context.chatMail)
+    },
+    reach: async () => {
+      await until(() => document.querySelectorAll('.chat-mail-received').length === 1 && document.querySelectorAll('.chat-mail-sent').length === 1,
+        'a received and a sent mail card')
+    }
+  },
   'settings-notifications': {
     mount: 'settings',
     reach: async () => { await until(() => $('[role="switch"]'), 'the notification settings form') }
@@ -855,6 +900,23 @@ function transcriptObservations(): Record<string, unknown> | null {
   }
 }
 
+/** The mail-card state's transcript: rows in order (mail or item) and each card's head, body and whether markup rendered. */
+function mailObservations(mail: FakeChatMail | null): Record<string, unknown> | null {
+  const cards = [...document.querySelectorAll<HTMLElement>('.chat-mail')]
+  if (cards.length === 0) return null
+  return {
+    rows: [...document.querySelectorAll<HTMLElement>('.chat-rows > li')].map((row) => row.classList.contains('chat-mail') ? 'mail' : 'item'),
+    cards: cards.map((card) => ({
+      direction: card.classList.contains('chat-mail-sent') ? 'sent' : 'received',
+      head: text($('.chat-mail-head', card)),
+      reply: text($('.chat-mail-reply', card)),
+      body: $('.chat-mail-body', card)?.textContent ?? null,
+      markup: $('.chat-mail-body *', card) !== null
+    })),
+    seen: mail?.calls.filter((call) => call.method === 'markSeen').map((call) => call.args) ?? null
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -891,6 +953,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     agentsPressed: $('.agent-chat-agents')?.getAttribute('aria-pressed') ?? null,
     composers: composerObservations(),
     transcript: transcriptObservations(),
+    mail: mailObservations(context?.chatMail ?? null),
     ...deliveryObservations(),
     errors: [...window.__errors]
   }
@@ -911,9 +974,23 @@ function seeded(): Seeded {
   const backend = new FakeBackend(scenario({ saved: planWithTreeTickets(), run: RUN }))
   const chatApi = new FakeAgentChat()
   return {
-    backend, chatApi, busyChatApi: new FakeAgentChat(), clock: createManualClock(agentChatScenarioClockStart), chats: [ORCHESTRATOR],
+    backend, chatApi, busyChatApi: new FakeAgentChat(), chatMail: new FakeChatMail(), clock: createManualClock(agentChatScenarioClockStart),
+    chats: [ORCHESTRATOR],
     folder: FOLDER, finishedExpandedAtStart: null, landing: null
   }
+}
+
+/** The standalone Magos chat over its mailbox, under the shell's mail store. */
+function mailChat(context: Seeded): JSX.Element {
+  const dm = new FakeDm()
+  dm.agentChat = context.chatApi
+  dm.chats.mail = context.chatMail
+  window.dm = dm
+  const store = createAgentMailStore(context.chatMail)
+  store.track([FOLDER.path])
+  return <ClockContext.Provider value={context.clock}><AgentMailContext.Provider value={store}><div className="preview-chat">
+    <AgentChat folder={FOLDER.path} chatId={MAIL_CHAT} agentLabel="Magos" agentChip="Magos · Skitarii" context="dark-mechanicus" api={context.chatApi} />
+  </div></AgentMailContext.Provider></ClockContext.Provider>
 }
 
 function render(mount: Mount, context: Seeded): JSX.Element {
@@ -937,6 +1014,7 @@ function render(mount: Mount, context: Seeded): JSX.Element {
         api={context.chatApi} rail="toggle" chat={{ role: 'orchestrator', runId: 'rn_fixture' }} />
     </div></ClockContext.Provider>
   }
+  if (mount === 'mail') return mailChat(context)
   if (mount === 'composer') {
     const dm = new FakeDm()
     dm.agentChat = context.chatApi

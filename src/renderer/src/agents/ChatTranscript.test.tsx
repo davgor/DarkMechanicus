@@ -2,8 +2,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { IDLE_STOP_CODE, type ChatItem } from '../../../shared/agents/chat'
+import { mailEntry } from '../__mocks__/fakeChatMail'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { COPIED_MS, CopyContext } from '../agentChat/CopyButton'
+import type { MailLine } from '../agentChat/useAgentChat'
 import { ChatTranscript } from './ChatTranscript'
 import { RevealThreadContext } from './revealThread'
 
@@ -238,5 +240,24 @@ describe('ChatTranscript: subagent threads', () => {
     )
     expect(scroll).toHaveBeenCalledTimes(1)
     delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+})
+
+describe('ChatTranscript: mail cards', () => {
+  const card = (id: string, direction: 'received' | 'sent'): MailLine => ({ kind: 'mail', id: `mail:${id}`, at: AT, mail: mailEntry({ id, direction }) })
+
+  it('places each card before the row the stream put it before, and the rest last, passing on past a nested thread', () => {
+    render(<ChatTranscript agentName="Skitarii" folder="/repo" entries={[
+      { id: 'u', at: AT, kind: 'user_message', text: 'Plan it' },
+      card('first', 'sent'),
+      { id: 'spawn', at: AT, kind: 'tool_call', name: 'task', input: {}, status: 'completed', resultSummary: 'ok' },
+      card('second', 'received'),
+      { id: 'th', at: AT, kind: 'thread', parentItemId: 'spawn', label: 'Worker', state: 'done' },
+      { id: 'a', at: AT, kind: 'assistant_text', text: 'Done' },
+      card('last', 'received')
+    ]} />)
+    const rows = [...screen.getByRole('log', { name: 'Transcript' }).querySelectorAll(':scope > ol > li')]
+      .map((row) => row.classList.contains('chat-mail') ? row.className.replace('chat-mail chat-mail-', 'mail ') : row.className.split(' ')[0])
+    expect(rows).toEqual(['chat-msg', 'mail sent', 'chat-tool', 'chat-thread', 'mail received', 'chat-msg', 'mail received'])
   })
 })

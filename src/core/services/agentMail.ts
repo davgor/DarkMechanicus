@@ -20,6 +20,7 @@ import type {
   AcknowledgeAgentMessagesResult,
   AgentIdentityView,
   AgentInboxPage,
+  AgentMailConversationView,
   AgentMailboxStatus,
   AgentMailStatusPage,
   AgentMailWindow,
@@ -56,6 +57,7 @@ import {
   type MailEndpointChatMeta,
   markHumanSeen,
   provisionEndpoint,
+  readConversation,
   readHumanMailState,
   readInbox,
   readMailStatus,
@@ -530,6 +532,15 @@ export function readHumanAgentInbox(ctx: Ctx, input: { endpointId: string } & Re
   return ctx.db.tx(() => {
     requireLocalEndpoint(ctx, input.endpointId)
     return inboxView(readInbox(ctx, input))
+  })
+}
+
+/** Desktop: the newest messages a mailbox received or sent, with bodies, for the person. Acknowledges and marks nothing. */
+export function readHumanAgentConversation(ctx: Ctx, input: { endpointId: string; limit?: number }): AgentMailConversationView {
+  requireManager(ctx)
+  return ctx.db.tx(() => {
+    requireLocalEndpoint(ctx, input.endpointId)
+    return readConversation(ctx, input)
   })
 }
 

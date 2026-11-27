@@ -15,7 +15,7 @@ import { provisionAgentMailEndpoint, readHumanAgentInbox } from '../../core/serv
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentChatSnapshot } from '../../shared/agents/agentChat'
 import type { ChatRecord } from '../../shared/agents/chat'
-import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
+import type { ChatMailEntry, ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createSequentialIds, createTestClock, type TestClock } from '../../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
@@ -526,6 +526,65 @@ describe('the person’s inbox: which mailbox', () => {
     expect(HUMAN_ONLY_CAPABILITIES).toContain('mail.manage')
 
     expect(() => readHumanAgentInbox(agent.ctx(), { endpointId: inbox.endpointId ?? '' })).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+  })
+})
+
+const MAIL_EPIC = 'ep_mailcards00000000000000000'
+/** A claim token's shape, never a real one: the card must show it masked. */
+const FAKE_TOKEN = `at_${'0'.repeat(26)}.${'A'.repeat(32)}`
+const cardLine = (entry: ChatMailEntry): string => `${entry.direction}: ${entry.from.label} → ${entry.to.label}: ${entry.body}`
+
+describe('the GUI transcript’s mail cards', () => {
+  it('serves each chat its own received and sent mail in time order, named by callsign, masked, acknowledging nothing', async () => {
+    const state = await rig()
+    const planner = await state.records.createChat({ folder: repoA, agent: 'omp', role: 'planner', title: 'Plan the epic', epicId: MAIL_EPIC })
+    const magos = await state.records.createChat({ folder: repoA, agent: 'omp', role: 'orchestrator', title: 'Run the epic', epicId: MAIL_EPIC, runId: 'rn_mailcards0000000000000000' })
+    const outsider = await newOmp(state, repoA, 'Outside helper')
+    const plannerAgent = await state.agentOf(planner)
+    const magosAgent = await state.agentOf(magos)
+    const outsiderAgent = await state.agentOf(outsider)
+    const asked = await plannerAgent.sendAgentMessage({ to: magos.endpointId ?? '', clientMessageId: 'ask', body: `Proceed with DM-1? ${FAKE_TOKEN}` })
+    state.clock.advanceSeconds(1)
+    await magosAgent.sendAgentMessage({ to: planner.endpointId ?? '', clientMessageId: 'answer', body: 'Yes, <b>now</b>', inReplyTo: asked.messageId })
+    state.clock.advanceSeconds(1)
+    await send(outsiderAgent, magos, ['from outside'])
+
+    const forPlanner = data(await state.mail.handlers.conversation({ folder: repoA, chatId: planner.id }))
+    expect(forPlanner.entries.map(cardLine)).toEqual([
+      'sent: Lexmechanic → Magos: Proceed with DM-1? [claim token masked]',
+      'received: Magos → Lexmechanic: Yes, <b>now</b>'
+    ])
+    expect(forPlanner.entries[1]).toMatchObject({ seq: 1, inReplyTo: asked.messageId, from: { kind: 'callsign' } })
+
+    // Nothing seen yet: the seen cursor may move only to what a conversation showed.
+    expect(code(await state.mail.handlers.markSeen({ folder: repoA, chatId: magos.id, throughSeq: 2 }))).toBe('invalid_input')
+    const forMagos = data(await state.mail.handlers.conversation({ folder: repoA, chatId: magos.id }))
+    expect(forMagos.entries.map(cardLine)).toEqual([
+      'received: Lexmechanic → Magos: Proceed with DM-1? [claim token masked]',
+      'sent: Magos → Lexmechanic: Yes, <b>now</b>',
+      'received: Outside helper → Magos: from outside'
+    ])
+    expect(forMagos.entries[2]?.from).toEqual({ label: 'Outside helper', kind: 'name' })
+    expect(counts(data(await state.mail.handlers.markSeen({ folder: repoA, chatId: magos.id, throughSeq: 2 })))).toEqual({
+      humanSeenSeq: 2, unseenCount: 0, pendingCount: 2, retainedCount: 2
+    })
+    // The outsider's own view holds only its own message, never the planner's and Magos's exchange.
+    expect(data(await state.mail.handlers.conversation({ folder: repoA, chatId: outsider.id })).entries.map(cardLine)).toEqual([
+      'sent: Outside helper → Magos: from outside'
+    ])
+    // The agents still have everything to acknowledge.
+    expect((await magosAgent.readAgentInbox({ unacknowledgedOnly: true })).messages).toHaveLength(2)
+  })
+
+  it('refuses a chat without a mailbox and any other request shape', async () => {
+    const state = await rig()
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const claude = await state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
+    expect(code(await state.mail.handlers.conversation({ folder: repoA, chatId: claude.id }))).toBe('not_found')
+    expect(code(await state.mail.handlers.conversation({ folder: repoA, chatId: inbox.id, endpointId: inbox.endpointId }))).toBe('invalid_input')
+    expect(code(await state.mail.handlers.conversation({ folder: repoA, chatId: inbox.id, limit: 201 }))).toBe('invalid_input')
+    expect(code(await state.mail.handlers.conversation(undefined))).toBe('invalid_input')
+    expect(data(await state.mail.handlers.conversation({ folder: repoA, chatId: inbox.id }))).toEqual({ entries: [], hasEarlier: false })
   })
 })
 

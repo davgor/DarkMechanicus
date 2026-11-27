@@ -85,6 +85,19 @@ const TRANSCRIPT = {
 }
 const transcriptRecord = (patch = {}) => ready('agent-transcript', { ...STANDALONE, transcript: { ...TRANSCRIPT, ...patch } })
 
+/** The mail-card state: the Magos chat with a received card and its sent answer between the ask and the reply. */
+const MAIL = {
+  rows: ['item', 'mail', 'mail', 'item'],
+  cards: [
+    { direction: 'received', head: '✉ Lexmechanic → Magos Received', reply: null, markup: false,
+      body: 'Plan revision 14 is saved. DM-1050 now depends on DM-1049; start it only after DM-1049 is accepted.\n<b>Not markup</b>: shown as typed.' },
+    { direction: 'sent', head: '✉ Magos → Lexmechanic Sent', reply: 'Reply to mm_plan14', markup: false,
+      body: 'Understood. DM-1049 is in review; DM-1050 stays queued until it is accepted.' }
+  ],
+  seen: [[{ folder: '/home/u/code/darkmechanicus', chatId: 'fixture-magos', throughSeq: 1 }]]
+}
+const mailRecord = (patch = {}) => ready('mail-card', { ...STANDALONE, mail: { ...MAIL, ...patch } })
+
 /** Passing records for the delivery states: the acceptance node's editor, the held run bar and the checkpoint. */
 function passingDeliveryStates() {
   return {
@@ -131,7 +144,8 @@ function passingChatStates() {
     }),
     'agent-composer': composerRecord(COMPOSERS),
     'agent-images': imagesRecord(),
-    'agent-transcript': transcriptRecord()
+    'agent-transcript': transcriptRecord(),
+    'mail-card': mailRecord()
   }
 }
 
@@ -216,22 +230,40 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 34 states once each, in capture order', () => {
+  it('lists the 35 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'new-chat-picker',
-      'question-multi', 'agent-transcript', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'question-multi', 'agent-transcript', 'mail-card', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(34)
+    expect(new Set(STATES).size).toBe(35)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 525 s overall bound: 34 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 540 s overall bound: 35 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(525_000)
+    expect(OVERALL_LIMIT_MS).toBe(540_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: mail-card', () => {
+  it('passes a received then a sent card, headed by callsigns, inert, the received one marked seen once', () => {
+    expect(validateObservations('mail-card', mailRecord())).toEqual([])
+  })
+
+  it('fails cards out of place, a rendered body element and a second seen mark', () => {
+    expect(validateObservations('mail-card', mailRecord({ rows: ['item', 'item', 'mail', 'mail'] }))).toEqual([
+      expect.stringContaining('mail-card: expected a received card then a sent card between the person’s message and the reply')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ cards: [{ ...MAIL.cards[0], markup: true }, MAIL.cards[1]] }))).toEqual([
+      expect.stringContaining('mail-card: expected bodies are plain text')
+    ])
+    expect(validateObservations('mail-card', mailRecord({ seen: [...MAIL.seen, ...MAIL.seen] }))).toEqual([
+      expect.stringContaining('mail-card: expected showing the received card marks it seen once')
+    ])
   })
 })
 
