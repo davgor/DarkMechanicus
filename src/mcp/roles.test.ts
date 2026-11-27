@@ -187,8 +187,8 @@ const LISTINGS: ListingCase[] = [
   { role: 'reviewer', allowSave: true, tools: REVIEWER_TOOLS }
 ]
 
-/** Tools for the actions only a person may take in the desktop app; no session ever lists one. */
-const HUMAN_ONLY_TOOLS = /approve|queue|authorize|grant|backup/
+/** Tools for the actions only a person may take in the desktop app (a delivery waiver among them); no session ever lists one. */
+const HUMAN_ONLY_TOOLS = /approve|queue|authorize|grant|backup|waive/
 
 function serverFor(role: SessionRole, allowSave: boolean): (api: Parameters<typeof createMcpServer>[0]) => ReturnType<typeof createMcpServer> {
   return (api) => createMcpServer(api, INFO, { role, allowSave })
@@ -299,6 +299,18 @@ describe('calls to tools that do not exist or that the role lists', () => {
       })
       expect(api.calls).toEqual([])
     })
+  })
+
+  it('has no waive_delivery tool for any role: only the person waives a delivery check, in the desktop app', async () => {
+    for (const listing of LISTINGS) {
+      const api = createStubApi()
+      await withRig(serverFor(listing.role, listing.allowSave), api, async (rig) => {
+        expect((await rig.client.listTools()).tools.map((tool) => tool.name)).not.toContain('waive_delivery')
+        const outcome = await callTool(rig, 'waive_delivery', { runId: sampleId('run'), sprintId: sampleId('sprint'), reason: 'No release' })
+        expect(outcome.payload).toMatchObject({ ok: false, error: { code: 'not_found', details: { tool: 'waive_delivery' } } })
+        expect(api.calls).toEqual([])
+      })
+    }
   })
 
   it('still runs the tools the role lists', async () => {

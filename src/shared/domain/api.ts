@@ -337,6 +337,14 @@ export interface RecordDeliveryInput {
   idempotencyKey?: string
 }
 
+/** The person's waiver of a sprint's delivery check, with why (1 to 2,000 characters once trimmed). Desktop only. */
+export interface WaiveDeliveryInput {
+  runId: string
+  sprintId: string
+  reason: string
+  idempotencyKey?: string
+}
+
 /** An image from a local path the caller's machine can read. Its size, type and dimensions come from the file itself. */
 interface AddAttachmentInput {
   /** Absolute, or relative to the caller's working folder. Must sit in an allowed folder (see the attachments intake). */
@@ -724,6 +732,8 @@ export interface CommandApi {
   recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
   /** Verifies a sprint's delivery and stores the verdict; a failed verdict is stored, not thrown. */
   recordDelivery(input: RecordDeliveryInput): Promise<DeliveryCheckView>
+  /** Desktop only: the person waives a sprint's delivery check with a reason, releasing its `delivery_pending` hold. */
+  waiveDelivery(input: WaiveDeliveryInput): Promise<DeliveryCheckView>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>

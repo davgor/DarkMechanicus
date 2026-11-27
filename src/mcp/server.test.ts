@@ -185,7 +185,9 @@ const HUMAN_ONLY: CommandName[] = [
   'recordEscapedDefects',
   // Which guidance future agents receive is the person's call: no tool retires or replaces a learning.
   'retireLearning',
-  'replaceLearning'
+  'replaceLearning',
+  // Lifting a sprint's delivery hold without a passing check is the person's call; agents only record checks.
+  'waiveDelivery'
 ]
 
 /**
@@ -244,7 +246,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const names = tools.map((tool) => tool.name)
-      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode']
+      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode', 'waive_delivery']
       for (const name of forbidden) {
         expect(names).not.toContain(name)
       }

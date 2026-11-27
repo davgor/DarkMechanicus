@@ -18,7 +18,7 @@ import {
   submitAttempt
 } from '../services/attempts'
 import { getCheckpoint } from '../services/checkpoints'
-import { deliveryContextOf, recordDelivery } from '../services/deliveries'
+import { deliveryContextOf, recordDelivery, waiveDelivery } from '../services/deliveries'
 import { verifyDelivery } from '../services/deliveryVerify'
 import { loadRunContext, runExecution } from '../services/execution'
 import { matchCapabilities, registerHost } from '../services/hosts'
@@ -241,6 +241,11 @@ const executionCommands = {
     schema: COMMAND_SCHEMAS.recordDelivery,
     mutates: true,
     run: async (core, input) => recordDelivery(core.ctx(), input, await verifiedDelivery(core, input))
+  },
+  waiveDelivery: {
+    schema: COMMAND_SCHEMAS.waiveDelivery,
+    mutates: true,
+    run: (core, input) => waiveDelivery(core.ctx(), input)
   },
   pauseRun: {
     schema: COMMAND_SCHEMAS.pauseRun,
