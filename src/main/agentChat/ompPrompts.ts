@@ -11,7 +11,7 @@ const ignoredUiMethods: Record<string, true> = { notify: true, setStatus: true, 
 const dataSchema = z.record(z.string(), z.union([z.string(), z.number(), z.array(z.string())]))
 const answersSchema = z.array(z.strictObject({ id: z.string(), selectedOptions: z.array(z.string()), customInput: z.string().optional() }))
 const uiHeaderSchema = z.object({ id: z.string().min(1), method: z.string().min(1) })
-type Field = { id: string; title: string; options: { label: string; value: string }[]; multi: boolean; numeric: boolean }
+type Field = { id: string; title: string; options: { label: string; value: string; description: string }[]; multi: boolean; numeric: boolean }
 export interface OmpHeldPrompt {
   wireId: string
   method: string
@@ -36,7 +36,11 @@ function fieldPrompt(held: OmpHeldPrompt): void {
   held.prompt.id = safe(held.index ? `${held.wireId}:${held.index}` : held.wireId)
   held.prompt.title = safe(field.title)
   held.options = Object.fromEntries(field.options.map((option, index) => [`option_${index}`, option.value]))
-  if (held.prompt.kind === 'question') held.prompt.options = field.options.map((option, index) => ({ id: `option_${index}`, label: safe(option.label) }))
+  if (held.prompt.kind === 'question') {
+    held.prompt.options = field.options.map((option, index) => ({ id: `option_${index}`, label: safe(option.label), ...(option.description ? { description: safe(option.description) } : {}) }))
+    held.prompt.multi = field.multi
+    held.prompt.progress = { index: held.index + 1, total: held.fields.length }
+  }
   offerText(held)
 }
 function approvalOptions(method: string, options: string[]): Record<string, string> | null {
@@ -53,7 +57,7 @@ function promptChoices(approval: Record<string, string> | null, options: Record<
 function askFields(frame: ObjectValue): Field[] {
   return array(frame.questions).map(object).map(question => ({
     id: string(question.id), title: string(question.question), multi: question.multi === true, numeric: false,
-    options: array(question.options).map(object).map(option => ({ label: string(option.label), value: string(option.label) }))
+    options: array(question.options).map(object).map(option => ({ label: string(option.label), value: string(option.label), description: string(option.description) }))
   }))
 }
 function formFields(frame: ObjectValue): Field[] {
@@ -62,7 +66,7 @@ function formFields(frame: ObjectValue): Field[] {
     .map(field => ({
       id: string(field.name), title: string(field.question) || string(field.label) || string(field.name),
       multi: field.multi === true, numeric: field.type === 'number',
-      options: array(field.options).map(object).filter(option => !option.disabled).map(option => ({ label: string(option.label), value: string(option.value) }))
+      options: array(field.options).map(object).filter(option => !option.disabled).map(option => ({ label: string(option.label), value: string(option.value), description: string(option.description) }))
     }))
 }
 export function ompHoldPrompt(frame: ObjectValue, attributed: boolean): OmpHeldPrompt | null {
@@ -107,34 +111,33 @@ function secretAnswers(held: OmpHeldPrompt, text: string): Answer {
     return { frame: { type: 'extension_ui_response', id: held.wireId, data } }
   } catch { return null }
 }
-function selections(field: Field, selected: string | undefined, text: string): string[] | null {
-  if (selected !== undefined) return [selected]
-  if (!field.multi || !text.startsWith('[')) return []
-  try {
-    const values = z.array(z.string()).parse(JSON.parse(text))
-    return values.every(value => field.options.some(option => option.value === value)) ? values : null
-  } catch { return null }
-}
-function storeField(next: OmpHeldPrompt, field: Field, chosen: string[], value: string): boolean {
+/** `custom` is the free text: an ask's customInput beside any choices, or one more value of a form field. */
+function storeField(next: OmpHeldPrompt, field: Field, chosen: string[], custom: string | undefined): boolean {
   if (next.method === 'ask') {
-    next.answers.push({ id: field.id, selectedOptions: chosen, ...(!chosen.length ? { customInput: value } : {}) })
+    next.answers.push({ id: field.id, selectedOptions: chosen, ...(custom === undefined ? {} : { customInput: custom }) })
     return true
   }
-  const converted = field.numeric ? Number(value) : field.multi ? chosen.length ? chosen : [value] : value
+  const converted = field.numeric ? Number(custom ?? chosen[0]) : field.multi ? [...chosen, ...(custom === undefined ? [] : [custom])] : custom ?? chosen[0]
   if (typeof converted === 'number' && !Number.isFinite(converted)) return false
   Object.defineProperty(next.data, field.id, { value: converted, enumerable: true, configurable: true, writable: true })
   return true
 }
-function fieldAnswer(held: OmpHeldPrompt, selected: string | undefined, value: string): Answer {
-  if (held.secret && held.fields.length > 1) return secretAnswers(held, value)
+function fieldAnswer(held: OmpHeldPrompt, chosen: string[], custom: string | undefined): Answer {
   const field = held.fields[held.index]
-  const chosen = selections(field, selected, value)
-  if (chosen === null) return null
   const next = structuredClone(held)
-  if (!storeField(next, field, chosen, value)) return null
+  if (!storeField(next, field, chosen, custom)) return null
   next.index++
   if (next.index < next.fields.length) { fieldPrompt(next); return { next } }
   return { frame: { type: 'extension_ui_response', id: held.wireId, ...(held.method === 'ask' ? { answers: next.answers } : { data: next.data }) } }
+}
+/** A multi field's chosen values in option order; null for an unknown or repeated id, or `text` without free text. */
+function multiAnswer(held: OmpHeldPrompt, optionIds: readonly string[], text: string | undefined): Answer {
+  const field = held.fields[held.index]
+  const offersText = held.prompt.options.some(option => option.id === 'text')
+  if (!field?.multi || (held.secret && held.fields.length > 1) || new Set(optionIds).size !== optionIds.length) return null
+  if (!optionIds.every(id => Object.hasOwn(held.options, id) || (id === 'text' && offersText && !!text))) return null
+  const chosen = Object.keys(held.options).filter(id => optionIds.includes(id)).map(id => held.options[id])
+  return fieldAnswer(held, chosen, optionIds.includes('text') ? text : undefined)
 }
 function freeAnswer(held: OmpHeldPrompt, value: string): Answer {
   if (held.method === 'ask') return { frame: { type: 'extension_ui_response', id: held.wireId, answers: [{ id: held.wireId, selectedOptions: [], customInput: value }] } }
@@ -149,10 +152,13 @@ function answerValue(held: OmpHeldPrompt, optionId: string, text?: string): { se
   if (optionId !== 'text' || text === undefined || !held.prompt.options.some(option => option.id === 'text')) return null
   return { value: text }
 }
-/** Secret answers exist only in the returned stdin frame, never in held state or events. */
-export function ompAnswerPrompt(held: OmpHeldPrompt, optionId: string, text?: string): Answer {
-  const answer = answerValue(held, optionId, text)
+/** Secret answers exist only in the returned stdin frame, never in held state or events. A list of ids answers a multi field. */
+export function ompAnswerPrompt(held: OmpHeldPrompt, choice: string | readonly string[], text?: string): Answer {
+  if (typeof choice !== 'string') return multiAnswer(held, choice, text)
+  const answer = answerValue(held, choice, text)
   if (!answer) return null
   if (held.method === 'confirm') return { frame: { type: 'extension_ui_response', id: held.wireId, confirmed: answer.selected === 'true' } }
-  return held.fields.length ? fieldAnswer(held, answer.selected, answer.value) : freeAnswer(held, answer.value)
+  if (held.secret && held.fields.length > 1) return secretAnswers(held, answer.value)
+  if (!held.fields.length) return freeAnswer(held, answer.value)
+  return answer.selected === undefined ? fieldAnswer(held, [], answer.value) : fieldAnswer(held, [answer.selected], undefined)
 }

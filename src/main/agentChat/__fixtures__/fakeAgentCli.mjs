@@ -15,10 +15,15 @@ const outputFormat = argv.includes('--output-format') ? option('--output-format'
 const arbiter = argv.includes('-p') && (outputFormat === 'json' || argv.includes('--no-tools'))
 const protocol = outputFormat === 'json' || outputFormat === 'stream-json' ? 'claude' : 'omp'
 const mode = argv.includes('--version') ? 'version'
-  : argv[0] === 'auth' && argv[1] === 'status' ? 'auth'
+  : (argv[0] === 'auth' && argv[1] === 'status') || (argv[0] === 'usage' && argv.includes('--json')) ? 'auth'
     : arbiter ? 'arbiter'
       : argv.includes('--mode') && ['rpc-ui', 'rpc'].includes(option('--mode')) ? 'omp'
         : argv.includes('-p') && outputFormat === 'stream-json' ? 'claude' : 'tui'
+/**
+ * The CLI this run plays: OMP for an rpc-ui (or rpc) run and for OMP's own auth probe (`usage --json`), and for any run
+ * of a `fake-omp` shim, which sets FAKE_AGENT_PERSONA so `--version` names OMP; Claude Code otherwise.
+ */
+const persona = mode === 'omp' || argv[0] === 'usage' || process.env.FAKE_AGENT_PERSONA === 'omp' ? 'omp' : 'claude'
 const root = dirname(fileURLToPath(import.meta.url))
 /** The `[slow]` scenario's pause between lines; a test raises it to hold a busy turn silent while it advances fake time. */
 const slowMs = Number(process.env.FAKE_AGENT_SLOW_MS) || 200
@@ -31,7 +36,7 @@ const log = (extra = {}) => {
   if (process.env.FAKE_AGENT_LOG) {
     const token = process.env.DM_SESSION_TOKEN
     appendFileSync(process.env.FAKE_AGENT_LOG, `${JSON.stringify({
-      mode, pid: process.pid, at: Date.now(), argv, cwd: process.cwd(),
+      mode, persona, pid: process.pid, at: Date.now(), argv, cwd: process.cwd(),
       env: { DM_SESSION_TOKEN: token === undefined ? 'absent' : 'present' },
       grantHash: token === undefined ? null : createHash('sha256').update(token.trim()).digest('hex'), ...extra,
     })}\n`)
@@ -133,7 +138,7 @@ function scenario(prompt, hasImages) {
   const keywords = [...(prompt ?? '').matchAll(/\[([a-z_]+)\]/g)].map((match) => match[1] === 'image' ? 'image_result' : match[1])
   if (mode === 'omp' && keywords.includes('tasks')) return 'todo'
   if (mode === 'claude' && keywords.includes('todo_clear')) return 'text'
-  return keywords.find((key) => ['slow', 'hung', 'leak'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? (hasImages ? 'image_in' : 'text')
+  return keywords.find((key) => ['slow', 'hung', 'leak', 'multiselect'].includes(key) || existsSync(join(root, mode, `${key}.out.jsonl`))) ?? (hasImages ? 'image_in' : 'text')
 }
 
 /** The images a user turn carries (Claude image content blocks, OMP `images`), in order. */
@@ -210,6 +215,16 @@ function leakToken(lines) {
     }
     return JSON.stringify(frame)
   })
+}
+
+/** A replayed `answers: …` text says what the app answered, so a multiselect run shows the answers that reached the CLI. */
+function echoAnswers(line, message) {
+  const answers = mode === 'claude' ? message?.response?.response?.updatedInput?.answers : message?.answers
+  if (answers === undefined || !line.includes('"answers: ')) return line
+  const echo = (value) => typeof value === 'string' ? value.startsWith('answers: ') ? `answers: ${JSON.stringify(answers)}` : value
+    : Array.isArray(value) ? value.map(echo)
+      : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, echo(entry)])) : value
+  return JSON.stringify(echo(JSON.parse(line)))
 }
 
 function tailBindings(name, turn) {
@@ -307,7 +322,7 @@ class ProtocolReplay {
       return false
     }
     this.active.waiting = requestId(frame)
-    emit(line)
+    emit(echoAnswers(line, this.active.answer))
     return true
   }
 
@@ -353,7 +368,7 @@ class ProtocolReplay {
     if (prompt?.includes('[crash]')) { crash(); this.stop(); return }
     const echo = receivedImages(message)
     const name = scenario(prompt, echo.length > 0)
-    const replay = { slow: 'text', hung: 'text', leak: 'tool' }[name] ?? name
+    const replay = { slow: 'text', hung: 'text', leak: 'tool', multiselect: 'question_multi' }[name] ?? name
     let lines = echoImages(this.turnLines(replay, message), echo, replay, message)
     if (name === 'leak') lines = leakToken(lines)
     this.tailQueries.clear()
@@ -410,6 +425,7 @@ class ProtocolReplay {
     const id = mode === 'claude' && message.type === 'control_response' ? message.response?.request_id : message.type === 'extension_ui_response' ? message.id : null
     if (id && this.active?.waiting === id) {
       this.active.waiting = null
+      this.active.answer = message
       this.pump()
     }
   }
@@ -464,10 +480,13 @@ if (mode === 'arbiter') {
   }
 } else {
   log()
+  const loggedIn = process.env.FAKE_AGENT_SIGNED_OUT !== '1'
   if (mode === 'version') {
-    emit('2.1.329 (Claude Code)')
+    emit(persona === 'omp' ? 'omp/18.16.0' : '2.1.329 (Claude Code)')
+  } else if (mode === 'auth' && persona === 'omp') {
+    // OMP's `usage --json` (docs/reports/omp-cli.md section 5): signed in lists an account, signed out every list is empty; both exit 0.
+    emit({ reports: loggedIn ? [{ provider: 'fixture', accounts: 1 }] : [], accountsWithoutUsage: [], disabledCredentials: [] })
   } else if (mode === 'auth') {
-    const loggedIn = process.env.FAKE_AGENT_SIGNED_OUT !== '1'
     emit({ loggedIn })
     process.exitCode = loggedIn ? 0 : 1
   } else {

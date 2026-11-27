@@ -15,7 +15,9 @@ import type { AgentChatSessions } from './agentChatSessions'
 type Listener = Parameters<IpcMain['handle']>[1]
 const APP_URL = 'http://localhost:5173'
 const REPO = '/work/repo'
-const INVOKED = Object.values(AGENT_CHAT_CHANNELS).filter(channel => channel !== AGENT_CHAT_CHANNELS.event).sort()
+/** Contract channels whose main handlers land later: stageImage with the image store, attachEvidence with evidence. */
+const NOT_YET_HANDLED: readonly string[] = [AGENT_CHAT_CHANNELS.stageImage, AGENT_CHAT_CHANNELS.attachEvidence]
+const INVOKED = Object.values(AGENT_CHAT_CHANNELS).filter(channel => channel !== AGENT_CHAT_CHANNELS.event && !NOT_YET_HANDLED.includes(channel)).sort()
 const frame = (url: string, parent: object | null = null) => ({ url, parent, detached: false, isDestroyed: () => false })
 const TRUSTED = { sender: {}, senderFrame: frame(`${APP_URL}/`) } as unknown as IpcMainInvokeEvent
 const SNAPSHOT = { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] } as const

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
+import { GUI_PROTOCOL_KINDS, type AgentChatAnswer, type AgentChatEvent, type AgentChatSnapshot, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import { callsignSchema, nextServitorOrdinal, resolveCallsign, rootCallsignOf, servitorOrdinals, type Callsign } from '../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem, ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentId, AgentView } from '../../shared/desktop/api'
@@ -66,7 +66,7 @@ export interface AgentChatSessions {
   start(ref: ChatRef, options?: { firstMessage?: string }): Promise<StartResult>
   send(ref: ChatRef, input: { text: string }): Promise<void>
   interrupt(ref: ChatRef): Promise<void>
-  answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
+  answer(ref: ChatRef, input: AgentChatAnswer): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
   /** Every queued prompt of the folder's live GUI chats (null: project-less chats), head first per chat; never tool input. */
   attention(folder: string | null): AttentionItem[]
@@ -719,13 +719,13 @@ class SessionManager {
     this.assertCurrent(entry)
     this.writeTurn(entry, input.text)
   }
-  async answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void> {
+  async answer(ref: ChatRef, input: AgentChatAnswer): Promise<void> {
     const entry = this.entries.get(this.chatFor(ref).id)
     if (!entry) throw new DomainError('stale_prompt', 'This prompt is no longer pending.')
     // Renderer callers cannot supply decision provenance.
     this.answerEntry(entry, input, { decidedBy: 'person' })
   }
-  private answerEntry(entry: Entry, input: { promptId: string; optionId: string; text?: string },
+  private answerEntry(entry: Entry, input: AgentChatAnswer,
     provenance: { decidedBy: 'person' } | { decidedBy: 'magos'; reason: string }): void {
     if (!entry.process || entry.cancelled || entry.ending || !entry.prompts || this.entries.get(entry.chat.id) !== entry)
       throw new DomainError('stale_prompt', 'This prompt is no longer pending.')

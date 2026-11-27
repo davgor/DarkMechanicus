@@ -1,29 +1,54 @@
 /** Structured CLI chat transport. Main owns launch details, identity and all pending prompts. */
 import { z } from 'zod'
 import type { CommandResult } from '../desktop/api'
-import { chatIdSchema, chatItemSchema } from './chat'
+import { CHAT_IMAGE_MAX_BYTES, chatIdSchema, chatImageIdSchema, chatImageRefSchema, chatItemSchema, type ChatImageRef } from './chat'
 import { callsignSchema } from './callsign'
+
+export { CHAT_IMAGE_MAX_BYTES, chatImageIdSchema, chatImageRefSchema }
 
 export const GUI_PROTOCOL_KINDS = ['omp', 'claude'] as const
 export const TODO_TOOL_NAMES = ['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'] as const
 export const AGENT_CHAT_CHANNELS = {
   start: 'agentChat:start', send: 'agentChat:send', interrupt: 'agentChat:interrupt',
   answer: 'agentChat:answer', setSurface: 'agentChat:setSurface', snapshot: 'agentChat:snapshot', event: 'agentChat:event',
-  attention: 'agentChat:attention'
+  attention: 'agentChat:attention', stageImage: 'agentChat:stageImage', attachEvidence: 'agentChat:attachEvidence'
 } as const
+
+/** The most images one message may carry. */
+export const CHAT_IMAGES_PER_MESSAGE = 4
 
 const chatRef = { folder: z.string().nullable(), chatId: chatIdSchema }
 const surfaceSchema = z.enum(['gui', 'terminal'])
 const statusSchema = z.enum(['starting', 'idle', 'busy', 'exited', 'signed_out', 'failed'])
 export const agentChatStartSchema = z.strictObject(chatRef)
-export const agentChatSendSchema = z.strictObject({ ...chatRef, text: z.string().min(1).max(20_000) })
+/**
+ * Images cross `send` only as the ids of images main already holds for the chat (`stageImage`); a message may be
+ * images alone, but never empty.
+ */
+export const agentChatSendSchema = z.strictObject({
+  ...chatRef, text: z.string().max(20_000), imageIds: z.array(chatImageIdSchema).max(CHAT_IMAGES_PER_MESSAGE).optional()
+}).refine(request => request.text.length > 0 || (request.imageIds?.length ?? 0) > 0, { message: 'A message needs text or an image', path: ['text'] })
 export const agentChatInterruptSchema = z.strictObject(chatRef)
-export const agentChatAnswerSchema = z.strictObject({
-  ...chatRef, promptId: z.string().min(1), optionId: z.string().min(1), text: z.string().max(20_000).optional()
-})
+const answerFields = { ...chatRef, promptId: z.string().min(1), text: z.string().max(20_000).optional() }
+/** Exactly one of `optionId` (one option) or `optionIds` (a multi question's chosen options, `text` among them for free text). */
+export const agentChatAnswerSchema = z.union([
+  z.strictObject({ ...answerFields, optionId: z.string().min(1) }),
+  z.strictObject({ ...answerFields, optionIds: z.array(z.string().min(1)).min(1).max(50) })
+])
+/** A prompt answer without its chat reference, as main's sessions and translators take it. */
+export type AgentChatAnswer = { promptId: string; text?: string } & ({ optionId: string } | { optionIds: string[] })
 export const agentChatSetSurfaceSchema = z.strictObject({ ...chatRef, surface: surfaceSchema })
 export const agentChatSnapshotRequestSchema = z.strictObject(chatRef)
 export const agentChatAttentionSchema = z.strictObject({ folder: z.string().nullable() })
+/** The one channel image bytes cross: plain base64, validated as `uploadAttachment` validates it; main measures and keeps it. */
+export const agentChatStageImageSchema = z.strictObject({
+  ...chatRef,
+  data: z.string().min(1).max(Math.ceil(CHAT_IMAGE_MAX_BYTES / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, 'data must be plain base64 with no data: prefix')
+})
+/** Attaches a chat image to a ticket or epic as evidence; only a chat of a tracked folder has a project to attach to. */
+export const agentChatAttachEvidenceSchema = z.strictObject({
+  folder: z.string(), chatId: chatIdSchema, imageId: chatImageIdSchema, epicId: z.string().min(1), ticketId: z.string().min(1).optional()
+})
 
 const promptFields = {
   id: z.string().min(1), title: z.string(), detail: z.string(),
@@ -35,7 +60,12 @@ const promptFields = {
 }
 export const pendingPromptSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...promptFields, kind: z.literal('approval'), options: z.array(z.strictObject({ id: z.enum(['allow_once', 'allow_chat', 'deny']), label: z.string() })) }),
-  z.strictObject({ ...promptFields, kind: z.literal('question'), options: z.array(z.strictObject({ id: z.string().min(1), label: z.string() })) })
+  z.strictObject({ ...promptFields, kind: z.literal('question'),
+    options: z.array(z.strictObject({ id: z.string().min(1), label: z.string(), description: z.string().optional() })),
+    /** Several options may be chosen and sent together as `optionIds`; absent means one choice. */
+    multi: z.boolean().optional(),
+    /** This question's 1-based place among the questions of one ask. */
+    progress: z.strictObject({ index: z.number().int().min(1), total: z.number().int().min(1) }).optional() })
 ])
 export type PendingPrompt = z.infer<typeof pendingPromptSchema>
 
@@ -88,4 +118,7 @@ export interface AgentChatApi {
   onEvent(listener: (event: AgentChatEvent) => void): () => void
   /** Every waiting or deciding prompt of the folder's live GUI chats (null: project-less chats). */
   attention(request: z.infer<typeof agentChatAttentionSchema>): Promise<CommandResult<AttentionItem[]>>
+  /** Hands main one image's bytes for the chat; main validates them and answers with the ref `send` may name. */
+  stageImage(request: z.infer<typeof agentChatStageImageSchema>): Promise<CommandResult<{ image: ChatImageRef }>>
+  attachEvidence(request: z.infer<typeof agentChatAttachEvidenceSchema>): Promise<CommandResult<{ commentId: string; attachmentId: string }>>
 }

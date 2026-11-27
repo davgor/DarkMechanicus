@@ -1,4 +1,4 @@
-import type { AgentChatEvent } from '../../shared/agents/agentChat'
+import type { AgentChatAnswer, AgentChatEvent } from '../../shared/agents/agentChat'
 import type { ChatItem } from '../../shared/agents/chat'
 import { ompReadFrame, ompWriteFrame, type OmpFraming } from './ompFraming'
 import type { OmpHeldPrompt } from './ompPrompts'
@@ -35,7 +35,7 @@ export interface OmpState extends OmpFraming {
 export type OmpCommand =
   | { type: 'send'; id: string; text: string }
   | { type: 'interrupt'; id: string }
-  | { type: 'answer'; id: string; promptId: string; optionId: string; text?: string }
+  | ({ type: 'answer'; id: string } & AgentChatAnswer)
   | { type: 'get_subagent_messages'; id: string; subagentId: string; fromByte: number }
 type Result = { events: OmpEvent[]; state: OmpState }
 const object = (value: unknown): ObjectValue => value && typeof value === 'object' && !Array.isArray(value) ? value as ObjectValue : {}

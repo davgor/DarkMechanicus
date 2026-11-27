@@ -2,7 +2,6 @@ import { DomainError } from '../../core/errors'
 import type { ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import { isSafeModelId } from '../../shared/agents/models'
 import type { AgentView } from '../../shared/desktop/api'
-import { SHIM_HELP } from '../terminals/claudeExecutable'
 import { pinnedCliScript } from '../terminals/dmLauncher'
 import { terminalEnv } from '../terminals/terminalEnv'
 import type { TerminalFiles } from '../terminals/terminalFiles'
@@ -99,7 +98,6 @@ export function agentChatLaunch(input: AgentChatLaunchInput): AgentChatLaunchSpe
   const cwd = input.repairCheckout ?? input.folder
   const env = environmentFor(input)
   const program = windowsAgentProgram(agent, env, platform, input.shimFs)
-  if (program.viaShim) throw new Error(SHIM_HELP)
   const { sessionId, resumed } = sessionFor(input)
   const args = protocol === 'claude'
     ? claudeArgs(paths, chat.model, sessionId!, resumed)

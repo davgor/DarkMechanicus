@@ -40,13 +40,20 @@ describe('ompAnswerPrompt form fields one at a time', () => {
     expect(held.data).toEqual({})
   })
 
-  it('takes a multi choice as an offered option, a JSON list of offered values, or free text as one value', () => {
+  it('takes a multi choice as offered options in option order, an offered option, or free text as one literal value', () => {
     const held = form([{ kind: 'choice', name: 'tags', multi: true, options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }, { label: 'Off', value: 'off', disabled: true }] }])
     expect(held.prompt.options.map((option) => option.id)).toEqual(['option_0', 'option_1', 'text'])
     expect(ompAnswerPrompt(held, 'option_1')).toEqual(response({ data: { tags: ['b'] } }))
-    expect(ompAnswerPrompt(held, 'text', '["a","b"]')).toEqual(response({ data: { tags: ['a', 'b'] } }))
+    expect(ompAnswerPrompt(held, ['option_1', 'option_0'])).toEqual(response({ data: { tags: ['a', 'b'] } }))
+    expect(ompAnswerPrompt(held, 'text', '["a","b"]')).toEqual(response({ data: { tags: ['["a","b"]'] } }))
     expect(ompAnswerPrompt(held, 'text', 'custom')).toEqual(response({ data: { tags: ['custom'] } }))
-    expect([ompAnswerPrompt(held, 'text', '["off"]'), ompAnswerPrompt(held, 'text', '[oops')]).toEqual([null, null])
+    expect([ompAnswerPrompt(held, ['option_2']), ompAnswerPrompt(held, ['option_0', 'option_0']), ompAnswerPrompt(held, ['text'])]).toEqual([null, null, null])
+  })
+
+  it('refuses a list of ids on a single-choice field', () => {
+    const held = form([{ kind: 'choice', name: 'tag', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }] }])
+    expect(held.prompt).toMatchObject({ multi: false, progress: { index: 1, total: 1 } })
+    expect([ompAnswerPrompt(held, ['option_0']), ompAnswerPrompt(held, ['option_0', 'option_1'])]).toEqual([null, null])
   })
 })
 
