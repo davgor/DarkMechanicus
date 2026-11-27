@@ -45,6 +45,9 @@ function passing() {
     'agent-tool': ready('agent-tool', { treeRows: [row('Magos', true), row('Acolyte:DM-785')] }),
     'agent-approval': ready('agent-approval', { cardHeading: 'The agent wants to run: Run tests?' }),
     'agent-worker': ready('agent-worker', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
+    'agent-legacy-thread': ready('agent-legacy-thread', {
+      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
+    }),
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
     'chat-rail': ready('chat-rail', {
@@ -69,7 +72,7 @@ function passing() {
     'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '2 needs you · 4 working', badgedRows: 2 }),
     'chat-rail-legacy': ready('chat-rail-legacy', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false,
-      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-1')]
+      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-3', false, 3), row('Servitor-1')]
     }),
     'settings-notifications': ready('settings-notifications', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -109,17 +112,17 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 20 states once each, in capture order', () => {
+  it('lists the 21 states once each, in capture order', () => {
     expect(STATES).toEqual([
-      'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-      'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-      'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
+      'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
+      'agent-tree', 'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled',
+      'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(20)
+    expect(new Set(STATES).size).toBe(21)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 330 s overall bound that covers all 20', () => {
+  it('declares 15 s per state within a 330 s overall bound that covers all 21', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
     expect(OVERALL_LIMIT_MS).toBe(330_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
@@ -216,6 +219,14 @@ describe('capture-agent-chat: per-state observations', () => {
     expect(validateObservations('chat-rail-legacy', ready('chat-rail-legacy', {
       ...base, treeRows: [row('Magos'), row('Servitor-1', true), row('Servitor-1')]
     }))).toEqual(['chat-rail-legacy: expected the legacy and stamped helpers are Servitor-2 (selected) and Servitor-1, each named once'])
+  })
+
+  it('fails agent-legacy-thread when the nested legacy helper repeats a stamped Servitor callsign', () => {
+    expect(validateObservations('agent-legacy-thread', ready('agent-legacy-thread', {
+      treeRows: [row('Magos'), row('Servitor-2', true), row('Servitor-1', false, 3), row('Servitor-1')]
+    }))).toEqual([
+      'agent-legacy-thread: expected the legacy parent Servitor-2 is selected beside its nested Servitor-3 and the stamped Servitor-1, each named once'
+    ])
   })
 
   it('fails any agent state whose rail is not right of the stage', () => {

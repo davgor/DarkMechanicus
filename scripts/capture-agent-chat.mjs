@@ -19,14 +19,14 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
-  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
-  'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
-  'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
+  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
+  'agent-tree', 'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled',
+  'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'chat-rail-legacy', 'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 20 states at up to 15 s each, plus the Vite and Electron start. */
+/** A declared bound: 21 states at up to 15 s each, plus the Vite and Electron start. */
 export const OVERALL_LIMIT_MS = 330_000
 export const MIN_PNG_BYTES = 10 * 1024
 
@@ -116,6 +116,11 @@ const STATE_CHECKS = {
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
   'agent-worker': [['Acolyte:DM-2 is selected', (o) => rowNamed(o, 'Acolyte:DM-2')?.selected === true]],
+  'agent-legacy-thread': [
+    ['the legacy parent Servitor-2 is selected beside its nested Servitor-3 and the stamped Servitor-1, each named once',
+      (o) => rowNamed(o, 'Servitor-2')?.selected === true && rowNamed(o, 'Servitor-3') && rowNamed(o, 'Servitor-1')
+        && new Set(o.treeRows.map((row) => row.name)).size === o.treeRows.length]
+  ],
   'agent-tree': [
     ['railWidth is 280±1', (o) => near(o.railWidth, 280)],
     ['the Finished 1 group is collapsed by default', (o) => o.finishedExpandedAtStart === false],

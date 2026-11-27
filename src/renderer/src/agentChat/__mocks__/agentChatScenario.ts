@@ -31,12 +31,18 @@ const treeItems: ChatItem[] = [
   { id: 'look-glob', at, kind: 'tool_call', threadId: 'th-look', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }
 ]
 
-/** A live helper stored before callsigns existed, then one main stamped Servitor-1 counting only stamped threads. */
+/**
+ * A live helper stored before callsigns existed, with a legacy helper of its own nested inside, then one main stamped
+ * Servitor-1 counting only stamped threads.
+ */
 const legacyItems: ChatItem[] = [
   ...conversation,
   { id: 'spawn-old', at, kind: 'tool_call', name: 'Task', input: { description: 'Explore the repo' }, status: 'running', resultSummary: null },
   { id: 'th-old', at, kind: 'thread', parentItemId: 'spawn-old', label: 'Explore the repo', state: 'running' },
   { id: 'old-grep', at, kind: 'tool_call', threadId: 'th-old', name: 'Grep', input: { pattern: 'callsign' }, status: 'running', resultSummary: null },
+  { id: 'spawn-old-child', at, kind: 'tool_call', threadId: 'th-old', name: 'Task', input: { description: 'Read the tests' }, status: 'running', resultSummary: null },
+  { id: 'th-old-child', at, kind: 'thread', threadId: 'th-old', parentItemId: 'spawn-old-child', label: 'Read the tests', state: 'running' },
+  { id: 'child-read', at, kind: 'tool_call', threadId: 'th-old-child', name: 'Read', input: { path: 'src/shared/agents/callsign.test.ts' }, status: 'running', resultSummary: null },
   { id: 'spawn-new', at, kind: 'tool_call', name: 'Task', input: { description: 'look around' }, status: 'running', resultSummary: null },
   { id: 'th-new', at, kind: 'thread', parentItemId: 'spawn-new', label: 'look around', state: 'running', callsign: stamp('Servitor', null, 1) },
   { id: 'new-glob', at, kind: 'tool_call', threadId: 'th-new', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }

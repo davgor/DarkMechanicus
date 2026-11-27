@@ -240,6 +240,17 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('[aria-label="Acolyte:DM-2 thread"]') && $('.agent-chat-hint'), 'the worker thread with its relay note')
     }
   },
+  'agent-legacy-thread': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, scenarios.legacy.snapshot),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => treeItem('Servitor-2') && treeItem('Servitor-3'), 'the legacy parent and its nested legacy helper in the tree')
+      await selectNode('Servitor-2')
+      await until(() => $('[aria-label="Servitor-2 thread"] [aria-label="Thread: Servitor-3"]'),
+        'the nested legacy helper named Servitor-3 in its parent’s thread view')
+    }
+  },
   'agent-tree': {
     mount: 'epic',
     seed: (context) => snapshot(context, treeSnapshot()),

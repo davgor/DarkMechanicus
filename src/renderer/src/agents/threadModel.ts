@@ -65,8 +65,11 @@ function withLostThreads(entries: readonly TranscriptEntry[]): TranscriptEntry[]
   return out
 }
 
-/** The entries with each unstamped thread item named by the Servitor ordinal it holds. */
-function withLegacyNames(entries: readonly TranscriptEntry[]): readonly TranscriptEntry[] {
+/**
+ * The entries with each unstamped thread item named by the Servitor ordinal it holds. Numbered over the whole
+ * chat: a view of one thread's subset names its legacy threads from the full list first, as the agent tree does.
+ */
+export function withLegacyNames(entries: readonly TranscriptEntry[]): readonly TranscriptEntry[] {
   const threads = entries.filter((entry): entry is ThreadItem => entry.kind === 'thread')
   if (threads.every((thread) => subagentCallsign(thread.callsign) !== null)) return entries
   const ordinals = servitorOrdinals(threads)
