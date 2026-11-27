@@ -51,7 +51,7 @@ function launch(argv: string[], env: NodeJS.ProcessEnv = {}, executable = cli): 
   const child = spawn(process.execPath, [executable, ...argv], {
     cwd: scratch,
     stdio: 'pipe',
-    env: { ...process.env, DM_SESSION_TOKEN: undefined, FAKE_AGENT_SIGNED_OUT: undefined, FAKE_ARBITER_VERDICT: undefined, CLAUDE_CONFIG_DIR: join(scratch, 'config'), FAKE_AGENT_LOG: logPath, ...env },
+    env: { ...process.env, DM_SESSION_TOKEN: undefined, FAKE_AGENT_SIGNED_OUT: undefined, FAKE_ARBITER_VERDICT: undefined, FAKE_AGENT_PERSONA: undefined, CLAUDE_CONFIG_DIR: join(scratch, 'config'), FAKE_AGENT_LOG: logPath, ...env },
   })
   const events = new EventEmitter()
   let exited = false
@@ -505,19 +505,38 @@ it('OMP accepts chunked input and renumbers decoded chunk ids on later turns', a
   expect(chunks.every((frame) => frame.chunkId === 'chunk_T2_cli')).toBe(true)
 })
 
-for (const [argv, env, mode, stdout, code] of [
-  [['--version'], {}, 'version', '2.1.329 (Claude Code)\n', 0],
-  [['auth', 'status'], {}, 'auth', '{"loggedIn":true}\n', 0],
-  [['auth', 'status'], { FAKE_AGENT_SIGNED_OUT: '1' }, 'auth', '{"loggedIn":false}\n', 1],
+const OMP_SIGNED_IN = '{"reports":[{"provider":"fixture","accounts":1}],"accountsWithoutUsage":[],"disabledCredentials":[]}\n'
+const OMP_SIGNED_OUT = '{"reports":[],"accountsWithoutUsage":[],"disabledCredentials":[]}\n'
+for (const [argv, env, mode, persona, stdout, code] of [
+  [['--version'], {}, 'version', 'claude', '2.1.329 (Claude Code)\n', 0],
+  [['auth', 'status'], {}, 'auth', 'claude', '{"loggedIn":true}\n', 0],
+  [['auth', 'status'], { FAKE_AGENT_SIGNED_OUT: '1' }, 'auth', 'claude', '{"loggedIn":false}\n', 1],
+  [['--version'], { FAKE_AGENT_PERSONA: 'omp' }, 'version', 'omp', 'omp/18.16.0\n', 0],
+  [['usage', '--json'], {}, 'auth', 'omp', OMP_SIGNED_IN, 0],
+  [['usage', '--json'], { FAKE_AGENT_SIGNED_OUT: '1' }, 'auth', 'omp', OMP_SIGNED_OUT, 0],
 ] as const) {
-  it(`${argv.join(' ')} ${code === 1 ? 'signed out' : 'signed in'} prints exact output and logs first`, async () => {
+  it(`${persona} ${argv.join(' ')} ${stdout === OMP_SIGNED_OUT || code === 1 ? 'signed out' : 'signed in'} prints exact output and logs first`, async () => {
     const harness = launch([...argv], { ...env, DM_SESSION_TOKEN: grant })
     expect(await harness.closed).toBe(code)
     expect(harness.stdout).toBe(stdout)
     expect(harness.stderr).toBe('')
     assertLog(harness, mode, true)
+    expect(JSON.parse(readFileSync(harness.logPath, 'utf8')).persona).toBe(persona)
   })
 }
+
+it('the OMP persona records the GUI launch arguments without running them, streams one turn and logs its pid', async () => {
+  const extra = ['--cwd', scratch, '--append-system-prompt', join(scratch, 'missing-instructions.md'), '--config', join(scratch, 'missing.yml'), '-e', join(scratch, 'missing.ts'), '--session-dir', join(scratch, 'sessions')]
+  const harness = await initialize('omp', extra, cli, { DM_SESSION_TOKEN: grant, FAKE_AGENT_PERSONA: 'omp' })
+  harness.send(prompt('omp', 'hello first'))
+  await harness.until(() => completed('omp', harness.stdout))
+  expect(await finish(harness)).toBe(0)
+  expect(harness.stdout).toBe(golden('omp', 'text'))
+  expect(harness.stderr).toBe('')
+  assertLog(harness, 'omp', true)
+  expect(JSON.parse(readFileSync(harness.logPath, 'utf8'))).toMatchObject({ persona: 'omp', pid: harness.child.pid, argv: ['--mode', 'rpc-ui', ...extra] })
+  expect(existsSync(join(scratch, 'sessions'))).toBe(false)
+})
 
 it('TUI echoes each stdin line including final unterminated input and exits 0 on EOF', async () => {
   const harness = launch(['--session-id', sessionId], { DM_SESSION_TOKEN: grant })

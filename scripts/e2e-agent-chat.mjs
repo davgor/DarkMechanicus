@@ -1,9 +1,15 @@
 /**
  * Built-app e2e harness for agent chats. Launches the built Electron app (run `npm run build` first) with an isolated
- * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent, drives it over CDP and runs named
- * steps, each exactly once under a 10 s condition-based deadline with no retries.
+ * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent (`fake-claude`) and, with
+ * `--agent omp`, also as the built-in `omp` (Skitarii) agent (`fake-omp`), drives it over CDP and runs named steps, each
+ * exactly once under a 10 s condition-based deadline with no retries.
  *
- *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *
+ * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted). Both shims are
+ * always written, but the omp agent is only connected with `--agent omp`: the app prefers a signed-in OMP for a planner,
+ * and the Claude steps after `new-chat` drive Claude-protocol scenarios. So `--agent omp` runs only `ready`, `new-chat`
+ * and `quit`.
  *
  * Without `--steps` every step runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
@@ -45,6 +51,11 @@ const SCREENSHOT_BOUND_MS = 5_000
 const STDERR_TAIL_LINES = 40
 const FOLDER_NAME = 'e2e-repo'
 const FAKE_VERSION = '2.1.329'
+/** What the fake's OMP persona prints for `--version` (`omp/18.16.0`), as the app stores it. */
+const FAKE_OMP_VERSION = '18.16.0'
+/** The agent kinds `--agent` takes; with `omp` only these steps run (see the header). */
+const AGENT_KINDS = ['claude', 'omp']
+const OMP_STEPS = ['ready', 'new-chat', 'quit']
 const EPIC_TITLE = 'E2E epic'
 /** The window every chat step is captured at, and the wide one the epic's Agent stage with its open rail is. */
 const WINDOW = { width: 1024, height: 768 }
@@ -102,28 +113,40 @@ export function isolatedEnv(base, root, platform = process.platform) {
   return { ...Object.fromEntries(kept), ...isolated }
 }
 
-/** The same shim text as `src/main/agentChat/__mocks__/fakeAgentShim.ts`; scripts cannot import TypeScript. */
-function shimFiles(fixture, platform) {
+/**
+ * The same shim text as `src/main/agentChat/__mocks__/fakeAgentShim.ts`; scripts cannot import TypeScript. The
+ * `fake-omp` shim sets FAKE_AGENT_PERSONA so the fake answers `--version` as OMP.
+ */
+function shimFiles(fixture, platform, kind) {
+  const name = `fake-${kind}`
+  const persona = kind === 'omp' ? `process.env.FAKE_AGENT_PERSONA = 'omp'\n` : ''
   if (platform === 'win32') {
     return [
-      { name: 'fake-claude.cmd', text: '@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\fake-claude.js" %*\r\n' },
+      { name: `${name}.cmd`, text: `@ECHO off\r\nSETLOCAL\r\nSET dp0=%~dp0\r\nnode "%dp0%\\${name}.js" %*\r\n` },
       // A bare `C:\…` specifier makes import() fail with ERR_UNSUPPORTED_ESM_URL_SCHEME, so it goes through a file URL.
-      { name: 'fake-claude.js', text: `import(require('node:url').pathToFileURL(${JSON.stringify(fixture)}).href)\n` }
+      { name: `${name}.js`, text: `${persona}import(require('node:url').pathToFileURL(${JSON.stringify(fixture)}).href)\n` }
     ]
   }
-  return [{ name: 'fake-claude', text: `#!/bin/sh\nexec node '${fixture.replaceAll("'", "'\\''")}' "$@"\n`, mode: 0o755 }]
+  const exported = kind === 'omp' ? 'export FAKE_AGENT_PERSONA=omp\n' : ''
+  return [{ name, text: `#!/bin/sh\n${exported}exec node '${fixture.replaceAll("'", "'\\''")}' "$@"\n`, mode: 0o755 }]
 }
 
-/** Writes the fake agent's shim into `directory` and returns the executable to register. */
-export function writeShim(directory, fixture, platform = process.platform) {
+/** Writes the fake agent's `kind` shim (`fake-claude` or `fake-omp`) into `directory` and returns the executable to register. */
+export function writeShim(directory, fixture, platform = process.platform, kind = 'claude') {
   mkdirSync(directory, { recursive: true })
-  const files = shimFiles(fixture, platform)
+  const files = shimFiles(fixture, platform, kind)
   for (const file of files) {
     const path = join(directory, file.name)
     writeFileSync(path, file.text)
     if (file.mode !== undefined) chmodSync(path, file.mode)
   }
   return join(directory, files[0].name)
+}
+
+/** The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP. */
+export function seededAgents(shims, agent) {
+  const claude = { kind: 'claude', executablePath: shims.claude, version: FAKE_VERSION }
+  return agent === 'omp' ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
 }
 
 /** The fake agent's invocation log, one entry per launch, in launch order. */
@@ -302,13 +325,13 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
   return { ...env, [key]: [folder, env[key]].filter(Boolean).join(separator) }
 }
 
-function createSession(out, exe) {
+function createSession(out, exe, agent = 'claude') {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
   writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
   return {
-    out, root, exe, env: withNodeFirst(isolatedEnv(process.env, root)),
+    out, root, exe, agent, env: withNodeFirst(isolatedEnv(process.env, root)),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
-    shim: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
+    shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
     store: null, restart: null
   }
@@ -328,16 +351,17 @@ function seedRepository(session) {
 }
 
 /**
- * The fake is the built-in claude-kind agent: a custom agent is terminal-only and its sign-in is never checked. The
+ * The fakes are built-in agents (`seededAgents`): a custom agent is terminal-only and its sign-in is never checked. The
  * folder is set up in database mode (its records live under the isolated Dark Mechanicus home, so the Git tree stays
- * clean) with one saved epic, whose id the seed prints. Notifications are on while the window is focused, as an
- * unattended run's window is.
+ * clean) with one saved epic, whose id the seed prints, and its default agent is the kind `--agent` selects.
+ * Notifications are on while the window is focused, as an unattended run's window is.
  */
 const SEED_SOURCE = `
 import { openWorkspace } from './src/core/workspace'
 import { openAppDatabase } from './src/main/desktop/appDatabase'
 import { createAgentRegistry } from './src/main/desktop/agentRegistry'
 import { createAppSettings } from './src/main/desktop/appSettings'
+import { createFolderAgentDefaults } from './src/main/desktop/folderAgentDefaults'
 import { createFolderRegistry } from './src/main/desktop/folderRegistry'
 import { DEFAULT_NOTIFICATION_SETTINGS } from './src/shared/desktop/notificationSettings'
 const seed = JSON.parse(process.argv[2])
@@ -357,15 +381,17 @@ async function main() {
   } finally {
     workspace.close()
   }
+  const { folder } = createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome }).track(seed.folder)
   const db = openAppDatabase(seed.userData)
   try {
-    createAgentRegistry({ db }).upsert({ kind: 'claude', executablePath: seed.shim, version: seed.version, connectedVia: 'found' })
+    const registry = createAgentRegistry({ db })
+    for (const agent of seed.agents) registry.upsert({ ...agent, connectedVia: 'found' })
+    createFolderAgentDefaults({ db }).set(folder.path, seed.defaultAgent)
     await createAppSettings({ db, confirm: async () => false, logger: console })
       .setNotifications({ ...DEFAULT_NOTIFICATION_SETTINGS, whenFocused: 'notify' })
   } finally {
     db.close()
   }
-  createFolderRegistry({ file: seed.folders, homeDir: seed.home, dmHome: seed.dmHome }).track(seed.folder)
   process.stdout.write(JSON.stringify({ epicId }))
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })
@@ -378,8 +404,9 @@ function seedStores(session) {
     bundle: true, platform: 'node', format: 'cjs', target: 'node24', logLevel: 'warning'
   })
   const seed = {
-    userData: session.userData, shim: session.shim, version: FAKE_VERSION, folders: join(session.userData, 'folders.json'),
-    home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME, folder: session.folder, epicTitle: EPIC_TITLE
+    userData: session.userData, agents: seededAgents(session.shims, session.agent), defaultAgent: session.agent,
+    folders: join(session.userData, 'folders.json'), home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME,
+    folder: session.folder, epicTitle: EPIC_TITLE
   }
   const result = spawnSync(process.execPath, [bundle, JSON.stringify(seed)], { env: session.env, encoding: 'utf8', windowsHide: true })
   if (result.status !== 0) throw new Error(`Seeding the app stores failed: ${result.stderr || result.error}`)
@@ -465,7 +492,8 @@ function setup(session) {
   for (const directory of [env.APPDATA, env.LOCALAPPDATA, env.CLAUDE_CONFIG_DIR, env.DARKMECHANICUS_HOME, session.userData]) {
     mkdirSync(directory, { recursive: true })
   }
-  session.shim = writeShim(join(session.root, 'shim'), FAKE_AGENT_CLI)
+  const shimDirectory = join(session.root, 'shim')
+  session.shims = Object.fromEntries(AGENT_KINDS.map((kind) => [kind, writeShim(shimDirectory, FAKE_AGENT_CLI, process.platform, kind)]))
   seedRepository(session)
   seedStores(session)
   if (session.exe === null) {
@@ -475,7 +503,7 @@ function setup(session) {
   }
   if (process.platform === 'win32') startDialogHelper(session)
   return {
-    shim: session.shim, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
+    shims: session.shims, agent: session.agent, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
     app: session.exe ?? BUILT_MAIN
   }
 }
@@ -625,22 +653,32 @@ function tellApp(session, message) {
   return evaluateMain(session, `(${command}, true)`)
 }
 
-/** Ready: the renderer is mounted and lists the seeded claude agent and folder, and the fake signs in through its shim. */
-function readyProbe(shim) {
+/**
+ * Ready: the renderer is mounted and lists each seeded agent with its shim and the folder, and each fake signs in
+ * through its shim (Claude's `auth status`, OMP's `usage --json`). `agent` is the one the fixture chats use.
+ */
+function readyProbe(seeded, selected) {
   return `(async () => {
     if (typeof window.dm !== 'object' || !document.getElementById('root')?.firstElementChild) return { ready: false, reason: 'renderer not mounted' }
     try {
       const agents = await window.dm.listAgents()
-      const agent = agents.find((entry) => entry.id === 'claude')
-      if (agent?.executablePath !== ${JSON.stringify(shim)}) return { ready: false, reason: 'seeded claude agent not listed', agent: agent ?? null }
+      const auths = {}
+      for (const seeded of ${JSON.stringify(seeded)}) {
+        const agent = agents.find((entry) => entry.id === seeded.kind)
+        if (agent?.executablePath !== seeded.executablePath) return { ready: false, reason: 'seeded ' + seeded.kind + ' agent not listed', agent: agent ?? null }
+        const auth = await window.dm.agentStatus(seeded.kind)
+        if (auth.state !== 'signed_in') return { ready: false, reason: 'fake ' + seeded.kind + ' not signed in', auth }
+        auths[seeded.kind] = auth.state
+      }
       const folder = (await window.dm.listFolders()).find((entry) => entry.name === ${JSON.stringify(FOLDER_NAME)})
       if (!folder?.available || !folder.initialized) return { ready: false, reason: 'seeded folder not tracked and set up' }
-      const auth = await window.dm.agentStatus('claude')
-      if (auth.state !== 'signed_in') return { ready: false, reason: 'fake claude not signed in', auth }
+      const defaultAgent = await window.dm.folderDefaultAgent(folder.path)
+      if (defaultAgent !== ${JSON.stringify(selected)}) return { ready: false, reason: 'folder default agent is ' + defaultAgent }
+      const agent = agents.find((entry) => entry.id === ${JSON.stringify(selected)})
       return {
         ready: true, agent: { id: agent.id, kind: agent.kind, version: agent.version, connectedVia: agent.connectedVia },
         agents: agents.map((entry) => ({ id: entry.id, kind: entry.kind, executablePath: entry.executablePath })),
-        folder: { name: folder.name, path: folder.path, storageMode: folder.storageMode }, auth: auth.state
+        folder: { name: folder.name, path: folder.path, storageMode: folder.storageMode }, defaultAgent, auth: auths
       }
     } catch (error) {
       return { ready: false, reason: String(error) }
@@ -833,7 +871,7 @@ async function appReady(session, signal) {
   await attach(session, signal)
   const probe = await waitFor(async () => {
     assertRunning(session)
-    session.lastProbe = await evaluate(session, readyProbe(session.shim))
+    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent), session.agent))
     return session.lastProbe.ready && session.lastProbe
   }, signal)
   session.folderPath = probe.folder.path
@@ -852,17 +890,32 @@ async function appReady(session, signal) {
   }
 }
 
-/** Step 1: a folder chat from the New chat popup, with the claude-kind fake, opens in the GUI with its first turn. */
+/**
+ * The GUI (protocol) launch of the new chat, the run's first chat: the one long-lived fake run whose mode and persona
+ * are the selected kind. Throws unless there is exactly one.
+ */
+export function newChatLaunch(logText, agent) {
+  const launches = fakeAgentLog(logText).filter((entry) => entry.mode === agent && entry.persona === agent)
+  if (launches.length !== 1) throw new Error(`Expected one ${agent} GUI launch; the log has ${launches.length}.`)
+  const [{ mode, persona, pid, cwd, argv }] = launches
+  return { mode, persona, pid, cwd, argv }
+}
+
+/** Step 1: a folder chat from the New chat popup, with the selected kind's fake, opens in the GUI with its first turn. */
 async function newChat(session, signal) {
   await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
   await until(session, signal, fill, '.dialog[role="dialog"] textarea', 'hello first')
   await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
   const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: 'hello first' })
-  if (chat.surface !== 'gui' || chat.agent !== 'claude') throw new Error(`The new chat is ${chat.agent} on ${chat.surface}, not claude on gui.`)
+  if (chat.surface !== 'gui' || chat.agent !== session.agent) {
+    throw new Error(`The new chat is ${chat.agent} on ${chat.surface}, not ${session.agent} on gui.`)
+  }
   session.chat = { chatId: chat.id, sessionId: chat.sessionId }
   await until(session, signal, turnDone, session.folderPath, chat.id, { text: 'hello first' })
   const shown = await until(session, signal, guiShows, chat.id, 'hello first', 'Hello world')
-  return { chat, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-new-chat.png', WINDOW) }
+  const launch = newChatLaunch(readLog(session), session.agent)
+  if (!isAlive(launch.pid)) throw new Error(`The ${session.agent} fake (pid ${launch.pid}) is not running.`)
+  return { chat, launch, section: shown.section, messages: shown.messages, screenshot: await capture(session, 'e2e-new-chat.png', WINDOW) }
 }
 
 function streamEvents(h, chatId, from) {
@@ -1607,19 +1660,25 @@ function removeIsolatedState(session) {
 export function parseArgs(argv) {
   const value = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined)
   const out = value('--out')
-  if (!out) throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ${Object.keys(STEPS).join(',')}]`)
+  if (!out) {
+    throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent ${AGENT_KINDS.join('|')}] [--steps ${Object.keys(STEPS).join(',')}]`)
+  }
   if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
-  const keys = value('--steps')?.split(',') ?? Object.keys(STEPS)
+  const agent = argv.includes('--agent') ? value('--agent') : 'claude'
+  if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
+  const keys = value('--steps')?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
+  const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
+  if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${OMP_STEPS.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
   const exe = value('--exe')
-  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), keys }
+  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), agent, keys }
 }
 
 async function main(argv) {
-  const { out, exe, keys } = parseArgs(argv)
+  const { out, exe, agent, keys } = parseArgs(argv)
   mkdirSync(out, { recursive: true })
-  const session = createSession(out, exe)
+  const session = createSession(out, exe, agent)
   const steps = []
   try {
     await runSteps(session, keys, steps)
