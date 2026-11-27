@@ -12,6 +12,7 @@ import { createChatStore } from '../../agents/chatStore'
 import { buildCliConfig } from '../../desktop/cliConfig'
 import { startAgentProcess, type AgentProcess } from '../agentProcess'
 import { createAgentChatSessions, type AgentChatSessionsDeps } from '../agentChatSessions'
+import { createChatImages } from '../chatImages'
 import { fakeAgentShim } from './fakeAgentShim'
 
 export const fakeAgentFixture = fileURLToPath(new URL('../__fixtures__/fakeAgentCli.mjs', import.meta.url))
@@ -38,8 +39,9 @@ function nativeFixture(fixture: string) {
     FAKE_AGENT_LOG: join(root, 'agent.jsonl'), FAKE_AGENT_SESSION_FILES: '1' }
   const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
   env[pathKey] = `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${env[pathKey] ?? ''}`
-  const store = createChatStore({ root: join(userData, 'agents', 'chats') })
-  return { root, repo, userData, executable, env, store }
+  const chatImages = createChatImages({ root: join(userData, 'agents', 'chat-images') })
+  const store = createChatStore({ root: join(userData, 'agents', 'chats'), images: chatImages })
+  return { root, repo, userData, executable, env, store, chatImages }
 }
 
 function recordingChild(spec: Parameters<typeof startAgentProcess>[0], children: AgentProcess[], writes: string[], steps: string[]): AgentProcess {
@@ -65,7 +67,7 @@ function claimStubs(userData: string) {
 
 /** `fixture` replaces the fake CLI, for a test that replays its own copy of the golden fixtures. */
 export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Partial<AgentChatSessionsDeps> = {}, fixture = fakeAgentFixture) {
-  const { root, repo, userData, executable, env, store } = nativeFixture(fixture)
+  const { root, repo, userData, executable, env, store, chatImages } = nativeFixture(fixture)
   const pushes: AgentChatEvent[] = [], children: AgentProcess[] = [], writes: string[] = []
   const revoked: string[] = [], renewed: string[] = [], bound: string[] = [], steps: string[] = []
   const intervals = new Map<number, Set<() => void>>()
@@ -105,10 +107,11 @@ export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Parti
     } },
     startProcess: spec => recordingChild(spec, children, writes, steps),
     ...claimDeps,
+    chatImages,
     ...overrides
   }
   const sessions = createAgentChatSessions(deps)
-  return { root, repo, userData, executable, env, store, pushes, children, writes, revoked, renewed, bound, steps, token, state, deps, sessions, claims, bindingsFile,
+  return { root, repo, userData, executable, env, store, chatImages, pushes, children, writes, revoked, renewed, bound, steps, token, state, deps, sessions, claims, bindingsFile,
     tick: (ms: number) => { for (const callback of intervals.get(ms) ?? []) callback() },
     newChat: (firstPrompt?: string, folder: string | null = repo) => store.createChat({ folder, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'gui', firstPrompt }),
     cleanup: async () => { await sessions.dispose(); removeScratch(root) }
