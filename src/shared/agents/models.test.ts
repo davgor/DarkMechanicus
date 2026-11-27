@@ -66,7 +66,7 @@ describe('chatModelOptions', () => {
     expect(options).toHaveLength(29)
     expect(options.find((option) => option.id === 'claude-opus-5-5')).toEqual({
       provider: 'anthropic', id: 'claude-opus-5-5', name: 'Claude Opus 5.5', line: 'opus', revision: '5.5',
-      efforts: ['low', 'medium', 'high', 'xhigh', 'max'], images: true, contextWindow: 1_000_000
+      efforts: ['low', 'medium', 'high', 'xhigh', 'max'], images: true, contextWindow: 1_000_000, reasoning: true, inputCost: 4
     })
     expect(options.find((option) => option.id === 'gpt-6-astra')).toMatchObject({ line: 'gpt astra', revision: '6' })
     expect(options.find((option) => option.id === 'gpt-6.1-terra')).toMatchObject({ line: 'gpt terra', revision: '6.1' })

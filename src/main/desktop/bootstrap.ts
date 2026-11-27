@@ -40,6 +40,7 @@ import { createActivityBindings, type ActivityBindings } from '../agents/activit
 import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
 import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
+import { createWorkerCatalog } from '../agents/workerCatalog'
 import type { PlannerAgents } from '../agents/plannerStart'
 import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
 import { createAgentContextDelivery, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
@@ -81,7 +82,7 @@ import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { createAgentChatSessions, type AgentChatSessions, type AgentChatSessionsDeps } from '../agentChat/agentChatSessions'
 import { createAgentChatHandlers, createAgentChatPush, registerAgentChatIpc } from '../agentChat/agentChatIpc'
-import { createOmpModels } from '../agentChat/ompModels'
+import { createOmpModels, type OmpModels } from '../agentChat/ompModels'
 import { endingAgentChats, nativeTerminalStopConfirmation, releasingChatOwners, wireAgentChats, type AgentChatAttention, type AgentChatOwnerDeps, type AgentChatWiring, type ArbiterWiring } from '../agentChat/agentChatWiring'
 import { restartMarkerHook, resumeAfterRestart } from '../agentChat/restartResume'
 import { setBeforeInstall } from '../autoUpdate'
@@ -616,16 +617,25 @@ function createGuiChats(
   })
 }
 
+/** The one Skitarii model catalog service: `agentChat:models` and Start run's worker catalog share its cache. */
+function skitariiModels(sessions: AgentChatSessions, agents: Pick<AgentRegistry, 'get'>, store: Pick<ChatStore, 'getChat'>): OmpModels {
+  return createOmpModels({
+    sessions, agentFor: id => agents.get(id), chatAgent: ref => store.getChat(ref)?.agent ?? null,
+    run: runProcess, platform: process.platform, env: process.env
+  })
+}
+
 /**
  * Serves `agentChat:*` over the one GUI session manager, and Skitarii model catalogs (`agentChat:models`) from a live
- * chat's session or the registered OMP executable. Only an explicit `agentChat:setSurface` from the app window may
- * stop a live terminal, after the native confirmation modal to that window; no other path passes one.
+ * chat's session or the registered OMP executable (`models`, shared with Start run's worker catalog). Only an explicit
+ * `agentChat:setSurface` from the app window may stop a live terminal, after the native confirmation modal to that
+ * window; no other path passes one.
  */
 function startAgentChats(
   ipc: Pick<IpcMain, 'handle'>,
   registry: Pick<FolderRegistry, 'resolve'>,
   sessions: AgentChatSessions,
-  { agents, store }: { agents: Pick<AgentRegistry, 'get'>; store: Pick<ChatStore, 'getChat'> }
+  models: OmpModels
 ): void {
   const confirmTerminalStop = nativeTerminalStopConfirmation<WebContents, BrowserWindow>({
     windowFor: (sender) => {
@@ -633,10 +643,6 @@ function startAgentChats(
       return window === null || window.isDestroyed() ? null : window
     },
     showMessageBox: (window, options) => dialog.showMessageBox(window, options)
-  })
-  const models = createOmpModels({
-    sessions, agentFor: id => agents.get(id), chatAgent: ref => store.getChat(ref)?.agent ?? null,
-    run: runProcess, platform: process.platform, env: process.env
   })
   const handlers = createAgentChatHandlers({
     registry, sessions, confirmTerminalStop, models,
@@ -816,6 +822,8 @@ interface ChatServices {
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
+  /** Skitarii model catalogs, for the worker catalog Start run writes for a Skitarii Magos. */
+  ompModels: Pick<OmpModels, 'catalogModels'>
 }
 
 /** The connected agents with their sign-in state, for Start planner; a custom CLI has no sign-in check, so pickChatAgent treats it as not signed in. */
@@ -830,7 +838,7 @@ function plannerAgents(agents: Pick<AgentRegistry, 'list'>): PlannerAgents {
 
 /** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, chats, store, terminals, agentChats, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
+  const { folders, agents, chats, store, terminals, agentChats, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat, ompModels } = services
   const reads = conversationReads(workspaces)
   const handlers = createChatHandlers({
     registry: folders,
@@ -839,6 +847,7 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     terminals,
     agentChats,
     plannerAgents: plannerAgents(agents),
+    workerCatalog: createWorkerCatalog({ userData: app.getPath('userData'), models: ompModels, agentFor: id => agents.get(id) }),
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
@@ -1379,9 +1388,10 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startChatImageProtocol(registry, chatImages)
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
+  const ompModels = skitariiModels(agentChats, agents, store)
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat, ompModels })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  startAgentChats(ipc, registry, agentChats, { agents, store })
+  startAgentChats(ipc, registry, agentChats, ompModels)
   startRestartResume({ registry, pool, store, terminals, agentChats })
   const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
   return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }

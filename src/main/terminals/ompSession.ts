@@ -14,7 +14,7 @@
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { chatIdSchema } from '../../shared/agents/chat'
+import { chatIdSchema, type ChatRole } from '../../shared/agents/chat'
 import { SKITARII_THEME_NAME } from './ompSkitariiTheme'
 import { writePrivateFile } from './privateFile'
 
@@ -52,6 +52,14 @@ export const OMP_CONFIG_OVERLAY = [
   ''
 ].join('\n')
 
+/**
+ * What the overlay of a chat that orchestrates a run adds: OMP's task tool takes a per-subagent `model`
+ * (`provider/id[:level]`) only with `task.perCallModel: on` (default `off`, which refuses the call; project settings
+ * cannot turn it on). The Magos starts each worker on the model and effort it claimed (`core/hostCatalogs/omp.ts`).
+ * Verified on omp 18.20.2. OMP still accepts only models its configuration already routes to.
+ */
+export const OMP_MAGOS_OVERLAY = ['task:', '  perCallModel: "on"', ''].join('\n')
+
 interface OmpFiles {
   /** `--session-dir`: the chat's own session folder. */
   sessionDir: string
@@ -81,16 +89,19 @@ export function ompSessionId(sessionDir: string): string | null {
 }
 
 /**
- * Writes the overlay and makes the session folder. A start that forgets the old session (`fresh`) first moves the
- * folder aside, so the old session stays on disk but is not the one resumed.
+ * Writes the overlay (with the Magos part for a chat whose recorded role is `orchestrator`, a run's or a folder's
+ * Magos) and makes the session folder. A start that forgets the old session (`fresh`) first moves the folder aside,
+ * so the old session stays on disk but is not the one resumed.
  */
-export async function writeOmpFiles(userData: string, chatId: string, fresh: boolean, now: () => number = Date.now): Promise<OmpFiles> {
+export async function writeOmpFiles(
+  userData: string, chatId: string, start: { fresh: boolean; role: ChatRole }, now: () => number = Date.now
+): Promise<OmpFiles> {
   const files = ompFilePaths(userData, chatId)
-  if (fresh && ompSessionId(files.sessionDir) !== null) {
+  if (start.fresh && ompSessionId(files.sessionDir) !== null) {
     await rename(files.sessionDir, `${files.sessionDir}.old-${now()}`)
   }
   await mkdir(files.sessionDir, { recursive: true, mode: 0o700 })
-  await writePrivateFile(files.config, OMP_CONFIG_OVERLAY, 0o600)
+  await writePrivateFile(files.config, start.role === 'orchestrator' ? OMP_CONFIG_OVERLAY + OMP_MAGOS_OVERLAY : OMP_CONFIG_OVERLAY, 0o600)
   return files
 }
 
