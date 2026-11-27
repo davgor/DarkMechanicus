@@ -93,6 +93,17 @@ function mailboxOperations(ctx: Context) {
         return row?.state === 'open' ? [{ chatId, endpointId: row.id }] : []
       })
     },
+    provisionMailboxes(deleting: readonly string[], chats: readonly MailboxChat[]) {
+      const context = ctx()
+      for (const id of deleting) deleteChatMailbox(context, { id, agent: 'omp', title: 'Deleted world chat' })
+      return provisionAll(context, chats)
+    },
+    deleteOrphanMailboxes: (ids: readonly string[]) => deleteOrphanMailboxes(ctx(), ids)
+  }
+}
+
+function cultOrderOperations(ctx: Context) {
+  return {
     /**
      * A cult Magos's `cult_order_all`: one message from its own open mailbox to each recipient's, in one transaction,
      * through the same acceptance (size limits, quotas, wake) as `send_agent_message`. Each message's client id is
@@ -110,13 +121,7 @@ function mailboxOperations(ctx: Context) {
           acceptMessage(context, { senderEndpointId: sender, to: open(chatId), clientMessageId: `${order.orderId}:${index + 1}`, body: order.body }).messageId
         )
       })
-    },
-    provisionMailboxes(deleting: readonly string[], chats: readonly MailboxChat[]) {
-      const context = ctx()
-      for (const id of deleting) deleteChatMailbox(context, { id, agent: 'omp', title: 'Deleted world chat' })
-      return provisionAll(context, chats)
-    },
-    deleteOrphanMailboxes: (ids: readonly string[]) => deleteOrphanMailboxes(ctx(), ids)
+    }
   }
 }
 
@@ -272,7 +277,7 @@ function learningApprovalOperations(workspace: Workspace, ctx: Context) {
 
 function workspaceOperations(workspace: Workspace, home: string) {
   const ctx = () => workspace.ctx()
-  return { ...mailboxOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
+  return { ...mailboxOperations(ctx), ...cultOrderOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
     ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx), ...learningApprovalOperations(workspace, ctx) }
 }
 

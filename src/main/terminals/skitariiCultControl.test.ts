@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   attachCultControl,
@@ -10,6 +14,7 @@ import {
 } from '../../../resources/skitarii/extension/cultControl'
 import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/dmClient'
 import type { Timers } from '../../../resources/skitarii/extension/skitarii'
+import { createCultControl, cultControlPath } from '../cults/cultControl'
 
 const CHAT = 'chat-1'
 const P = '[Dark Mechanicus desktop] The person '
@@ -30,8 +35,11 @@ function fakeTimers(): Timers & { live: Map<number, number> } {
   }
 }
 
+/** The launch generation that names the client descriptor (`.../dm-client/<generation>.json`). */
+const EPOCH = 'launch-1'
+
 const doc = (actions: unknown[], extra: Record<string, unknown> = {}): string =>
-  JSON.stringify({ version: 1, chatId: CHAT, actions, ...extra })
+  JSON.stringify({ version: 1, chatId: CHAT, epoch: EPOCH, actions, ...extra })
 
 function harness(files: string[] | (() => Promise<string>)) {
   const calls: string[] = []
@@ -49,6 +57,7 @@ function harness(files: string[] | (() => Promise<string>)) {
     timers,
     path: '/x/cult-control.json',
     chatId: CHAT,
+    epoch: EPOCH,
     abort: () => calls.push('abort'),
     shutdown: () => calls.push('shutdown'),
     send: (content, trigger) => {
@@ -66,7 +75,8 @@ describe('parseCultControl', () => {
         { seq: 1, action: 'interrupt' },
         { seq: 3, action: 'petition', petition: { kind: 'folder_access', approved: true, folder: '/a', tokenFile: '/t' } }
       ]),
-      CHAT
+      CHAT,
+      EPOCH
     )
     expect(entries).toEqual([
       { seq: 1, action: 'interrupt' },
@@ -94,10 +104,12 @@ describe('parseCultControl', () => {
     ['too many', doc(Array.from({ length: 33 }, (_, i) => ({ seq: i + 1, action: 'resume' })))],
     ['not increasing', doc([{ seq: 2, action: 'resume' }, { seq: 2, action: 'resume' }])],
     ['endpoint id', doc([], { endpointId: 'me_x' })],
+    ['another launch', doc([{ seq: 1, action: 'resume' }], { epoch: 'launch-0' })],
+    ['no launch', JSON.stringify({ version: 1, chatId: CHAT, actions: [] })],
     ['too large', doc([{ seq: 1, action: 'resume', pad: 'x'.repeat(70_000) }])]
   ]
   it.each(bad)('rejects %s', (_name, text) => {
-    expect(() => parseCultControl(text, CHAT)).toThrow()
+    expect(() => parseCultControl(text, CHAT, EPOCH)).toThrow()
   })
 })
 
@@ -156,11 +168,13 @@ describe('CultControlWatcher polling', () => {
     expect(h.sent.map(([, t]) => t)).toEqual([true, false, true])
   })
 
-  it('ignores ENOENT, chat mismatch and reads with unknown keys', async () => {
+  it('ignores ENOENT, chat mismatch, another launch and reads with unknown keys', async () => {
     const h = harness([
       doc([{ seq: 1, action: 'resume' }], { chatId: 'other' }),
+      doc([{ seq: 1, action: 'shutdown' }], { epoch: 'launch-0' }),
       doc([{ seq: 1, action: 'resume' }, { seq: 2, action: 'resume', text: 'evil' }])
     ])
+    await h.watcher.tick()
     await h.watcher.tick()
     await h.watcher.tick()
     await h.watcher.tick()
@@ -192,7 +206,7 @@ describe('attachCultControl', () => {
     }
     return pi
   }
-  const env = { [DM_CLIENT_DESCRIPTOR_ENV]: '/u/agents/omp/chat-1/dm-client/3.json' }
+  const env = { [DM_CLIENT_DESCRIPTOR_ENV]: `/u/agents/omp/chat-1/dm-client/${EPOCH}.json` }
 
   it('starts only for the main agent and stops on shutdown', () => {
     const pi = api()
@@ -215,4 +229,82 @@ describe('attachCultControl', () => {
     expect(timers.live.size).toBe(0)
     expect(CULT_CONTROL_TYPE).toBe('dm-cult-control')
   })
+})
+
+/** Main's real writer on a scratch userData, and a member watcher of one launch reading the file it writes. */
+function member(userData: string, epoch: string, cursor = { lastApplied: 0 }) {
+  const calls: string[] = []
+  const watcher = new CultControlWatcher({
+    readFile: (file) => readFile(file, 'utf8'), timers: fakeTimers(), path: cultControlPath(userData, CHAT), chatId: CHAT, epoch, cursor,
+    abort: () => calls.push('abort'), shutdown: () => calls.push('shutdown'), send: (content) => calls.push(content)
+  })
+  return { watcher, calls }
+}
+
+function scratch<T>(test: (userData: string) => Promise<T>): Promise<T> {
+  const userData = mkdtempSync(join(tmpdir(), 'dm-cult-control-'))
+  return test(userData).finally(() => rmSync(userData, { recursive: true, force: true }))
+}
+
+describe('cult control across member restarts', () => {
+  it('a restarted member does not re-apply the actions an earlier launch was told', () =>
+    scratch(async (userData) => {
+      let launch: string | null = 'launch-1'
+      const control = createCultControl({ userData, epochOf: () => launch })
+      await control.send(CHAT, { action: 'interrupt' })
+      await control.send(CHAT, { action: 'shutdown' })
+      const first = member(userData, 'launch-1')
+      await first.watcher.tick()
+      expect(first.calls).toEqual(['abort', `${P}paused this cult. Stop and wait; you will be told when it resumes.`, 'abort', 'shutdown'])
+
+      // The member starts again: a new process of a new launch, the earlier launch's file still on disk.
+      launch = 'launch-2'
+      const second = member(userData, 'launch-2')
+      await second.watcher.tick()
+      expect(second.calls).toEqual([])
+
+      // Main's first action for the new launch starts the list afresh, and is applied once.
+      await control.send(CHAT, { action: 'resume' })
+      expect(JSON.parse(await readFile(cultControlPath(userData, CHAT), 'utf8'))).toEqual({
+        version: 1, chatId: CHAT, epoch: 'launch-2', actions: [{ seq: 3, action: 'resume' }]
+      })
+      await second.watcher.tick()
+      await second.watcher.tick()
+      expect(second.calls).toEqual([`${P}resumed this cult. Continue your current task.`])
+    }))
+
+  it('drops an action while no launch of the member runs', () =>
+    scratch(async (userData) => {
+      const control = createCultControl({ userData, epochOf: () => null })
+      await control.send(CHAT, { action: 'interrupt' })
+      await expect(readFile(cultControlPath(userData, CHAT), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    }))
+
+  it('a session restarted within one launch keeps the launch\'s applied seq', () =>
+    scratch(async (userData) => {
+      const control = createCultControl({ userData, epochOf: () => EPOCH })
+      await control.send(CHAT, { action: 'resume' })
+      const cursor = { lastApplied: 0 }
+      const before = member(userData, EPOCH, cursor)
+      await before.watcher.tick()
+      const after = member(userData, EPOCH, cursor)
+      await after.watcher.tick()
+      expect([before.calls.length, after.calls.length]).toEqual([1, 0])
+    }))
+})
+
+describe('cult control of a launch', () => {
+  it('attaches the watcher for the launch its descriptor names', () =>
+    scratch(async (userData) => {
+      await createCultControl({ userData, epochOf: () => 'launch-7' }).send(CHAT, { action: 'resume' })
+      const handlers = new Map<string, (event: unknown, ctx: CultControlContext) => unknown>()
+      const sendMessage = vi.fn(async () => {})
+      const ticks: (() => void)[] = []
+      const timers: Timers = { setInterval: (callback) => ticks.push(callback), clearInterval: () => {} }
+      const descriptor = join(dirname(cultControlPath(userData, CHAT)), 'dm-client', 'launch-7.json')
+      attachCultControl({ on: (event, handler) => handlers.set(event, handler), sendMessage }, timers, { [DM_CLIENT_DESCRIPTOR_ENV]: descriptor })
+      handlers.get('session_start')?.(undefined, { agent: { kind: 'main' } })
+      ticks[0]?.()
+      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1))
+    }))
 })

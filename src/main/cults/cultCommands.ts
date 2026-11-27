@@ -51,6 +51,19 @@ interface Caller {
   member: CultMemberView
 }
 
+/** The target epic's revisions as main reads them: `getEpic` of the run's folder workspace. */
+type TargetEpic = (folder: string, epicId: string) => Promise<{ currentRevisionNumber: number | null; draftRevision: number | null }>
+
+/** The target plan's revisions a specialist saw when it reported (`saved N, draft M`); null for a run without a target. */
+export function planTargetRevision(cults: Pick<CultStore, 'getCult'>, epicOf: TargetEpic): NonNullable<CultCommandDeps['targetRevision']> {
+  return async (run) => {
+    const target = cults.getCult(run.cultId)?.targetEpicId
+    if (target == null) return null
+    const epic = await epicOf(run.workDir, target)
+    return `saved ${epic.currentRevisionNumber ?? 0}, draft ${epic.draftRevision ?? 0}`
+  }
+}
+
 type Handler = (deps: CultCommandDeps, caller: Caller, args: never) => Promise<unknown> | unknown
 
 function resolveCaller(deps: CultCommandDeps, binding: NamingControlBinding, op: CultOperation['op']): Caller {

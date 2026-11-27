@@ -9,7 +9,7 @@
 import { createControlPipe, type ControlPipe, type NamingDispatcher } from '../naming/controlPipe'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import { isCultOperation } from '../../shared/cults/cultControl'
-import { createCultDispatcher } from '../cults/cultCommands'
+import { createCultDispatcher, planTargetRevision } from '../cults/cultCommands'
 import { createNamingDispatcher } from '../naming/namingCommands'
 import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
 import { existsSync, realpathSync } from 'node:fs'
@@ -439,6 +439,25 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQ
   }
 }
 
+/** Routes each control pipe operation: naming, then cult operations once the supervisor serves them, then repair. */
+function pipeDispatcher(naming: NamingDispatcher, recovery: () => DesktopToolingRecovery, cults: () => NamingDispatcher | null): NamingDispatcher {
+  return (operation, context) => {
+    if (operation.op === 'name_chat') return naming(operation, context)
+    if (!isCultOperation(operation.op)) return recovery().dispatch(operation, context)
+    const dispatch = cults()
+    if (dispatch === null) throw new NamingControlError('operation_unavailable')
+    return dispatch(operation, context)
+  }
+}
+
+/** Starts the control pipe; `listening` gets it once it listens. A failed start is logged at once and still rejects. */
+function listenControlPipe(grants: ChatGrants, dispatch: NamingDispatcher, listening: (pipe: ControlPipe) => void): Promise<void> {
+  const ready = createControlPipe({ authorize: token => grants.authorizeNaming(token), dispatch }).then(listening)
+  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
+  void ready.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
+  return ready
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -484,18 +503,8 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
     context: contextDelivery, deliveries, resume: resumeChat,
     onNoticeError: error => logger.error('Tooling repair notice failed:', error),
   })
-  const naming = createNamingDispatcher({ store, push })
   let cults: NamingDispatcher | null = null
-  namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
-    dispatch: (operation, context) => {
-      if (operation.op === 'name_chat') return naming(operation, context)
-      if (!isCultOperation(operation.op)) return recovery.dispatch(operation, context)
-      if (cults === null) throw new NamingControlError('operation_unavailable')
-      return cults(operation, context)
-    }
-  }).then(pipe => { namingPipe = pipe })
-  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
-  void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
+  namingReady = listenControlPipe(grants, pipeDispatcher(createNamingDispatcher({ store, push }), () => recovery, () => cults), pipe => { namingPipe = pipe })
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
   const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
@@ -972,8 +981,8 @@ interface CultServiceDeps {
 function startCults(deps: CultServiceDeps): CultSupervisor {
   const userData = app.getPath('userData')
   const cults = createCultStore({ db: deps.appDb })
-  const control = createCultControl({ userData })
   const { chats, store, terminals, grants } = deps.processes
+  const control = createCultControl({ userData, epochOf: (chatId) => terminals.generationOf(chatId) })
   const models = createOmpModelCatalog({
     ompPath: () => deps.agents.list().find((agent) => agent.kind === 'omp')?.executablePath ?? null, deps: agentRunDeps()
   })
@@ -996,12 +1005,7 @@ function startCults(deps: CultServiceDeps): CultSupervisor {
     supervisor, cults,
     models: async () => (await models.list()).options,
     sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
-    targetRevision: async (run) => {
-      const target = cults.getCult(run.cultId)?.targetEpicId
-      if (target == null) return null
-      const epic = await desktopWorkspace(deps.gates, deps.pool, run.workDir).getEpic({ epicId: target })
-      return `saved ${epic.currentRevisionNumber ?? 0}, draft ${epic.draftRevision ?? 0}`
-    },
+    targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),
     onError: (error) => logger.error('Cult member conclusion failed:', error)
   }))
   return supervisor

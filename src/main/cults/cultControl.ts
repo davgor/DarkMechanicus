@@ -5,6 +5,10 @@
  * each new action once (`resources/skitarii/extension/cultControl.ts`): `interrupt` aborts the turn (`ctx.abort()`),
  * `shutdown` closes the session (`ctx.shutdown()`), and every other action is a fixed template the extension ships.
  * Only fixed action codes and validated values are written, never text a peer wrote.
+ *
+ * The file is stamped with the `epoch` of the member's running launch: its generation, which also names the launch's
+ * client descriptor. A watcher applies only a file of its own launch, so a restarted member never re-applies what an
+ * earlier launch was told; and the first action for a new launch starts the list afresh.
  */
 import { rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -31,17 +35,26 @@ export function cultControlPath(userData: string, chatId: string): string {
   return join(dirname(ompFilePaths(userData, chatId).config), CULT_CONTROL_FILE)
 }
 
+export interface CultControlOptions {
+  userData: string
+  /** The generation of the chat's running launch (`TerminalSessions.generationOf`); null while none runs. */
+  epochOf: (chatId: string) => string | null
+}
+
 interface ChatControl {
   seq: number
+  /** The launch the kept actions were written for. */
+  epoch: string | null
   actions: ({ seq: number } & CultControlRequest)[]
   /** The last write or removal, which the next one waits for. */
   chain: Promise<void>
 }
 
-export function createCultControl(options: { userData: string }): CultControl {
+/** An action for a chat with no running launch is dropped: no session could apply it, and the next launch must not. */
+export function createCultControl(options: CultControlOptions): CultControl {
   const chats = new Map<string, ChatControl>()
   const queue = (chatId: string, work: (state: ChatControl) => Promise<void>): Promise<void> => {
-    const state = chats.get(chatId) ?? { seq: 0, actions: [], chain: Promise.resolve() }
+    const state = chats.get(chatId) ?? { seq: 0, epoch: null, actions: [], chain: Promise.resolve() }
     chats.set(chatId, state)
     state.chain = state.chain.catch(() => {}).then(() => work(state))
     return state.chain
@@ -49,10 +62,14 @@ export function createCultControl(options: { userData: string }): CultControl {
   return {
     send: (chatId, request) => {
       const path = cultControlPath(options.userData, chatId)
-      return queue(chatId, (state) => {
+      return queue(chatId, async (state) => {
+        const epoch = options.epochOf(chatId)
+        if (epoch === null) return
+        if (state.epoch !== epoch) state.actions = []
+        state.epoch = epoch
         state.seq += 1
         state.actions = [...state.actions, { seq: state.seq, ...request }].slice(-KEPT_ACTIONS)
-        return writePrivateFile(path, JSON.stringify({ version: 1, chatId, actions: state.actions }), 0o600)
+        await writePrivateFile(path, JSON.stringify({ version: 1, chatId, epoch, actions: state.actions }), 0o600)
       })
     },
     clear: (chatId) => {

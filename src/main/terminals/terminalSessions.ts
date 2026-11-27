@@ -223,6 +223,8 @@ export interface TerminalSessions {
   detachGrant(chatId: string, grantId: string): boolean
   /** Tells `listener` the chat id of every PTY that exits, however it ended; the returned function stops that. */
   onExit(listener: (chatId: string) => void): () => void
+  /** The running launch's generation (its descriptor's and grant binding's); null while no PTY of the chat runs. */
+  generationOf(chatId: string): string | null
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
   /** Observed live PTY only; a queued start or stored chat is not a running agent. */
   /** Delivers advisory context only to an already live terminal. */
@@ -1677,7 +1679,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
 }
 
 /** What a cult supervisor ends, upgrades and watches member terminals with. */
-function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit'> {
+function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit' | 'generationOf'> {
   return {
     endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
     attachGrant: (chatId, grantId) => attachGrant(manager, chatId, grantId),
@@ -1687,7 +1689,8 @@ function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' |
       return () => {
         manager.exitListeners.delete(listener)
       }
-    }
+    },
+    generationOf: (chatId) => runningTerminal(manager, chatId)?.generation ?? null
   }
 }
 

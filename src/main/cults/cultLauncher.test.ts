@@ -237,7 +237,9 @@ describe('cult launcher: ending a member', () => {
     await eventually(() => existsSync(cultControlPath(h.rig.userData, acolyte.chat.id)), 'the control file')
 
     const control = JSON.parse(readFileSync(cultControlPath(h.rig.userData, acolyte.chat.id), 'utf8'))
-    expect(control).toEqual({ version: 1, chatId: acolyte.chat.id, actions: [{ seq: 1, action: 'shutdown' }] })
+    const epoch = h.rig.sessions.generationOf(acolyte.chat.id)
+    expect(epoch).toEqual(expect.any(String))
+    expect(control).toEqual({ version: 1, chatId: acolyte.chat.id, epoch, actions: [{ seq: 1, action: 'shutdown' }] })
     expect(pty.written).not.toContain('\x04')
     pty.exit()
     await ending

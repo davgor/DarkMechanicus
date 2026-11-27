@@ -3,6 +3,10 @@
  * `context-outbox.json`, and applies each new action once, in order. Only fixed templates are rendered; from the file
  * only the validated integer `granted` and the JSON-quoted absolute `folder`/`tokenFile` reach the agent.
  *
+ * Main stamps the file with the `epoch` of the launch it wrote for: the launch generation that names this process's
+ * client descriptor. A file of another launch is ignored, so a restarted member never re-applies an earlier launch's
+ * actions; within one launch the applied cursor outlives a session restart.
+ *
  * Like the rest of the extension, this file imports nothing from OMP or npm.
  */
 import { readFile } from 'node:fs/promises'
@@ -79,18 +83,19 @@ function parseEntry(value: unknown, previous: number): CultControlEntry {
   return entry
 }
 
-function parseHeader(value: unknown, chatId: string): unknown[] {
-  const doc = record(value, ['version', 'chatId', 'actions'], 'file')
+function parseHeader(value: unknown, chatId: string, epoch: string): unknown[] {
+  const doc = record(value, ['version', 'chatId', 'epoch', 'actions'], 'file')
   if (doc.version !== 1) fail('wrong version')
   if (doc.chatId !== chatId) fail('chatId mismatch')
+  if (doc.epoch !== epoch) fail('epoch mismatch')
   if (!Array.isArray(doc.actions) || doc.actions.length > MAX_ENTRIES) fail('bad actions')
   return doc.actions
 }
 
-/** Parses and validates the control file for `chatId`; throws on anything malformed. */
-export function parseCultControl(text: string, chatId: string): CultControlEntry[] {
+/** Parses and validates the control file for `chatId`'s launch `epoch`; throws on anything malformed or foreign. */
+export function parseCultControl(text: string, chatId: string, epoch: string): CultControlEntry[] {
   if (text.length > MAX_TEXT) fail('too large')
-  const actions = parseHeader(JSON.parse(text), chatId)
+  const actions = parseHeader(JSON.parse(text), chatId, epoch)
   const entries: CultControlEntry[] = []
   for (const value of actions) entries.push(parseEntry(value, entries.at(-1)?.seq ?? 0))
   return entries
@@ -111,11 +116,20 @@ export function petitionText(p: CultPetition): string {
   return `${PERSON}approved your petition for folder access: run dm --repo ${JSON.stringify(p.folder ?? '')} --token-file ${JSON.stringify(p.tokenFile ?? '')} <command> to act in that folder for this run.`
 }
 
+/** The last applied seq of one launch, shared by the watchers of its sessions. */
+export interface CultControlCursor {
+  lastApplied: number
+}
+
 export interface CultControlDeps {
   readFile: (path: string) => Promise<string>
   timers: Timers
   path: string
   chatId: string
+  /** This launch's generation: the only `epoch` a file it applies may carry. */
+  epoch: string
+  /** Where the applied seq is kept; the watcher's own when absent. */
+  cursor?: CultControlCursor
   abort: () => void
   shutdown: () => void
   send: (content: string, triggerTurn: boolean) => void
@@ -124,9 +138,11 @@ export interface CultControlDeps {
 export class CultControlWatcher {
   #handle: unknown = null
   #running = false
-  #lastApplied = 0
+  readonly #cursor: CultControlCursor
 
-  constructor(private readonly deps: CultControlDeps) {}
+  constructor(private readonly deps: CultControlDeps) {
+    this.#cursor = deps.cursor ?? { lastApplied: 0 }
+  }
 
   start(): void {
     if (this.#handle !== null) return
@@ -145,8 +161,8 @@ export class CultControlWatcher {
     try {
       const entries = await this.#read()
       for (const entry of entries) {
-        if (entry.seq <= this.#lastApplied) continue
-        this.#lastApplied = entry.seq
+        if (entry.seq <= this.#cursor.lastApplied) continue
+        this.#cursor.lastApplied = entry.seq
         this.#apply(entry)
       }
     } finally {
@@ -156,7 +172,7 @@ export class CultControlWatcher {
 
   async #read(): Promise<CultControlEntry[]> {
     try {
-      return parseCultControl(await this.deps.readFile(this.deps.path), this.deps.chatId)
+      return parseCultControl(await this.deps.readFile(this.deps.path), this.deps.chatId, this.deps.epoch)
     } catch {
       return []
     }
@@ -196,8 +212,10 @@ export interface CultControlApi {
 /** Starts the watcher in the main session of a chat with a descriptor; stops it when the session ends. */
 export function attachCultControl(pi: CultControlApi, timers: Timers, env: Record<string, string | undefined>): void {
   const descriptor = env[DM_CLIENT_DESCRIPTOR_ENV]
-  if (descriptor === undefined || !isAbsolute(descriptor)) return
+  if (descriptor === undefined || !isAbsolute(descriptor) || !descriptor.endsWith('.json')) return
   const dir = dirname(dirname(descriptor))
+  const epoch = basename(descriptor, '.json')
+  const cursor: CultControlCursor = { lastApplied: 0 }
   let watcher: CultControlWatcher | null = null
   pi.on('session_start', (_event, ctx) => {
     if (ctx.agent?.kind !== 'main' || watcher !== null) return
@@ -206,6 +224,8 @@ export function attachCultControl(pi: CultControlApi, timers: Timers, env: Recor
       timers,
       path: join(dir, CULT_CONTROL_FILE),
       chatId: basename(dir),
+      epoch,
+      cursor,
       abort: () => ctx.abort?.(),
       shutdown: () => ctx.shutdown?.(),
       send: (content, triggerTurn) =>

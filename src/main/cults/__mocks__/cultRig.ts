@@ -110,6 +110,8 @@ function rigOver(late: { gates: CultHarness['gates'] | null; grants: ChatGrants 
     deps: () => ({
       folders: { trackedFolder: (path) => late.gates!.resolve(path) },
       issueChatCli: (folder, grant, chat) => late.grants!.issueChatCli(folder, grant, chat),
+      // As main's terminals do: each launch binds its grant to the chat and its generation, for the control pipe.
+      bindChatGrant: (grantId, identity) => late.grants!.bindChatGrant(grantId, identity),
       revokeChatGrant: async (grantId) => {
         rig.revoked.push(grantId)
         await late.grants!.revokeChatGrant(grantId)
@@ -138,7 +140,7 @@ export async function cultHarness(options: CultHarnessOptions = {}): Promise<Cul
     rig.sessions
   )
   const cults = createCultStore({ db: openAppDatabase(mkdtempSync(join(rig.root, 'app-'))), ...(options.now === undefined ? {} : { now: options.now }) })
-  const control = createCultControl({ userData: rig.userData })
+  const control = createCultControl({ userData: rig.userData, epochOf: (chatId) => rig.sessions.generationOf(chatId) })
   const launcher = createCultLauncher({
     cults, folders: { resolve: (path) => (rig.tracked.has(path) ? path : null) }, sanctums, chats: records, terminals: rig.sessions, control,
     workspaceFor: (folder) => {
