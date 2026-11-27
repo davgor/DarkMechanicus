@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -7,6 +8,7 @@ import {
   MIN_COLORS,
   MIN_PNG_BYTES,
   OVERALL_LIMIT_MS,
+  START_ALLOWANCE_MS,
   S3_STATES,
   STATES,
   STATE_DEADLINE_MS,
@@ -350,19 +352,20 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 49 states once each, in capture order', () => {
-    expect(STATES).toEqual([
-      'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
-      'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
-      'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
-      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
-      'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
-      'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
-      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
-    ])
-    expect(new Set(STATES).size).toBe(49)
+  it('captures exactly the states the preview page declares, each once and on its own line', () => {
+    const preview = readFileSync(new URL('../preview/epic-agent/agent.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    const registries = preview.slice(preview.indexOf('const agentStates'), preview.indexOf('function accessibleName'))
+    const declared = [...registries.matchAll(/^ {2}'?([a-z][a-z0-9-]*)'?: \{/gm)].map((match) => match[1])
+    const sizedLine = preview.split('\n').find((line) => line.startsWith('const SIZED_STATES')) ?? ''
+    const sized = [...sizedLine.matchAll(/'([a-z][a-z0-9-]*)': true/g)].map((match) => match[1])
+    expect(declared.length).toBeGreaterThan(0)
+    expect(sized.length).toBeGreaterThan(0)
+    const captured = declared.flatMap((state) => (sized.includes(state) ? [`${state}-1024`, `${state}-1440`] : [state]))
+    expect([...STATES].sort()).toEqual(captured.sort())
+    expect(new Set(STATES).size).toBe(STATES.length)
     expect(Object.isFrozen(STATES)).toBe(true)
+    const script = readFileSync(new URL('./capture-agent-chat.mjs', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    for (const state of STATES) expect(script).toContain(state === STATES.at(-1) ? `\n  '${state}'\n])` : `\n  '${state}',\n`)
   })
 
   it('captures the full Sprint 3 image and polish set, each state once', () => {
@@ -382,10 +385,10 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 750 s overall bound: 49 states at 15 s plus 15 s to start', () => {
+  it('derives the overall bound from the state list: 15 s per state plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(750_000)
-    expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+    expect(START_ALLOWANCE_MS).toBe(15_000)
+    expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + START_ALLOWANCE_MS)
   })
 
   it('builds the preview once under its own 60 s bound, outside the states’ overall bound', () => {

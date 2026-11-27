@@ -924,3 +924,25 @@ describe('sprint learning card guidance', () => {
     }
   })
 })
+
+describe('the Sprint 3 learning guidance', () => {
+  it('moved past 1.20.0 when workers started reverifying their final merge and planners started checking the names tickets rely on', () => {
+    const [major = 0, minor = 0, patch = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && (minor > 20 || (minor === 20 && patch >= 1)))).toBe(true)
+  })
+
+  it('has the worker rerun the whole targeted set and the full typecheck on the commit it hands back after its last merge', () => {
+    const verify = markdownSection(skill('worker').body, 'Verify')
+    expect(verify).toMatch(/After your last merge or rebase from the integration branch, rerun on that final commit the whole targeted set/)
+    expect(verify).toMatch(/not only the tests the merge touched/)
+    expect(verify).toMatch(/full typecheck \(every project it checks, never a single one\)/)
+    expect(verify).toMatch(/Evidence from an earlier commit does not cover the one you hand back/)
+  })
+
+  it('has the planner check that existing names a ticket relies on exist and that the new ones it assigns are free', () => {
+    const tickets = markdownSection(skill('planner').body, '4. Break it into tickets')
+    expect(tickets).toMatch(/must exist on the integration branch under that exact name/)
+    expect(tickets).toMatch(/the next decision record number, a fixture or branch name\) must still be free there and in the other tickets of the plan/)
+    expect(tickets).toMatch(/Name a new artifact by its pattern, not a guessed number/)
+  })
+})
