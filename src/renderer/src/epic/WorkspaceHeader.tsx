@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CorrectionProvenance } from '../../../shared/domain/bundle'
 import { runCommand } from '../api/dm'
-import { Icon } from '../components/Icon'
+import { MascotGlyph } from '../mascot/MascotGlyph'
 import { DeleteEpic } from './DeleteEpic'
 import type { HeaderActions, HeaderView } from './headerView'
 import { StatePill } from './StatePill'
 import type { WorkspaceHandle } from './useWorkspace'
 import { saveBlocked } from './validationView'
 
-/** What the stage shows: the plan, epic agents, or the epic's Scorecard (live, or immutable once completed). */
+/** What the stage shows: epic agents, the plan, or the epic's Scorecard (live, or immutable once completed). */
 function ViewToggle({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const { layout, scorecardOpen } = ws.state
   return (
     <div className="ew-toggle" role="group" aria-label="View">
+      <button
+        type="button"
+        className="ew-toggle-agent"
+        aria-pressed={!scorecardOpen && layout === 'agent'}
+        onClick={() => ws.dispatch({ type: 'show_layout', layout: 'agent' })}
+      >
+        <MascotGlyph size={20} /><strong>Agent</strong>
+      </button>
       <button
         type="button"
         aria-pressed={!scorecardOpen && layout === 'graph'}
@@ -26,14 +34,6 @@ function ViewToggle({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         onClick={() => ws.dispatch({ type: 'show_layout', layout: 'list' })}
       >
         List
-      </button>
-      <button
-        type="button"
-        className="ew-toggle-agent"
-        aria-pressed={!scorecardOpen && layout === 'agent'}
-        onClick={() => ws.dispatch({ type: 'show_layout', layout: 'agent' })}
-      >
-        <Icon name="agent" /><strong>Agent</strong>
       </button>
       <button
         type="button"
@@ -190,11 +190,11 @@ export function WorkspaceHeader({ ws, header }: { ws: WorkspaceHandle; header: H
     <header className="ew-header">
       <div className="ew-heading">
         <span className="ew-crumbs">
-          {header.breadcrumb}
+          <span className="ew-crumb" title={header.breadcrumb}>{header.breadcrumb}</span>
           <Provenance ws={ws} />
         </span>
         <div className="ew-title-row">
-          <h1 className="ew-title">{ws.data.epic.title}</h1>
+          <h1 className="ew-title" title={ws.data.epic.title}>{ws.data.epic.title}</h1>
           {header.badge === null ? null : (
             <StatePill tone={header.badge.tone === 'saved' ? 'accepted' : 'running'} label={header.badge.label} />
           )}

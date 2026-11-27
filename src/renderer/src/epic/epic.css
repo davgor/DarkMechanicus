@@ -104,7 +104,12 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
+/*
+ * Takes the room the actions leave and never wraps: long names truncate with an ellipsis (each carries a title). From
+ * its 260 px basis it gives up little of a shortfall, which the actions mostly absorb by wrapping.
+ */
 .ew-heading {
+  flex: 1 1 260px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -115,11 +120,19 @@
   display: flex;
   gap: 10px;
   align-items: baseline;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 14px;
   letter-spacing: 0.04em;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.ew-crumb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ew-title-row {
@@ -142,12 +155,16 @@
   text-overflow: ellipsis;
 }
 
+/* When the row is too narrow for every action, the plan buttons wrap below the View group, never over the heading. */
 .ew-header-actions {
+  flex: 0 3 auto;
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 6px 8px;
+  min-width: 0;
 }
 
 .ew-header-notice,
@@ -226,7 +243,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding-left: 6px;
   font-weight: 700;
+}
+
+.mascot-glyph {
+  display: inline-block;
+  flex-shrink: 0;
+  background-repeat: no-repeat;
 }
 
 /* Notices, bars and confirmations */

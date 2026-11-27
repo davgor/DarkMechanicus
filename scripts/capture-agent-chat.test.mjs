@@ -12,9 +12,15 @@ import {
   validateObservations
 } from './capture-agent-chat.mjs'
 
+const HEADER = {
+  crumb: 'darkmechanicus / In progress', crumbTitle: 'darkmechanicus / In progress', crumbTruncated: false, crumbOneLine: true,
+  title: 'Planning vertical slice', titleTitle: 'Planning vertical slice', titleTruncated: false, besideView: true, sameRow: true,
+  contained: true
+}
 const BASE = {
-  viewButtons: ['Graph', 'List', 'Agent', 'Scorecard'], agentFontWeight: '700', planGraph: false, planList: false, scorecard: false,
-  agentChatRegion: true, railWidth: 280, railRightOfStage: true, treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
+  viewButtons: ['Agent', 'Graph', 'List', 'Scorecard'], agentFontWeight: '700', header: HEADER,
+  planGraph: false, planList: false, scorecard: false, agentChatRegion: true, railWidth: 280, railRightOfStage: true,
+  treeRows: [], finishedExpandedAtStart: null, todosHeader: null, todoRows: 0, todoListScrolls: null,
   activeRowVisible: null, activityLine: null, changesHeader: null, cardHeading: null, cardArbitration: null, approvalRecord: null,
   needsYouHeader: null, badgedRows: 0, settingsControls: [], agentsPressed: null, errors: []
 }
@@ -30,6 +36,10 @@ const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servi
 function passing() {
   return {
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
+    'header-long': ready('header-long', {
+      planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
+      header: { ...HEADER, crumbTruncated: true, titleTruncated: true }
+    }),
     'agent-empty': ready('agent-empty', { railWidth: null, railRightOfStage: null }),
     'agent-streaming': ready('agent-streaming'),
     'agent-tool': ready('agent-tool', { treeRows: [row('Magos', true), row('Acolyte:DM-785')] }),
@@ -37,9 +47,12 @@ function passing() {
     'agent-worker': ready('agent-worker', { treeRows: [row('Magos'), row('Acolyte:DM-2', true)] }),
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
-    'chat-rail': ready('chat-rail', { viewButtons: [], agentFontWeight: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)] }),
+    'chat-rail': ready('chat-rail', {
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, treeRows: [row('Inquisitor:DM-2', true)]
+    }),
     'chat-rail-collapsed': ready('chat-rail-collapsed', {
-      viewButtons: [], agentFontWeight: null, agentChatRegion: false, railWidth: null, railRightOfStage: null, agentsPressed: 'false'
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
+      agentsPressed: 'false'
     }),
     'agent-todos': ready('agent-todos', {
       todosHeader: 'To-dos 3/7', todoRows: 7, todoListScrolls: true, activeRowVisible: true, activityLine: 'Working 0s · Bash'
@@ -55,7 +68,7 @@ function passing() {
     }),
     'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '2 needs you · 4 working', badgedRows: 2 }),
     'settings-notifications': ready('settings-notifications', {
-      viewButtons: [], agentFontWeight: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
+      viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
       settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']
     })
   }
@@ -92,17 +105,17 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 18 states once each, in capture order', () => {
+  it('lists the 19 states once each, in capture order', () => {
     expect(STATES).toEqual([
-      'graph', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree', 'rail-collapsed',
-      'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
+      'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
+      'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
       'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
     ])
-    expect(new Set(STATES).size).toBe(18)
+    expect(new Set(STATES).size).toBe(19)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 300 s overall bound that covers all 18', () => {
+  it('declares 15 s per state within a 300 s overall bound that covers all 19', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
     expect(OVERALL_LIMIT_MS).toBe(300_000)
     expect(OVERALL_LIMIT_MS).toBeGreaterThan(STATES.length * STATE_DEADLINE_MS)
@@ -138,11 +151,22 @@ describe('capture-agent-chat: observation validator', () => {
 
   it('fails a wrong view order, a non-bold Agent label and leftover plan nodes', () => {
     expect(validateObservations('agent-streaming', ready('agent-streaming', { viewButtons: ['Graph', 'Agent'] })))
-      .toEqual(['agent-streaming: expected the View buttons are Graph, List, Agent, Scorecard in order'])
+      .toEqual(['agent-streaming: expected the View buttons are Agent, Graph, List, Scorecard in order'])
     expect(validateObservations('agent-streaming', ready('agent-streaming', { agentFontWeight: '400' })))
       .toEqual(['agent-streaming: expected a bold Agent label'])
     expect(validateObservations('agent-streaming', ready('agent-streaming', { planList: true })))
       .toEqual(['agent-streaming: expected no plan graph, list or scorecard node'])
+  })
+
+  it('fails a breadcrumb that wraps, sits off the View row or spills, and a long name that does not truncate', () => {
+    const header = (patch) => ready('agent-streaming', { header: { ...HEADER, ...patch } })
+    const expected = ['agent-streaming: expected a one-line breadcrumb beside the View group, the heading holding its content, both names titled']
+    expect(validateObservations('agent-streaming', header({ crumbOneLine: false }))).toEqual(expected)
+    expect(validateObservations('agent-streaming', header({ besideView: false }))).toEqual(expected)
+    expect(validateObservations('agent-streaming', header({ contained: false }))).toEqual(expected)
+    expect(validateObservations('agent-streaming', header({ crumbTitle: '' }))).toEqual(expected)
+    expect(validateObservations('header-long', ready('header-long', { planGraph: true, agentChatRegion: false })))
+      .toEqual(['header-long: expected the long breadcrumb and title truncate'])
   })
 })
 

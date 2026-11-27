@@ -19,14 +19,14 @@ const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
 /** Every state the preview page knows, in capture order. */
 export const STATES = Object.freeze([
-  'graph', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree', 'rail-collapsed',
-  'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
+  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-tree',
+  'rail-collapsed', 'chat-rail', 'chat-rail-collapsed', 'agent-todos', 'agent-todos-collapsed', 'agent-stalled', 'agent-changes',
   'agent-approval-named', 'agent-magos-decided', 'agent-needs-you', 'settings-notifications'
 ])
 
 /** Per state, from loading its URL to `#observations[data-ready="1"]`. */
 export const STATE_DEADLINE_MS = 15_000
-/** A declared bound: 18 states at up to 15 s each, plus the Vite and Electron start. */
+/** A declared bound: 19 states at up to 15 s each, plus the Vite and Electron start. */
 export const OVERALL_LIMIT_MS = 300_000
 export const MIN_PNG_BYTES = 10 * 1024
 
@@ -63,14 +63,15 @@ export function electronEnv(env) {
 }
 
 const BASE_FIELDS = [
-  'viewButtons', 'agentFontWeight', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
+  'viewButtons', 'agentFontWeight', 'header', 'planGraph', 'planList', 'scorecard', 'agentChatRegion', 'railWidth', 'railRightOfStage',
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
   'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'settingsControls', 'agentsPressed', 'errors'
 ]
-const VIEW_BUTTONS = ['Graph', 'List', 'Agent', 'Scorecard']
+const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 const CHAT_STATES = new Set(['chat-rail', 'chat-rail-collapsed', 'settings-notifications'])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(state)))
-const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => state !== 'graph'))
+const PLAN_STATES = new Set(['graph', 'header-long'])
+const AGENT_STATES = new Set([...EPIC_STATES].filter((state) => !PLAN_STATES.has(state)))
 
 const near = (value, target) => typeof value === 'number' && Math.abs(value - target) <= 1
 const rowNamed = (o, name) => Array.isArray(o.treeRows) && o.treeRows.find((row) => row.name === name)
@@ -107,6 +108,10 @@ const treeLevelChecks = AGENT_TREE_LEVELS.map(([name, level, parent]) => [
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
   graph: [['the Plan graph is present', (o) => o.planGraph === true], ['no Agent chat region', (o) => o.agentChatRegion === false]],
+  'header-long': [
+    ['the Plan graph is present', (o) => o.planGraph === true],
+    ['the long breadcrumb and title truncate', (o) => o.header?.crumbTruncated === true && o.header?.titleTruncated === true]
+  ],
   'agent-empty': [['no plan graph, list or scorecard', (o) => !o.planGraph && !o.planList && !o.scorecard]],
   'agent-tool': [['the tree lists Magos and the subagent Acolyte:DM-785', (o) => rowNamed(o, 'Magos') && rowNamed(o, 'Acolyte:DM-785')]],
   'agent-approval': [['a docked card heading', (o) => matches(o.cardHeading, /wants to run/)]],
@@ -157,9 +162,12 @@ const STATE_CHECKS = {
 
 /** What every epic state must show, and the agent states besides: [description, applies, check]. */
 const EPIC_CHECKS = [
-  ['the View buttons are Graph, List, Agent, Scorecard in order', () => true,
+  ['the View buttons are Agent, Graph, List, Scorecard in order', () => true,
     (o) => JSON.stringify(o.viewButtons) === JSON.stringify(VIEW_BUTTONS)],
   ['a bold Agent label', () => true, (o) => Number(o.agentFontWeight) >= 600],
+  ['a one-line breadcrumb beside the View group, the heading holding its content, both names titled', () => true,
+    (o) => o.header?.crumbOneLine === true && o.header.besideView === true && o.header.sameRow === true && o.header.contained === true
+      && o.header.crumbTitle === o.header.crumb && o.header.titleTitle === o.header.title],
   ['an Agent chat region', (state) => AGENT_STATES.has(state), (o) => o.agentChatRegion === true],
   ['no plan graph, list or scorecard node', (state) => AGENT_STATES.has(state), (o) => !o.planGraph && !o.planList && !o.scorecard],
   ['the rail right of the stage', (state) => AGENT_STATES.has(state), (o) => o.railRightOfStage !== false]
