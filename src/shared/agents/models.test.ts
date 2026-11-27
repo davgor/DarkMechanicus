@@ -89,6 +89,14 @@ describe('chatModelOptions', () => {
     const option = chatModelOption({ provider: 'p', id: 'm', name: 'M 1', thinking: ['low', 'HIGH; rm', 3], contextWindow: -1 })
     expect(option).toMatchObject({ efforts: ['low'], contextWindow: null, images: false, line: 'm', revision: '1' })
   })
+
+  it('takes the line from the identity or the whole name when the name has no version, and names an unnamed model by its id', () => {
+    expect(chatModelOption({ provider: 'p', id: 'preview' })).toMatchObject({ name: 'preview', line: 'preview', revision: null })
+    expect(chatModelOption({ provider: 'p', id: 'x', name: 'Preview', identity: { family: 'Fam', revision: '2.0' } })).toMatchObject({ line: 'fam', revision: '2' })
+    // A bare version names no family, so the whole name is the line.
+    expect(chatModelOption({ provider: 'p', id: 'x', name: '5.5' })).toMatchObject({ line: '5.5', revision: '5.5' })
+    expect([chatModelOption({ provider: 7, id: 'x' }), chatModelOption({ provider: 'p', id: 7 })]).toEqual([null, null])
+  })
 })
 
 describe('featuredModels', () => {
@@ -134,5 +142,15 @@ describe('featuredModels', () => {
 
   it('labels Claude and Codex, and any other provider by its own name', () => {
     expect([providerLabel('anthropic'), providerLabel('openai-codex'), providerLabel('openrouter')]).toEqual(['Claude', 'Codex', 'openrouter'])
+  })
+
+  it('features a line’s versioned model over an unversioned one, and the lower id between two of the same revision', () => {
+    const unversioned = { provider: 'p', id: 'gizmo', name: 'Gizmo' }
+    const versioned = { provider: 'p', id: 'gizmo-2', name: 'Gizmo 2' }
+    for (const models of [[unversioned, versioned], [versioned, unversioned]]) {
+      expect(featuredModels(chatModelOptions({ models })).featured.map((option) => option.id)).toEqual(['gizmo-2'])
+    }
+    const twins = [{ provider: 'p', id: 'widget-b', name: 'Widget 3' }, { provider: 'p', id: 'widget-a', name: 'Widget 3' }]
+    expect(featuredModels(chatModelOptions({ models: twins }))).toMatchObject({ featured: [{ id: 'widget-a' }], more: [{ models: [{ id: 'widget-b' }] }] })
   })
 })

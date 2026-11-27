@@ -133,6 +133,28 @@ describe('AgentTabStrip: selection', () => {
   })
 })
 
+describe('AgentTabStrip: tablist keys', () => {
+  it('moves with ArrowLeft, Home and End within the tablist, and leaves other keys and modified arrows to the page', async () => {
+    open(backendWith({ chat_orch: 'idle', chat_plan: 'idle' }), [magos, planner])
+    const stage = await agentStage()
+    const tabs = strip(stage)
+    const tab = (name: RegExp): HTMLElement => within(tabs).getByRole('tab', { name })
+    await waitFor(() => expect(within(tabs).getAllByRole('tab')).toHaveLength(2))
+    expect(fireEvent.keyDown(tab(/^Magos/), { key: 'ArrowLeft', altKey: true })).toBe(true)
+    expect(fireEvent.keyDown(tab(/^Magos/), { key: 'Enter' })).toBe(true)
+    expect(tab(/^Magos/).getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.keyDown(tab(/^Magos/), { key: 'ArrowLeft' })
+    expect(await within(stage).findByRole('region', { name: 'Lexmechanic chat' })).toBeTruthy()
+    expect(document.activeElement).toBe(tab(/^Lexmechanic/))
+    fireEvent.keyDown(tab(/^Lexmechanic/), { key: 'Home' })
+    expect(await within(stage).findByRole('region', { name: 'Magos chat' })).toBeTruthy()
+    fireEvent.keyDown(tab(/^Magos/), { key: 'End' })
+    expect(await within(stage).findByRole('region', { name: 'Lexmechanic chat' })).toBeTruthy()
+    expect(document.activeElement).toBe(tab(/^Lexmechanic/))
+  })
+})
+
 describe('AgentTabStrip: closing', () => {
   it('offers no ✕ on the Magos; the Lexmechanic’s ✕ confirms, Cancel does nothing and Stop stops it once', async () => {
     const backend = backendWith({ chat_orch: 'idle', chat_plan: 'idle' })
@@ -270,6 +292,13 @@ describe('AgentTabStrip: indicators', () => {
     const planTab = await within(tabs).findByRole('tab', { name: /^Lexmechanic/ })
     expect(planTab.getAttribute('title')).toMatch(/Claude Code[\s\S]*no coordination/i)
     expect(within(tabs).getByRole('tab', { name: /^Magos/ }).getAttribute('title')).not.toMatch(/no coordination/i)
+  })
+
+  it('counts more than one unread message in the tab’s name', async () => {
+    const backend = backendWith({ chat_orch: 'idle', chat_plan: 'idle' })
+    open(backend, [magos, planner], mailWith(backend, { chat_plan: 2 }))
+    const stage = await agentStage()
+    expect(await within(strip(stage)).findByRole('tab', { name: 'Lexmechanic, 2 unread messages' })).toBeTruthy()
   })
 })
 

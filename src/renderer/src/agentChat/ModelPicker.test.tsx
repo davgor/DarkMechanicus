@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
-import { chatModelOptions } from '../../../shared/agents/models'
+import type { AgentChatModelChoice, AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import { chatModelOptions, type ChatModelOption } from '../../../shared/agents/models'
+import type { CommandResult } from '../../../shared/desktop/api'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import { AgentChat } from './AgentChat'
+import { ModelPicker } from './ModelPicker'
 import hostCatalog from '../../../main/agentChat/__fixtures__/omp/models.json'
 
 /** The Windows host's catalog (omp 18.20.2): anthropic ×21 and openai-codex ×8. */
@@ -202,4 +204,153 @@ it('bounds the menu to the room above the chip inside the stage that scrolls it,
   fireEvent.click(chip())
   expect(menu().style.maxHeight).toBe('160px')
   spy.mockRestore()
+})
+
+/** A small hand-made catalog for the picker on its own, as New chat, Start run and the Lexmechanic card mount it. */
+const option = (fields: Pick<ChatModelOption, 'id' | 'name'> & Partial<ChatModelOption>): ChatModelOption => ({
+  provider: 'anthropic', line: fields.id, revision: null, efforts: [], images: false, contextWindow: null, reasoning: false, inputCost: null, ...fields
+})
+const OPUS = option({ id: 'claude-opus-5-5', name: 'Claude Opus 5.5', line: 'opus', revision: '5.5', efforts: ['low', 'medium', 'high'], contextWindow: 200_000 })
+const OLD_OPUS = option({ id: 'claude-opus-4-5', name: 'Claude Opus 4.5', line: 'opus', revision: '4.5', efforts: ['low', 'medium', 'high'] })
+const SMALL = option({ id: 'claude-small-1', name: 'Claude Small 1', line: 'small', revision: '1', efforts: ['minimal', 'low', 'turbo'] })
+const PLAIN = option({ provider: 'openrouter', id: 'plain', name: 'Plain', efforts: ['turbo'] })
+type Load = () => Promise<CommandResult<ChatModelOption[]>>
+type Choose = (choice: AgentChatModelChoice) => Promise<CommandResult<unknown>>
+
+function picker({ load, choose = vi.fn<Choose>(async () => ({ ok: true, data: null })), onDefault, model = null, thinking = null }: {
+  load: Load; choose?: Choose; onDefault?: () => void; model?: string | null; thinking?: AgentChatSnapshot['thinking']
+}) {
+  render(<ModelPicker state={{ model, thinking, status: 'idle' }} load={load} choose={choose} {...(onDefault === undefined ? {} : { onDefault })} />)
+  return choose
+}
+const ready = (...options: ChatModelOption[]): Load => async () => ({ ok: true, data: options })
+const defaultItem = (): HTMLElement => within(within(menu()).getByRole('group', { name: 'Default' })).getByRole('menuitemradio')
+
+it('names the model by its id before the catalog arrives, and reads the catalog again on Retry or reopening after a failure', async () => {
+  const load = vi.fn<Load>()
+    .mockResolvedValueOnce({ ok: false, error: { code: 'desktop_unavailable', message: 'OMP is not running.' } })
+    .mockRejectedValueOnce(new Error('The pipe closed.'))
+    .mockRejectedValueOnce('down')
+    .mockResolvedValueOnce({ ok: true, data: [PLAIN] })
+  picker({ load, model: 'openrouter/plain', thinking: 'high' })
+  expect(chipText()).toBe('plain · High')
+  await settle()
+  fireEvent.click(chip())
+  expect(within(menu()).getByText('Loading models…')).toBeTruthy()
+  await settle()
+  expect(within(menu()).getByRole('alert').textContent).toBe('The pipe closed.')
+  fireEvent.click(within(menu()).getByRole('menuitem', { name: 'Retry' }))
+  await settle()
+  expect(within(menu()).getByRole('alert').textContent).toBe('The models could not be read.')
+  fireEvent.click(within(menu()).getByRole('menuitem', { name: 'Retry' }))
+  await settle()
+  expect(load).toHaveBeenCalledTimes(4)
+  expect(model('Plain').querySelector('.model-picker-context')).toBe(null)
+  expect(chipText()).toBe('Plain · High')
+  // The menu checks the chat's model as it opens, so one opened before the catalog arrived checks it on reopening.
+  fireEvent.click(chip())
+  fireEvent.click(chip())
+  expect(model('Plain').getAttribute('aria-checked')).toBe('true')
+})
+
+it('says when the catalog holds no model, and names a chat with no model and no Default plainly', async () => {
+  picker({ load: ready() })
+  await settle()
+  expect(chipText()).toBe('Model')
+  fireEvent.click(chip())
+  expect(within(menu()).getByText('No models are available.')).toBeTruthy()
+})
+
+it('offers Default first and checked while no model is chosen, hides it while filtering and starts on it when chosen', async () => {
+  const onDefault = vi.fn()
+  const choose = picker({ load: ready(OPUS, PLAIN), onDefault })
+  await settle()
+  expect(chipText()).toBe('Default')
+  fireEvent.click(chip())
+  expect(defaultItem().getAttribute('aria-checked')).toBe('true')
+  expect(model('Opus 5.5').textContent).toContain('200K')
+  for (const key of 'zz') fireEvent.keyDown(menu(), { key })
+  expect(within(menu()).queryByRole('group', { name: 'Default' })).toBe(null)
+  expect(within(menu()).getByText('No model matches “zz”.')).toBeTruthy()
+  fireEvent.keyDown(menu(), { key: 'Backspace' })
+  fireEvent.keyDown(menu(), { key: 'Backspace' })
+  // Backspace on an empty filter, Space and a modifier chord are not the menu's keys.
+  for (const key of [{ key: 'Backspace' }, { key: ' ' }, { key: 'k', ctrlKey: true }]) {
+    expect(fireEvent.keyDown(menu(), key)).toBe(true)
+  }
+  fireEvent.click(model('Opus 5.5'))
+  expect(defaultItem().getAttribute('aria-checked')).toBe('false')
+  expect(within(menu()).getByRole('group', { name: 'Effort' }).textContent).toContain('Effort for Opus 5.5: choose one to switch')
+  expect(effort('Medium').getAttribute('aria-checked')).toBe('true')
+  fireEvent.click(defaultItem())
+  expect(onDefault).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('menu')).toBe(null)
+  expect(document.activeElement).toBe(chip())
+  expect(choose).not.toHaveBeenCalled()
+})
+
+it('opens More on a current model that is not featured, switches a model without efforts at once, and leaves the current choice alone', async () => {
+  const choose = picker({ load: ready(OPUS, OLD_OPUS, SMALL, PLAIN), model: 'anthropic/claude-opus-4-5', thinking: 'high' })
+  await settle()
+  fireEvent.click(chip())
+  expect(within(menu()).getByRole('menuitem', { name: 'More models' }).getAttribute('aria-expanded')).toBe('true')
+  expect(model('Opus 4.5').getAttribute('aria-checked')).toBe('true')
+  expect(within(menu()).getByRole('group', { name: 'Effort' }).textContent).toContain('Effort')
+  fireEvent.click(effort('High'))
+  expect(screen.queryByRole('menu')).toBe(null)
+  expect(choose).not.toHaveBeenCalled()
+
+  fireEvent.click(chip())
+  // A model whose efforts hold neither the chat's nor Medium starts on its lowest; one with none a switch can name has no Effort.
+  fireEvent.click(model('Small 1'))
+  expect(efforts()).toEqual([{ label: 'Minimal', checked: 'true' }, { label: 'Low', checked: 'false' }])
+  fireEvent.click(model('Plain'))
+  expect(choose).toHaveBeenCalledWith({ provider: 'openrouter', modelId: 'plain' })
+  expect(screen.queryByRole('menu')).toBe(null)
+  await settle()
+})
+
+it('shows a thrown switch failure and ignores another choice while one is still running', async () => {
+  let fail: (cause: unknown) => void = () => undefined
+  const choose = vi.fn<Choose>(() => new Promise((_resolve, reject) => { fail = reject }))
+  picker({ load: ready(OPUS, SMALL), choose, model: 'anthropic/claude-opus-5-5', thinking: 'high' })
+  await settle()
+  fireEvent.click(chip())
+  fireEvent.click(model('Small 1'))
+  fireEvent.click(effort('Low'))
+  expect(chipText()).toBe('Small 1 · Low')
+  fireEvent.click(chip())
+  fireEvent.click(effort('Medium'))
+  expect(choose).toHaveBeenCalledTimes(1)
+  await act(async () => { fail(new Error('The switch timed out.')) })
+  await settle()
+  expect(screen.getByRole('alert').textContent).toBe('The switch timed out.')
+  expect(chipText()).toBe('Opus 5.5 · High')
+
+  fireEvent.click(chip())
+  fireEvent.click(effort('Low'))
+  await act(async () => { fail('lost') })
+  await settle()
+  expect(screen.getByRole('alert').textContent).toBe('The model could not be switched.')
+})
+
+it('closes on a press outside the picker or Tab, not on a press inside, and on Escape at the chip', async () => {
+  picker({ load: ready(OPUS), model: 'anthropic/claude-opus-5-5', thinking: 'high' })
+  await settle()
+  fireEvent.keyDown(chip(), { key: 'Enter' })
+  expect(screen.queryByRole('menu')).toBe(null)
+  fireEvent.keyDown(chip(), { key: 'ArrowUp' })
+  fireEvent.mouseDown(menu())
+  expect(screen.queryByRole('menu')).not.toBe(null)
+  fireEvent.mouseDown(document.body)
+  expect(screen.queryByRole('menu')).toBe(null)
+
+  fireEvent.click(chip())
+  fireEvent.keyDown(chip(), { key: 'Escape' })
+  expect(screen.queryByRole('menu')).toBe(null)
+  expect(document.activeElement).toBe(chip())
+
+  fireEvent.click(chip())
+  fireEvent.keyDown(document.activeElement!, { key: 'Tab' })
+  expect(screen.queryByRole('menu')).toBe(null)
 })
