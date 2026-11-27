@@ -27,8 +27,8 @@ export type NormalizedTarget = BrowserTarget | { refused: TargetRefusal }
 
 /**
  * What a host is, by its literal address or name:
- * - `blocked`: link-local, unspecified and cloud metadata addresses, never reachable;
- * - `loopback` and `private` (RFC 1918, fc00::/7): reachable as subresources only from a loopback or private page;
+ * - `blocked`: link-local, unspecified and cloud metadata addresses (GCP, AWS, Alibaba, Azure's 168.63.129.16), never reachable;
+ * - `loopback` and `private` (RFC 1918, CGNAT 100.64.0.0/10, fc00::/7): reachable as subresources only from a loopback or private page;
  * - `public`: everything else.
  */
 export type HostClass = 'blocked' | 'loopback' | 'private' | 'public'
@@ -44,9 +44,9 @@ const BLOCKED_NAMES: ReadonlySet<string> = new Set(['metadata.google.internal'])
 type Range4 = readonly [first: string, bits: number]
 
 const IPV4_RANGES: readonly (readonly [HostClass, readonly Range4[]])[] = [
-  ['blocked', [['0.0.0.0', 8], ['169.254.0.0', 16], ['100.100.100.200', 32]]],
+  ['blocked', [['0.0.0.0', 8], ['169.254.0.0', 16], ['100.100.100.200', 32], ['168.63.129.16', 32]]],
   ['loopback', [['127.0.0.0', 8]]],
-  ['private', [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16]]]
+  ['private', [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['100.64.0.0', 10]]]
 ]
 
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
@@ -82,14 +82,21 @@ function ipv6Groups(text: string): number[] | null {
 
 const isZero = (groups: readonly number[]): boolean => groups.every((group) => group === 0)
 
+/** The 96-bit prefixes whose addresses carry an IPv4 address in their last 32 bits. */
+const IPV4_CARRYING_PREFIXES: readonly (readonly number[])[] = [
+  [0, 0, 0, 0, 0, 0], // IPv4-compatible, ::/96
+  [0, 0, 0, 0, 0, 0xffff], // IPv4-mapped, ::ffff:0:0/96
+  [0, 0, 0, 0, 0xffff, 0], // IPv4-translated (SIIT), ::ffff:0:0:0/96
+  [0x64, 0xff9b, 0, 0, 0, 0] // NAT64, 64:ff9b::/96
+]
+
 /**
- * The IPv4 address an IPv6 address carries in its last 32 bits: IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible
- * (`::/96`) or NAT64 (`64:ff9b::/96`). Null for any other address.
+ * The IPv4 address an IPv6 address carries: in its last 32 bits for the IPv4-compatible, mapped, translated and
+ * NAT64 prefixes, in bits 16 to 47 for 6to4 (`2002::/16`). Null for any other address.
  */
 function embeddedIpv4(groups: readonly number[]): number | null {
-  const head = groups.slice(0, 6)
-  const carries =
-    isZero(head) || (isZero(head.slice(0, 5)) && head[5] === 0xffff) || (head[0] === 0x64 && head[1] === 0xff9b && isZero(head.slice(2)))
+  if (groups[0] === 0x2002) return groups[1] * 0x10000 + groups[2]
+  const carries = IPV4_CARRYING_PREFIXES.some((prefix) => prefix.every((group, index) => groups[index] === group))
   return carries ? groups[6] * 0x10000 + groups[7] : null
 }
 
