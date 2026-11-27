@@ -286,10 +286,21 @@ describe('the Agent backdrop, glass contrast and placement', () => {
     for (const [sheet, selector] of [
       ['./components/rightRail.css', '.rr'],
       ['./agentChat/pendingPrompt.css', '.agent-prompt'],
-      ['./agentChat/agentChat.css', '.agent-chat-composer'],
+      ['./agentChat/chatComposer.css', '.chat-composer'],
       ['./agentChat/agentChat.css', '.agent-chat-scroll']
     ] as const) {
       expect(Object.keys(rule(sheet, selector) ?? {}).filter((name) => /^(background|border)/.test(name)), `${sheet} ${selector}`).toEqual([])
     }
+  })
+})
+
+describe('the chat composer card', () => {
+  it('rounds the composer card to 16 px or more and centres it in the 760 px reading column', () => {
+    const rules = rulesOf(SHEETS['./agentChat/chatComposer.css'] ?? '')
+    expect(parseFloat(rules.get('.chat-composer.glass')?.['border-radius'] ?? '0')).toBeGreaterThanOrEqual(16)
+    expect(rules.get('.chat-composer')?.['max-width']).toBe('760px')
+    expect(rules.get('.chat-composer')?.margin).toMatch(/^\S+ auto\b/)
+    expect(rules.get('.chat-composer-send')?.['border-radius']).toBe('50%')
+    expect(rules.get('.chat-composer-stop')?.['border-radius']).toBe('8px')
   })
 })

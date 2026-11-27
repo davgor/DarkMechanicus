@@ -739,7 +739,7 @@ function composeAndSend(h, chatId, text) {
     h.setValue(input, text)
     return { ok: false, phase: 'typed' }
   }
-  const send = h.button(input.form, 'Send')
+  const send = input.form?.querySelector('button[aria-label="Send"]') ?? null
   if (!send || send.disabled) return { ok: false, phase: 'send button', found: !!send }
   send.click()
   return { ok: true }
@@ -1135,15 +1135,18 @@ function plannerKickoff(h) {
 
 function threadView(_h) {
   const section = document.querySelector('section.eap section.agent-chat[aria-label="Acolyte:DM-2 thread"]')
-  if (!section) return { ok: false }
+  const relay = section?.querySelector('form.chat-composer textarea') ?? null
+  if (!section || !relay) return { ok: false, section: !!section }
   const items = section.querySelectorAll('.chat-transcript li').length
-  const hint = section.querySelector('.agent-chat-hint')?.textContent ?? null
-  const relayLabel = section.querySelector('form.agent-chat-composer label')?.textContent ?? null
+  // The relay note is the text area's screen-reader description, beside the keys.
+  const note = document.getElementById(relay.getAttribute('aria-describedby'))?.textContent ?? ''
+  const relayLabel = relay.labels[0]?.textContent ?? ''
   const ownComposer = !!section.querySelector('textarea[id^="agent-message-"]')
-  return {
-    ok: items > 0 && hint === 'Your message goes through Lexmechanic, which passes it to this worker.' && relayLabel === 'Message Acolyte:DM-2' && !ownComposer,
-    items, hint, relayLabel, ownComposer
-  }
+  const ok = [
+    items > 0, note.startsWith('Your message goes through Lexmechanic, which passes it to this worker.'),
+    relayLabel === 'Message Acolyte:DM-2', !ownComposer
+  ].every(Boolean)
+  return { ok, items, note, relayLabel, ownComposer }
 }
 
 /** The epic View buttons in their displayed order, and the stage each one opens. */

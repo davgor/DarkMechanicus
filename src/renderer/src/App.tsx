@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType, MutableRefObject } from 'react'
+import { rootCallsignOf } from '../../shared/agents/callsign'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
@@ -135,13 +136,15 @@ interface ChatPaneProps {
   shell: ShellModel
   /** The chat's tracked folder; null for a project-less chat. */
   folder: string | null
+  /** The tracked folder's name, the composer's context chip; null for a project-less chat. */
+  folderName: string | null
   chat: ChatRecord
   scheduler: Scheduler
   terminalKit: TerminalKit
 }
 
 /** The persisted surface owns the pane; a surface command waits for the chats_changed record push. */
-function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
+function ChatPane({ shell, folder, folderName, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
   const threadId = threadLandingFor(shell.landing, chat.id)?.threadId ?? null
   const gui = chat.surface === 'gui'
@@ -151,8 +154,10 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
   }, [actions, threadId, gui])
   const onRevealed = useCallback(() => actions.current.landed(), [actions])
   if (gui) {
-    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler}
-      rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} />
+    const cli = agentName(chat.agent, shell.agents.agents)
+    const callsign = rootCallsignOf(chat)?.role
+    return <AgentChat folder={folder} chatId={chat.id} agentLabel={cli} agentChip={callsign === undefined ? cli : `${callsign} · ${cli}`}
+      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} />
   }
   return (
     <TerminalPane
@@ -338,9 +343,11 @@ function MainContent(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} folderName={view.folder.name} chat={view.chat}
+        scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'projectless-chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={null} folderName={null} chat={view.chat} scheduler={props.scheduler}
+        terminalKit={props.terminalKit} />
     case 'kanban':
       return <KanbanPane key={folderIdentity(view.folder)} folder={view.folder} shell={shell} />
     case 'metrics':
