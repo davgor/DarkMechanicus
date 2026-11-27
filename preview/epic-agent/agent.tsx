@@ -702,7 +702,7 @@ const STATES: Record<string, StateDef> = {
         && buttonNamed('Stop', $('[aria-label="Busy Magos"]')!), 'an enabled Send beside the idle draft and Stop on the busy chat')
     }
   },
-  'agent-images': {
+  'chat-images': {
     mount: 'chat',
     seed: (context) => {
       context.chatApi.snapshotResult = { ok: true, data: scenarios.images.snapshot }
@@ -776,7 +776,7 @@ const STATES: Record<string, StateDef> = {
       await until(() => document.querySelectorAll('.chat-work-rows [aria-label^="Tool call: "]').length === 3, 'the opened turn’s three tool cards')
     }
   },
-  'agent-image-result': {
+  'image-result': {
     mount: 'chat',
     seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: scenarios['image-result'].snapshot } },
     reach: reachImageResult
@@ -1208,6 +1208,29 @@ function modelPickerObservations(): Record<string, unknown> | null {
   return { chip: text($('.model-picker-label', chip)), ...modelMenuPlacement(chip, menu), ...modelMenuContents(menu) }
 }
 
+/** A composer's rendered height in px: the idle one shows Send, the busy one Stop; null without such a composer. */
+function composerHeight(button: 'Send' | 'Stop'): number | null {
+  const form = [...document.querySelectorAll<HTMLElement>('form.chat-composer')].find((card) => $(`button[aria-label="${button}"]`, card))
+  return form === undefined ? null : Math.round(form.getBoundingClientRect().height)
+}
+
+/**
+ * The review's summary of the image and polish states: composer image chips and transcript thumbnails counted, the idle and
+ * busy composer heights, the Copy buttons shown, the Worked for rows' text, the role card names and the question's checked count.
+ */
+function polishObservations(): Record<string, unknown> {
+  const question = $('.agent-prompt .agent-prompt-multi')
+  return {
+    imageChips: document.querySelectorAll('.chat-image-chip').length,
+    thumbnails: document.querySelectorAll('.chat-images .chat-image-picture').length,
+    composerHeights: { idle: composerHeight('Send'), busy: composerHeight('Stop') },
+    copyButtons: document.querySelectorAll('.copy-button').length,
+    workedForRows: [...document.querySelectorAll<HTMLElement>('.chat-work-toggle')].map((toggle) => (toggle.textContent ?? '').replace('›', '').trim()),
+    roleNames: [...document.querySelectorAll<HTMLElement>('.arp .arc [role="radio"]')].map(accessibleName),
+    checkedCount: question === null ? null : question.querySelectorAll('input[type="checkbox"]:checked').length
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -1251,6 +1274,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     evidence: evidenceObservations(context),
     modelPicker: modelPickerObservations(),
     ...deliveryObservations(),
+    ...polishObservations(),
     errors: [...window.__errors]
   }
 }
@@ -1341,11 +1365,20 @@ function render(mount: Mount, context: Seeded): JSX.Element {
   </ViewMemoryContext.Provider></ClockContext.Provider>
 }
 
+/** The states the capture also takes at a fixed width, as `<state>-1024` and `<state>-1440`. */
+const SIZED_STATES: Record<string, true> = { 'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true }
+
+/** The definition a `?state=` names: a sized state's is its unsized one's. */
+function definitionOf(state: string): StateDef | undefined {
+  const base = state.replace(/-(1024|1440)$/, '')
+  return base === state || SIZED_STATES[base] === true ? STATES[base] : undefined
+}
+
 async function main(): Promise<void> {
   // One Electron profile serves every state: no rail, card or view memory may carry over from the previous one.
   window.localStorage.clear()
   const state = new URLSearchParams(window.location.search).get('state') ?? ''
-  const definition = STATES[state]
+  const definition = definitionOf(state)
   if (definition === undefined) {
     window.__errors.push(`Unknown state "${state}"`)
     publish(observe(state, null))

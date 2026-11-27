@@ -11,6 +11,8 @@ import {
   chatLaunches,
   claudeSessionPath,
   consoleText,
+  coordLaunches,
+  coordMailBody,
   evidenceComment,
   failureScreenshotName,
   fakeAgentLog,
@@ -450,7 +452,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x']).agent).toBe('claude')
     expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
     expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
-    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close; stream drive the claude fake.')
     expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
     expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
   })
@@ -683,5 +685,42 @@ describe('image steps', () => {
     expect(consoleText({ method: 'Page.loadEventFired', params: {} })).toBeNull()
     const blocked = 'Loading the image \'dm-chat-image://k/c/i\' violates the following Content Security Policy directive: "img-src \'self\' data: dm-attachment:". The action has been blocked.'
     expect(refusedImages(['fine', refusal, blocked, 'Loading the image editor'])).toEqual([refusal, blocked])
+  })
+})
+
+describe('coord steps', () => {
+  const coord = ['coord-tabs', 'coord-mail', 'coord-wake', 'coord-close']
+
+  it('run only when named, after ready, each its own verdict step, with the omp fake', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('coord-'))).toEqual([])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp']).keys.filter((key) => key.startsWith('coord-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', coord.join(',')])
+    expect(parsed).toMatchObject({ agent: 'omp', keys: ['ready', ...coord] })
+    expect(stepPhases(parsed.keys).map((phase) => phase.name)).toEqual(['app ready', ...coord])
+    expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'coord-tabs,coord-mail'])).toMatchObject({ agent: 'omp', keys: ['ready', 'coord-tabs', 'coord-mail'] })
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'coord-tabs'])).toThrow('coord-tabs drive the omp fake: leave out --agent claude.')
+    expect(() => parseArgs(['--out', 'x', '--steps', 'coord-tabs,stream'])).toThrow('stream drive the claude fake.')
+  })
+
+  it('find a chat\'s launches by the chat id its OMP session folder names, telling GUI from terminal (PTY) ones', () => {
+    const entry = (mode, pid, argv) => JSON.stringify({ mode, persona: 'omp', pid, at: pid, argv })
+    const dir = (chatId) => `C:\\u\\agents\\omp\\${chatId}\\sessions`
+    const log = [
+      entry('omp', 1, ['--mode', 'rpc-ui', '--session-dir', dir('chat_lex')]),
+      entry('version', 2, ['--version']),
+      entry('omp', 3, ['--mode', 'rpc-ui', '--session-dir', dir('chat_magos')]),
+      entry('tui', 4, ['--session-dir', dir('chat_lex'), '--resume', 's']),
+      entry('omp', 5, ['--mode', 'rpc-ui', '--session-dir', dir('chat_lex'), '--resume', 's'])
+    ].join('\n')
+    expect(coordLaunches(log, 'chat_lex')).toEqual([
+      { mode: 'omp', surface: 'gui', pid: 1, at: 1 }, { mode: 'tui', surface: 'terminal', pid: 4, at: 4 }, { mode: 'omp', surface: 'gui', pid: 5, at: 5 }
+    ])
+    expect(coordLaunches(log, 'chat_magos').map((launch) => launch.pid)).toEqual([3])
+    expect(coordLaunches(log, 'chat_none')).toEqual([])
+  })
+
+  it('expect the body the fake mails a role with', () => {
+    expect(coordMailBody('orchestrator')).toBe('Fake coordination mail for the orchestrator.')
+    expect(coordMailBody('planner')).toBe('Fake coordination mail for the planner.')
   })
 })
