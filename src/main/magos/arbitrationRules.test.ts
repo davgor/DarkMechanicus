@@ -110,6 +110,9 @@ const QUESTION: PendingPrompt = {
   ...approval(undefined), kind: 'question', options: [{ id: 'a', label: 'A' }], tool: { name: 'Bash', input: { command: 'npm test' } }
 }
 
+/** A word one byte over the longest name Linux and Windows accept. */
+const LONG_WORD = 'a'.repeat(256)
+
 /** From an input every rule excludes, each step clears the reported rule and exposes the next one. */
 function precedenceSteps(platform: Platform): [Partial<ArbitrationInput>, ExclusionReason | null][] {
   const notAnObject = { name: 'Bash', input: 'cat /etc/passwd' } as unknown as Tool
@@ -124,8 +127,9 @@ function precedenceSteps(platform: Platform): [Partial<ArbitrationInput>, Exclus
     [{ agentKind: 'claude' }, 'question'],
     [{ prompt: approval(notAnObject) }, 'always_ask'],
     [{ settings: { arbitration: { enabled: true, alwaysAsk: [], autoHandleNotes: '' } } }, 'no_tool_input'],
-    [{ prompt: approval(bash('cat /etc/passwd > .claude/settings.local.json')) }, 'control_file'],
-    [{ prompt: approval(bash('cat /etc/passwd')) }, 'outside_folder'],
+    [{ prompt: approval(bash(`cat /etc/passwd ${LONG_WORD} > .claude/settings.local.json`)) }, 'control_file'],
+    [{ prompt: approval(bash(`cat /etc/passwd ${LONG_WORD}`)) }, 'outside_folder'],
+    [{ prompt: approval(bash(`cat ${LONG_WORD}`)) }, 'path_too_long'],
     [{ prompt: approval(bash('npm test')) }, null]
   ]
 }
@@ -283,8 +287,6 @@ const OUTSIDE_COMMON: [string, Tool][] = [
   ['an EACCES entry', write('locked/a.ts')],
   ['an EPERM entry', write('perm/a.ts')],
   ['an ELOOP entry', write('loop')],
-  ['an ENAMETOOLONG name', write('long/a.ts')],
-  ['an ENAMETOOLONG word in a command', bash('cat long')],
   ['quotes that the shell joins into ..', bash('cat \'.\'./secret')],
   ['double quotes that the shell joins into ..', bash('cat "."./secret')],
   ['a backslash escape that the shell drops', bash('cat .\\./secret')],
@@ -325,6 +327,44 @@ const OUTSIDE: Record<Platform, [string, Tool][]> = {
     ['a Windows absolute in-folder lookalike', write('C:/home/me/repo/a.ts')]
   ]
 }
+
+describe('too-long names (DM-1008)', () => {
+  describe.each(['win32', 'linux'] as const)('%s', (platform) => {
+    // The fake disk answers ENOENT for an unknown name, as Windows does for an over-long one, and ENAMETOOLONG for `long`.
+    it.each([
+      ['an ENAMETOOLONG word in a command', bash('cat long')],
+      ['an ENAMETOOLONG directory in a path value', write('long/a.ts')],
+      ['a 256-byte word in a command', bash(`echo ${LONG_WORD}`)],
+      ['a quoted 256-byte word', bash(`grep "${LONG_WORD}" src/a.ts`)],
+      ['a 256-byte UTF-8 word of 128 characters', bash(`echo ${'é'.repeat(128)}`)],
+      ['a 256-byte segment in a path value', write(`src/${LONG_WORD}`)]
+    ])('escalates %s as a path too long, not outside the folder', (_label, tool) => {
+      expect(exclusion(platform, tool)).toBe('path_too_long')
+    })
+
+    it('keeps a 255-byte word inside', () => {
+      expect(exclusion(platform, bash(`echo ${'a'.repeat(255)}`))).toBeNull()
+    })
+
+    it('still reports a real outside path, and a control file, over a too-long word', () => {
+      const outside = platform === 'win32' ? 'D:\\secret' : '/etc/shadow'
+      expect(exclusion(platform, bash(`cat ${LONG_WORD} ${outside}`))).toBe('outside_folder')
+      expect(exclusion(platform, bash(`cat long ${outside}`))).toBe('outside_folder')
+      expect(exclusion(platform, bash(`cat ${LONG_WORD} > .claude/settings.local.json`))).toBe('control_file')
+    })
+
+    it('never asks the disk about an over-long name', () => {
+      const asked: string[] = []
+      const disk = fakeFs(platform)
+      const fs: ArbitrationFs = {
+        realpath: path => { asked.push(path); return disk.realpath(path) },
+        lstat: path => { asked.push(path); return disk.lstat(path) }
+      }
+      expect(exclusion(platform, bash(`echo ${LONG_WORD}`), { fs })).toBe('path_too_long')
+      expect(asked.filter(path => path.includes(LONG_WORD))).toEqual([])
+    })
+  })
+})
 
 describe('outside-folder detection', () => {
   describe.each(['win32', 'linux'] as const)('%s', (platform) => {
@@ -469,7 +509,7 @@ describe('exclusionText', () => {
   it('gives a short plain sentence for every reason', () => {
     const reasons: ExclusionReason[] = [
       'disabled', 'not_magos_chat', 'project_less', 'unsupported_kind', 'question', 'always_ask',
-      'no_tool_input', 'control_file', 'outside_folder', 'never_arbitrate'
+      'no_tool_input', 'control_file', 'outside_folder', 'path_too_long', 'never_arbitrate'
     ]
     for (const reason of reasons) {
       expect(exclusionText(reason)).toMatch(/^[A-Z][^\n]{10,120}\.$/)
