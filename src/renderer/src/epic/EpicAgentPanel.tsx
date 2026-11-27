@@ -224,7 +224,7 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
     return <ThreadView ws={ws} owner={chat} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'} items={items} />
   }
   if (chat.surface === 'gui') {
-    return <AgentChat folder={ws.folder.path} chatId={chat.id} agentLabel={name}
+    return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
       agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} />
   }
   return <TerminalChat ws={ws} chat={chat} name={name} />

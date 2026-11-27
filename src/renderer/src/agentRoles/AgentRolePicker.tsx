@@ -7,6 +7,8 @@ import './agentRoles.css'
 interface AgentRolePickerProps {
   /** Fires with the chosen role: a click, Enter or Space on an enabled card. Never for a disabled one. */
   onChoose(role: AgentRole): void
+  /** Fires whenever the checked card changes (arrow keys, Home, End or choosing), for a form that submits the checked role. */
+  onSelect?(role: AgentRole): void
   /** Roles that cannot start now, each with the reason its card shows (for example "Save the plan first"). */
   disabled?: Partial<Record<AgentRole, string>>
   /** The card checked at first; the first enabled role when not given. */
@@ -30,7 +32,7 @@ const CHOOSE_KEYS: Record<string, true> = { Enter: true, ' ': true }
  * The role picker an agent chat starts from: a radiogroup of the Magos and Lexmechanic cards. Arrow keys move the
  * checked card, Enter or Space (or a click) chooses it; a disabled card shows its reason and never chooses.
  */
-export function AgentRolePicker({ onChoose, disabled = {}, initial, label = 'Agent role' }: AgentRolePickerProps): JSX.Element {
+export function AgentRolePicker({ onChoose, onSelect, disabled = {}, initial, label = 'Agent role' }: AgentRolePickerProps): JSX.Element {
   const reduced = useReducedMotion()
   const enabled = AGENT_ROLES.map((info) => info.role).filter((role) => disabled[role] === undefined)
   const [selected, setSelected] = useState<AgentRole | null>(() => initial ?? enabled[0] ?? null)
@@ -38,6 +40,7 @@ export function AgentRolePicker({ onChoose, disabled = {}, initial, label = 'Age
 
   const select = (role: AgentRole): void => {
     setSelected(role)
+    onSelect?.(role)
     radios.current.get(role)?.focus()
   }
   const choose = (role: AgentRole): void => {

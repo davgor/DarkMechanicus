@@ -183,3 +183,22 @@ it('renders the leading and trailing slots around the chips and nothing of its o
   expect(names.at(-2)).toBe('Model')
   expect(view.container.querySelector('form')?.className).toBe('chat-composer glass')
 })
+
+it('puts image chips above the text, takes paste and drop on the card, and sends images alone as empty text', async () => {
+  const intake = { onPaste: vi.fn(), onDrop: vi.fn(), onDragOver: vi.fn() }
+  const attachments = { chips: <ul aria-label="Attached images" />, count: 0, staging: false, intake }
+  const view = mount({ attachments })
+  const form = view.container.querySelector('form')!
+  expect(form.firstElementChild?.getAttribute('aria-label')).toBe('Attached images')
+  fireEvent.paste(view.input)
+  fireEvent.drop(view.input)
+  expect([intake.onPaste.mock.calls.length, intake.onDrop.mock.calls.length]).toEqual([1, 1])
+  fireEvent.change(view.input, { target: { value: '   ' } })
+  expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
+  view.rerender({ attachments: { ...attachments, count: 1, staging: true } })
+  expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty('disabled', true)
+  view.rerender({ attachments: { ...attachments, count: 1 } })
+  await act(async () => { fireEvent.keyDown(view.input, { key: 'Enter' }) })
+  expect(view.send.mock.calls).toEqual([['']])
+  expect(view.input.value).toBe('')
+})

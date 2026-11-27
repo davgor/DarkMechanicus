@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { IDLE_STOP_CODE, type ChatItem } from '../../../shared/agents/chat'
+import { ManualScheduler } from '../__mocks__/manualScheduler'
+import { COPIED_MS, CopyContext } from '../agentChat/CopyButton'
 import { ChatTranscript } from './ChatTranscript'
 import { RevealThreadContext } from './revealThread'
 
@@ -43,6 +45,83 @@ describe('ChatTranscript: what was said', () => {
 
     const row = within(log).getByRole('listitem', { name: 'Tool call: Bash' })
     expect(within(row).getByRole('button').getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
+const REPLY = '**Done** — run `npm test`'
+
+/** The transcript over a clipboard that records what it is given, timed by a manual scheduler. */
+function showCopyable(entries: ChatItem[]): { log: HTMLElement; written: string[]; scheduler: ManualScheduler } {
+  const written: string[] = []
+  const scheduler = new ManualScheduler()
+  const writeText = (text: string): Promise<void> => {
+    written.push(text)
+    return Promise.resolve()
+  }
+  render(
+    <CopyContext.Provider value={{ writeText, scheduler }}>
+      <ChatTranscript agentName="Claude Code" folder="/repo" entries={entries} />
+    </CopyContext.Provider>
+  )
+  return { log: screen.getByRole('log', { name: 'Transcript' }), written, scheduler }
+}
+
+/** Clicks a Copy, then lets the clipboard's promise settle. */
+async function copy(button: HTMLElement): Promise<void> {
+  fireEvent.click(button)
+  await act(async () => { await Promise.resolve() })
+}
+
+describe('ChatTranscript: Copy', () => {
+  it("copies an agent reply's raw Markdown, not its rendered text, and reads Copied for 1.5 s", async () => {
+    const { log, written, scheduler } = showCopyable([{ id: 'a', at: AT, kind: 'assistant_text', text: REPLY }])
+    const reply = within(log).getByRole('article', { name: 'Assistant' })
+    expect(reply.textContent).not.toContain('**')
+    const button = within(reply.closest('li')!).getByRole('button', { name: 'Copy' })
+    expect(button.closest('.chat-msg-actions')).not.toBe(null)
+
+    await copy(button)
+
+    expect(written).toEqual([REPLY])
+    expect(button.textContent).toBe('Copied')
+    expect(scheduler.timeouts()).toEqual([COPIED_MS])
+    act(() => scheduler.fireTimeouts(1_500))
+    expect(button.textContent).toBe('Copy')
+  })
+
+  it("copies the person's message as they wrote it, from their bubble", async () => {
+    const { log, written } = showCopyable([{ id: 'u', at: AT, kind: 'user_message', text: 'Fix **the** build\n  then test' }])
+    const bubble = within(log).getByRole('article', { name: 'You' })
+
+    await copy(within(bubble.closest('li')!).getByRole('button', { name: 'Copy' }))
+
+    expect(written).toEqual(['Fix **the** build\n  then test'])
+  })
+
+  it("copies only a reply's code block when its own Copy is used", async () => {
+    const { log, written } = showCopyable([{ id: 'a', at: AT, kind: 'assistant_text', text: 'Run:\n\n```sh\nnpm test\n```' }])
+    const block = log.querySelector('.md-code-block') as HTMLElement
+
+    await copy(within(block).getByRole('button', { name: 'Copy' }))
+
+    expect(written).toEqual(['npm test'])
+  })
+})
+
+describe('ChatTranscript: the reading layout', () => {
+  it('puts the person in a right-aligned bubble and the agent in plain text, with no speaker label shown', () => {
+    const { log } = showCopyable([
+      { id: 'u', at: AT, kind: 'user_message', text: 'Fix the build' },
+      { id: 'a', at: AT, kind: 'assistant_text', text: REPLY }
+    ])
+    const user = within(log).getByRole('article', { name: 'You' })
+    const assistant = within(log).getByRole('article', { name: 'Assistant' })
+
+    expect(user.className).toBe('chat-bubble')
+    expect(user.closest('li')?.className).toBe('chat-msg chat-msg-user')
+    expect(assistant.className).toBe('')
+    expect(assistant.closest('li')?.className).toBe('chat-msg chat-msg-assistant')
+    expect(log.querySelectorAll('.chat-msg-who:not(.sr-only)').length).toBe(0)
   })
 })
 
