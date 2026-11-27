@@ -6,14 +6,15 @@
  * bare origin with one `git fast-import` each.
  */
 import { execFileSync } from 'node:child_process'
-import { cpSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RepoState } from '../../shared/git/status'
 import { createFakeHttp, jsonResponse, type FakeHttp } from '../../test/fakeHttp'
 import { isolateGitConfig } from '../../test/gitRemotes'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
+import { useTemplate } from '../../test/gitTemplate'
 import { GitError, GitInputError } from '../git/errors'
 import { createGitRunner, type GitRunner } from '../git/runner'
 import { createSessionClient } from './client'
@@ -23,39 +24,24 @@ import { createPullRequests, type PullRequests } from './pullRequests'
 const GITHUB_URL = 'https://github.com/octo/repo.git'
 const runner = createGitRunner()
 const cleanups: Array<() => void> = []
-const templateCleanups: Array<() => void> = []
-/** Folders holding `repo` (on `main`, tracking `origin/main`) and its bare `origin.git`, by whether origin names GitHub. */
-const templates = { github: '', plain: '' }
 
-/** Builds one template pair: the only `git init`, initial commit and push in the file for that kind of origin. */
-function buildTemplate(onGithub: boolean): string {
+/**
+ * `repo` on `main`, its initial commit also on `origin/main`, and the bare `origin.git` holding that commit: four git
+ * processes in all. The push that would publish the commit is written as files instead (the objects, `main` in the
+ * bare repository, `origin/main` in the clone): a push to a local bare repository starts receive-pack and its helpers,
+ * and one took almost 6 s of the 15 s hook bound on a loaded Windows runner. Each copy names its origin itself.
+ */
+const template = useTemplate((templateCleanups) => {
   const base = scratchDir('dm-pr-template-')
   templateCleanups.push(base.cleanup)
-  const local = createGitRepo({ root: join(base.path, 'repo') })
+  const local = join(createGitRepo({ root: join(base.path, 'repo') }).root, '.git')
   const bare = join(base.path, 'origin.git')
   gitIn(base.path, 'init', '-q', '--bare', '-b', 'main', bare)
-  local.git('remote', 'add', 'origin', onGithub ? GITHUB_URL : bare)
-  if (onGithub) {
-    local.git('config', `url.${bare}.insteadOf`, GITHUB_URL)
-  }
-  local.git('push', '-q', '-u', 'origin', 'main')
+  cpSync(join(local, 'objects'), join(bare, 'objects'), { recursive: true })
+  cpSync(join(local, 'refs', 'heads', 'main'), join(bare, 'refs', 'heads', 'main'))
+  mkdirSync(join(local, 'refs', 'remotes', 'origin'), { recursive: true })
+  cpSync(join(local, 'refs', 'heads', 'main'), join(local, 'refs', 'remotes', 'origin', 'main'))
   return base.path
-}
-
-beforeAll(() => {
-  isolateGitConfig(templateCleanups)
-  try {
-    templates.github = buildTemplate(true)
-    templates.plain = buildTemplate(false)
-  } finally {
-    vi.unstubAllEnvs()
-  }
-})
-
-afterAll(() => {
-  while (templateCleanups.length > 0) {
-    templateCleanups.pop()?.()
-  }
 })
 
 beforeEach(() => isolateGitConfig(cleanups))
@@ -99,14 +85,22 @@ function inConfig(path: string): string {
   return path.replaceAll('\\', '\\\\')
 }
 
-/** A fresh copy of a template pair; the copy's config names its own bare origin. */
-function copyTemplate(template: string): { local: Local; bare: string } {
+/** What `git remote add origin <url>` and `git push -u origin main` write into the clone's config. */
+function originConfig(url: string): string {
+  return `[remote "origin"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch "main"]\n\tremote = origin\n\tmerge = refs/heads/main\n`
+}
+
+/** A fresh copy of the template whose origin is its own bare copy: named by its github.com URL unless `onGithub` is false. */
+function copyTemplate(onGithub: boolean): { local: Local; bare: string } {
   const dir = scratchDir('dm-pr-')
   cleanups.push(dir.cleanup)
-  cpSync(template, dir.path, { recursive: true })
-  const config = join(dir.path, 'repo', '.git', 'config')
-  writeFileSync(config, readFileSync(config, 'utf8').replaceAll(inConfig(template), inConfig(dir.path)))
-  return { local: openLocal(join(dir.path, 'repo')), bare: join(dir.path, 'origin.git') }
+  cpSync(template(), dir.path, { recursive: true })
+  const bare = join(dir.path, 'origin.git')
+  const origin = onGithub
+    ? `${originConfig(GITHUB_URL)}[url "${inConfig(bare)}"]\n\tinsteadOf = ${GITHUB_URL}\n`
+    : originConfig(inConfig(bare))
+  appendFileSync(join(dir.path, 'repo', '.git', 'config'), origin)
+  return { local: openLocal(join(dir.path, 'repo')), bare }
 }
 
 interface Repos {
@@ -120,7 +114,7 @@ interface Repos {
 
 /** A repository on `main` tracking `origin/main`; origin is named by its github.com URL unless `onGithub` is false. */
 function setup(onGithub = true, gitRunner: GitRunner = runner): Repos {
-  const { local, bare } = copyTemplate(onGithub ? templates.github : templates.plain)
+  const { local, bare } = copyTemplate(onGithub)
   const http = createFakeHttp()
   let token: string | null = 'gho_FAKE_TOKEN_checkout_1'
   const session = {
