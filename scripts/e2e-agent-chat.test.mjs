@@ -10,15 +10,19 @@ import {
   assertToggleLaunches,
   chatLaunches,
   claudeSessionPath,
+  consoleText,
+  evidenceComment,
   failureScreenshotName,
   fakeAgentLog,
   fakeAgentPids,
+  imageEchoLine,
   isAlive,
   isolatedEnv,
   newChatLaunch,
   newerVersion,
   parseArgs,
   pngSize,
+  refusedImages,
   removeStaleRoots,
   replyAfter,
   restartChat,
@@ -27,8 +31,10 @@ import {
   restartTurn,
   runStep,
   seededAgents,
+  sha12,
   staleRoots,
   stepPhases,
+  transcriptImageRefs,
   turnEnded,
   verdict,
   waitFor,
@@ -622,5 +628,60 @@ describe('restart-resume seeding', () => {
     expect(restartTurn([user('1', text), reply('2', 'Hello world'), user('3', text), reply('4', 'Hello world')], text, 'Hello world'))
       .toEqual({ ok: false, messages: 2, reply: 'Hello world' })
     expect(restartTurn([user('1', 'hello'), reply('2', 'Hello world')], text, 'Hello world').messages).toBe(0)
+  })
+})
+
+describe('image steps', () => {
+  const swatch = readFileSync(resolve('src', 'main', 'agentChat', '__fixtures__', 'images', 'swatch.png'))
+
+  it('run only when named, after ready, each its own verdict step', () => {
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('image-'))).toEqual([])
+    const keys = parseArgs(['--out', 'x', '--steps', 'image-send,image-result']).keys
+    expect(keys).toEqual(['ready', 'image-send', 'image-result'])
+    expect(stepPhases(keys).map((phase) => phase.name)).toEqual(['app ready', 'image-send', 'image-result'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'image-send'])).toThrow('image-send drive the claude fake.')
+  })
+
+  it('names swatch.png by mime, size and the first 12 hex digits of its sha256, as the fake echoes it', () => {
+    expect(sha12(swatch)).toBe('6f7ffeeb8892')
+    expect(sha12(Buffer.from('abc'))).toBe('ba7816bf8f01')
+    expect(imageEchoLine('image/png', swatch)).toBe('received image image/png 132 6f7ffeeb8892')
+  })
+
+  it('reads a transcript file\'s last user message line and searches the whole file, CRLF included', () => {
+    const needle = swatch.toString('base64').slice(0, 32)
+    const ref = { id: 'img-1', mime: 'image/png', width: 64, height: 64, bytes: 132 }
+    const lines = [
+      { id: 'u1', kind: 'user_message', text: 'look' },
+      { id: 'a1', kind: 'assistant_text', text: 'received image' },
+      { id: 'u1', kind: 'user_message', text: 'look', images: [ref] }
+    ].map((item) => JSON.stringify(item))
+    expect(transcriptImageRefs(`${lines.join('\r\n')}\r\n`, 'look', needle)).toEqual({ found: true, images: [ref], needleFound: false })
+    expect(transcriptImageRefs(`${lines[0]}\n`, 'look', needle)).toEqual({ found: true, images: [], needleFound: false })
+    expect(transcriptImageRefs(`${lines.join('\n')}\n${JSON.stringify({ id: 't1', kind: 'tool_call', output: needle })}\n`, 'look', needle).needleFound).toBe(true)
+    expect(transcriptImageRefs('', 'look', needle)).toEqual({ found: false, images: [], needleFound: false })
+  })
+
+  it('accepts exactly one comment with exactly one attachment of the expected sha256', () => {
+    const attachment = (sha256) => ({ id: 'at-1', sha256, mime: 'image/png', bytes: 132, width: 64, height: 64, label: 'Chat image', purpose: 'evidence' })
+    const comment = (attachments) => ({ id: 'c-1', epicId: 'e', ticketId: null, body: 'Evidence', author: { role: 'desktop', label: 'x' }, createdAt: 't', attachments })
+    expect(evidenceComment([comment([attachment('aa')])], 'aa')).toEqual({
+      ok: true, comments: [{ id: 'c-1', ticketId: null, body: 'Evidence', attachments: [{ id: 'at-1', sha256: 'aa', mime: 'image/png', bytes: 132, purpose: 'evidence' }] }]
+    })
+    expect(evidenceComment([comment([attachment('bb')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([comment([attachment('aa'), attachment('aa')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([comment([attachment('aa')]), comment([attachment('aa')])], 'aa').ok).toBe(false)
+    expect(evidenceComment([{ ...comment([]), attachments: undefined }], 'aa').ok).toBe(false)
+    expect(evidenceComment([], 'aa').ok).toBe(false)
+  })
+
+  it('collects console and log text and finds image refusals', () => {
+    const refusal = 'Refused to load the image \'dm-chat-image://k/c/i\' because it violates the following Content Security Policy directive: "img-src \'self\'".'
+    expect(consoleText({ method: 'Log.entryAdded', params: { entry: { source: 'security', level: 'error', text: refusal } } })).toBe(refusal)
+    expect(consoleText({ method: 'Runtime.consoleAPICalled', params: { type: 'log', args: [{ type: 'string', value: 'a' }, { type: 'number', value: 2 }, { type: 'object', description: 'Object' }] } }))
+      .toBe('a 2 Object')
+    expect(consoleText({ method: 'Page.loadEventFired', params: {} })).toBeNull()
+    const blocked = 'Loading the image \'dm-chat-image://k/c/i\' violates the following Content Security Policy directive: "img-src \'self\' data: dm-attachment:". The action has been blocked.'
+    expect(refusedImages(['fine', refusal, blocked, 'Loading the image editor'])).toEqual([refusal, blocked])
   })
 })

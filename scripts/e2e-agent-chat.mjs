@@ -6,6 +6,7 @@
  *
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted). Both shims are
  * always written, but the omp agent is only connected with `--agent omp`: the app prefers a signed-in OMP for a planner,
@@ -16,7 +17,11 @@
  * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
  * folder. A step list that does not start the app itself (`ready` or `restart-resume`) gets `ready` first.
  *
- * Without `--steps` every step but the polish ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `image-*` steps (screenshots in GUI chats) also run only when named: `image-send` sends `swatch.png` from a new
+ * folder chat's composer, and `image-result` has the seeded epic's Magos (started through Start run) return it from a
+ * tool, opens it and attaches it to the epic as evidence.
+ *
+ * Without `--steps` every step but the polish and image ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -34,6 +39,7 @@
  * cleanup (`harness.json` names the harness that owns a root; a root whose harness is gone is stale).
  */
 import { execFile, spawn, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
@@ -90,6 +96,10 @@ const MARKDOWN_REPLY = 'Here is the **fix**:\n\n```js\nconst answer = 42\nconsol
 const MARKDOWN_CODE = 'const answer = 42\nconsole.log(answer)'
 /** The steps that start the app themselves; a step list starting with any other step gets `ready` first. */
 const APP_STARTING_STEPS = ['ready', 'restart-resume']
+/** The fixture image both `image-*` steps send or receive; the fake's `[image]` tool result carries the same bytes. */
+const SWATCH = join(REPO, 'src', 'main', 'agentChat', '__fixtures__', 'images', 'swatch.png')
+/** The confirmation the epic shows once Attach as evidence took (`ChatImages.tsx`, AttachEvidence). */
+const EVIDENCE_TOAST = 'Attached the image to the epic as evidence.'
 
 /**
  * The environment the app and its children get: `base` minus the stripped variables, with every home and config
@@ -346,7 +356,7 @@ function createSession(out, exe, agent = 'claude', keys = []) {
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null
+    store: null, restart: null, console: []
   }
 }
 
@@ -631,7 +641,13 @@ async function devtoolsTarget(session, port, signal, match) {
 
 async function attach(session, signal) {
   const target = await waitFor(() => devtoolsTarget(session, session.port, signal, (entry) => entry.type === 'page' && entry.url.includes('/renderer/index.html')), signal)
-  session.page = await connect(target.webSocketDebuggerUrl)
+  session.page = await connect(target.webSocketDebuggerUrl, (message) => {
+    const text = consoleText(message)
+    if (text !== null) session.console.push(text)
+  })
+  // The renderer's console and browser log (a Content-Security-Policy refusal is a log entry), from the page's start.
+  await cdp(session, 'Log.enable')
+  await cdp(session, 'Runtime.enable')
 }
 
 /**
@@ -1958,6 +1974,239 @@ async function polishUntrack(session, signal) {
   }
 }
 
+/** The text of a renderer console call or browser log entry a DevTools event carries; null for any other event. */
+export function consoleText({ method, params }) {
+  if (method === 'Log.entryAdded') return params.entry.text
+  if (method === 'Runtime.consoleAPICalled') return params.args.map((arg) => String(arg.value ?? arg.description ?? '')).join(' ')
+  return null
+}
+
+/**
+ * The console lines saying the page refused an image: a Content-Security-Policy img-src block. Older Chromium writes
+ * "Refused to load the image …"; the Chromium in this Electron writes "Loading the image … violates the following
+ * Content Security Policy directive … The action has been blocked."
+ */
+export function refusedImages(lines) {
+  return lines.filter((line) => line.includes('Refused to load the image') || (line.includes('Loading the image') && line.includes('Content Security Policy')))
+}
+
+/** The first 12 hex digits of the SHA-256 of `bytes`, as the fake agent names an image it received. */
+export function sha12(bytes) {
+  return createHash('sha256').update(bytes).digest('hex').slice(0, 12)
+}
+
+/** The line the fake agent replies with for an image a turn carries (`fakeAgentCli.mjs`, receivedImages). */
+export function imageEchoLine(mime, bytes) {
+  return `received image ${mime} ${bytes.length} ${sha12(bytes)}`
+}
+
+/**
+ * A chat's transcript file (`<chat id>.jsonl`: one ChatItem per line, the last line per id winning): the image refs on
+ * the last user message `text`, and whether `needle` occurs anywhere in the file's text.
+ */
+export function transcriptImageRefs(fileText, text, needle) {
+  const items = new Map()
+  for (const line of fileText.split(/\r?\n/)) {
+    if (line.trim() === '') continue
+    const item = JSON.parse(line)
+    items.set(item.id, item)
+  }
+  const sent = [...items.values()].findLast((item) => item.kind === 'user_message' && item.text === text)
+  return { found: sent !== undefined, images: sent?.images ?? [], needleFound: fileText.includes(needle) }
+}
+
+/** `ok` when the epic's comments (`list_comments` data) are exactly one, with exactly one attachment of `sha256`. */
+export function evidenceComment(comments, sha256) {
+  const shown = comments.map(({ id, ticketId, body, attachments = [] }) => ({
+    id, ticketId, body, attachments: attachments.map(({ id: attachmentId, sha256: hash, mime, bytes, purpose }) => ({ id: attachmentId, sha256: hash, mime, bytes, purpose }))
+  }))
+  const ok = shown.length === 1 && shown[0].attachments.length === 1 && shown[0].attachments[0].sha256 === sha256
+  return { ok, comments: shown }
+}
+
+/** Throws when the page logged an image refusal; the check every image step ends with. */
+function assertNoRefusedImages(session) {
+  const refused = refusedImages(session.console)
+  if (refused.length > 0) throw new Error(`The page refused images: ${JSON.stringify(refused)}`)
+}
+
+/** The chat's transcript file in the isolated profile's chat store (`<chats>/<folder key>/<chat id>.jsonl`). */
+function transcriptFile(session, chatId) {
+  const root = chatsRoot(session)
+  const found = readdirSync(root).map((key) => join(root, key, `${chatId}.jsonl`)).filter((path) => existsSync(path))
+  if (found.length !== 1) throw new Error(`Expected one transcript file of chat ${chatId}; found ${found.length}.`)
+  return found[0]
+}
+
+const IMAGE_CHAT_PROMPT = 'hello image'
+const IMAGE_TEXT = 'look'
+
+/** The chat's composer has its hidden file input (the "+" button's picker). */
+function fileInput(_h, chatId) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  const input = section?.querySelector('input[type="file"]') ?? null
+  return { ok: !!input && !input.disabled, section: !!section, accept: input?.getAttribute('accept') ?? null }
+}
+
+/** Sets the chat composer's hidden file input to `file`, as a pick in the native file dialog would. */
+async function setComposerFile(session, chatId, file) {
+  const expression = `document.getElementById(${JSON.stringify(`agent-message-${chatId}`)}).closest('section.agent-chat').querySelector('input[type="file"]')`
+  const { result } = await cdp(session, 'Runtime.evaluate', { expression })
+  if (result.objectId === undefined) throw new Error('The composer has no file input.')
+  await cdp(session, 'DOM.setFileInputFiles', { files: [file], objectId: result.objectId })
+}
+
+/** The composer's staged image chips: ok once exactly `count` are staged, each one's image loaded. */
+function composerChips(_h, chatId, count) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  const chips = section ? [...section.querySelectorAll('ul.chat-image-chips > li.chat-image-chip')] : []
+  const staging = chips.some((chip) => chip.classList.contains('is-staging'))
+  const loaded = chips.map((chip) => chip.querySelector('img')).map((img) => img?.complete === true && img.naturalWidth > 0)
+  const error = section?.querySelector('.chat-composer-error')?.textContent ?? null
+  return { ok: !staging && chips.length === count && loaded.every(Boolean), chips: chips.length, staging, loaded, error }
+}
+
+/** The newest bubble of the person's images shows its thumbnail, loaded, and the composer holds no chip any more. */
+function sentImage(_h, chatId) {
+  const section = document.getElementById(`agent-message-${chatId}`)?.closest('section.agent-chat')
+  if (!section) return { ok: false, section: false }
+  const img = [...section.querySelectorAll('ul.chat-images[aria-label="Your images"] img')].at(-1)
+  if (!img) return { ok: false, img: false }
+  const chips = section.querySelectorAll('li.chat-image-chip').length
+  return { ok: img.complete && img.naturalWidth > 0 && chips === 0, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0], chips }
+}
+
+/** A new folder GUI chat from the New chat popup, its first turn done. */
+async function openImageChat(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', IMAGE_CHAT_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: IMAGE_CHAT_PROMPT })
+  if (chat.surface !== 'gui') throw new Error(`The image chat runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_CHAT_PROMPT })
+  return chat
+}
+
+/**
+ * Image 1: `swatch.png` set on a new GUI chat's composer file input stages one chip; `look` sends it, and the fake's
+ * reply starts with the image's mime, size and hash. The stored user message names the image by ref, and the
+ * transcript file holds none of its base64.
+ */
+async function imageSend(session, signal) {
+  const bytes = readFileSync(SWATCH)
+  const chat = await openImageChat(session, signal)
+  const input = await until(session, signal, fileInput, chat.id)
+  await setComposerFile(session, chat.id, SWATCH)
+  const chips = await until(session, signal, composerChips, chat.id, 1)
+  await until(session, signal, composeAndSend, chat.id, IMAGE_TEXT)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_TEXT })
+  const turn = await until(session, signal, turnItems, session.folderPath, chat.id, IMAGE_TEXT)
+  const expected = imageEchoLine('image/png', bytes)
+  const firstLine = turn.reply?.split(/\r?\n/)[0] ?? null
+  if (firstLine !== expected) throw new Error(`The reply starts ${JSON.stringify(firstLine)}, not ${JSON.stringify(expected)}.`)
+  const shown = await until(session, signal, sentImage, chat.id)
+  const file = transcriptFile(session, chat.id)
+  const needle = bytes.toString('base64').slice(0, 32)
+  const stored = transcriptImageRefs(readFileSync(file, 'utf8'), IMAGE_TEXT, needle)
+  if (!stored.found || stored.images.length !== 1) throw new Error(`The stored user message does not carry one image ref: ${JSON.stringify(stored)}`)
+  if (stored.needleFound) throw new Error(`The transcript ${file} holds the image's base64.`)
+  assertNoRefusedImages(session)
+  return {
+    chat: { id: chat.id, surface: chat.surface }, input, chips, reply: turn.reply, expected, firstLineMatches: true, thumbnail: shown,
+    transcript: { file, userImages: stored.images, base64Prefix: needle, base64Found: false }, refusedImages: [],
+    screenshot: await capture(session, 'e2e-image-send.png', WINDOW)
+  }
+}
+
+/** Opens Start run from the epic Agent stage's Magos card, or from the header once the stage holds a chat. */
+function startRunDialog(h) {
+  const dialog = document.querySelector('.dialog[role="dialog"]')
+  if (dialog) return { ok: !!h.button(dialog.querySelector('.dialog-actions'), 'Run with agent'), dialog: true }
+  const card = document.querySelector('section.eap .eap-empty .arc[data-role="orchestrator"]')
+  const header = h.button(document.querySelector('section.ew[aria-label="Epic workspace"] header.ew-header'), 'Start run')
+  const from = card ?? header
+  from?.click()
+  return { ok: false, card: !!card, header: !!header }
+}
+
+/** The image on the Read tool card of the epic's open chat; its thumbnail and its Attach as evidence lie inside it. */
+const TOOL_IMAGE = 'section.eap section.agent-chat .chat-transcript li.chat-tool[aria-label="Tool call: Read"] ul.chat-images[aria-label="Images from the agent"] > li.chat-image'
+
+/**
+ * The tool card's image (`selector`) shows its thumbnail, loaded, and offers Attach as evidence. A finished turn folds
+ * its work, so a missing image opens the newest folded row.
+ */
+function toolImage(_h, selector) {
+  const item = document.querySelector(selector)
+  if (!item) {
+    const folded = [...document.querySelectorAll('section.eap section.agent-chat .chat-work-toggle[aria-expanded="false"]')].at(-1)
+    folded?.click()
+    return { ok: false, opened: Boolean(folded) }
+  }
+  const img = item.querySelector('img')
+  if (!img) return { ok: false, img: false }
+  const evidence = item.querySelector('button.chat-image-evidence')
+  return {
+    ok: img.complete && img.naturalWidth > 0 && evidence !== null, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0],
+    thumb: item.querySelector('button.chat-image-thumb')?.getAttribute('aria-label'), evidence: evidence?.getAttribute('aria-label')
+  }
+}
+
+function lightboxShown(_h) {
+  const box = document.querySelector('.attachment-lightbox[role="dialog"]')
+  const img = box?.querySelector('img.attachment-lightbox-image') ?? null
+  return { ok: !!img && img.complete && img.naturalWidth > 0, label: box?.getAttribute('aria-label') ?? null, naturalWidth: img?.naturalWidth ?? null }
+}
+
+function lightboxClosed(_h) {
+  const box = document.querySelector('.attachment-lightbox[role="dialog"]')
+  box?.querySelector('button[aria-label="Close"]')?.click()
+  return { ok: !document.querySelector('.attachment-lightbox[role="dialog"]') }
+}
+
+function toastShown(_h, text) {
+  const toasts = [...document.querySelectorAll('.ew-toast[role="status"] > span')].map((toast) => toast.textContent.trim())
+  return { ok: toasts.includes(text), toasts }
+}
+
+/**
+ * Image 2: the seeded epic's Magos, started through Start run, answers `[image]` with a Read tool result image. In the
+ * epic's Agent tab its thumbnail loads under the tool card with no image refused, the lightbox shows it, and Attach as evidence leaves one
+ * epic comment whose attachment's sha256 is swatch.png's, as `dm call list_comments` (reader role, no token) reads it.
+ */
+async function imageResult(session, signal) {
+  const sha256 = createHash('sha256').update(readFileSync(SWATCH)).digest('hex')
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  await until(session, signal, startRunDialog)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Run with agent')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { role: 'orchestrator', epicId: session.epicId })
+  if (chat.surface !== 'gui') throw new Error(`The Magos runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: '', prefix: true })
+  await until(session, signal, composeAndSend, chat.id, '[image]')
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: '[image]' })
+  // Run with agent opens the Magos as a folder chat; Attach as evidence lives in the epic's Agent tab.
+  await until(session, signal, openEpic, EPIC_TITLE)
+  await until(session, signal, agentToggle)
+  const thumbnail = await until(session, signal, toolImage, TOOL_IMAGE)
+  await until(session, signal, clickSelector, `${TOOL_IMAGE} button.chat-image-thumb`)
+  const lightbox = await until(session, signal, lightboxShown)
+  const lightboxShot = await capture(session, 'e2e-image-result-lightbox.png', WINDOW)
+  await until(session, signal, lightboxClosed)
+  await until(session, signal, clickSelector, `${TOOL_IMAGE} button.chat-image-evidence`)
+  const toast = await until(session, signal, toastShown, EVIDENCE_TOAST)
+  const screenshot = await capture(session, 'e2e-image-result.png', WINDOW)
+  const listed = await dmCall(session, { repo: session.folderPath, command: 'list_comments', args: { epicId: session.epicId } }, signal)
+  if (!listed.ok) throw new Error(`list_comments failed: ${JSON.stringify(listed)}`)
+  const comment = evidenceComment(listed.data, sha256)
+  if (!comment.ok) throw new Error(`list_comments does not show one comment with swatch.png attached: ${JSON.stringify(comment.comments)}`)
+  assertNoRefusedImages(session)
+  return {
+    magos: { id: chat.id, role: chat.role, surface: chat.surface, epicId: chat.epicId }, thumbnail, lightbox, toast: toast.toasts,
+    swatchSha256: sha256, listComments: comment.comments, refusedImages: [], screenshots: [lightboxShot, screenshot]
+  }
+}
+
 const STEPS = {
   ready: { name: 'app ready', run: appReady },
   'new-chat': { name: 'new-chat', run: newChat },
@@ -1984,11 +2233,13 @@ const STEPS = {
   'polish-copy': { name: 'polish-copy', run: polishCopy, polish: true },
   'polish-multiselect': { name: 'polish-multiselect', run: polishMultiselect, polish: true },
   'polish-worked-for': { name: 'polish-worked-for', run: polishWorkedFor, polish: true },
-  'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true }
+  'polish-untrack': { name: 'polish-untrack', run: polishUntrack, polish: true },
+  'image-send': { name: 'image-send', run: imageSend, image: true },
+  'image-result': { name: 'image-result', run: imageResult, image: true }
 }
 
 async function captureFailure(session, step) {
-  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe }
+  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe, refusedImages: refusedImages(session.console) }
   if (session.page?.socket.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
   const bound = delay(SCREENSHOT_BOUND_MS).then(() => { throw new Error('screenshot timed out') })
   const { data } = await Promise.race([cdp(session, 'Page.captureScreenshot', { format: 'png' }), bound])
@@ -2038,7 +2289,7 @@ function removeIsolatedState(session) {
  * Claude-only ones are refused. A list that neither starts the app nor names `ready` gets `ready` first.
  */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !OMP_STEPS.includes(key)) : []
