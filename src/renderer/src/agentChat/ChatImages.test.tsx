@@ -17,12 +17,16 @@ const CHAT_ID = 'fixture-chat'
 const items = agentChatScenarios['image-result'].snapshot.items
 const url = (id: string): string => chatImageUrl(FOLDER_KEY, CHAT_ID, id)
 
-/** The image-result scenario in a project GUI chat: a sent message with two images, one gone, and a Read that returned one. */
+/**
+ * The image-result scenario in a project GUI chat: a sent message with two images, one gone, and a Read that returned one.
+ * The idle chat folds the ended turn's Read behind its `Worked for` row, which is opened here.
+ */
 async function mountImageResult(): Promise<FakeAgentChat> {
   const api = new FakeAgentChat()
   api.snapshotResult = { ok: true, data: agentChatScenarios['image-result'].snapshot }
   render(<AgentChat folder="/repo" folderKey={FOLDER_KEY} chatId={CHAT_ID} agentLabel="Magos" api={api} scheduler={new ManualScheduler()} />)
   await settle()
+  fireEvent.click(screen.getByRole('button', { name: /^Worked for/ }))
   return api
 }
 
