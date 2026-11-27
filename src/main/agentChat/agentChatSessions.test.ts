@@ -600,8 +600,8 @@ describe('claude Magos escalation, exit and clipped input over the fake CLI', ()
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
     const outside = join(r.userData, 'secret.txt')
     inject('visible', `type "${outside}"`)
-    // Short words: one word over 255 bytes is a path component Linux refuses (ENAMETOOLONG), which the scan reads as
-    // outside the folder before the clipped flag is consulted; Windows answers ENOENT. The cut must look harmless.
+    // Short words: one word over 255 bytes is a name too long to check, an exclusion decided before the clipped flag is
+    // consulted. The cut must look harmless.
     inject('clipped', `echo ${'a '.repeat(500)}&& type "${outside}"`)
     inject('inside', 'npm test')
     expect(r.sessions.snapshot(chat).pending).toMatchObject({ id: 'visible', arbitration: { state: 'escalated', reason: exclusionText('outside_folder') } })
