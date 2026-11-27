@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { jpegBytes, pngBytes } from '../../test/images'
+import { jpegBytes, pngBytes, webpBytes } from '../../test/images'
 import { DomainError } from '../errors'
-import { inspectImageBytes, readImageFile, resolveAllowedRoots, type ImageFs } from './intake'
+import { inspectImageBytes, inspectToolImageBytes, readImageFile, resolveAllowedRoots, type ImageFs } from './intake'
 
 function refusal(run: () => unknown): DomainError {
   try {
@@ -122,6 +122,25 @@ describe('image intake', () => {
       }
     }
     expect(refusal(() => readImageFile(join(project, 'huge.png'), roots, fs)).message).toMatch(/too large/)
+  })
+})
+
+describe('inspectToolImageBytes', () => {
+  it('measures every WebP flavour and still refuses WebP for person-sent images', () => {
+    expect(inspectToolImageBytes(webpBytes(64, 32))).toEqual({ mime: 'image/webp', width: 64, height: 32 })
+    expect(inspectToolImageBytes(webpBytes(8000, 1, 'VP8X'))).toEqual({ mime: 'image/webp', width: 8000, height: 1 })
+    expect(inspectToolImageBytes(webpBytes(200, 100, 'VP8 '))).toEqual({ mime: 'image/webp', width: 200, height: 100 })
+    expect(inspectToolImageBytes(pngBytes(7, 9))).toEqual({ mime: 'image/png', width: 7, height: 9 })
+    expect(refusal(() => inspectImageBytes(webpBytes(64, 64))).message).toMatch(/Unsupported image type/)
+  })
+
+  it('refuses a truncated, unknown-flavour, over-dimension or over-size WebP', () => {
+    expect(refusal(() => inspectToolImageBytes(webpBytes(64, 64).subarray(0, 20))).message).toMatch(/WebP/)
+    const unknown = webpBytes(64, 64)
+    unknown.write('ALPH', 12, 'latin1')
+    expect(refusal(() => inspectToolImageBytes(unknown)).message).toMatch(/WebP/)
+    expect(refusal(() => inspectToolImageBytes(webpBytes(8001, 10, 'VP8X'))).message).toMatch(/too many pixels/)
+    expect(refusal(() => inspectToolImageBytes(Buffer.concat([webpBytes(3, 2), Buffer.alloc(10 * 1024 * 1024)]))).message).toMatch(/too large/)
   })
 })
 

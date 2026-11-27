@@ -2,6 +2,7 @@ import type { AgentChatAnswer, AgentChatEvent, AgentTodoPhase, PendingPrompt } f
 import type { ChatItem } from '../../shared/agents/chat'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import { taskCreateResult, taskCreateStarted, taskPhases, taskUpdate, todoWritePhases, type TaskList } from './todoLists'
+import { liftToolImages, type ToolResultBlob, type TurnImage } from './toolResultImages'
 import { threadClaim, type ThreadClaimEvent } from './translatorEvents'
 
 type Payload<T> = T extends unknown ? Omit<T, 'folder' | 'chatId'> : never
@@ -36,7 +37,7 @@ export type ClaudeProtocolState = {
   seen: Set<string>
 }
 type ClaudeCommand =
-  | { type: 'send'; text: string; uuid: string; sessionId?: string }
+  | { type: 'send'; text: string; uuid: string; sessionId?: string; images?: TurnImage[] }
   | { type: 'interrupt'; requestId: string }
   | ({ type: 'answer' } & AgentChatAnswer)
 type Translation = { state: ClaudeProtocolState; events: ClaudeProtocolEvent[] }
@@ -115,7 +116,8 @@ function commitBlock(events: ClaudeProtocolEvent[], message: Message, index: num
     at: message.at, ...scope(message.threadId), text: block.text })
   else events.push({ type: 'stream_end', itemId: `${message.id}:${index}` })
 }
-type Reduction = { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; at: string; internalEvents?: ThreadClaimEvent[] }
+/** `blobs` collects tool-result image bytes during a translation; encoders never set it. */
+type Reduction = { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; at: string; internalEvents?: ThreadClaimEvent[]; blobs?: ToolResultBlob[] }
 type HeldTool = { item: Tool; input: JsonObject }
 
 function startThread({ state, events, at, internalEvents }: Reduction, held: HeldTool): void {
@@ -184,12 +186,22 @@ function successfulTodos(state: ClaudeProtocolState, held: HeldTool, text: strin
   }
   return undefined
 }
+/** A tool_result's image blocks, from array `content` only: `tool_use_result` repeats them and never yields a blob. */
+function resultImages(content: unknown): { mime: unknown; data: unknown }[] {
+  return objects(content).filter(part => part.type === 'image').map(part => {
+    const source = object(part.source)
+    return { mime: source?.media_type, data: source?.type === 'base64' ? source.data : null }
+  })
+}
 function toolResult(context: Reduction, block: JsonObject, frame: JsonObject): void {
   const { state, events } = context
   const held = state.tools.get(string(block.tool_use_id))
   if (!held || held.item.status !== 'running') { state.skipped++; return }
   const failed = block.is_error === true, text = resultText(block.content)
-  held.item = { ...held.item, status: failed ? 'failed' : 'completed', resultSummary: clip(text, 4000) }
+  const images = liftToolImages(mask(held.item.id), resultImages(block.content))
+  context.blobs?.push(...images.blobs)
+  const resultSummary = [clip(text, 4000), ...images.notes].filter(Boolean).join('\n')
+  held.item = { ...held.item, status: failed ? 'failed' : 'completed', resultSummary }
   item(events, held.item)
   spawnResult(context, held, frame.tool_use_result)
   if (failed) { failedTodo(state, held); return }
@@ -500,23 +512,27 @@ function dispatch(context: Reduction, frame: JsonObject): void {
     default: context.state.skipped++
   }
 }
-/** Translate one JSONL line; only `events` are safe for storage/IPC. Internal claims are transient. */
-export function translateClaudeLine(line: string, previous: ClaudeProtocolState, at: string): Translation & { internalEvents: ThreadClaimEvent[] } {
+/**
+ * Translate one JSONL line; only `events` are safe for storage/IPC. Internal claims are transient. `blobs` are
+ * tool-result image bytes for the named items: never in an event, and the caller stores them as bytes.
+ */
+export function translateClaudeLine(line: string, previous: ClaudeProtocolState, at: string): Translation & { internalEvents: ThreadClaimEvent[]; blobs: ToolResultBlob[] } {
   const state = structuredClone(previous), events: ClaudeProtocolEvent[] = [], internalEvents: ThreadClaimEvent[] = []
+  const blobs: ToolResultBlob[] = []
   let frame: JsonObject | null
   try { frame = object(JSON.parse(line)) } catch { frame = null }
-  if (!frame) { state.skipped++; return { state, events, internalEvents } }
+  if (!frame) { state.skipped++; return { state, events, internalEvents, blobs } }
   const uuid = string(frame.uuid)
-  if (uuid && state.seen.has(uuid)) return { state, events, internalEvents }
+  if (uuid && state.seen.has(uuid)) return { state, events, internalEvents, blobs }
   if (uuid) state.seen.add(uuid)
-  const context = { state, events, at, internalEvents }
+  const context = { state, events, at, internalEvents, blobs }
   if (string(frame.parent_tool_use_id) && !state.threads.has(string(frame.parent_tool_use_id)) && !supportedForwarded(frame)) {
     state.skipped++
-    return { state, events, internalEvents }
+    return { state, events, internalEvents, blobs }
   }
   forwardedThread(context, frame)
   dispatch(context, frame)
-  return { state, events: mask(events), internalEvents }
+  return { state, events: mask(events), internalEvents, blobs }
 }
 
 /** Call once with a fresh host request id; system/init alone does not admit turns. */
@@ -586,11 +602,17 @@ function encodeAnswer(context: Reduction, command: Answer): string[] {
   events.push({ type: 'pending', prompt: [...state.pending.values()].at(-1)?.prompt ?? null })
   return [JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: held.requestId, response } })]
 }
+/** Images first, then the text block, omitted when empty (Image contract); a text-only turn stays a plain string. */
+function userContent({ text, images = [] }: Extract<ClaudeCommand, { type: 'send' }>): string | JsonObject[] {
+  if (!images.length) return text
+  const blocks: JsonObject[] = images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mime, data: image.base64 } }))
+  return text ? [...blocks, { type: 'text', text }] : blocks
+}
 function encodeSend({ state, events, at }: Reduction, command: Extract<ClaudeCommand, { type: 'send' }>): string[] {
   if (!state.initialized) return []
   const sessionId = command.sessionId ?? state.sessionId
   const frame = { type: 'user', ...(sessionId ? { session_id: sessionId } : {}), uuid: command.uuid,
-    parent_tool_use_id: null, message: { role: 'user', content: command.text } }
+    parent_tool_use_id: null, message: { role: 'user', content: userContent(command) } }
   item(events, { kind: 'user_message', id: command.uuid, at, text: command.text })
   events.push({ type: 'status', status: 'busy' })
   return [JSON.stringify(frame)]

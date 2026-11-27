@@ -70,19 +70,16 @@
   padding: 0;
 }
 
+/* The transcript's reading column (chatView.css .chat-rows): the live reply and the empty note line up with it. */
 .agent-chat-stream,
 .agent-chat-empty {
-  max-width: 860px;
+  max-width: 760px;
   margin: 16px auto;
 }
 
 .agent-chat-empty,
 .agent-chat-thinking {
   color: var(--muted);
-}
-
-.agent-chat-stream > .chat-msg-who {
-  margin-bottom: 8px;
 }
 
 .agent-chat-thinking summary {

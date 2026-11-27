@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
-import { jpegBytes } from '../../test/images'
+import { jpegBytes, webpBytes } from '../../test/images'
 import { chatImageRefSchema } from '../../shared/agents/chat'
 import { createChatImages, type ChatImagesRef } from './chatImages'
 import { folderStoreId } from './folderStoreId'
@@ -39,18 +39,6 @@ async function refusal(action: Promise<unknown>): Promise<string> {
     return error instanceof DomainError ? error.code : `unexpected: ${String(error)}`
   }
   return 'no error'
-}
-
-/** A lossless WebP header (`VP8L`) of the given size. */
-function webpBytes(width: number, height: number): Buffer {
-  const bytes = Buffer.alloc(30)
-  bytes.write('RIFF', 0, 'latin1')
-  bytes.writeUInt32LE(bytes.length - 8, 4)
-  bytes.write('WEBPVP8L', 8, 'latin1')
-  bytes.writeUInt32LE(10, 16)
-  bytes[20] = 0x2f
-  bytes.writeUInt32LE(((width - 1) & 0x3fff) | (((height - 1) & 0x3fff) << 14), 21)
-  return bytes
 }
 
 const CHAT: ChatImagesRef = { folder: FOLDER, chatId: 'chat_one' }
