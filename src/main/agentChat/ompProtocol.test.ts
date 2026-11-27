@@ -117,7 +117,7 @@ function expectCommittedDeltas(events: OmpEvent[]): void {
 
 describe('OMP golden protocol', () => {
   it('enumerates every golden pair, including both startup variants', () => {
-    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim'].sort())
+    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim', 'image_in', 'image_result'].sort())
   })
   for (const name of ['init', 'init_resume']) it(`bootstraps ${name} once with exact commands and todos`, () => {
     const h = harness(); const output = lines(name, 'out')

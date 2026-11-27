@@ -95,7 +95,7 @@ const expected: Record<string, ChatItem[]> = {
 }
 
   it('covers every pinned pair without CR characters', () => {
-    const all = [...scenarios, 'worker_approval']
+    const all = [...scenarios, 'worker_approval', 'image_in', 'image_result']
     expect(readdirSync(directory).filter(name => name.endsWith('.out.jsonl')).sort()).toEqual(all.map(name => `${name}.out.jsonl`).sort())
     for (const name of all) { fixture(name); fixture(name, 'in') }
   })
