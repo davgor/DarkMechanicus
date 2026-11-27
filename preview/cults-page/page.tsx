@@ -18,7 +18,9 @@ import type { CultPetitionView } from '../../src/shared/cults/cult'
  * The Cult page over the renderer fakes, with the real sidebar, chamber and xterm, for screenshots. `?state=` picks the
  * state; the page reaches it with real DOM clicks after mount, then sets `data-ready` on `#root`. The `shrine-*` states
  * show the run's Shrine in the viewscreen (DM-632): its content loads from `dm-shrine:`, which only a host serving that
- * scheme (an Electron capture over `src/main/cults/shrineProtocol.ts`) answers.
+ * scheme (an Electron capture over `src/main/cults/shrineProtocol.ts`) answers. The live chamber states (DM-667):
+ * `live` delivers new tool calls and mail after the page opened, `order-all` an order to every acolyte, and
+ * `sprite-inspector` clicks an acolyte in the room; `dark` is the room with no active run.
  */
 const params = new URLSearchParams(window.location.search)
 const state = params.get('state') ?? 'idle'
@@ -128,7 +130,7 @@ dm.terminals = terminals
 dm.folders = [alpha]
 window.dm = dm
 cults.cults = [cultView({ name: 'Shrine Builders', archetype: 'research_creative', charter: 'Build the Gerry Shrine: a plan, its tickets and the review of each, before the window closes.' })]
-cults.runsByCult = { cult_1: state === 'idle' ? pastRuns() : [activeRun(), ...pastRuns()] }
+cults.runsByCult = { cult_1: state === 'idle' || state === 'dark' ? pastRuns() : [activeRun(), ...pastRuns()] }
 cults.pipelines = { run_1: pipelineEntries(), run_0: pipelineEntries().slice(1, 6) }
 const names = ['Magos Vettius', ...ACOLYTES.map(([name]) => name)]
 dm.chats.chats = ['chat_magos', 'a1', 'a2', 'a3', 'a4'].map((id, index) => chatRecord({ id, folder: WORK, agent: 'omp', role: index === 0 ? 'orchestrator' : 'worker', title: names[index], cultRunId: 'run_1', cultRole: index === 0 ? 'magos' : 'acolyte' }))
@@ -172,6 +174,42 @@ async function drivePipeline(): Promise<void> {
   list?.scrollTo({ top: state === 'pipeline-top' ? 0 : list.scrollHeight })
 }
 
+/** After the page opened, as a live run delivers them: new tool calls in a snapshot, and new mail in the pipeline. */
+function deliverLive(): void {
+  const now = new Date().toISOString()
+  const run = activeRun()
+  const activity = (working: boolean, name: string, target: string): CultMemberDetail['activity'] => ({ working, tool: { name, target }, at: now })
+  const changed: Record<string, CultMemberDetail['activity']> = { a2: activity(true, 'grep', 'useChamberLog') }
+  const members = run.members.map((member) => (member.chatId in changed ? { ...member, activity: changed[member.chatId]! } : member))
+  const [magos, ferrum, , vox, aurum] = members.map((member): PipelineMember => ({ chatId: member.chatId, displayName: member.displayName, role: member.role }))
+  const base = { eventKind: null, orderId: null, inReplyTo: null, truncated: false, at: now, kind: 'message' as const }
+  cults.pipelines.run_1!.push(
+    { ...base, seq: 12, sender: magos!, recipients: [vox!], messageIds: ['n1'], text: 'Sweep the nave of stale imports.\nThen report to me.' },
+    { ...base, seq: 13, sender: aurum!, recipients: [ferrum!], messageIds: ['n2'], text: '<b>Schema</b> first: zod at the IPC edge.' }
+  )
+  cults.push({ ...run, members })
+}
+
+/** After the page opened, the Magos orders every acolyte at once. */
+function deliverOrder(): void {
+  const run = activeRun()
+  const [magos, ...acolytes] = run.members.map((member): PipelineMember => ({ chatId: member.chatId, displayName: member.displayName, role: member.role }))
+  cults.pipelines.run_1!.push({
+    seq: 12, at: new Date().toISOString(), kind: 'order_all', eventKind: 'order_all', sender: magos!, recipients: acolytes, orderId: 'co_live',
+    messageIds: acolytes.map((_, index) => `o${index}`), inReplyTo: null, truncated: false, text: 'Conclude your reports within three minutes.'
+  })
+  cults.push(run)
+}
+
+/** The live chamber states, reached once the room has settled: what arrives, or a click on a sprite. */
+async function driveChamber(): Promise<void> {
+  if (state === 'sprite-inspector') click(document.querySelector('.cc-acolyte[data-member-id="a3"] .pg-mascot-sprite'))
+  if (state === 'live') deliverLive()
+  if (state.startsWith('order-all')) deliverOrder()
+  // Packets and the order's ring are in flight, the bubbles up; an opened inspector has painted.
+  if (state === 'live' || state.startsWith('order-all') || state === 'sprite-inspector') await tick(state === 'live' ? 700 : 450)
+}
+
 /** Real DOM clicks to reach the state. */
 async function drive(): Promise<void> {
   await tick(600)
@@ -182,8 +220,9 @@ async function drive(): Promise<void> {
   if (state.startsWith('pipeline')) await drivePipeline()
   if (state === 'shrine-enlarged') click(document.querySelector('.cc-viewscreen-window .shrine-enlarge'))
   await document.fonts.ready
-  // The chamber's join beams fade before the capture.
+  // The chamber's walk-ins settle before the capture.
   await tick(4000)
+  await driveChamber()
   document.getElementById('root')?.setAttribute('data-ready', state)
 }
 

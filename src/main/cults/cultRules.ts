@@ -117,7 +117,7 @@ function magosAuthority(): string[] {
     'never work in a folder other than this one without an approved folder_access petition.',
     'Folder work: split it by file. Give each acolyte its own files, so no two acolytes edit the same file.',
     `Coordination: talk to your acolytes over the Skitarii mailbox. Use \`${T.orderAll}\` for an order every acolyte`,
-    'must follow: it sends one message to each live acolyte at once. Use `send_agent_message` for an order to one',
+    'must follow: it sends one message to each live acolyte at once. Use `dm_message_send` for an order to one',
     `acolyte. \`${T.listAcolytes}\` and \`${T.status}\` show who serves and how much time is left.`,
     shrineLine()
   ]

@@ -20,6 +20,7 @@ import {
 import { remainingMs } from '../../shared/cults/runState'
 import type { NamingControlBinding, NamingDispatcher } from '../naming/controlPipe'
 import { newCultId } from './cultRecords'
+import type { CultPipeline } from './cultPipeline'
 import type { CultStore } from './cultStore'
 import { requireRunningRun, type CultSupervisor } from './cultSupervisor'
 import type { PlanForgeCouncil } from './planForgeCouncil'
@@ -42,6 +43,9 @@ export interface CultCommandDeps {
   /** The signed-in OMP models, cheapest first (`OmpModelCatalog.list`). */
   models: () => Promise<readonly CultModelOption[]>
   sendOrder: (order: CultOrderSend) => Promise<string[]>
+  /** The run's pipeline (`CultPipeline.exclusive`): an order is sent and recorded inside it, so a pipeline sync never
+   * reads its messages before its `order_all` event. Without a pipeline, the order is sent and recorded directly. */
+  pipeline?: Pick<CultPipeline, 'exclusive'>
   /** The Plan Forge council (DM-738): the conclusion gate, state and synthesis of the runs it governs. */
   council?: Pick<PlanForgeCouncil, 'governs' | 'status' | 'assertConclusion' | 'recordSynthesis'>
   /** The run Shrines (DM-632): `cult_publish_shrine` is `operation_unavailable` without them. */
@@ -194,11 +198,14 @@ async function orderAll(deps: CultCommandDeps, { run, member }: Caller, args: { 
   const acolytes = deps.cults.listMembers(run.id).filter((candidate) => candidate.role === 'acolyte' && isLive(candidate))
   if (acolytes.length === 0) fail('no_acolytes', 'The run has no live acolytes to order.')
   const orderId = newCultId('co')
-  const messageIds = await deps.sendOrder({
-    folder: run.workDir, senderChatId: member.chatId, recipientChatIds: acolytes.map((acolyte) => acolyte.chatId), orderId, body: args.body
-  })
   const recipients = acolytes.map((acolyte) => acolyte.displayName)
-  deps.cults.recordOrder(run.id, member.displayName, { orderId, messageIds, recipients })
+  const send = async (): Promise<void> => {
+    const messageIds = await deps.sendOrder({
+      folder: run.workDir, senderChatId: member.chatId, recipientChatIds: acolytes.map((acolyte) => acolyte.chatId), orderId, body: args.body
+    })
+    deps.cults.recordOrder(run.id, member.displayName, { orderId, messageIds, recipients })
+  }
+  await (deps.pipeline === undefined ? send() : deps.pipeline.exclusive(run.id, send))
   return { orderId, recipients }
 }
 

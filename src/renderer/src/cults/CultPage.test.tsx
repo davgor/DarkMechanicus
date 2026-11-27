@@ -98,7 +98,7 @@ describe('CultPage command bar', () => {
     for (const name of ['Pause', 'Resume', 'Stop', 'Kill now', 'Raise']) expect(bar().queryByRole('button', { name })).toBeNull()
     expect(bar().getByText('Idle')).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Empty chamber: no active run' })).toBeTruthy()
-    expect(document.querySelector('.cc-chamber')).toBeNull()
+    expect(document.querySelector('.cc-magos, .cc-acolyte')).toBeNull()
 
     fireEvent.change(bar().getByLabelText('Acolyte cap'), { target: { value: '9' } })
     fireEvent.click(bar().getByLabelText('Unlimited'))
