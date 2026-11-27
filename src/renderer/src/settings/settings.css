@@ -39,6 +39,14 @@
   color: var(--ink-2);
 }
 
+.settings-load-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 640px;
+}
+
 .notification-settings {
   display: flex;
   flex-direction: column;
