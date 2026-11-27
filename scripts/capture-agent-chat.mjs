@@ -153,8 +153,8 @@ const STATE_CHECKS = {
         && matches(o.approvalRecord, /The Magos decided: \S/)]
   ],
   'agent-needs-you': [
-    ['the header reads 2 needs you', (o) => matches(o.needsYouHeader, /^2 needs you/)],
-    ['two badged rows', (o) => o.badgedRows === 2]
+    ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
+    ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
   ],
   'settings-notifications': [['the controls have accessible names', (o) => Array.isArray(o.settingsControls)
     && o.settingsControls.length > 0 && o.settingsControls.every((name) => typeof name === 'string' && name.trim() !== '')]]

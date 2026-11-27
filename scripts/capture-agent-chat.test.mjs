@@ -66,7 +66,7 @@ function passing() {
     'agent-magos-decided': ready('agent-magos-decided', {
       approvalRecord: 'Approval Denied by the Magos Run npm test Asked by Acolyte:DM-442 The Magos decided: docs only.'
     }),
-    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '2 needs you · 4 working', badgedRows: 2 }),
+    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '3 needs you · 4 working', badgedRows: 3 }),
     'settings-notifications': ready('settings-notifications', {
       viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: null, railRightOfStage: null,
       settingsControls: ['An approval needs you', 'Let the Magos arbitrate', 'Save']

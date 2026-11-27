@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AttentionItem } from '../../../shared/agents/agentChat'
+import { deferred } from '../__mocks__/deferred'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { settle } from '../__mocks__/settle'
 import { useNeedsYou } from './useNeedsYou'
@@ -65,16 +66,46 @@ describe('useNeedsYou', () => {
 })
 
 describe('useNeedsYou lifecycle', () => {
-  it('shows nothing when the read is refused, then still follows pushes', async () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('shows nothing when the read is refused and logs it, then still follows pushes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const api = new FakeAgentChat()
     api.failures.attention = { code: 'internal', message: 'main process busy' }
     const view = mount(api)
     await settle()
     expect(plain(view.result.current)).toEqual({})
+    expect(warn).toHaveBeenCalledWith(`Needs-you read for ${FOLDER} was refused: main process busy`)
     act(() => api.emit({ folder: FOLDER, chatId: 'chat_a', type: 'attention', items: [item('chat_a', 'p1')] }))
     expect(plain(view.result.current)).toEqual({ chat_a: ['p1'] })
   })
 
+  it('shows no badge and logs a rejected read without an unhandled rejection, then still follows pushes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason) }
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const api = new FakeAgentChat()
+      vi.spyOn(api, 'attention').mockRejectedValue(new Error('IPC channel closed'))
+      const view = mount(api)
+      await settle()
+      // Node reports an unhandled rejection after the microtask queue drains, so wait one macrotask.
+      const tick = deferred()
+      setTimeout(tick.resolve, 0)
+      await tick.promise
+      expect(plain(view.result.current)).toEqual({})
+      expect(warn).toHaveBeenCalledWith(`Needs-you read for ${FOLDER} failed: IPC channel closed`)
+      expect(unhandled).toEqual([])
+      act(() => api.emit({ folder: FOLDER, chatId: 'chat_a', type: 'attention', items: [item('chat_a', 'p1')] }))
+      expect(plain(view.result.current)).toEqual({ chat_a: ['p1'] })
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
+  })
+})
+
+describe('useNeedsYou unmount and folder changes', () => {
   it('unsubscribes on unmount and ignores a read that resolves afterwards', async () => {
     const api = new FakeAgentChat()
     const held = api.hold('attention')

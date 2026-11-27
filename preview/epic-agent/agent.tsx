@@ -57,6 +57,9 @@ const RUN = runView()
 const ORCHESTRATOR = chatRecord({
   id: 'chat_orch', folder: FOLDER.path, role: 'orchestrator', runId: RUN.id, epicId: 'ep_1', surface: 'gui', title: 'Orchestrator · Plan'
 })
+const PLANNER = chatRecord({
+  id: 'chat_plan', folder: FOLDER.path, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner', createdAt: '2026-02-01T10:00:00.000Z'
+})
 const scenarios = agentChatScenarios
 const conversation = scenarios.streaming.snapshot.items
 const AT = conversation[0].at
@@ -316,15 +319,23 @@ const agentStates: Record<string, StateDef> = {
   },
   'agent-needs-you': {
     mount: 'epic',
+    // The planner chat is not watched (no transcript, so no subagent rows): its subagent's prompt badges its own row.
+    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing.
     seed: (context) => {
       snapshot(context, treeSnapshot())
+      context.chats.push(PLANNER)
       context.backend.agentChat.attentionResult = {
-        ok: true, data: [attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?')]
+        ok: true, data: [
+          attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?'),
+          { ...attention('th-plan-look', 'off', 'Read the plan?'), chatId: PLANNER.id, callsign: null },
+          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false }
+        ]
       }
     },
     reach: async () => {
       await openAgentTab()
       await until(() => buttonNamed('Servitor-1 needs you'), 'the worker’s needs-you dot')
+      await until(() => buttonNamed('Lexmechanic needs you'), 'the unwatched planner’s needs-you dot')
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
     }
