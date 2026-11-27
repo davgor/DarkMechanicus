@@ -380,22 +380,22 @@ describe('isAlive', () => {
   })
 })
 
-describe('stale isolated roots', () => {
-  /** A root under `parent`, owned by `pid` (none: no owner file). */
-  const root = (parent, name, pid) => {
-    const path = join(parent, name)
-    mkdirSync(join(path, 'user-data'), { recursive: true })
-    if (pid !== undefined) writeFileSync(join(path, 'harness.json'), JSON.stringify({ pid }))
-    return path
-  }
+/** A harness root under `parent`, owned by `pid` (none: no owner file). */
+const root = (parent, name, pid) => {
+  const path = join(parent, name)
+  mkdirSync(join(path, 'user-data'), { recursive: true })
+  if (pid !== undefined) writeFileSync(join(path, 'harness.json'), JSON.stringify({ pid }))
+  return path
+}
 
-  it('are the harness roots whose owner is gone, or ownerless ones older than a minute; others and live ones stay', () => {
+describe('stale isolated roots', () => {
+  it('are the harness roots whose owner is gone, or ownerless ones older than any run; others and live ones stay', () => {
     const parent = temp()
     const dead = root(parent, 'dm-e2e-agent-chat-dead', 111)
     const live = root(parent, 'dm-e2e-agent-chat-live', 222)
     const fresh = root(parent, 'dm-e2e-agent-chat-fresh')
     const old = root(parent, 'dm-e2e-agent-chat-old')
-    const past = new Date(Date.now() - 120_000)
+    const past = new Date(Date.now() - 7 * 60 * 60_000)
     utimesSync(old, past, past)
     root(parent, 'other-run-dead', 111)
     const alive = (pid) => pid === 222
@@ -404,7 +404,31 @@ describe('stale isolated roots', () => {
     expect([dead, live, fresh, old].map((path) => existsSync(path))).toEqual([false, true, true, false])
   })
 
-  it('include the root of a run that was killed, and the next run removes it', () => {
+  it('keep a two-minute-old ownerless root: a live run of a harness from before owner files', () => {
+    const parent = temp()
+    const running = root(parent, 'dm-e2e-agent-chat-running')
+    const past = new Date(Date.now() - 120_000)
+    utimesSync(running, past, past)
+    expect(staleRoots(parent, () => false)).toEqual([])
+    expect(removeStaleRoots(parent, () => false)).toEqual({ removed: [] })
+    expect(existsSync(running)).toBe(true)
+  })
+})
+
+describe('a sweep racing other runs', () => {
+  it('skips a root that disappears during the sweep', () => {
+    const parent = temp()
+    const roots = [root(parent, 'dm-e2e-agent-chat-a', 222), root(parent, 'dm-e2e-agent-chat-b', 222)]
+    // The first owner checked is a run finishing: both roots go before the sweep reaches the second one.
+    const alive = () => {
+      for (const path of roots) rmSync(path, { recursive: true, force: true })
+      return true
+    }
+    expect(staleRoots(parent, alive)).toEqual([])
+    expect(roots.map((path) => existsSync(path))).toEqual([false, false])
+  })
+
+  it('includes the root of a run that was killed, and the next run removes it', () => {
     const parent = temp()
     const script = `const { mkdtempSync, writeFileSync } = require('node:fs'); const { join } = require('node:path')
       const root = mkdtempSync(join(${JSON.stringify(parent)}, 'dm-e2e-agent-chat-'))

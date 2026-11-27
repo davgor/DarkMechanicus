@@ -60,8 +60,11 @@ const TERMINAL_STOP_TITLE = 'Stop the terminal and switch to the GUI?'
 /** The isolated roots under the system temp folder, and the file in each naming the harness pid that owns it. */
 const ROOT_PREFIX = 'dm-e2e-agent-chat-'
 const OWNER_FILE = 'harness.json'
-/** A root with no owner file is a run's own only between its creation and the next line; older, it is stale. */
-const UNOWNED_GRACE_MS = 60_000
+/**
+ * A root with no owner file is a fresh run's own until it writes one, or a live run of a harness from before owner
+ * files, which lasts minutes. Only one older than any run is stale.
+ */
+const UNOWNED_GRACE_MS = 6 * 60 * 60_000
 /** The title the fake agent names a new chat with (`fakeAgentCli.mjs`, FAKE_CHAT_TITLE); scripts cannot import it. */
 const FAKE_CHAT_TITLE = 'Fake agent conversation'
 
@@ -208,15 +211,21 @@ function rootOwner(root) {
 /**
  * The isolated roots in `parent` that no running harness owns: a run killed outright (a crash, `taskkill /F`) never
  * reaches its own cleanup. A root is stale when the pid in its `harness.json` is gone, or when it has no such file
- * and is older than a minute. A reused pid keeps a root, never removes a live one.
+ * and is older than six hours. A reused pid keeps a root, never removes a live one. A root that disappears during the
+ * sweep (its run finished and removed it) is skipped.
  */
 export function staleRoots(parent, alive = isAlive, now = Date.now()) {
   return readdirSync(parent, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name.startsWith(ROOT_PREFIX))
     .map((entry) => join(parent, entry.name))
     .filter((root) => {
-      const owner = rootOwner(root)
-      return owner === null ? now - statSync(root).mtimeMs > UNOWNED_GRACE_MS : !alive(owner)
+      try {
+        const owner = rootOwner(root)
+        return owner === null ? now - statSync(root).mtimeMs > UNOWNED_GRACE_MS : !alive(owner)
+      } catch (error) {
+        if (error.code === 'ENOENT') return false
+        throw error
+      }
     })
 }
 
