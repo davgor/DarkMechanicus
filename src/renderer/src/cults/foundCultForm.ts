@@ -205,8 +205,9 @@ function definitionOf(draft: FoundCultDraft, parsed: Parsed): CultDefinitionInpu
     magosModelId: draft.magosModelId,
     defaultTimeLimitMs: parsed.limit.ms,
     defaultCap: parsed.cap.cap,
-    acolyteGraceMs: parsed.grace.ms ?? undefined,
-    magosWindowMs: parsed.window.ms ?? undefined,
+    // Only called with no field errors, and `timing` gives a null ms only together with an error.
+    acolyteGraceMs: parsed.grace.ms!,
+    magosWindowMs: parsed.window.ms!,
     ...(sendsSlots ? { slots: draft.slots.map((slot) => ({ ...slot, label: slot.label.trim(), mission: slot.mission.trim() })) } : {})
   }
 }

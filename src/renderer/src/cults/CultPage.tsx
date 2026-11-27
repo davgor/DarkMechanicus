@@ -11,7 +11,7 @@ import type { CultView } from '../../../shared/cults/cult'
 import type { Scheduler } from '../app/scheduler'
 import type { TerminalKit } from '../agents/terminalView'
 import { CultChamber, type ChamberMember } from './chamber/CultChamber'
-import { MAGOS_ID, type ChamberEvent } from './chamber/chamberState'
+import type { ChamberEvent } from './chamber/chamberState'
 import { CultCommandBar } from './CultCommandBar'
 import { CultComms, type CommsTab } from './CultComms'
 import { CouncilCoverage } from './CouncilCoverage'
@@ -105,11 +105,10 @@ interface StageProps {
 function RunStage({ cult, run, roster, selected, onSelect, onWatch, scheduler }: StageProps): JSX.Element {
   const inspected = roster.find((entry) => entry.member.chatId === selected) ?? null
   const magos = roster.find((entry) => entry.member.role === 'magos')
-  const select = (id: string): void => onSelect(id === MAGOS_ID ? (magos?.member.chatId ?? null) : id)
   return (
     <>
       <div className="cult-room" data-active="true" data-selected-member={selected ?? undefined}>
-        <RoomScene key={run.run.id} run={run} roster={roster} selectedMemberId={selected} onSelectMember={select} scheduler={scheduler} />
+        <RoomScene key={run.run.id} run={run} roster={roster} selectedMemberId={selected} onSelectMember={onSelect} scheduler={scheduler} />
         <PetitionBanners run={run} petitioner={magos?.member.displayName ?? cult.magosName} />
         {inspected === null ? null : <MemberInspector run={run} entry={inspected} onClose={() => onSelect(null)} onWatch={() => onWatch(inspected.member)} />}
       </div>

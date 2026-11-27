@@ -357,3 +357,55 @@ describe('FoundCultDialog refusal', () => {
     expect(dialog.getByRole('alert').textContent).toBe('The folder is no longer tracked.')
   })
 })
+
+describe('FoundCultDialog plan and model refusals', () => {
+  it('says when a folder’s plans cannot be loaded', async () => {
+    dm.failures.listEpics = { code: 'internal', message: 'Store locked.' }
+    const dialog = await open()
+    fireEvent.click(dialog.getByRole('radio', { name: /^Plan Forge/ }))
+    await settle()
+    const target = dialog.getByLabelText('Target plan') as HTMLSelectElement
+    expect(document.getElementById(target.getAttribute('aria-describedby')!)?.textContent).toBe('Could not load this folder’s plans.')
+    expect(Array.from(target.options).map((option) => option.textContent)).toEqual(['Choose a plan'])
+  })
+
+  it('clears the target when the empty plan option is chosen again', async () => {
+    dm.responses.listEpics = [epicSummary({ id: 'ep_1', title: 'Shrine plan' })]
+    const dialog = await open()
+    fireEvent.click(dialog.getByRole('radio', { name: /^Plan Forge/ }))
+    await settle()
+    fireEvent.change(dialog.getByLabelText('Target plan'), { target: { value: 'ep_1' } })
+    fireEvent.change(dialog.getByLabelText('Target plan'), { target: { value: '' } })
+    await fillRequired(dialog)
+    await save(dialog)
+    expect(submitted).toEqual([])
+    expect(errorOf(dialog, 'Target plan')).toBe('Choose the plan this Plan Forge works on.')
+  })
+
+  it('shows why the models could not be listed', async () => {
+    cults.models = () => Promise.resolve({ ok: false, error: { code: 'internal', message: 'OMP did not answer.' } })
+    const dialog = await open()
+    expect(dialog.getByText('No model offered')).toBeTruthy()
+    expect(dialog.getByText('OMP did not answer.').className).toBe('form-error')
+  })
+})
+
+describe('FoundCultDialog without folders and with custom labels', () => {
+  it('defaults to No folder when no folder is tracked, and saves a sanctum cult', async () => {
+    render(<FoundCultDialog folders={[]} onSubmit={(value) => { submitted.push(value); return Promise.resolve(null) }} onClose={() => { closed += 1 }} />)
+    await settle()
+    const dialog = within(screen.getByRole('dialog'))
+    expect((dialog.getByLabelText('Workspace') as HTMLSelectElement).value).toBe('')
+    await fillRequired(dialog)
+    await save(dialog)
+    expect(submitted).toEqual([expect.objectContaining({ scope: 'sanctum', folderPath: null })])
+  })
+
+  it('shows a read-only slot’s own label beside its type when they differ', async () => {
+    const slots = ARCHETYPE_INFO.plan_forge.preset.map((slot, index) => (index === 0 ? { ...slot, label: 'Interface warden' } : { ...slot }))
+    const dialog = await open(cultView({ archetype: 'plan_forge', targetEpicId: 'ep_1', slots }))
+    const items = within(dialog.getByRole('region', { name: 'Roster' })).getAllByRole('listitem')
+    expect(items[0]!.querySelector('.cult-slot-label')?.textContent).toBe('Interface warden')
+    expect(items[1]!.querySelector('.cult-slot-label')).toBeNull()
+  })
+})

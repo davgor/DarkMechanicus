@@ -231,3 +231,24 @@ describe('chamberFeed: idle quips', () => {
     expect(lines()).toHaveLength(6)
   })
 })
+
+describe('chamberFeed: mail with no packet', () => {
+  it('draws nothing, not even a bubble, for Magos-to-Magos mail or mail an acolyte sends itself', () => {
+    const feed = open()
+    expect(feed.step({ entries: [entry(3, MAGOS, [MAGOS], 'Note to self.'), entry(4, A, [A], 'Memo.')] })).toEqual([])
+    expect(feed.step({ entries: [entry(3, MAGOS, [MAGOS], 'x'), entry(4, A, [A], 'y'), entry(5, B, [A], 'Hi.')] }))
+      .toEqual([{ type: 'bubble', id: 'b', text: 'Hi.' }, { type: 'peerMail', from: 'b', to: 'a' }])
+  })
+
+  it('names an order to all with no order id by its pipeline seq', () => {
+    const feed = open()
+    const order: CultPipelineEntry = { ...entry(7, MAGOS, [A, B], ''), kind: 'order_all', eventKind: 'order_all' }
+    expect(feed.step({ entries: [order] })).toEqual([{ type: 'orderSent', to: 'all', orderId: 'seq:7' }])
+  })
+
+  it('opens with a non-finite seed as with seed 0', () => {
+    const input = { run: run(), entries: [], now: T0 }
+    expect(startFeed(input, Number.NaN)).toEqual(startFeed(input, 0))
+    expect(startFeed(input, Number.NaN).feed.randomState).toBe(0)
+  })
+})

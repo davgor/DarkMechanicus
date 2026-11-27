@@ -27,7 +27,7 @@ interface ShrinePanelProps {
 }
 
 /** The file's own name; the rest of its path stays out of the view. */
-const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path
+const fileName = (path: string): string => path.split(/[\\/]/).pop()!
 
 /** The untrusted content: an image as `img`, HTML only inside the scripts-only sandbox. Keyed by revision, so it reloads. */
 function ShrineContent({ runId, shrine }: { runId: string; shrine: CultShrineView }): JSX.Element {

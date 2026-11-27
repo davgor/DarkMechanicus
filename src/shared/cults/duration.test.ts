@@ -28,6 +28,11 @@ describe('parseDuration', () => {
   it('names the unknown unit', () => {
     expect(parseDuration('5x')).toEqual({ ok: false, error: 'Unknown unit "x"; use s, m, h or d.' })
   })
+
+  it('refuses a duration past the largest exact millisecond count', () => {
+    expect(parseDuration('999999999999d')).toEqual({ ok: false, error: 'That duration is too long.' })
+    expect(parseDuration('104249991d').ok).toBe(true)
+  })
 })
 
 describe('parseTimeLimit', () => {

@@ -105,4 +105,10 @@ describe('ShrinePanel modes', () => {
     expect(within(dialog).getByRole('img', { name: 'Shrine: gerry.jpg' }).tagName).toBe('IMG')
     expect(frames(dialog)).toHaveLength(0)
   })
+
+  it('names the publisher Unknown member when main does not know who published', () => {
+    render(<ShrinePanel runId={RUN} shrine={shrine({ publishedBy: null })} />)
+    const details = screen.getByRole('region', { name: 'Shrine' }).querySelector('dl') as HTMLElement
+    expect(within(details).getByText('Published by').nextElementSibling?.textContent).toBe('Unknown member')
+  })
 })

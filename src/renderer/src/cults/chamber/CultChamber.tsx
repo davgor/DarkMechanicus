@@ -72,8 +72,7 @@ function conduitRect(layout: ChamberLayout): Rect {
 function useRoomSize(room: RefObject<HTMLElement>): Size {
   const [size, setSize] = useState({ width: 0, height: 0 })
   useEffect(() => {
-    const element = room.current
-    if (!element) return
+    const element = room.current!
     const measure = () => setSize({ width: element.clientWidth, height: element.clientHeight })
     measure()
     const observer = new ResizeObserver(measure)
@@ -87,8 +86,8 @@ function useRoomSize(room: RefObject<HTMLElement>): Size {
 function useOnScreen(room: RefObject<HTMLElement>): boolean {
   const [onScreen, setOnScreen] = useState(true)
   useEffect(() => {
-    const element = room.current
-    if (!element || typeof IntersectionObserver === 'undefined') return
+    const element = room.current!
+    if (typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver((entries) => {
       const latest = entries.at(-1)
       if (latest) setOnScreen(latest.isIntersecting)
@@ -178,7 +177,7 @@ interface AcolyteProps {
   member: ChamberMember | undefined
   scale: number
   selected: boolean
-  plate: PlatePlacement | undefined
+  plate: PlatePlacement
   rowHeight: number
   outlined: boolean
   onSelect: (id: string) => void
@@ -186,12 +185,12 @@ interface AcolyteProps {
 
 function Acolyte({ acolyte, member, scale, selected, plate, rowHeight, outlined, onSelect }: AcolyteProps): JSX.Element {
   const tint = { '--member-hue': `${member?.hue ?? 0}deg` } as CSSProperties
-  const row = plate?.row ?? 0
+  const { row } = plate
   return <div className="cc-acolyte" data-member-id={acolyte.id} data-selected={selected} data-mode={acolyte.mode}
     style={tint} onClick={() => onSelect(acolyte.id)}>
     <MascotSprite motion={spriteMotion(acolyte)} action={acolyte.pose} playbackMs={acolyte.poseElapsed} scale={scale} />
-    <span className="cc-nameplate" data-row={row} data-hidden={plate?.hidden ?? false} data-outlined={outlined}
-      style={{ left: acolyte.x, top: acolyte.y + 2 + row * rowHeight, maxWidth: plate?.width }}>
+    <span className="cc-nameplate" data-row={row} data-hidden={plate.hidden} data-outlined={outlined}
+      style={{ left: acolyte.x, top: acolyte.y + 2 + row * rowHeight, maxWidth: plate.width }}>
       {member?.name ?? acolyte.id}
     </span>
   </div>
@@ -243,8 +242,7 @@ function bubbleInputs(state: ChamberState, { layout, roster, selectedMemberId }:
       return [{ id, text: bubble.text, x: layout.magos.x, headY: layout.magos.y - layout.magosSize.height,
         color: 'var(--accent)', priority: true }]
     }
-    const acolyte = state.acolytes.find((item) => item.id === id)
-    if (!acolyte) return []
+    const acolyte = state.acolytes.find((item) => item.id === id)!
     return [{ id, text: bubble.text, x: acolyte.x, headY: acolyte.y - layout.spriteSize.height,
       color: `hsl(${roster.get(id)?.hue ?? 0} 70% 58%)`, priority: id === selectedMemberId }]
   })
@@ -273,7 +271,7 @@ function Scene({ state, layout, roster, selectedMemberId, reduced, outlined, onS
       <MagosSprite magos={state.magos} layout={layout} />
       <div className="cc-actors">
         {state.acolytes.map((acolyte) => <Acolyte key={acolyte.id} acolyte={acolyte} member={roster.get(acolyte.id)}
-          scale={layout.spriteScale} selected={acolyte.id === selectedMemberId} plate={plates.get(acolyte.id)}
+          scale={layout.spriteScale} selected={acolyte.id === selectedMemberId} plate={plates.get(acolyte.id)!}
           rowHeight={rowHeight} outlined={outlined.has(acolyte.id)} onSelect={onSelectMember} />)}
       </div>
       <div className="cc-bubbles">{bubbles.map((bubble) => <SpeechBubble key={bubble.id} bubble={bubble} />)}</div>

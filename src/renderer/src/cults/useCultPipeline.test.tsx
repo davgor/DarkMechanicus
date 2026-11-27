@@ -6,7 +6,9 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { CultPipelineEntry } from '../../../shared/cults/cultApi'
+import type { CultPipelineEntry, CultPipelinePage } from '../../../shared/cults/cultApi'
+import type { CommandResult } from '../../../shared/desktop/api'
+import { deferred } from '../__mocks__/deferred'
 import { FakeChatMail } from '../__mocks__/fakeChatMail'
 import { FakeCults, memberDetail, runDetail } from '../__mocks__/fakeCults'
 import { FakeDm } from '../__mocks__/fakeDm'
@@ -96,5 +98,92 @@ describe('useCultPipeline', () => {
     const first = [message(1), message(2)]
     expect(seqs(mergeEntries(first, [message(2), message(3)]))).toEqual([1, 2, 3])
     expect(mergeEntries(first, [message(1)])).toEqual(first)
+  })
+})
+
+/** Makes each pipeline request wait until the returned gate opens, then answer as the fake would. */
+function holdPipeline(): () => void {
+  const gate = deferred()
+  const answer = cults.pipeline
+  cults.pipeline = async (runId, request) => {
+    await gate.promise
+    return answer(runId, request)
+  }
+  return gate.resolve
+}
+
+const refused = (message: string): Promise<CommandResult<CultPipelinePage>> =>
+  Promise.resolve({ ok: false, error: { code: 'internal', message } })
+
+describe('useCultPipeline failures', () => {
+  it('asks for no further page when the run is closed while a page is in flight', async () => {
+    const release = holdPipeline()
+    const { result, unmount } = renderHook(() => useCultPipeline('run_1', { live: scheduler, memberChatIds: [] }))
+    await settle()
+    unmount()
+    release()
+    await settle()
+    expect(cults.pipelineCalls).toHaveLength(1)
+    expect(result.current.state).toEqual({ status: 'loading', entries: [] })
+  })
+
+  it('shows main’s refusal and keeps the entries already shown', async () => {
+    const { result } = renderHook(() => useCultPipeline('run_1', { live: scheduler, memberChatIds: [] }))
+    await settle()
+    cults.pipeline = () => refused('Run log unreadable.')
+    act(() => scheduler.fireIntervals(PIPELINE_POLL_MS))
+    await settle()
+    expect(result.current.state.status).toBe('error')
+    expect(result.current.state).toMatchObject({ message: 'Run log unreadable.' })
+    expect(seqs(result.current.state.entries)).toEqual(range(1, 450))
+  })
+
+  it('reports a rejection that is not an Error by its text', async () => {
+    cults.pipeline = () => Promise.reject('bridge closed')
+    const { result } = renderHook(() => useCultPipeline('run_1', { live: null, memberChatIds: [] }))
+    await settle()
+    expect(result.current.state).toEqual({ status: 'error', entries: [], message: 'bridge closed' })
+  })
+
+  it('applies nothing when a failure lands after the run is closed', async () => {
+    const gate = deferred()
+    cults.pipeline = async () => {
+      await gate.promise
+      return refused('Too late.')
+    }
+    const { result, unmount } = renderHook(() => useCultPipeline('run_1', { live: null, memberChatIds: [] }))
+    await settle()
+    unmount()
+    gate.resolve()
+    await settle()
+    expect(result.current.state).toEqual({ status: 'loading', entries: [] })
+  })
+})
+
+describe('useCultPipeline mail hints and full text', () => {
+  it('asks again when a member chat’s mailbox is removed, and not for one outside the run', async () => {
+    renderHook(() => useCultPipeline('run_1', { live: scheduler, memberChatIds: ['chat_a'] }))
+    await settle()
+    const asked = cults.pipelineCalls.length
+    mail.remove('/w', 'chat_outsider')
+    await settle()
+    expect(cults.pipelineCalls).toHaveLength(asked)
+    mail.remove('/w', 'chat_a')
+    await settle()
+    expect(cults.pipelineCalls).toHaveLength(asked + 1)
+    expect(cults.pipelineCalls.at(-1)).toEqual(['run_1', { afterSeq: 450, limit: 200 }])
+  })
+
+  it('reads an entry’s whole text, or null when refused or when that entry is gone', async () => {
+    const { result } = renderHook(() => useCultPipeline('run_1', { live: null, memberChatIds: [] }))
+    await settle()
+    expect(await result.current.fullText(7)).toBe('message 7')
+    expect(cults.pipelineCalls.at(-1)).toEqual(['run_1', { afterSeq: 6, limit: 1, full: true }])
+
+    cults.pipelines.run_1 = cults.pipelines.run_1!.filter((entry) => entry.seq !== 9)
+    expect(await result.current.fullText(9)).toBeNull()
+
+    cults.pipeline = () => refused('Gone.')
+    expect(await result.current.fullText(7)).toBeNull()
   })
 })

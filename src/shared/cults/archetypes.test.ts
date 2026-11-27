@@ -172,6 +172,11 @@ describe('validateRoster cap coverage', () => {
     expect(codes(validateRoster({ archetype: 'general', slots: [], cap: 0 }))).toEqual([])
     expect(codes(validateRoster({ archetype: 'general', slots: [slot('a')], cap: 1 }))).toEqual(['general_has_slots'])
   })
+
+  it('names a slot whose worker type is not in the catalog', () => {
+    const issues = validateRoster({ archetype: 'custom', slots: [slot('a', { workerType: 'astromancer' as RosterSlot['workerType'] })], cap: 1 })
+    expect(issues).toEqual([{ code: 'unknown_worker_type', message: 'Unknown worker type "astromancer".', slotId: 'a' }])
+  })
 })
 
 const input = (displayName: string, over: Partial<DynamicWorkerTypeInput> = {}): DynamicWorkerTypeInput => ({
@@ -213,6 +218,14 @@ describe('run-scoped dynamic worker types', () => {
     expect(createRunWorkerType(input('x'.repeat(81)), ctx()).ok).toBe(false)
     expect(createRunWorkerType(input('ok', { mission: 'x'.repeat(2001) }), ctx()).ok).toBe(false)
     expect(createRunWorkerType(input('ok', { rationale: ' ' }), ctx()).ok).toBe(false)
+  })
+
+  it('refuses a blank creator', () => {
+    expect(createRunWorkerType(input('Data'), { ...ctx(), creatorMemberId: '  ' })).toEqual({
+      ok: false,
+      code: 'invalid_input',
+      error: 'creatorMemberId must not be blank.'
+    })
   })
 
   it('rejects built-in and in-run collisions', () => {

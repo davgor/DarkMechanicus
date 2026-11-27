@@ -81,9 +81,10 @@ function Timeline({ entries, follow, name, fullText }: TimelineProps): JSX.Eleme
     const element = list.current
     if (follow && following && element !== null) element.scrollTop = element.scrollHeight
   }, [follow, following, newest])
+  /** Fires only from the mounted <ol> holding the ref, so the ref is set. */
   const onScroll = (): void => {
-    const element = list.current
-    if (element !== null) setFollowing(element.scrollTop + element.clientHeight >= element.scrollHeight - FOLLOW_SLACK_PX)
+    const element = list.current!
+    setFollowing(element.scrollTop + element.clientHeight >= element.scrollHeight - FOLLOW_SLACK_PX)
   }
   return (
     <div className="cult-pipeline-body">

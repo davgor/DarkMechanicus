@@ -130,3 +130,56 @@ describe('PipelinePanel live and past', () => {
     expect(screen.getByRole('region', { name: 'Pipeline' }).dataset['live']).toBe('false')
   })
 })
+
+/** Gives the list a fixed box (jsdom lays out nothing) with a scroll position the test moves. */
+function sizeList(scrollHeight: number, clientHeight: number): HTMLElement {
+  const list = screen.getByRole('list', { name: 'Pipeline entries' })
+  Object.defineProperty(list, 'scrollHeight', { configurable: true, value: scrollHeight })
+  Object.defineProperty(list, 'clientHeight', { configurable: true, value: clientHeight })
+  return list
+}
+
+describe('PipelinePanel states and labels', () => {
+  it('shows main’s refusal as an alert', async () => {
+    cults.pipeline = () => Promise.resolve({ ok: false, error: { code: 'internal', message: 'Run log unreadable.' } })
+    await show()
+    expect(screen.getByRole('alert').textContent).toBe('Run log unreadable.')
+    expect(screen.getByText('Nothing has happened in this run yet.')).toBeTruthy()
+  })
+
+  it('says so when the chosen member has no entries', async () => {
+    cults.pipelines.run_1 = [entry(1, {})]
+    await show()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by member' }), { target: { value: 'chat_b' } })
+    expect(screen.getByText('No entries for this member.')).toBeTruthy()
+    expect(screen.queryByRole('list', { name: 'Pipeline entries' })).toBeNull()
+  })
+
+  it('offers Jump to newest once scrolled up, and scrolls to the bottom when used', async () => {
+    await show()
+    const list = sizeList(1000, 200)
+    list.scrollTop = 300
+    fireEvent.scroll(list)
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to newest' }))
+    expect(list.scrollTop).toBe(1000)
+    expect(screen.queryByRole('button', { name: 'Jump to newest' })).toBeNull()
+    list.scrollTop = 790
+    fireEvent.scroll(list)
+    expect(screen.queryByRole('button', { name: 'Jump to newest' })).toBeNull()
+  })
+
+  it('mutes a sender outside the run, and labels a reply, an unnamed event and an order with no id', async () => {
+    const stranger: PipelineMember = { chatId: 'chat_x', displayName: 'Acolyte Stray-9', role: 'acolyte' }
+    cults.pipelines.run_1 = [
+      entry(1, { sender: stranger, recipients: [], inReplyTo: 'mm_0' }),
+      entry(2, { kind: 'event', eventKind: null, recipients: [], messageIds: [] }),
+      entry(3, { kind: 'order_all', eventKind: 'order_all', orderId: null, recipients: [as(FERRUM)] })
+    ]
+    await show()
+    const [reply, event, order] = rows()
+    expect(nameIn(reply!, 'Acolyte Stray-9').style.getPropertyValue('--member-color')).toBe('var(--muted)')
+    expect(reply!.querySelector('.cult-pipe-kind')?.textContent).toBe('reply')
+    expect(event!.querySelector('.cult-pipe-kind')?.textContent).toBe('event')
+    expect(order!.querySelector('summary')?.textContent).toBe('Recipients of order ')
+  })
+})

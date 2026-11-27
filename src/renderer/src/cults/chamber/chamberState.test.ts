@@ -410,3 +410,92 @@ describe('staticChamber', () => {
     expect(staticChamber(state, mid)).toEqual(still)
   })
 })
+
+describe('degenerate input', () => {
+  it('gives a clip with no frames or no rate zero duration', () => {
+    expect(clipDuration({ fps: 0, frames: 6 })).toBe(0)
+    expect(clipDuration({ fps: 8, frames: 0 })).toBe(0)
+    expect(clipDuration({ fps: 8, frames: 6 })).toBe(750)
+  })
+
+  it('seeds a zero, overflowing or non-finite seed like the fallback seed', () => {
+    const fallback = createChamber(0x6d2b79f5).randomState
+    expect([0, 2 ** 32, Number.NaN, Number.POSITIVE_INFINITY].map((seed) => createChamber(seed).randomState))
+      .toEqual([fallback, fallback, fallback, fallback])
+  })
+
+  it('leaves the state untouched for a non-finite step', () => {
+    const state = populate(2, 1, mid, 100)
+    expect(stepChamber(state, Number.NaN, mid)).toBe(state)
+    expect(stepChamber(state, Number.POSITIVE_INFINITY, mid)).toBe(state)
+  })
+})
+
+describe('ignored events', () => {
+  it('ignores a second join of the same member', () => {
+    const state = populate(2, 1, mid, 100)
+    expect(apply(state, mid, { type: 'memberJoined', id: 'a1' })).toBe(state)
+  })
+
+  it('ignores orders, reports and mail that name nobody present, a leaving member or the sender itself', () => {
+    const state = apply(populate(2, 2, mid, 100), mid, { type: 'memberLeft', id: 'a2' })
+    const ignored: ChamberEvent[] = [
+      { type: 'orderSent', to: 'nobody', orderId: 'o' }, { type: 'orderSent', to: 'a2', orderId: 'o' },
+      { type: 'reportSent', from: 'nobody' }, { type: 'peerMail', from: 'nobody', to: 'a1' },
+      { type: 'peerMail', from: 'a1', to: 'nobody' }, { type: 'peerMail', from: 'a1', to: 'a1' }
+    ]
+    for (const event of ignored) expect(apply(state, mid, event), JSON.stringify(event)).toBe(state)
+  })
+})
+
+describe('members already present', () => {
+  it('stand on the floor between the door and the pad at once, with no beam and no summon', () => {
+    const state = apply(createChamber(6), mid, { type: 'memberJoined', id: 'a1', present: true },
+      { type: 'working', id: 'a1', on: true }, { type: 'memberJoined', id: 'a2', present: true })
+    expect(state.effects).toEqual([])
+    expect(state.magos.action).toBe('idle')
+    expect(state.acolytes.map((acolyte) => [acolyte.id, acolyte.mode])).toEqual([['a1', 'working'], ['a2', 'wandering']])
+    for (const acolyte of state.acolytes) {
+      expect(acolyte.y).toBe(mid.floorY)
+      expect(acolyte.x).toBeGreaterThanOrEqual(mid.door.rect.x + mid.door.rect.width)
+      expect(acolyte.x).toBeLessThanOrEqual(mid.teleportPad.centerX)
+    }
+    expect(state.acolytes[0]!.x).not.toBe(state.acolytes[1]!.x)
+  })
+})
+
+describe('bubbles and packets of departed actors', () => {
+  it('drops a pending text that has itself expired by the time it would show', () => {
+    let state = apply(populate(1, 1, mid, 100), mid, { type: 'bubble', id: MAGOS_ID, text: 'one' },
+      { type: 'bubble', id: MAGOS_ID, text: 'two' })
+    expect(state.bubbles[MAGOS_ID]).toMatchObject({ text: 'one', pending: 'two' })
+    state = stepChamber(state, 9000, mid)
+    expect(state.bubbles[MAGOS_ID]).toBeUndefined()
+  })
+
+  it('drops the bubble of an acolyte that has walked out, even before it expires', () => {
+    const small = chamberLayout(ROOMS[0], PROPS, 1)
+    let state = apply(createChamber(3), small, { type: 'memberJoined', id: 'a1', present: true },
+      { type: 'bubble', id: 'a1', text: 'Farewell' }, { type: 'memberLeft', id: 'a1' })
+    state = stepChamber(state, 5900, small)
+    expect(state.acolytes).toEqual([])
+    expect(state.bubbles).toEqual({})
+  })
+
+  it('keeps a packet flying to its last known point when its recipient is gone, and salutes nobody', () => {
+    let state = apply(populate(4, 2, mid, 100), mid, { type: 'orderSent', to: 'a2', orderId: 'o' })
+    const aimed = packets(state)[0]!.toPoint
+    state = stepChamber({ ...state, acolytes: state.acolytes.filter((acolyte) => acolyte.id !== 'a2') }, STEP, mid)
+    expect(packets(state)).toEqual([expect.objectContaining({ to: 'a2', toPoint: aimed, elapsed: STEP })])
+    state = run(state, mid, 1300)
+    expect(packets(state)).toEqual([])
+    expect(state.acolytes.map((acolyte) => acolyte.mode)).not.toContain('saluting')
+  })
+
+  it('keeps only the Magos bubble through a kill', () => {
+    let state = apply(populate(5, 2, mid, 100), mid, { type: 'bubble', id: MAGOS_ID, text: 'Purge.' },
+      { type: 'bubble', id: 'a1', text: 'No!' })
+    state = apply(state, mid, { type: 'runState', runState: 'killed' })
+    expect(state.bubbles).toEqual({ [MAGOS_ID]: { text: 'Purge.', age: 0, pending: null } })
+  })
+})
