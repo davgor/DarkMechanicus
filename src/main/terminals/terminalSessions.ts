@@ -1184,7 +1184,7 @@ async function withDmClient(context: StartContext, files: TerminalFiles, issued:
   if (issued.endpointId === null && address === undefined) return files
   const dmClient = issued.endpointId === null
     ? await writeRecoveryClientDescriptor({ userData, chatId: chat.id, generation, address: address! })
-    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
+    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform, ...(chat.cultRole === undefined ? {} : { cultRole: chat.cultRole }) })
   return { ...files, omp: { ...files.omp, dmClient } }
 }
 

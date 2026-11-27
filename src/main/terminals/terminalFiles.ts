@@ -228,6 +228,8 @@ interface DmClientOptions {
   /** The chat's `dm` invocation (`issueChatCli`); only its runtime and pinned script are written. */
   cli: DarkMechanicusCli
   platform: NodeJS.Platform
+  /** The chat's cult role (`ChatRecord.cultRole`); the extension registers cult tools only when present. */
+  cultRole?: 'magos' | 'acolyte'
 }
 
 /** The descriptor for one launch: the pinned runtime and folder, and the inherited names; never a grant. */
@@ -244,6 +246,7 @@ function dmClientDescriptor(options: Omit<DmClientOptions, 'userData'>): DmClien
     env: runtime.env,
     inherit: options.platform === 'win32' ? [...DM_CLIENT_INHERITED, ...DM_CLIENT_INHERITED_WINDOWS] : [...DM_CLIENT_INHERITED],
     ...(options.cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { recoveryAddress: options.cli.env['DM_DESKTOP_PIPE'] }),
+    ...(options.cultRole === undefined ? {} : { cultRole: options.cultRole })
   }
 }
 

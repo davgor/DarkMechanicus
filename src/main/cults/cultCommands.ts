@@ -42,6 +42,8 @@ export interface CultCommandDeps {
   /** The target revision a specialist saw when it reported; null when the run has no target. */
   targetRevision?: (run: CultRunView) => Promise<string | null>
   now?: () => string
+  /** The folder-access upgrades this member holds in the run (`CultLedger.grants`, kind `folder_access`); none by default. */
+  folderGrants?: (runId: string, chatId: string) => readonly { folder: string; tokenFile: string }[]
   onError?: (error: unknown) => void
 }
 
@@ -100,7 +102,10 @@ function status(deps: CultCommandDeps, { run, member }: Caller): CultStatusResul
     workerType: workerTypeOf(member),
     slotId: member.slotId,
     reported: reportedChats(deps, run.id).has(member.chatId),
-    missingSlots: missingSlots(deps.cults.slotCoverage(run.id))
+    missingSlots: missingSlots(deps.cults.slotCoverage(run.id)),
+    folderAccess: (deps.folderGrants?.(run.id, member.chatId) ?? []).slice(0, 64).map(({ folder, tokenFile }) => ({
+      folder, tokenFile, usage: `dm --repo ${JSON.stringify(folder)} --token-file ${JSON.stringify(tokenFile)} <command>`
+    }))
   }
 }
 

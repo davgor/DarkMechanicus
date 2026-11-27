@@ -173,7 +173,12 @@ export const cultStatusResultSchema = z.strictObject({
   workerType: z.string().max(80).nullable(),
   slotId: nullableId,
   reported: z.boolean(),
-  missingSlots: z.array(z.string().max(80)).max(MAX_CAP)
+  missingSlots: z.array(z.string().max(80)).max(MAX_CAP),
+  /**
+   * Tracked folders an approved `folder_access` petition opened to this member for the run. Each is reached only from
+   * the shell, with the dm CLI: `usage` is the exact command line (`dm --repo <folder> --token-file <file> <command>`).
+   */
+  folderAccess: z.array(z.strictObject({ folder: z.string().max(4096), tokenFile: z.string().max(4096), usage: z.string().max(9000) })).max(64)
 })
 export type CultStatusResult = z.infer<typeof cultStatusResultSchema>
 
