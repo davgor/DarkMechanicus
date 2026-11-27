@@ -72,6 +72,7 @@ export function memberDetail(patch: Partial<CultMemberDetail> = {}): CultMemberD
     leftAt: null,
     typeOrigin: null,
     reported: false,
+    activity: null,
     ...patch
   }
 }
