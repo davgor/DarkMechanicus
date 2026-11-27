@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/src/styles.css'
 import { PlanGraph } from '../../src/renderer/src/graph/PlanGraph'

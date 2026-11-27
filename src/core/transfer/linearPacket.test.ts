@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type { WorkStatus } from '../../shared/domain/status'
 import type { LinearTransferPacket } from '../../shared/domain/transfer'
+import { contentHash } from '../canonical'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import { buildLinearPacket, LINEAR_SUMMARY_MAX, type LinearPacketInput } from './linearPacket'
 
@@ -39,7 +40,7 @@ function executionBundle(): PlanBundle {
 
 function packetOf(bundle: PlanBundle, ticketStatuses: Record<string, WorkStatus> = {}): LinearTransferPacket {
   const input: LinearPacketInput = { epic: { id: EPIC_ID }, bundle, revisionId: REVISION_ID, revisionNumber: 4, ticketStatuses }
-  return buildLinearPacket(input)
+  return buildLinearPacket(input, contentHash)
 }
 
 describe('buildLinearPacket execution order', () => {
@@ -181,7 +182,7 @@ describe('buildLinearPacket project and milestone text', () => {
       revisionId: REVISION_ID,
       revisionNumber: 4,
       ticketStatuses: {}
-    })
+    }, contentHash)
     expect(long.project.summary.length).toBeLessThanOrEqual(LINEAR_SUMMARY_MAX)
     expect(long.project.summary.endsWith(long.project.marker)).toBe(true)
   })

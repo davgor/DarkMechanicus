@@ -3,7 +3,7 @@
  * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent, drives it over CDP and runs named
  * steps, each exactly once under a 10 s condition-based deadline with no retries.
  *
- *   node scripts/e2e-agent-chat.mjs --out <dir> [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
+ *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *
  * Without `--steps` every step runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
@@ -12,9 +12,18 @@
  * only in the isolated app it launched, so it runs on Windows only. The `restart-resume` step starts the app itself
  * (with the app stopped: alone, or after `quit`) on a seeded restart marker, as Restart now leaves it, and runs in
  * phases, each under the same deadline.
+ *
+ * `--exe` runs the same steps against a packaged app (for example an extracted Portable build) instead of the built
+ * sources: the exe starts in the same isolated environment, paused in main's inspector (`--inspect-brk`), which the
+ * harness uses to point the app's home at the isolated one before main runs, and later to resize and quit it. The
+ * header must show the packaged app's own version. The stores are seeded by this checkout's code, so the exe should be
+ * built from the same revision.
+ *
+ * Each run first removes the isolated roots that earlier runs left behind when they were killed before their own
+ * cleanup (`harness.json` names the harness that owns a root; a root whose harness is gone is stale).
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -48,6 +57,13 @@ const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_P
  */
 const LONG_LIVED_MODES = new Set(['claude', 'omp', 'tui'])
 const TERMINAL_STOP_TITLE = 'Stop the terminal and switch to the GUI?'
+/** The isolated roots under the system temp folder, and the file in each naming the harness pid that owns it. */
+const ROOT_PREFIX = 'dm-e2e-agent-chat-'
+const OWNER_FILE = 'harness.json'
+/** A root with no owner file is a run's own only between its creation and the next line; older, it is stale. */
+const UNOWNED_GRACE_MS = 60_000
+/** The title the fake agent names a new chat with (`fakeAgentCli.mjs`, FAKE_CHAT_TITLE); scripts cannot import it. */
+const FAKE_CHAT_TITLE = 'Fake agent conversation'
 
 /**
  * The environment the app and its children get: `base` minus the stripped variables, with every home and config
@@ -72,7 +88,9 @@ export function isolatedEnv(base, root, platform = process.platform) {
     // the app would store over the chat's UUID (and a terminal could then never resume); and a resumed session goes
     // on numbering its turns, so its replies never reuse an earlier turn's message ids.
     FAKE_AGENT_SESSION_FILES: '1',
-    FAKE_AGENT_CONTINUE_TURNS: '1'
+    FAKE_AGENT_CONTINUE_TURNS: '1',
+    // A new chat's first message is named through the app's own `dm` line, as a real agent names it.
+    FAKE_AGENT_NAME_CHATS: '1'
   }
   const replaced = new Set(Object.keys(isolated))
   const kept = Object.entries(base).filter(
@@ -179,6 +197,42 @@ export function isAlive(pid, kill = process.kill.bind(process)) {
   }
 }
 
+function rootOwner(root) {
+  try {
+    return JSON.parse(readFileSync(join(root, OWNER_FILE), 'utf8')).pid
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The isolated roots in `parent` that no running harness owns: a run killed outright (a crash, `taskkill /F`) never
+ * reaches its own cleanup. A root is stale when the pid in its `harness.json` is gone, or when it has no such file
+ * and is older than a minute. A reused pid keeps a root, never removes a live one.
+ */
+export function staleRoots(parent, alive = isAlive, now = Date.now()) {
+  return readdirSync(parent, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(ROOT_PREFIX))
+    .map((entry) => join(parent, entry.name))
+    .filter((root) => {
+      const owner = rootOwner(root)
+      return owner === null ? now - statSync(root).mtimeMs > UNOWNED_GRACE_MS : !alive(owner)
+    })
+}
+
+/** Removes every stale root; one that cannot be removed (a file still held open) fails the step, named. */
+export function removeStaleRoots(parent = tmpdir(), alive = isAlive) {
+  const removed = []
+  const kept = []
+  for (const root of staleRoots(parent, alive)) {
+    rmSync(root, { recursive: true, force: true, maxRetries: 3 })
+    if (existsSync(root)) kept.push(root)
+    else removed.push(root)
+  }
+  if (kept.length > 0) throw new Error(`Stale isolated roots could not be removed: ${kept.join(', ')}`)
+  return { removed }
+}
+
 /** Polls `condition` until it returns a truthy value, which it returns; throws once `signal` aborts. */
 export async function waitFor(condition, signal, intervalMs = POLL_MS) {
   for (;;) {
@@ -239,12 +293,13 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
   return { ...env, [key]: [folder, env[key]].filter(Boolean).join(separator) }
 }
 
-function createSession(out) {
-  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-e2e-agent-chat-')))
+function createSession(out, exe) {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
+  writeFileSync(join(root, OWNER_FILE), JSON.stringify({ pid: process.pid }))
   return {
-    out, root, env: withNodeFirst(isolatedEnv(process.env, root)),
+    out, root, exe, env: withNodeFirst(isolatedEnv(process.env, root)),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
-    shim: null, child: null, exited: null, port: null, socket: null, pending: new Map(), nextId: 0,
+    shim: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
     store: null, restart: null
   }
@@ -266,13 +321,16 @@ function seedRepository(session) {
 /**
  * The fake is the built-in claude-kind agent: a custom agent is terminal-only and its sign-in is never checked. The
  * folder is set up in database mode (its records live under the isolated Dark Mechanicus home, so the Git tree stays
- * clean) with one saved epic, whose id the seed prints.
+ * clean) with one saved epic, whose id the seed prints. Notifications are on while the window is focused, as an
+ * unattended run's window is.
  */
 const SEED_SOURCE = `
 import { openWorkspace } from './src/core/workspace'
 import { openAppDatabase } from './src/main/desktop/appDatabase'
 import { createAgentRegistry } from './src/main/desktop/agentRegistry'
+import { createAppSettings } from './src/main/desktop/appSettings'
 import { createFolderRegistry } from './src/main/desktop/folderRegistry'
+import { DEFAULT_NOTIFICATION_SETTINGS } from './src/shared/desktop/notificationSettings'
 const seed = JSON.parse(process.argv[2])
 async function main() {
   const workspace = openWorkspace({ repoRoot: seed.folder, homeDir: seed.dmHome, role: 'desktop', transport: 'desktop', label: 'e2e seed' })
@@ -293,6 +351,8 @@ async function main() {
   const db = openAppDatabase(seed.userData)
   try {
     createAgentRegistry({ db }).upsert({ kind: 'claude', executablePath: seed.shim, version: seed.version, connectedVia: 'found' })
+    await createAppSettings({ db, confirm: async () => false, logger: console })
+      .setNotifications({ ...DEFAULT_NOTIFICATION_SETTINGS, whenFocused: 'notify' })
   } finally {
     db.close()
   }
@@ -390,7 +450,8 @@ function stopDialogHelper(session) {
 }
 
 function setup(session) {
-  if (!existsSync(BUILT_MAIN)) throw new Error('out/main/index.js is missing: run `npm run build` first.')
+  if (session.exe === null && !existsSync(BUILT_MAIN)) throw new Error('out/main/index.js is missing: run `npm run build` first.')
+  if (session.exe !== null && !existsSync(session.exe)) throw new Error(`The packaged app ${session.exe} does not exist.`)
   const { env } = session
   for (const directory of [env.APPDATA, env.LOCALAPPDATA, env.CLAUDE_CONFIG_DIR, env.DARKMECHANICUS_HOME, session.userData]) {
     mkdirSync(directory, { recursive: true })
@@ -398,10 +459,16 @@ function setup(session) {
   session.shim = writeShim(join(session.root, 'shim'), FAKE_AGENT_CLI)
   seedRepository(session)
   seedStores(session)
-  const { version } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
-  writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME, version }))
+  if (session.exe === null) {
+    const { version } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'))
+    session.version = version
+    writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME, version }))
+  }
   if (process.platform === 'win32') startDialogHelper(session)
-  return { shim: session.shim, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME }
+  return {
+    shim: session.shim, folder: session.folder, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
+    app: session.exe ?? BUILT_MAIN
+  }
 }
 
 async function freePort() {
@@ -412,14 +479,25 @@ async function freePort() {
   return port
 }
 
-async function launch(session) {
+/** Starts the app: the built sources through the wrapper, or the packaged exe paused in main's inspector. */
+async function launch(session, signal) {
   session.port = await freePort()
-  const args = [session.wrapper, `--remote-debugging-port=${session.port}`, `--user-data-dir=${session.userData}`]
-  const child = spawn(require('electron'), args, { cwd: REPO, env: session.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
-  session.child = child
+  const chromium = [`--remote-debugging-port=${session.port}`, `--user-data-dir=${session.userData}`]
+  if (session.exe === null) {
+    session.child = spawn(require('electron'), [session.wrapper, ...chromium], { cwd: REPO, env: session.env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+  } else {
+    let inspector = await freePort()
+    while (inspector === session.port) inspector = await freePort()
+    // The occlusion switch is the wrapper's (see `wrapperSource`), here on the command line.
+    const args = [`--inspect-brk=127.0.0.1:${inspector}`, '--disable-features=CalculateNativeWinOcclusion', ...chromium]
+    session.child = spawn(session.exe, args, { cwd: session.root, env: session.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    session.inspectorPort = inspector
+  }
+  const { child } = session
   child.stdout.on('data', (chunk) => { session.stdout += chunk })
   child.stderr.on('data', (chunk) => { session.stderr += chunk })
   session.exited = new Promise((resolveExit) => child.once('exit', (code, signal) => resolveExit({ code, signal })))
+  if (session.exe !== null) await startPackagedMain(session, signal)
 }
 
 const isRunning = (child) => child !== null && child.exitCode === null && child.signalCode === null
@@ -428,43 +506,96 @@ function assertRunning(session) {
   if (!isRunning(session.child)) throw new Error(`The app exited (code ${session.child.exitCode}) before it was ready.`)
 }
 
-function settle(session, message) {
-  const entry = session.pending.get(message.id)
-  if (entry === undefined) return
-  session.pending.delete(message.id)
-  if (message.error) entry.reject(new Error(`CDP ${message.error.message}`))
-  else entry.resolve(message.result)
+/**
+ * One DevTools protocol connection (the renderer page, or main's Node inspector): `call` sends a command and resolves
+ * with its result; every event goes to `onEvent`.
+ */
+async function connect(url, onEvent = () => {}) {
+  const socket = new WebSocket(url)
+  await new Promise((resolveOpen, reject) => {
+    socket.onopen = resolveOpen
+    socket.onerror = () => reject(new Error(`The DevTools socket ${url} did not open.`))
+  })
+  const pending = new Map()
+  let nextId = 0
+  socket.onmessage = (event) => {
+    const message = JSON.parse(event.data)
+    const entry = pending.get(message.id)
+    if (entry === undefined) return onEvent(message)
+    pending.delete(message.id)
+    if (message.error) entry.reject(new Error(`CDP ${message.error.message}`))
+    else entry.resolve(message.result)
+  }
+  const call = (method, params = {}) => new Promise((resolveCall, reject) => {
+    const id = ++nextId
+    pending.set(id, { resolve: resolveCall, reject })
+    socket.send(JSON.stringify({ id, method, params }))
+  })
+  return { socket, call }
 }
 
 function cdp(session, method, params = {}) {
-  const id = ++session.nextId
-  return new Promise((resolveCall, reject) => {
-    session.pending.set(id, { resolve: resolveCall, reject })
-    session.socket.send(JSON.stringify({ id, method, params }))
-  })
+  return session.page.call(method, params)
 }
 
-async function evaluate(session, expression) {
-  const result = await cdp(session, 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
+async function evaluateOn(connection, expression, params = {}) {
+  const result = await connection.call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, ...params })
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text)
   return result.result.value
 }
 
-async function rendererTarget(session, signal) {
+function evaluate(session, expression) {
+  return evaluateOn(session.page, expression)
+}
+
+/** Runs `expression` in the packaged app's main process, where the inspector's command-line `require` loads `electron`. */
+function evaluateMain(session, expression) {
+  return evaluateOn(session.main, `(() => { const { app, BrowserWindow } = require('electron'); return ${expression} })()`, { includeCommandLineAPI: true })
+}
+
+/** The first target a DevTools endpoint lists that `match` accepts, once it lists one. */
+async function devtoolsTarget(session, port, signal, match) {
   assertRunning(session)
-  const targets = await fetch(`http://127.0.0.1:${session.port}/json/list`, { signal }).then((response) => response.json(), () => [])
-  return targets.find((target) => target.type === 'page' && target.url.includes('/renderer/index.html'))
+  const targets = await fetch(`http://127.0.0.1:${port}/json/list`, { signal }).then((response) => response.json(), () => [])
+  return targets.find(match)
 }
 
 async function attach(session, signal) {
-  const target = await waitFor(() => rendererTarget(session, signal), signal)
-  const socket = new WebSocket(target.webSocketDebuggerUrl)
-  await new Promise((resolveOpen, reject) => {
-    socket.onopen = resolveOpen
-    socket.onerror = () => reject(new Error('The CDP socket did not open.'))
-  })
-  socket.onmessage = (event) => settle(session, JSON.parse(event.data))
-  session.socket = socket
+  const target = await waitFor(() => devtoolsTarget(session, session.port, signal, (entry) => entry.type === 'page' && entry.url.includes('/renderer/index.html')), signal)
+  session.page = await connect(target.webSocketDebuggerUrl)
+}
+
+/**
+ * The packaged app's main, paused on its first line by `--inspect-brk`: its home becomes the isolated one (Electron
+ * reads the real profile otherwise; the wrapper does the same for the built sources), it quits once this harness is
+ * gone (as the wrapper's IPC disconnect does), and then it runs.
+ */
+async function startPackagedMain(session, signal) {
+  const target = await waitFor(() => devtoolsTarget(session, session.inspectorPort, signal, () => true), signal)
+  let paused
+  const firstPause = new Promise((resolvePause) => { paused = resolvePause })
+  session.main = await connect(target.webSocketDebuggerUrl, (event) => { if (event.method === 'Debugger.paused') paused() })
+  await session.main.call('Runtime.enable')
+  await session.main.call('Debugger.enable')
+  await session.main.call('Runtime.runIfWaitingForDebugger')
+  await Promise.race([firstPause, new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))])
+  await evaluateMain(session, `(app.setPath('home', ${JSON.stringify(session.env.HOME)}), true)`)
+  await evaluateMain(session, `(setInterval(() => { try { process.kill(${process.pid}, 0) } catch { app.quit() } }, 1000).unref(), true)`)
+  session.version = await evaluateMain(session, 'app.getVersion()')
+  await session.main.call('Debugger.resume')
+  await session.main.call('Debugger.disable')
+}
+
+/** Asks the app to resize its window or to quit: over the wrapper's IPC, or in the packaged app's main. */
+function tellApp(session, message) {
+  if (session.exe === null) {
+    session.child.send(message)
+    return Promise.resolve()
+  }
+  const command = message === 'quit'
+    ? 'app.quit()'
+    : `(() => { const [window] = BrowserWindow.getAllWindows(); if (window?.isMaximized()) window.unmaximize(); window?.setContentSize(${message.width}, ${message.height}) })()`
+  return evaluateMain(session, `(${command}, true)`)
 }
 
 /** Ready: the renderer is mounted and lists the seeded claude agent and folder, and the fake signs in through its shim. */
@@ -640,7 +771,7 @@ async function sendInChat(session, signal, { chatId, text, reply }) {
 }
 
 async function resizeWindow(session, signal, size) {
-  session.child.send({ type: 'resize', ...size })
+  await tellApp(session, { type: 'resize', ...size })
   await waitFor(async () => {
     const view = await evaluate(session, '({ width: innerWidth, height: innerHeight })')
     session.lastProbe = { resize: size, view }
@@ -665,8 +796,13 @@ async function capture(session, name, size) {
   return { file: name, window: `${view.width}x${view.height}`, png: `${png.width}x${png.height}`, dpr: view.dpr }
 }
 
+/** The version the sidebar header shows, from its label (`AppVersionLabel`), or null before it renders. */
+function headerVersion() {
+  return document.querySelector('.app-version-label')?.getAttribute('aria-label')?.replace(/^Application version /, '') ?? null
+}
+
 async function appReady(session, signal) {
-  await launch(session)
+  await launch(session, signal)
   await attach(session, signal)
   const probe = await waitFor(async () => {
     assertRunning(session)
@@ -674,11 +810,19 @@ async function appReady(session, signal) {
     return session.lastProbe.ready && session.lastProbe
   }, signal)
   session.folderPath = probe.folder.path
+  // The header shows the app's own version: the package's for the built sources, the packaged app's for `--exe`.
+  const header = await waitFor(async () => {
+    session.lastProbe = { header: await evaluate(session, `(${headerVersion.toString()})()`), expected: session.version }
+    return session.lastProbe.header === session.version && session.lastProbe.header
+  }, signal)
   await page(session, installHelpers)
   // The matchers the unit tests cover run in the page as they are, serialized from this module.
   await evaluate(session, `Object.assign(window.__e2e, { turnEnded: ${turnEnded.toString()}, replyAfter: ${replyAfter.toString()} }), true`)
   await resizeWindow(session, signal, WINDOW)
-  return { ...probe, cdpPort: session.port, window: `${WINDOW.width}x${WINDOW.height}`, fakeInvocations: fakeInvocations(session) }
+  return {
+    ...probe, app: session.exe ?? BUILT_MAIN, headerVersion: header, cdpPort: session.port,
+    window: `${WINDOW.width}x${WINDOW.height}`, fakeInvocations: fakeInvocations(session)
+  }
 }
 
 /** Step 1: a folder chat from the New chat popup, with the claude-kind fake, opens in the GUI with its first turn. */
@@ -788,6 +932,13 @@ async function listedChat(_h, folder, chatId) {
   const listed = await window.dm.chats.list(folder)
   const chat = listed.ok ? listed.data.find((entry) => entry.id === chatId) : undefined
   return { ok: chat !== undefined, surface: chat?.surface ?? null, sessionId: chat?.sessionId ?? null }
+}
+
+/** The chat's record carries `title`, the name the fake agent gave it through `dm call name_chat`. Self-contained. */
+async function chatNamed(_h, folder, chatId, title) {
+  const listed = await window.dm.chats.list(folder)
+  const chat = listed.ok ? listed.data.find((entry) => entry.id === chatId) : undefined
+  return { ok: chat?.title === title, title: chat?.title ?? null, titleStatus: chat?.titleStatus ?? null }
 }
 
 /** The terminal pane with its xterm, and the main-side screen of the running PTY (xterm draws on a canvas). */
@@ -1097,8 +1248,8 @@ function forceKill(child) {
 }
 
 function closeSocket(session) {
-  session.socket?.close()
-  session.socket = null
+  session.page?.socket.close()
+  session.page = null
 }
 
 /** Asks the app for a normal quit and waits for a clean exit; at the deadline the process tree is killed. */
@@ -1108,7 +1259,10 @@ async function quit(session, signal) {
   closeSocket(session)
   if (!isRunning(child)) throw new Error(`The app exited before quit (code ${child.exitCode}).`)
   signal.addEventListener('abort', () => forceKill(child), { once: true })
-  child.send('quit')
+  await tellApp(session, 'quit')
+  // An attached inspector session would hold the packaged app's exit; it is closed before the wait.
+  session.main?.socket.close()
+  session.main = null
   const { code, signal: killedBy } = await session.exited
   if (code !== 0) throw new Error(`The app exited with code ${code}${killedBy ? ` (${killedBy})` : ''}.`)
   return { exitCode: code }
@@ -1120,11 +1274,15 @@ async function fakeProcessesExited(session, signal) {
   return { checkedPids: session.fakePids }
 }
 
-/** Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone. The capture is the last state before it. */
+/**
+ * Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone. The capture is the last state before it,
+ * once the new chat (when the run made one) carries the title the fake named it with.
+ */
 async function quitApp(session, signal) {
+  const named = session.chat === null ? null : await until(session, signal, chatNamed, session.folderPath, session.chat.chatId, FAKE_CHAT_TITLE)
   const screenshot = await capture(session, 'e2e-quit.png', WINDOW)
   const exited = await quit(session, signal)
-  return { ...exited, ...await fakeProcessesExited(session, signal), screenshot }
+  return { ...exited, ...await fakeProcessesExited(session, signal), newChatTitle: named?.title ?? null, screenshot }
 }
 
 /** The fixed session id of the seeded Magos chat, and the version its restart marker says the app was updated from. */
@@ -1263,11 +1421,10 @@ async function restartSeed(session) {
 async function restartLaunch(session, signal) {
   const ready = await appReady(session, signal)
   const version = await evaluate(session, 'window.appInfo.getVersion()')
-  const fixture = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).version
   if (!/^\d+\.\d+\.\d+$/.test(version) || !newerVersion(version, RESTART_FROM_VERSION)) {
     throw new Error(`The app's runtime version ${version} is not newer than v${RESTART_FROM_VERSION}.`)
   }
-  return { runtimeVersion: version, packageJsonVersion: fixture, folder: ready.folder, cdpPort: ready.cdpPort }
+  return { runtimeVersion: version, headerVersion: ready.headerVersion, folder: ready.folder, cdpPort: ready.cdpPort }
 }
 
 /** Phase 3: one protocol launch with `--resume U`, the fixed message and the fake's reply stored, the marker gone. */
@@ -1332,7 +1489,7 @@ async function restartPlainQuit(session, signal) {
 
 /** Phase 6: a marker from the version the app runs now, then a start. */
 async function restartEqualLaunch(session, signal) {
-  const version = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).version
+  const { version } = session
   session.restart.launchesBefore = chatLaunches(readLog(session), RESTART_SESSION_ID).length
   const marker = writeMarker(session, version)
   const launched = await restartLaunch(session, signal)
@@ -1379,7 +1536,7 @@ const STEPS = {
 
 async function captureFailure(session, step) {
   const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe }
-  if (session.socket?.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
+  if (session.page?.socket.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
   const bound = delay(SCREENSHOT_BOUND_MS).then(() => { throw new Error('screenshot timed out') })
   const { data } = await Promise.race([cdp(session, 'Page.captureScreenshot', { format: 'png' }), bound])
   const file = join(session.out, failureScreenshotName(step))
@@ -1389,6 +1546,7 @@ async function captureFailure(session, step) {
 
 async function runSteps(session, keys, steps) {
   const onFailure = (step) => captureFailure(session, step)
+  steps.push(await runStep('stale isolated roots removed', async () => removeStaleRoots()))
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
   steps: for (const key of prepared.ok ? keys : []) {
@@ -1422,22 +1580,26 @@ function removeIsolatedState(session) {
 export function parseArgs(argv) {
   const value = (flag) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined)
   const out = value('--out')
-  if (!out) throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--steps ${Object.keys(STEPS).join(',')}]`)
+  if (!out) throw new Error(`Usage: node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--steps ${Object.keys(STEPS).join(',')}]`)
+  if (argv.includes('--exe') && !value('--exe')) throw new Error('--exe needs the path of a packaged app executable.')
   const keys = value('--steps')?.split(',') ?? Object.keys(STEPS)
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
-  return { out: resolve(out), keys }
+  const exe = value('--exe')
+  return { out: resolve(out), exe: exe === undefined ? null : resolve(exe), keys }
 }
 
 async function main(argv) {
-  const { out, keys } = parseArgs(argv)
+  const { out, exe, keys } = parseArgs(argv)
   mkdirSync(out, { recursive: true })
-  const session = createSession(out)
+  const session = createSession(out, exe)
   const steps = []
   try {
     await runSteps(session, keys, steps)
   } finally {
     forceKill(session.child)
+    closeSocket(session)
+    session.main?.socket.close()
     stopDialogHelper(session)
     preserveLogs(session)
   }
