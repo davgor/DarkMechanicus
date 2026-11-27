@@ -54,6 +54,7 @@
 
 /* The broken placeholder keeps the thumbnail's box; its name wraps rather than widening the box past 160 px. */
 .chat-image-picture.attachment-missing {
+  display: flex;
   box-sizing: border-box;
   width: 152px;
   min-width: 0;
