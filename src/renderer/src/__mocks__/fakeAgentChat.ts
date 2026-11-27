@@ -1,4 +1,5 @@
-import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem, ChatImageRef } from '../../../shared/agents/agentChat'
+import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot, AttentionItem } from '../../../shared/agents/agentChat'
+import type { ChatImageRef } from '../../../shared/agents/chat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import { deferred, type Deferred } from './deferred'

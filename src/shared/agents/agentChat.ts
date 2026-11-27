@@ -4,7 +4,7 @@ import type { CommandResult } from '../desktop/api'
 import { CHAT_IMAGE_MAX_BYTES, chatIdSchema, chatImageIdSchema, chatImageRefSchema, chatItemSchema, type ChatImageRef } from './chat'
 import { callsignSchema } from './callsign'
 
-export { CHAT_IMAGE_MAX_BYTES, chatImageIdSchema, chatImageRefSchema, type ChatImageRef }
+export { CHAT_IMAGE_MAX_BYTES, chatImageIdSchema, chatImageRefSchema }
 
 export const GUI_PROTOCOL_KINDS = ['omp', 'claude'] as const
 export const TODO_TOOL_NAMES = ['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'todo'] as const

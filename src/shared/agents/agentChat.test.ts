@@ -43,7 +43,9 @@ describe('agent chat contract', () => {
     }
     expect(agentChatAnswerSchema.safeParse({ ...ref, promptId: 'p', optionId: 'x', text: 'a'.repeat(20_001) }).success).toBe(false)
   })
+})
 
+describe('agent chat images', () => {
   const ids = ['ci_01m8ec59dbq52ydhsy6ry7knhv', 'ci_01m8ec42c2xgm8dptjcywxm0fx', 'ci_01m7x2qsm36jdzebeysf4mgna8', 'ci_01m7x2qsm33eckprx1gjn0y5zs', 'ci_01m8drz8d8qqz934xa0c2vjy63']
 
   it('sends up to four ci_ image ids, with or without text, and never an empty message', () => {
