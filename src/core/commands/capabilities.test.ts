@@ -114,6 +114,7 @@ const PROBES: Record<CommandName, unknown> = {
     commit: 'abcdef1',
     checks: [{ name: 'probe', status: 'passed' }]
   },
+  recordDelivery: { runId: RUN, sprintId: probeId('sprint'), commit: 'abcdef1' },
   pauseRun: { runId: RUN },
   resumeRun: { runId: RUN },
   cancelRun: { runId: RUN },

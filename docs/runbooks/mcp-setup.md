@@ -243,7 +243,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
 | Claims and reporting: `claim_ticket`, `reconcile_attempt`, `carry_forward_ticket` | | yes | | |
-| Row checks: `record_row_check` | | yes | | |
+| Row and delivery checks: `record_row_check`, `record_delivery` | | yes | | |
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | Attempt usage: `record_attempt_metrics` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
@@ -255,7 +255,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status` | yes | yes | yes | yes |
-| **Total** | 82 (83 with `--allow-save`) | 116 (116 with `--allow-save`) | 70 | 66 |
+| **Total** | 82 (83 with `--allow-save`) | 117 (117 with `--allow-save`) | 70 | 66 |
 
 An `orchestrator` lists `save_plan` and the narrow permission decision tool with or without Allow save. Explicitly disabled sessions (`--no-allow-save`) gain general saving only after approval; their separate own-run saving rule remains. `decide_save_permission` always checks original explicit authority server-side, so acquired saving cannot delegate it. `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 

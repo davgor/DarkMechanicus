@@ -112,6 +112,7 @@ import type {
   CommentView,
   CriterionResult,
   DeleteEpicResultView,
+  DeliveryCheckView,
   DraftUpdateResultView,
   EpicConflictChoice,
   EpicDetailView,
@@ -318,6 +319,21 @@ export interface RecordRowCheckInput {
   row: number
   commit: string
   checks: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
+  idempotencyKey?: string
+}
+
+/**
+ * An orchestrator's record of a sprint's delivery: the commit it says carries the sprint's increment onto the delivery
+ * target, and the release and installed version it observed. The server verifies every part against the repository;
+ * `checks` are the caller's own observations (for example `gh` run results), stored after the server's checks.
+ */
+export interface RecordDeliveryInput {
+  runId: string
+  sprintId: string
+  commit: string
+  releaseTag?: string
+  observedInstalledVersion?: string
+  checks?: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
   idempotencyKey?: string
 }
 
@@ -706,6 +722,8 @@ export interface CommandApi {
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
   /** Carries `context` (for an orchestrator) only when the check did not pass. */
   recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
+  /** Verifies a sprint's delivery and stores the verdict; a failed verdict is stored, not thrown. */
+  recordDelivery(input: RecordDeliveryInput): Promise<DeliveryCheckView>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>

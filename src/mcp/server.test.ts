@@ -86,6 +86,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   reconcile_attempt: { method: 'reconcileAttempt', kind: 'write' },
   carry_forward_ticket: { method: 'carryForwardTicket', kind: 'write' },
   record_row_check: { method: 'recordRowCheck', kind: 'write' },
+  record_delivery: { method: 'recordDelivery', kind: 'write' },
   pause_run: { method: 'pauseRun', kind: 'idempotent' },
   resume_run: { method: 'resumeRun', kind: 'idempotent' },
   cancel_run: { method: 'cancelRun', kind: 'destructive' },

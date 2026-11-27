@@ -1,5 +1,5 @@
 import { verifyTicketIntegration } from '../services/deliveryWorkflow'
-import type { SubmitAttemptInput } from '../../shared/domain/api'
+import type { RecordDeliveryInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { ReadinessView, RunView, SprintIncrement } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
@@ -18,12 +18,15 @@ import {
   submitAttempt
 } from '../services/attempts'
 import { getCheckpoint } from '../services/checkpoints'
+import { deliveryContextOf, recordDelivery } from '../services/deliveries'
+import { verifyDelivery } from '../services/deliveryVerify'
 import { loadRunContext, runExecution } from '../services/execution'
 import { matchCapabilities, registerHost } from '../services/hosts'
 import { isRepositoryFolder } from '../services/epicBranches'
 import { incrementContextOf, repositoryIncrementsOf } from '../services/increments'
 import { verifyIncrement, verifyRepositoryIncrements } from '../services/incrementVerify'
 import { recordRowCheck } from '../services/rowChecks'
+import { readInstalledApp } from '../installedApp'
 import {
   cancelRun,
   getRun,
@@ -103,6 +106,37 @@ async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput)
   const git = core.gitFor(null)
   const verdict = await verifyIncrement(git, context, increment, core.clock.nowIso())
   return { verdict, assertCurrent: git.assertCurrent }
+}
+
+/**
+ * The installed build a delivery's `Installed app version` check reads: the desktop's own observation on this machine
+ * when it recorded one, else this session's serverInfo, which any process can claim; null when neither exists.
+ */
+function installedBuild(core: WorkspaceCore): { version: string; packaged: boolean; source: string } | null {
+  const observed = readInstalledApp(core.ctx())
+  if (observed !== null) {
+    return { version: observed.version, packaged: observed.packaged, source: `the desktop app's observation of ${observed.observedAt}` }
+  }
+  const info = core.options.serverInfo
+  return info === undefined
+    ? null
+    : { version: info.version, packaged: info.packaged ?? false, source: "the recording session's serverInfo; the desktop app recorded no observation on this machine" }
+}
+
+/**
+ * Applies every refusal, then asks git about the delivery outside any transaction, as increment verification does,
+ * with the code repository's adapter (in Forge mode the code checkout, not the project folder).
+ */
+async function verifiedDelivery(core: WorkspaceCore, input: RecordDeliveryInput) {
+  const context = deliveryContextOf(core.ctx(), input)
+  const git = core.gitFor(null)
+  const claim = {
+    commit: input.commit,
+    ...(input.releaseTag === undefined ? {} : { releaseTag: input.releaseTag }),
+    ...(input.observedInstalledVersion === undefined ? {} : { observedInstalledVersion: input.observedInstalledVersion })
+  }
+  const verdict = await verifyDelivery(git, { delivery: context.delivery, increment: context.increment, installed: installedBuild(core) }, claim, core.clock.nowIso())
+  return { increment: context.increment.commit, verdict, ...(git.assertCurrent === undefined ? {} : { assertCurrent: git.assertCurrent }) }
 }
 
 const executionCommands = {
@@ -202,6 +236,11 @@ const executionCommands = {
       const check = recordRowCheck(core.ctx(), input)
       return check.passed ? check : withKnowledgeContext(core, check, 'row_check.failed')
     }
+  },
+  recordDelivery: {
+    schema: COMMAND_SCHEMAS.recordDelivery,
+    mutates: true,
+    run: async (core, input) => recordDelivery(core.ctx(), input, await verifiedDelivery(core, input))
   },
   pauseRun: {
     schema: COMMAND_SCHEMAS.pauseRun,
