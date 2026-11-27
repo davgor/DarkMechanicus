@@ -4,9 +4,10 @@
  * live, through a lazy mutual `isLive`: the terminals are built first, so theirs reads the GUI owner through a
  * closure. The GUI owner is also given the Magos arbiter (`createPromptArbitration`) over the main-side settings and
  * the ticket and Standards context of each run's folder. Quit waits for both owners and cancels every arbiter,
- * deleting a chat stops its GUI process before its terminal and record go, and the one native confirmation that may
- * stop a live terminal is built here over an injected dialog. Free of Electron runtime imports so it is unit tested;
- * `bootstrap.ts` only passes the real factories, settings, workspaces and Electron's dialog in.
+ * deleting a chat stops its GUI process before its terminal and record go, untracking a folder or removing an agent
+ * stops both owners' processes, and the one native confirmation that may stop a live terminal is built here over an
+ * injected dialog. Free of Electron runtime imports so it is unit tested; `bootstrap.ts` only passes the real
+ * factories, settings, workspaces and Electron's dialog in.
  */
 import type { MessageBoxOptions } from 'electron'
 import { readdirSync, rmSync } from 'node:fs'
@@ -14,6 +15,7 @@ import { join } from 'node:path'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { formatCallsign, rootCallsignOf } from '../../shared/agents/callsign'
+import type { AgentId } from '../../shared/desktop/api'
 import type { ActivityBindings } from '../agents/activityBindings'
 import type { ChatRef } from '../agents/chatStore'
 import { readArbiterContext, ticketKeyOfAttempt, type ArbiterReads } from '../magos/arbiterContext'
@@ -197,6 +199,29 @@ export function endingAgentChats<C extends { deleteChat(ref: ChatRef): Promise<v
 ): C {
   const ending = endingTerminals(chats, terminals)
   return { ...ending, deleteChat: (ref: ChatRef) => agentChats.deleteChat(ref, () => ending.deleteChat(ref)) }
+}
+
+/** What a chat's two owners do together when its folder is untracked or its agent removed. */
+interface ChatOwnerRelease {
+  /**
+   * Untrack: the folders' terminals and GUI processes stopped, with every start of their chats refused, kills settled and
+   * grants revoked on both surfaces; then `forget` runs, before starts are let through again.
+   */
+  releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
+  /** A removed agent: the terminals and GUI processes of all its chats stopped, with their grants revoked. */
+  endAgent(id: AgentId): Promise<void>
+}
+
+export function releasingChatOwners(
+  terminals: Pick<TerminalSessions, 'releaseFolder' | 'endAgent'>, agentChats: Pick<AgentChatSessions, 'releaseFolder' | 'endAgent'>
+): ChatOwnerRelease {
+  return {
+    releaseFolder: (folder, forget, relatedFolders = []) =>
+      terminals.releaseFolder(folder, () => agentChats.releaseFolder(folder, forget, relatedFolders), relatedFolders),
+    endAgent: async (id) => {
+      await Promise.all([terminals.endAgent(id), agentChats.endAgent(id)])
+    }
+  }
 }
 
 /** The button the person clicks to stop a live terminal; Cancel (index 0) is the default and the escape answer. */

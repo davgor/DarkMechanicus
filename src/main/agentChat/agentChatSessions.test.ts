@@ -242,6 +242,18 @@ for (const [label, tag] of TERMINAL_ONLY) for (const kind of ['claude', 'omp'] a
   expect([confirm.mock.calls, stopTerminal.mock.calls, r.sessions.isLive(chat), r.store.getChat(chat)!.surface]).toEqual([[], [], false, 'terminal'])
 })
 
+for (const kind of ['claude', 'omp'] as const) it(`refuses GUI start and switch for a ${kind} Forge World merge resolver chat without side effects`, async () => {
+  const changed = vi.fn(), confirm = vi.fn(async () => true)
+  const r = rig(kind, { onChatChanged: changed })
+  const created = r.store.createChat({ folder: r.repo, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'terminal' })
+  const chat = r.store.updateChat(created, { forgeResolver: r.repo })
+  const write = vi.spyOn(r.store, 'updateChat')
+  await expect(r.sessions.start(chat)).rejects.toMatchObject({ code: 'unsupported', message: 'Forge World merge resolvers run only in the terminal.' })
+  await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'unsupported' })
+  expect([r.steps, r.children, r.revoked, write.mock.calls, changed.mock.calls, confirm.mock.calls]).toEqual([[], [], [], [], [], []])
+  expect(r.store.getChat(chat)!.surface).toBe('terminal')
+})
+
 it('refuses a toggle during authentication before any process or grant is issued', async () => {
   const auth = gate<AgentAuthStatus>()
   const r = rig('claude', { checkAuth: () => auth.promise }), chat = r.newChat()
@@ -1013,6 +1025,8 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI shut
   })
 })
 
+const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true } catch { return false } }
+
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephemeral state and deletion`, () => {
 
   it('keeps the latest per-thread todos only in memory, retains on exit and resets on restart', async () => {
@@ -1048,6 +1062,32 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     expect(r.store.getChat(chat)).toBeNull()
     expect(() => process.kill(pid, 0)).toThrow()
     expect(r.revoked).toEqual(['grant-1'])
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI untrack and agent removal`, () => {
+  it('untracking the folder stops its GUI process, revokes its grant and refuses starts until the untrack is done', async () => {
+    const r = rig(kind), chat = r.newChat(), other = r.newChat(undefined, null)
+    await r.sessions.start(chat)
+    await r.sessions.start(other)
+    const pid = r.children[0].pid!
+    const seen: unknown[] = []
+    await r.sessions.releaseFolder(r.repo, async () => {
+      seen.push(alive(pid), [...r.revoked], r.sessions.isLive(chat))
+      await r.sessions.start(chat).then(() => seen.push('started'), (error: Error) => seen.push(error.message))
+    })
+    expect(seen).toEqual([false, ['grant-1'], false, "The chat's folder is being untracked."])
+    expect(r.children).toHaveLength(2)
+    expect(r.sessions.isLive(other)).toBe(true)
+  })
+
+  it('removing the agent stops the GUI processes of its chats and revokes their grants', async () => {
+    const r = rig(kind), chat = r.newChat()
+    await r.sessions.start(chat)
+    const pid = r.children[0].pid!
+    await r.sessions.endAgent(kind)
+    expect([alive(pid), r.revoked, r.sessions.isLive(chat)]).toEqual([false, ['grant-1'], false])
+    await r.sessions.endAgent('codex')
   })
 })
 
