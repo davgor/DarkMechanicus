@@ -66,6 +66,14 @@ export class FakeAgentChat implements AgentChatApi {
     return this.call('interrupt', request, () => ({ ok: true, data: null }))
   }
 
+  /** Records the stop, then tells every view of the chat it exited, as main's process close does. */
+  stop(request: Parameters<AgentChatApi['stop']>[0]) {
+    return this.call('stop', request, () => {
+      this.emit({ folder: request.folder, chatId: request.chatId, type: 'status', status: 'exited' })
+      return { ok: true, data: null }
+    })
+  }
+
   answer(request: Parameters<AgentChatApi['answer']>[0]) {
     return this.call('answer', request, () => ({ ok: true, data: null }))
   }

@@ -21,6 +21,7 @@ import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
 import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
 import { EpicRolePicker } from './AgentPickerDialog'
+import { AgentTabStrip } from './AgentTabStrip'
 import {
   activeOrchestratorId, defaultAgentChatId, epicAgentNodes, epicChats, owningChatId, relayMessage, threadTranscript,
   type EpicAgentNodesInput, type LoadedTranscript
@@ -278,6 +279,17 @@ function useRailReveal(ws: WorkspaceHandle): RailReveal | null {
     [pending, dispatch])
 }
 
+/** The tab strip's inputs from the tree: each root's name, and the roots with a prompt of their own or a worker's waiting. */
+function tabInputs(nodes: readonly AgentTreeNodeInput[], counts: ReadonlyMap<string, NeedsYouCount>): {
+  names: ReadonlyMap<string, string>
+  waiting: ReadonlySet<string>
+} {
+  return {
+    names: new Map(nodes.filter((node) => node.parentId === null).map((node) => [node.id, node.name])),
+    waiting: new Set([...counts].filter(([, count]) => count.own + count.descendants > 0).map(([id]) => id))
+  }
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -310,11 +322,13 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     }
   }
   const progress = rowTodos(folder, chats, nodes, watched)
+  const { names, waiting } = tabInputs(nodes, counts)
   return (
     <section aria-label="Agent chat" className="eap">
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}
       {chat.id !== lead && <TranscriptFeed folder={folder} chatId={chat.id} onLoaded={onLoaded} />}
       <div className="eap-centre">
+        <AgentTabStrip ws={ws} chats={chats} run={run} selectedId={chat.id} names={names} needsYou={waiting} />
         <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}

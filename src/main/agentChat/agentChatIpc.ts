@@ -23,6 +23,7 @@ import {
   agentChatSnapshotRequestSchema,
   agentChatStageImageSchema,
   agentChatStartSchema,
+  agentChatStopSchema,
   type AgentChatEvent,
   type AgentChatSnapshot,
   type AttentionItem
@@ -39,7 +40,7 @@ import type { OmpModels } from './ompModels'
 
 interface AgentChatHandlerDeps<S> {
   registry: Pick<FolderRegistry, 'resolve'>
-  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'stageImage'>
+  sessions: Pick<AgentChatSessions, 'start' | 'send' | 'interrupt' | 'stop' | 'answer' | 'setSurface' | 'snapshot' | 'attention' | 'stageImage'>
   /** The native confirmation, modal to the window that sent the request (`nativeTerminalStopConfirmation`). */
   confirmTerminalStop: (sender: S, chat: ChatRecord) => Promise<boolean>
   /** Skitarii model catalogs (`ompModels.ts`). */
@@ -51,6 +52,8 @@ interface AgentChatHandlers<S> {
   start(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   send(input: unknown): Promise<CommandResult<null>>
   interrupt(input: unknown): Promise<CommandResult<null>>
+  /** Ends the chat's GUI process; its transcript and record stay. */
+  stop(input: unknown): Promise<CommandResult<null>>
   answer(input: unknown): Promise<CommandResult<null>>
   /** `sender` is the requesting window's contents, which the confirmation is modal to. */
   setSurface(sender: S, input: unknown): Promise<CommandResult<AgentChatSnapshot>>
@@ -82,6 +85,10 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
     }),
     interrupt: input => answer(deps, async () => {
       await sessions.interrupt(chatRequest(registry, agentChatInterruptSchema, input).ref)
+      return null
+    }),
+    stop: input => answer(deps, async () => {
+      await sessions.stop(chatRequest(registry, agentChatStopSchema, input).ref)
       return null
     }),
     answer: input => answer(deps, async () => {
@@ -118,6 +125,7 @@ export function registerAgentChatIpc<S>(ipcMain: Pick<IpcMain, 'handle'>, handle
   ipcMain.handle(AGENT_CHAT_CHANNELS.start, (_event, request: unknown) => handlers.start(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.send, (_event, request: unknown) => handlers.send(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.interrupt, (_event, request: unknown) => handlers.interrupt(request))
+  ipcMain.handle(AGENT_CHAT_CHANNELS.stop, (_event, request: unknown) => handlers.stop(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.answer, (_event, request: unknown) => handlers.answer(request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.setSurface, (event, request: unknown) => handlers.setSurface(senderOf(event), request))
   ipcMain.handle(AGENT_CHAT_CHANNELS.snapshot, (_event, request: unknown) => handlers.snapshot(request))

@@ -99,6 +99,7 @@ const agentChat: AgentChatApi = {
   start: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.start, request),
   send: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.send, request),
   interrupt: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.interrupt, request),
+  stop: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stop, request),
   answer: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.answer, request),
   setSurface: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setSurface, request),
   snapshot: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.snapshot, request),

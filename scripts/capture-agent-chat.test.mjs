@@ -178,6 +178,15 @@ const QUESTION = {
   checked: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true
 }
 
+/** The epic-agent-tabs strip: the selected Magos without ✕, then a Lexmechanic with two unread messages. */
+const AGENT_TABS = {
+  tabs: [
+    { name: 'Magos', selected: true, unread: false, closable: false },
+    { name: 'Lexmechanic, 2 unread messages', selected: false, unread: true, closable: true }
+  ],
+  aboveChat: true, activeJoined: true, roundedTop: true
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
@@ -219,7 +228,8 @@ function passing() {
     }),
     'agent-role-picker': ready('agent-role-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS } }),
     'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, rolePicker: { cards: ROLE_CARDS }, newChat: NEW_CHAT }),
-    'question-multi': ready('question-multi', { questionCard: QUESTION })
+    'question-multi': ready('question-multi', { questionCard: QUESTION }),
+    'epic-agent-tabs': ready('epic-agent-tabs', { agentTabs: AGENT_TABS })
   }
 }
 
@@ -254,23 +264,40 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 39 states once each, in capture order', () => {
+  it('lists the 40 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer', 'agent-images', 'agent-role-picker', 'epic-agent-picker',
       'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'agent-image-result', 'agent-image-viewer', 'mail-card',
-      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'epic-agent-tabs', 'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(39)
+    expect(new Set(STATES).size).toBe(40)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
-  it('declares 15 s per state within a 600 s overall bound: 39 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 615 s overall bound: 40 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(600_000)
+    expect(OVERALL_LIMIT_MS).toBe(615_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
+  })
+})
+
+describe('capture-agent-chat: epic-agent-tabs', () => {
+  const tabsRecord = (patch) => ready('epic-agent-tabs', { agentTabs: { ...AGENT_TABS, ...patch } })
+
+  it('passes the Magos selected without ✕ before a Lexmechanic with its unread dot, joined to the chat header', () => {
+    expect(validateObservations('epic-agent-tabs', tabsRecord({}))).toEqual([])
+  })
+
+  it('fails a strip without the unread dot, a Magos with ✕, a strip below the chat, or a detached active tab', () => {
+    const [magos, planner] = AGENT_TABS.tabs
+    expect(validateObservations('epic-agent-tabs', tabsRecord({ tabs: [magos, { ...planner, unread: false }] }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs', tabsRecord({ tabs: [{ ...magos, closable: true }, planner] }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs', tabsRecord({ aboveChat: false }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs', tabsRecord({ activeJoined: false }))).toHaveLength(1)
+    expect(validateObservations('epic-agent-tabs', ready('epic-agent-tabs'))).toHaveLength(2)
   })
 })
 
