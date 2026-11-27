@@ -116,9 +116,9 @@ async function bridgeFixture(options: { home?: string; version?: string; seed?: 
   vi.stubEnv('DARKMECHANICUS_HOME', join(root, 'state'))
   const { serveWorkspaceOwner } = await import('./workspaceOwnerRuntime')
   const owners: InProcessUtility[] = []
-  desktop.fork.mockImplementation((_file: string, [generation, pid, home, version]: string[]) => {
+  desktop.fork.mockImplementation((_file: string, [generation, pid, home, version, packaged]: string[]) => {
     const child = new InProcessUtility()
-    serveWorkspaceOwner({ generation: Number(generation), ownerPid: Number(pid), home, version }, {
+    serveWorkspaceOwner({ generation: Number(generation), ownerPid: Number(pid), home, version, packaged: packaged === 'packaged' }, {
       on(_event, listener) { child.messages.on('request', listener); return this as Electron.ParentPort },
       postMessage(response: WorkspaceResponse) { child.emit('message', structuredClone(response)) }
     })

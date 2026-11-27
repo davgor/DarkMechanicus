@@ -39,7 +39,7 @@ export interface WorkspaceCore {
   gitFor(repo: string | null): GitAdapter
   readonly clock: Clock
   readonly role: SessionRole
-  readonly options: { serverInfo?: { name: string; version: string } }
+  readonly options: { serverInfo?: { name: string; version: string; packaged?: boolean } }
   roleCapabilities(): Capability[]
   isInitialized(): boolean
   sessionId(): string | null

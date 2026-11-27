@@ -18,6 +18,7 @@ import { COMMANDS } from '../core/commands/index'
 import { isBusyError } from '../core/db/database'
 import { MAIL_POLL_COMMANDS } from '../core/services/agentMail'
 import { DomainError, toErrorShape } from '../core/errors'
+import { isPackagedScript, readPackageVersion } from '../core/packageInfo'
 import type { CommandName } from '../shared/domain/api'
 import type { DomainErrorShape } from '../shared/domain/errors'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
@@ -32,6 +33,8 @@ import { reportHostUsage } from './usage'
 const EXIT_OK = 0
 const EXIT_FAILED = 1
 const EXIT_USAGE = 2
+/** The `serverInfo.name` a `dm` CLI session reports in `get_capabilities`. */
+const CLI_SERVER_NAME = 'darkmechanicus-cli'
 
 export interface CliHost {
   argv: string[]
@@ -199,6 +202,11 @@ function grantedError(error: unknown, phase: 'open' | 'command'): unknown {
   return new DomainError('busy', `The project database is busy while ${stage}. Let the current write finish before trying again.`, { stage: phase })
 }
 
+/** This build's identity: `out/main/cli.js` reads its version and packaged state the same way `mcp.js` does. */
+function cliServerInfo(host: CliHost): NonNullable<OpenWorkspaceOptions['serverInfo']> {
+  return { name: CLI_SERVER_NAME, version: readPackageVersion(host.cliPath, host.readFile), packaged: isPackagedScript(host.cliPath) }
+}
+
 /**
  * Opens the workspace with the caller's grant. Mail status/wake uses its restricted poll mode; peer discovery
  * uses a non-persistent read-only session so an unrelated writer cannot consume the native tool's deadline.
@@ -216,6 +224,7 @@ async function runGranted(host: CliHost, options: CliOptions, mailMode: 'poll' |
       label: 'dm CLI',
       transport: 'cli',
       pid: process.pid,
+      serverInfo: cliServerInfo(host),
       ...(token === null ? {} : { grantToken: token }),
       ...(mailMode === 'poll' ? { mailPoll: true } : {}),
       ...(mailMode === 'read' ? { mailRead: true } : {})
@@ -307,7 +316,7 @@ function authorizationLine(status: TransferView['status']): string {
 async function runTransfer(host: CliHost, options: CliOptions, epicId: string, json: boolean): Promise<number> {
   let workspace: Workspace | null = null
   try {
-    workspace = host.open({ repoRoot: options.repo, role: 'reader', label: 'dm CLI', transport: 'cli', pid: process.pid })
+    workspace = host.open({ repoRoot: options.repo, role: 'reader', label: 'dm CLI', transport: 'cli', pid: process.pid, serverInfo: cliServerInfo(host) })
     const epic = (await workspace.execute('getEpic', { epicId })) as EpicDetailView
     const transfer = (await workspace.execute('getTransfer', { epicId })) as TransferView
     if (transfer.packet === null) {
