@@ -548,9 +548,13 @@ function evaluate(session, expression) {
   return evaluateOn(session.page, expression)
 }
 
-/** Runs `expression` in the packaged app's main process, where the inspector's command-line `require` loads `electron`. */
+/**
+ * Runs `expression` in the packaged app's main process, where the inspector's command-line `require` loads `electron`.
+ * Never `awaitPromise`: while main is paused on its first line no microtask runs, and an awaited evaluation never answers.
+ */
 function evaluateMain(session, expression) {
-  return evaluateOn(session.main, `(() => { const { app, BrowserWindow } = require('electron'); return ${expression} })()`, { includeCommandLineAPI: true })
+  const wrapped = `(() => { const { app, BrowserWindow } = require('electron'); return ${expression} })()`
+  return evaluateOn(session.main, wrapped, { includeCommandLineAPI: true, awaitPromise: false })
 }
 
 /** The first target a DevTools endpoint lists that `match` accepts, once it lists one. */
@@ -566,9 +570,22 @@ async function attach(session, signal) {
 }
 
 /**
+ * Under `--inspect-brk` a worker thread inherits the break and waits for a debugger before its first line. node-pty
+ * starts its ConPTY output worker and then blocks main until that worker reads, so a terminal would deadlock the app.
+ * Worker threads the app starts get an explicit empty `execArgv` (Electron's main has none of its own), which drops
+ * the inherited break; a worker given its own `execArgv` keeps it.
+ */
+const UNPAUSED_WORKERS = `(() => {
+  const threads = require('node:worker_threads')
+  const { Worker } = threads
+  threads.Worker = class extends Worker { constructor(file, options) { super(file, { execArgv: [], ...options }) } }
+  return true
+})()`
+
+/**
  * The packaged app's main, paused on its first line by `--inspect-brk`: its home becomes the isolated one (Electron
- * reads the real profile otherwise; the wrapper does the same for the built sources), it quits once this harness is
- * gone (as the wrapper's IPC disconnect does), and then it runs.
+ * reads the real profile otherwise; the wrapper does the same for the built sources), its worker threads start
+ * unpaused, it quits once this harness is gone (as the wrapper's IPC disconnect does), and then it runs.
  */
 async function startPackagedMain(session, signal) {
   const target = await waitFor(() => devtoolsTarget(session, session.inspectorPort, signal, () => true), signal)
@@ -580,6 +597,7 @@ async function startPackagedMain(session, signal) {
   await session.main.call('Runtime.runIfWaitingForDebugger')
   await Promise.race([firstPause, new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))])
   await evaluateMain(session, `(app.setPath('home', ${JSON.stringify(session.env.HOME)}), true)`)
+  await evaluateMain(session, UNPAUSED_WORKERS)
   await evaluateMain(session, `(setInterval(() => { try { process.kill(${process.pid}, 0) } catch { app.quit() } }, 1000).unref(), true)`)
   session.version = await evaluateMain(session, 'app.getVersion()')
   await session.main.call('Debugger.resume')
