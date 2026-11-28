@@ -48,7 +48,8 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 
 ## Verify
 
-- Write and run the tests your ticket's **Tests** section lists, in this ticket. Order is free unless the plan states tests-first.
+- Write and run the tests your ticket's **Tests** section lists, in this ticket. Write tests first and aim for high coverage of the code you change.
+- Report your changed-file coverage: when the repository has a changed-file coverage command (in Dark Mechanicus, `npm run coverage:changed -- --base <sprint integration branch>`), run it and report its per-file and aggregate branch coverage as check `coverage:changed`. A file or aggregate it flags below the coverage thresholds needs more tests or a stated reason. It is an early signal and never replaces the full coverage gate.
 - Inside an epic, run targeted tests for the files touched and typecheck when types changed. Leave the full sweep (whole suite, coverage, whole-tree lint, build and plan-stated Fireguard) to sprint acceptance; record those checks as `skipped`, "left to the acceptance node". Outside an epic, an isolated card runs its complete Definition of Done and repository delivery gate before reporting completion. Neither alarm timing nor card/tool substitutions waive verification.
 - A sprint acceptance node runs the full gate once in the handed integration worktree. Record each check under its exact Definition of Done name, with `passed`, `failed` or `skipped` and a short detail; never claim an unrun check passed. Identify any accepted predecessor result reused as evidence. Return evidence to the orchestrator, which lands the sprint as one squashed commit and submits the node.
 - For visible UI changes, perform actual-surface capture and inspection as described under Images, even without a screenshot criterion.
