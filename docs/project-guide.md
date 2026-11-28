@@ -141,9 +141,10 @@ npm run spike:claims # multi-process competing-claim stress proof
 
 `.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
-- `shard-plan` — selects independent counts for app/scripts Vitest, Fireguard Vitest, and Fireguard grading. It logs the policy and selected counts and uploads `ci-shard-plan.json`, including each source run ID and its per-shard execution seconds when available.
+- `shard-plan` — selects independent counts for app/scripts Vitest and Fireguard Vitest. It logs the policy and selected counts and uploads `ci-shard-plan.json`, including each source run ID and its per-shard execution seconds when available.
 - `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The `test` aggregate fails unless the plan and every shard succeed.
-- `fireguard-shards` — disjoint Ubuntu jobs split the 100 flake runs and changed-module mutation work over one pinned HEAD/base. The `fireguard` aggregate requires the plan, scope and all grading jobs, validates the entire report set, and alone updates the sticky PR comment. See [shard reproduction](../fireguard/README.md#ci-sharding).
+- `fireguard-scope` — pins the base commit and runs `fireguard --plan`, which sizes the grading matrix from this diff's own work and uploads `fireguard-plan.json` (see [grading shard sizing](#grading-shard-sizing)).
+- `fireguard-shards` — disjoint Ubuntu jobs split the 100 flake runs and the mutants on changed lines over one pinned HEAD/base. They start with the Vitest shards, not after them. The `fireguard` aggregate requires the scope/plan and all grading jobs, validates the entire report set against the planned count, and alone updates the sticky PR comment. See [shard reproduction](../fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
@@ -151,13 +152,17 @@ Treat `test`, `fireguard`, `lint`, and `build` as the stable CI gate names when 
 
 ### Shard sizing
 
-Each suite independently uses its latest complete CI sample: `ceil(sum of shard execution seconds / 120)`, clamped to **1–16** per suite (at most 32 Windows jobs and 16 grading jobs, below GitHub's 256-job limit per matrix). The planner reads named execution-step timestamps, not queue time, dependency installation, or installer-tool preparation. Step wall time includes startup, test/grading setup and any reporting within the execution command.
+Each unit suite independently uses its latest complete CI sample: `ceil(sum of shard execution seconds / 120)`, clamped to **1–16** per suite (at most 32 Windows jobs, below GitHub's 256-job limit per matrix). The planner reads named execution-step timestamps, not queue time, dependency installation, or installer-tool preparation. Step wall time includes startup, test setup and any reporting within the execution command.
 
-For each unit suite, the planner looks at the latest eight successful first-attempt default-branch push runs of **CI Checks**, including the legacy two-shard unit jobs. Grading time follows the graded diff, so a pull request's grading is sized only from up to eight earlier successful first-attempt runs of **the same pull request branch** (from this repository, to the default branch); every shard must mark that it completed a nonempty flake workload. Another branch's grade is never a sample: one pull request's one-file grade once sized a 107-module sprint diff to one serial shard. Pushes, fork pull requests and a branch's first run have no grading sample. Empty-scope pushes and unmarked legacy grades are not active samples. The planner reads only bounded GitHub job metadata, not executable artifacts. Missing, partial, inconsistent, or unavailable observations fall back independently: two shards per unit suite; grading uses the measured legacy baseline of 1,898 execution seconds ([run 45328911368](https://github.com/davgor/DarkMechanicus/actions/runs/45328911368)), which plans 16 shards.
+For each unit suite, the planner looks at the latest eight successful first-attempt default-branch push runs of **CI Checks**, including the legacy two-shard unit jobs. The planner reads only bounded GitHub job metadata, not executable artifacts. Missing, partial, inconsistent, or unavailable observations fall back independently to two shards per unit suite.
 
-The branch's sample timed an earlier diff, which may have grown since. `fireguard-scope` counts the files the graded diff adds or modifies under `src`, `lib` and `app` (Fireguard's roots), and the grading matrix has at least one shard per counted file, up to the cap. A diff with none of those files grades nothing and gets one shard.
+This is a target for the estimated average, not a per-job deadline. Vitest does not split individual test files. Fixed setup, uneven partitions and the matrix cap can all push individual shards above 120 seconds. All work is still assigned.
 
-This is a target for the estimated average, not a per-job deadline. Vitest does not split individual test files, and a complete flake repetition and the mutation work for one production module each stay together. Fixed setup, uneven partitions, workload changes (especially PR grading scope) and the matrix cap can all push individual shards above 120 seconds. All work is still assigned.
+### Grading shard sizing
+
+Grading time follows the graded diff, not history: `fireguard --plan` counts what this diff's grade executes (the 100 configured flake runs of its graded test files once the AST gate passes, and its mutants on changed lines) and estimates each shard's seconds from per-unit timings fitted to recorded CI shard runs (`SHARD_TIMING` in `fireguard/src/plan.ts`: 13 s per shard, 1.16 s per graded test file per flake run, 2.66 s per mutant). It picks the fewest shards whose longest one is estimated within **120 seconds**, at most **40** and never more than there are flake runs or mutants to split. A diff with no grading work gets one shard. Past the cap the plan reports its honest longest-shard estimate.
+
+Only the split changes: each shard runs its round-robin share of the flake runs and of all mutants in one deterministic order, so one large module's mutants spread over every shard instead of serialising one shard.
 
 To reproduce a unit matrix entry locally, run `node node_modules/vitest/vitest.mjs run --config <config> --shard <index>/<count> --maxWorkers 2`, substituting the values in `ci-shard-plan.json`. Run every entry with its specified configuration/count to reproduce the whole CI unit gate.
 

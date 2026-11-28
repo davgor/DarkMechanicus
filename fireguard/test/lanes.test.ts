@@ -112,7 +112,9 @@ async function withLane(
   });
 }
 
-describe('warm vitest lanes', () => {
+// Each test has its own fixture directory and lane, and mostly waits on Vitest processes (two
+// wait out a hung run's timeout), so the tests run at once instead of one after another.
+describe.concurrent('warm vitest lanes', () => {
   it('pass and fail runs in one long-lived vitest that sees rewritten sources', async () => {
     await withLane(60_000, async (lane, root) => {
       expect(await lane.run(['src/m.test.ts'])).toEqual({ ok: true });
@@ -162,7 +164,7 @@ describe('warm vitest lanes', () => {
   }, 60_000);
 });
 
-describe('warm vitest lanes stopping runs', () => {
+describe.concurrent('warm vitest lanes stopping runs', () => {
   it('fail every run of a mutant that fails tests in several workers at once', async () => {
     await withLane(
       60_000,

@@ -1,37 +1,34 @@
 import { scoreMutations } from './gates/mutationGate.js';
 import { computeGrade } from './grade.js';
-import type { FireguardReport, ShardIdentity } from './types.js';
-
-type Position = Pick<ShardIdentity, 'index' | 'count'>;
-
-export function parseShard(value: string): Position {
-  if (!/^\d+\/\d+$/.test(value)) throw new Error('shard must be index/count');
-  const [index, count] = value.split('/').map(Number);
-  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(count) || index! < 1 || count! < index!) {
-    throw new Error('invalid shard index/count');
-  }
-  return { index: index!, count: count! };
-}
-
-/** Stable round-robin partition, including empty shards. */
-export function partition<T>(items: readonly T[], shard: Position): T[] {
-  parseShard(`${shard.index}/${shard.count}`);
-  return items.filter((_, index) => index % shard.count === shard.index - 1);
-}
-
-/** Number of globally indexed flake runs owned by this round-robin shard. */
-export function shardRunCount(budget: number, shard: Position): number {
-  parseShard(`${shard.index}/${shard.count}`);
-  requireCount(budget, 'configured runs');
-  return Math.max(0, Math.ceil((budget - shard.index + 1) / shard.count));
-}
+import { parseShard, requireCount, shardRunCount } from './partition.js';
+import type { FireguardReport, MutationGateResult, ShardIdentity } from './types.js';
 
 function same(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function requireCount(value: number, label: string): void {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`invalid ${label}`);
+/**
+ * Every shard collects the same mutants and runs its round-robin share: the shares must sum to
+ * the one planned count, so a dropped, repeated or extra mutant fails the merge.
+ */
+function checkMutationShare(mutation: MutationGateResult | undefined, first: MutationGateResult,
+  report: FireguardReport, modules: string[]): MutationGateResult {
+  const shard = report.shard!;
+  if (!mutation || !same(mutation.modules, modules)) throw new Error('missing mutation module scope');
+  const planned = first.planned;
+  if (planned === undefined || mutation.planned !== planned) throw new Error('mismatched planned mutant count');
+  requireCount(planned, 'planned mutants');
+  if (!same(mutation.moduleTests, first.moduleTests) ||
+      mutation.unchangedLineMutants !== first.unchangedLineMutants) throw new Error('shard mutation scope mismatch');
+  requireCount(mutation.killed, 'killed mutants');
+  requireCount(mutation.survived, 'survived mutants');
+  if (mutation.total !== mutation.killed + mutation.survived || mutation.survivors.length !== mutation.survived) {
+    throw new Error('inconsistent mutation counts');
+  }
+  if (mutation.total !== shardRunCount(planned, shard)) {
+    throw new Error(`incomplete mutant share for shard ${shard.index}`);
+  }
+  return mutation;
 }
 
 /** Validate manifests before scoring; absence, truncation or a tool error cannot become a pass. */
@@ -41,7 +38,8 @@ export function mergeShards(
   identity: Pick<ShardIdentity, 'head' | 'base'>
 ): FireguardReport {
   parseShard(`1/${count}`);
-  if (reports.length !== count) throw new Error(`missing shard reports: expected ${count}, got ${reports.length}`);
+  if (reports.length < count) throw new Error(`missing shard reports: expected ${count}, got ${reports.length}`);
+  if (reports.length > count) throw new Error(`extra shard reports: expected ${count}, got ${reports.length}`);
   const ordered = [...reports].sort((a, b) => (a.shard?.index ?? 0) - (b.shard?.index ?? 0));
   const first = ordered[0]!;
   const config = first.shard?.config;
@@ -105,32 +103,21 @@ export function mergeShards(
     failures: failedRuns.length, flakeRate: failedRuns.length / budget || 0,
     files: first.scope.gradedTestFiles, failedRuns, failFast: true };
   if (gates.flake.pass && first.scope.changedModules.length > 0) {
+    const firstMutation = first.gates.mutation;
+    if (!firstMutation) throw new Error('missing mutation module scope');
     let killed = 0;
     let survived = 0;
-    let unchangedLineMutants = 0;
-    const survivors: NonNullable<FireguardReport['gates']['mutation']>['survivors'] = [];
-    const moduleTests: Record<string, number> = {};
+    const survivors: MutationGateResult['survivors'] = [];
     for (const report of ordered) {
-      const mutation = report.gates.mutation;
-      const modules = partition(first.scope.changedModules, report.shard!);
-      if (!mutation || !same(mutation.modules, modules)) throw new Error('missing mutation module partition');
-      requireCount(mutation.killed, 'killed mutants');
-      requireCount(mutation.survived, 'survived mutants');
-      if (mutation.total !== mutation.killed + mutation.survived || mutation.survivors.length !== mutation.survived) {
-        throw new Error('inconsistent mutation counts');
-      }
+      const mutation = checkMutationShare(report.gates.mutation, firstMutation, report, first.scope.changedModules);
       killed += mutation.killed;
       survived += mutation.survived;
       survivors.push(...mutation.survivors);
-      Object.assign(moduleTests, mutation.moduleTests);
-      unchangedLineMutants += mutation.unchangedLineMutants ?? 0;
     }
     gates.mutation = scoreMutations({ killed, survived, survivors: survivors.sort((a, b) =>
       a.file.localeCompare(b.file) || a.line - b.line), modules: first.scope.changedModules,
-      moduleTests: ordered.every((report) => report.gates.mutation?.moduleTests)
-        ? Object.fromEntries(Object.entries(moduleTests).sort(([a], [b]) => a.localeCompare(b))) : undefined,
-      unchangedLineMutants: ordered.every((report) => report.gates.mutation?.unchangedLineMutants !== undefined)
-        ? unchangedLineMutants : undefined, minScore: config.thresholds.minMutationScore });
+      moduleTests: firstMutation.moduleTests, unchangedLineMutants: firstMutation.unchangedLineMutants,
+      minScore: config.thresholds.minMutationScore });
   }
   if (first.execution) combined.execution = { ...first.execution,
     lanes: ordered.reduce((sum, report) => sum + (report.execution?.lanes ?? 0), 0) };

@@ -37,6 +37,7 @@ Playwright / e2e is out of scope.
 npm run fireguard
 npm run fireguard -- --json
 npm run fireguard -- --comment-pr
+npm run fireguard -- --plan     # size CI grading shards for this diff; runs no test
 npm run fireguard -- --help
 ```
 
@@ -54,13 +55,13 @@ Also writes `GITHUB_STEP_SUMMARY` when that env var is set.
 
 ## CI sharding
 
-CI plans the number of grading runners from [measured execution history](../docs/project-guide.md#shard-sizing), not a fixed matrix. A preparation job resolves the selected base (`origin/<PR base>`, or `origin/main` on pushes) once; all shards and the aggregate check out the same Actions HEAD and consume that resolved base SHA.
+CI plans the number of grading runners from this diff's own work with `fireguard --plan` ([grading shard sizing](../docs/project-guide.md#grading-shard-sizing)), not a fixed matrix: the fewest shards estimated at about 2 minutes each, at most 40. The `fireguard-scope` job resolves the selected base (`origin/<PR base>`, or `origin/main` on pushes) once and plans; all shards and the aggregate check out the same Actions HEAD and consume that resolved base SHA and planned count.
 
-Each shard grades the same complete AST/test inventory. It executes its round-robin share of the **100 configured complete flake runs**, then mutates its round-robin partition of the sorted changed production modules. Mutation still uses every related graded importer and only changed lines. Empty partitions still emit a manifest. AST metrics are counted once, flake counts are summed, and mutation killed/survived counts are summed **before** computing the score and enforcing the unchanged threshold; shard percentages/grades are never averaged.
+Each shard grades the same complete AST/test inventory. It executes its round-robin share of the **100 configured complete flake runs**, then collects every mutant on the changed lines of the sorted changed production modules in one deterministic order and runs its round-robin share of them, so one module's mutants spread over all shards. Mutation still uses every related graded importer and only changed lines. Empty shares still emit a manifest. AST metrics are counted once, flake counts are summed, and mutation killed/survived counts are summed **before** computing the score and enforcing the unchanged threshold; shard percentages/grades are never averaged.
 
 Each CI runner uses `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`, bounding nested work. Within a shard, mutation waits for its flake gate; separate GitHub runners isolate mutation from the other shards' flake runs. When reproducing concurrently on one computer, use independent snapshots and allow enough CPU headroom; shared fixed external resources have the same limitations as local lanes.
 
-For local reproduction, set `FIREGUARD_BASE_REF` to a **resolved base commit SHA**, `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`. Use the grading count from `ci-shard-plan.json`; run every position and merge with that same count. For example, for a two-shard plan on the same committed HEAD:
+For local reproduction, set `FIREGUARD_BASE_REF` to a **resolved base commit SHA**, `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`. Use the `count` from `npm run fireguard -- --plan` (CI uploads it as `fireguard-plan.json`); run every position and merge with that same count. For example, for a two-shard plan on the same committed HEAD:
 
 ```bash
 npm run fireguard -- --shard 1/2 --json-out shards/1.json
@@ -68,7 +69,7 @@ npm run fireguard -- --shard 2/2 --json-out shards/2.json
 npm run fireguard -- --merge-shards shards --shard-count 2 --json-out fireguard-report.json --markdown-out fireguard-pr.md
 ```
 
-Create an empty `shards` directory first; keep unrelated JSON files outside it. A shard emits a partial JSON report, not a final verdict or sticky comment. Shard AST/flake failures exit 1; mutation threshold evaluation is deferred to the aggregate. The aggregate validates unique/complete shard indices, resolved HEAD/base commits, configuration, test/module inventory, exact flake budgets/executed counts, and mutation-module partitions. A passing combined run still requires 100/100 flake runs at zero failures. Fail-fast failures report the actual executed count and globally indexed failing runs, and fail the grade. Missing/inconsistent artifacts are tool errors (exit 2), not passes.
+Create an empty `shards` directory first; keep unrelated JSON files outside it. A shard emits a partial JSON report, not a final verdict or sticky comment. Shard AST/flake failures exit 1; mutation threshold evaluation is deferred to the aggregate. The aggregate validates unique/complete shard indices (refusing a missing, duplicate or extra report for the planned count), resolved HEAD/base commits, configuration, test/module inventory, exact flake budgets/executed counts, and each shard's mutant share against the one planned mutant count. A passing combined run still requires 100/100 flake runs at zero failures. Fail-fast failures report the actual executed count and globally indexed failing runs, and fail the grade. Missing/inconsistent artifacts are tool errors (exit 2), not passes.
 
 Only the aggregate adds `--comment-pr`, so it emits one final report/grade and upserts one sticky comment. Both required check names, `test` and `fireguard`, are aggregate jobs that run even after failed children and require every child job to succeed. CI retains shard/combined JSON artifacts for diagnosis. Local `npm run fireguard` remains unsharded and unchanged.
 
