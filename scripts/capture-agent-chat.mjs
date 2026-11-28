@@ -18,25 +18,93 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PREVIEW = join(REPO, 'preview', 'epic-agent')
 const ELECTRON_ENTRY = join(REPO, 'scripts', 'capture-agent-chat.electron.cjs')
 
-/** Every state the preview page knows, in capture order. A `-1024` or `-1440` state is captured at that width. */
+/**
+ * Every state the preview page knows, in capture order. A `-1024` or `-1440` state is captured at that width. One state
+ * per line, so tickets adding states touch only their own lines; the overall bound derives from this list, and nothing
+ * else restates its length.
+ */
 export const STATES = Object.freeze([
-  'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
-  'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
-  'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-  'agent-planners', 'chat-rail-legacy',
-  'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024', 'epic-agent-glass-1440',
-  'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
-  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'question-form-1024', 'question-form-1440', 'agent-transcript',
-  'agent-worked-for', 'image-result', 'agent-image-viewer',
-  'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
-  'new-chat-model', 'start-run-model', 'lexmechanic-model',
-  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
-  'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
-  'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
-  'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
-  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
-  'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440',
-  'browser-agent', 'browser-person', 'browser-origin'
+  'graph',
+  'header-long',
+  'agent-empty',
+  'agent-streaming',
+  'agent-tool',
+  'agent-approval',
+  'agent-worker',
+  'agent-legacy-thread',
+  'agent-tree',
+  'rail-collapsed',
+  'landing-notification',
+  'landing-activity',
+  'chat-rail',
+  'chat-rail-collapsed',
+  'agent-todos',
+  'agent-todos-collapsed',
+  'agent-stalled',
+  'agent-changes',
+  'agent-approval-named',
+  'agent-magos-decided',
+  'agent-needs-you',
+  'agent-planners',
+  'chat-rail-legacy',
+  'agent-glass-1024',
+  'agent-glass-1440',
+  'agent-glass-solid',
+  'epic-agent-glass-1024',
+  'epic-agent-glass-1440',
+  'agent-composer-1024',
+  'agent-composer-1440',
+  'chat-images',
+  'agent-role-picker-1024',
+  'agent-role-picker-1440',
+  'epic-agent-picker',
+  'new-chat-picker',
+  'question-multi',
+  'question-form-1024',
+  'question-form-1440',
+  'agent-transcript',
+  'agent-worked-for',
+  'image-result',
+  'agent-image-viewer',
+  'agent-image-evidence',
+  'mail-card',
+  'epic-agent-tabs-1024',
+  'epic-agent-tabs-1440',
+  'model-picker',
+  'model-picker-epic',
+  'new-chat-model',
+  'start-run-model',
+  'lexmechanic-model',
+  'settings-notifications',
+  'delivery-editor',
+  'delivery-pending',
+  'delivery-checkpoint',
+  'browser-empty-1024',
+  'browser-empty-1440',
+  'browser-agent-1024',
+  'browser-agent-1440',
+  'browser-person-1024',
+  'browser-person-1440',
+  'browser-stopped-1024',
+  'browser-stopped-1440',
+  'browser-private-1024',
+  'browser-private-1440',
+  'browser-origin-1024',
+  'browser-origin-1440',
+  'browser-origin-page-1024',
+  'browser-origin-page-1440',
+  'browser-origin-person-1024',
+  'browser-origin-person-1440',
+  'browser-sites-1024',
+  'browser-sites-1440',
+  'browser-origin-terminal-1024',
+  'browser-camera-1024',
+  'browser-camera-1440',
+  'browser-camera-terminal-1024',
+  'browser-camera-terminal-1440',
+  'browser-agent',
+  'browser-person',
+  'browser-origin'
 ])
 
 /**
@@ -58,8 +126,10 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 81 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 1_230_000
+/** Starting the preview server and Electron before the first state. */
+export const START_ALLOWANCE_MS = 15_000
+/** A declared bound once the preview is built: every state at up to its deadline, plus the start. */
+export const OVERALL_LIMIT_MS = STATES.length * STATE_DEADLINE_MS + START_ALLOWANCE_MS
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
