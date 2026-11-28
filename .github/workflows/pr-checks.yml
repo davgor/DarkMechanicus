@@ -128,6 +128,9 @@ jobs:
   fireguard-scope:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       base: ${{ steps.scope.outputs.base }}
       grading: ${{ steps.plan.outputs.grading }}
@@ -158,12 +161,21 @@ jobs:
         run: npm ci
       # Sizes the grading matrix from this diff's own work (flake runs, graded test files, mutants
       # on changed lines) so a typical PR grades in about 2 minutes, up to 40 shards. Runs no test.
+      # The account starts at most CI_RUNNER_LIMIT jobs at once (a quiet run peaked at 40 with 14
+      # grading shards queued, run 46181503154): the plan leaves room for the Vitest shards (the same
+      # history plan as shard-plan) plus lint, build and one hand-off job, so no shard waits a wave.
       - name: Plan grading shards from the diff
         id: plan
         env:
           FIREGUARD_BASE_REF: ${{ steps.scope.outputs.base }}
+          CI_RUNNER_LIMIT: '40'
+          GH_TOKEN: ${{ github.token }}
+          CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          npm run --silent fireguard -- --plan --json-out fireguard-plan.json
+          UNIT_JOBS="$(GITHUB_OUTPUT= node scripts/ciShardPlan.mjs 2>/dev/null | jq '.unit.include | length')"
+          BUDGET=$(( CI_RUNNER_LIMIT - UNIT_JOBS - 3 ))
+          if [ "$BUDGET" -lt 1 ]; then BUDGET=1; fi
+          npm run --silent fireguard -- --plan --runner-budget "$BUDGET" --json-out fireguard-plan.json
           echo "grading=$(jq -c .matrix fireguard-plan.json)" >> "$GITHUB_OUTPUT"
           echo "count=$(jq .count fireguard-plan.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
@@ -226,11 +238,9 @@ jobs:
         env:
           SCOPE_RESULT: ${{ needs.fireguard-scope.result }}
         run: test "$SCOPE_RESULT" = success
-      # The merge diffs nothing: it only resolves HEAD and the pinned base commit, so it fetches those
-      # two commits instead of the whole history.
       - uses: actions/checkout@v4
-      - name: Fetch the pinned base commit
-        run: git fetch --no-tags --depth=1 origin "$FIREGUARD_BASE_REF"
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

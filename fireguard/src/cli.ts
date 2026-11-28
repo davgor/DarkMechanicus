@@ -109,6 +109,8 @@ PR integration:
   --shard-count n Expected report count when merging (required)
   --plan          Size the CI grade of this diff (flake runs, mutants, estimated seconds) into
                   grading shards (a typical PR in about 2 minutes, at most 40); runs no test
+  --runner-budget n  With --plan: shards that can start at once beside the workflow's other
+                  jobs; the plan never exceeds it
 
 Exit codes:
   0  pass (grade not F)
@@ -136,7 +138,11 @@ Exit codes:
       if (shardArg || mergeDirectory || commentPr || astOnly) {
         throw new Error('--plan cannot shard, merge, run --ast-only or post PR comments');
       }
-      const plan = await planFireguard(deps);
+      const budget = flagValue(argv, '--runner-budget');
+      if (argv.includes('--runner-budget') && !/^\d{1,3}$/.test(budget ?? '')) {
+        throw new Error('--runner-budget requires a whole number');
+      }
+      const plan = await planFireguard(deps, budget === undefined ? undefined : Number(budget));
       const text = `${JSON.stringify(plan, null, 2)}\n`;
       if (jsonOut) writeFile(jsonOut, text);
       stdout(json ? text : describePlan(plan));

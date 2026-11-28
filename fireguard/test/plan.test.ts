@@ -81,6 +81,18 @@ describe('grading plan sizing', () => {
     expect(planGrading(work(1, 1, 0)).count).toBe(1);
   });
 
+  it('never plans more shards than the runner budget lets start at once', () => {
+    const unbounded = planGrading(work(9, 100, 11));
+    expect(unbounded.count).toBeGreaterThan(21);
+    const budgeted = planGrading(work(9, 100, 11), 21);
+    expect(budgeted).toMatchObject({ count: 21, maxShards: 21 });
+    expect(budgeted.matrix.include).toEqual(positions(21));
+    expect(budgeted.estimatedShardSeconds).toBeGreaterThan(unbounded.estimatedShardSeconds);
+    // A budget past the cap keeps the cap; an exhausted budget still grades on one shard.
+    expect(planGrading(work(79, 100, 1700), 90).count).toBe(MAX_GRADING_SHARDS);
+    expect(planGrading(work(9, 100, 11), 0)).toMatchObject({ count: 1, maxShards: 1 });
+  });
+
   it('assigns every flake run and mutant of the plan to exactly one shard', () => {
     const plan = planGrading(work(30, 100, 301));
     const shards = positions(plan.count);
@@ -137,6 +149,12 @@ describe('planFireguard', () => {
       const misuse = await runCli({ cwd: dir, argv: ['--plan', '--shard', '1/2'],
         env: { FIREGUARD_BASE_REF: base }, stderr: () => {} });
       expect(misuse).toBe(2);
+      const budgetOut = join(dir, 'budget.json');
+      expect(await runCli({ cwd: dir, argv: ['--plan', '--runner-budget', '2', '--json-out', budgetOut],
+        env: { FIREGUARD_BASE_REF: base }, stdout: () => {} })).toBe(0);
+      expect(JSON.parse(readFileSync(budgetOut, 'utf8'))).toMatchObject({ count: 2, maxShards: 2 });
+      expect(await runCli({ cwd: dir, argv: ['--plan', '--runner-budget', 'many'],
+        env: { FIREGUARD_BASE_REF: base }, stderr: () => {} })).toBe(2);
     });
   });
 });

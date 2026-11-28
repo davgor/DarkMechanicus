@@ -60,19 +60,23 @@ export function estimateShardSeconds(work: GradingWork, shard: Position): number
 }
 
 /**
- * The fewest shards whose longest one is estimated within the target, capped at the maximum and
- * at the units there are to split. Only the split changes: every unit still runs.
+ * The fewest shards whose longest one is estimated within the target, capped at the maximum, at
+ * `runnerBudget` (shards that can start at once beside the workflow's other jobs: more only queue
+ * as a second wave behind them) and at the units there are to split. Only the split changes:
+ * every unit still runs.
  */
-export function planGrading(work: GradingWork): GradingPlan {
+export function planGrading(work: GradingWork, runnerBudget = MAX_GRADING_SHARDS): GradingPlan {
   for (const value of Object.values(work)) requireCount(value, 'grading work');
-  const limit = Math.min(MAX_GRADING_SHARDS, Math.max(1, work.flakeRuns, work.mutants));
+  requireCount(runnerBudget, 'runner budget');
+  const maxShards = Math.max(1, Math.min(MAX_GRADING_SHARDS, runnerBudget));
+  const limit = Math.min(maxShards, Math.max(1, work.flakeRuns, work.mutants));
   let count = 1;
   while (count < limit && estimateShardSeconds(work, { index: 1, count }) > GRADING_TARGET_SECONDS) count += 1;
   const include = Array.from({ length: count }, (_, i) => ({ index: i + 1, count }));
   return {
     work,
     targetSeconds: GRADING_TARGET_SECONDS,
-    maxShards: MAX_GRADING_SHARDS,
+    maxShards,
     count,
     estimatedSeconds: Math.round(include.reduce((sum, shard) => sum + estimateShardSeconds(work, shard), 0)),
     estimatedShardSeconds: Math.round(estimateShardSeconds(work, include[0]!)),
@@ -85,10 +89,11 @@ export function planGrading(work: GradingWork): GradingPlan {
  * graded tests (once the AST gate passes) and its mutants on changed lines. Runs no test.
  */
 export async function planFireguard(
-  deps: Pick<RunFireguardDeps, 'config' | 'getDiffEntries' | 'readFile' | 'getChangedLines'>
+  deps: Pick<RunFireguardDeps, 'config' | 'getDiffEntries' | 'readFile' | 'getChangedLines'>,
+  runnerBudget = MAX_GRADING_SHARDS
 ): Promise<GradingPlan> {
   const { scope, ast } = await scopeAndAst(deps);
-  if (!ast?.pass) return planGrading({ gradedTestFiles: 0, flakeRuns: 0, mutants: 0 });
+  if (!ast?.pass) return planGrading({ gradedTestFiles: 0, flakeRuns: 0, mutants: 0 }, runnerBudget);
   const modules = await Promise.all(
     scope.changedModules.map(async (path) => ({ path, source: await deps.readFile(path) }))
   );
@@ -98,5 +103,5 @@ export async function planFireguard(
     gradedTestFiles: scope.gradedTestFiles.length,
     flakeRuns: deps.config.thresholds.agenticFlakinessRuns,
     mutants,
-  });
+  }, runnerBudget);
 }
