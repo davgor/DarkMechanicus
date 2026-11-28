@@ -224,7 +224,7 @@ function incrementGate(input: GateInput, node: TicketContent): GateCondition {
   }
   const verdict = incrementOf(standingAttempt(input.attempts, node.id))
   if (verdict === null) {
-    const named = `No sprint increment named yet: submit ${node.key} with increment { branch, commit }`
+    const named = `No sprint increment named yet: submit ${node.key} with increment { branch, commit }, or name it with name_sprint_increment`
     return condition('increment_merged', INCREMENT_LABEL, [named], '')
   }
   const commit = verdict.commit.slice(0, 7)
@@ -241,7 +241,7 @@ function incrementGate(input: GateInput, node: TicketContent): GateCondition {
  */
 function repositoryIncrementGate(touched: string[], node: TicketContent, verdicts: SprintIncrement[] | null): GateCondition {
   if (verdicts === null) {
-    const named = `No sprint increments named yet: submit ${node.key} with increments, one { repo, branch, commit } per touched repository`
+    const named = `No sprint increments named yet: submit ${node.key} with increments, one { repo, branch, commit } per touched repository, or name them with name_sprint_increment`
     return condition('increment_merged', INCREMENT_LABEL, [named], '')
   }
   const problems = touched.length === 0 ? ['The sprint touched no repository: no accepted work ticket names one'] : []

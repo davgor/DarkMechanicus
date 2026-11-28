@@ -304,7 +304,7 @@ export interface SubmitAttemptInput {
 /**
  * Names the increment of a sprint acceptance node's standing attempt (accepted, else submitted) that stored none:
  * `increment` for a single repository, `increments` for a folder of repositories. Verified and stored exactly as
- * `submitAttempt` stores one; an attempt that already names one is refused, never overwritten.
+ * `submitAttempt` stores one. A stored verdict that failed is replaced; one that passed is refused, never replaced.
  */
 export interface NameSprintIncrementInput {
   attemptId: string

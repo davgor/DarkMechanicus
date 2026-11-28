@@ -299,7 +299,7 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'name_sprint_increment',
     description:
-      'Names the sprint increment of an acceptance node whose standing attempt (accepted, else submitted) stored none, such as one resubmitted through reconcile_attempt without it, so the checkpoint\'s increment_merged gate can be met. Takes increment { branch, commit } (increments in a folder of repositories), refused and verified exactly as submit_attempt does; a failed verdict is stored with its reasons. Refused for a work ticket, an attempt that is not the standing one, an attempt that already names an increment (never overwritten) and a run that is not active.',
+      'Names the sprint increment of an acceptance node whose standing attempt (accepted, else submitted) stored none, such as one resubmitted through reconcile_attempt without it, or replaces one whose verdict failed, so the checkpoint\'s increment_merged gate can be met. Takes increment { branch, commit } (increments in a folder of repositories), refused and verified exactly as submit_attempt does; a failed verdict is stored with its reasons and can be named again. Refused for a work ticket, an attempt that is not the standing one, an attempt whose increment passed (`conflict`: a passing increment is never replaced) and a run that is not active.',
     kind: 'write',
     input: {
       attemptId,

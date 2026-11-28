@@ -279,7 +279,7 @@ describe('naming an increment', () => {
       id: 'increment_merged',
       label: 'Sprint increment merged',
       met: false,
-      detail: 'No sprint increment named yet: submit DR-1 with increment { branch, commit }'
+      detail: 'No sprint increment named yet: submit DR-1 with increment { branch, commit }, or name it with name_sprint_increment'
     })
   })
 
@@ -389,7 +389,7 @@ async function acceptedWithoutIncrement(scene: Scene): Promise<{ run: RunView; p
   await scene.orchestrator.reconcileAttempt({ attemptId: lost.attemptId, resolution: 'resubmit', outputs: { summary: 'Sprint verified.' } })
   await scene.orchestrator.acceptAttempt({ attemptId: lost.attemptId })
   const gate = await gateOf(scene.orchestrator, lost.run.id)
-  expect([gate?.met, gate?.detail]).toEqual([false, 'No sprint increment named yet: submit DR-1 with increment { branch, commit }'])
+  expect([gate?.met, gate?.detail]).toEqual([false, 'No sprint increment named yet: submit DR-1 with increment { branch, commit }, or name it with name_sprint_increment'])
   return lost
 }
 
@@ -476,15 +476,23 @@ describe('name_sprint_increment on an acceptance node accepted without an increm
     expect((await orchestrator.getRun({ runId: run.id }))?.increments[0]).toMatchObject({ attemptId, attemptState: 'accepted' })
   })
 
-  it('stores a failed verdict with its reasons, as submit_attempt does', async () => {
+  it('replaces a failed verdict with a corrected name, meeting the gate and recording the verdict it replaced', async () => {
     const { orchestrator, repo } = scene()
-    const { run, attemptId } = await acceptedWithoutIncrement(scene())
-    const view = await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: repo.rev('dm-1') }, idempotencyKey: 'k' })
-    expect(view.increment).toMatchObject({ passed: false })
+    const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    const offBranch = repo.rev('dm-1')
+    const failed = await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: offBranch }, idempotencyKey: 'wrong' })
+    expect(failed.increment).toMatchObject({ passed: false, commit: offBranch })
     expect((await gateOf(orchestrator, run.id))?.detail).toContain('failed verification')
+    const corrected = await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'right' })
+    expect(corrected.increment).toMatchObject({ passed: true, commit: squashed })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ id: 'increment_merged', met: true })
+    expect((await eventsOf(orchestrator, run.id, 'attempt.increment_named')).map((event) => event.payload)).toEqual([
+      { attemptId, increment: { commit: offBranch, passed: false } },
+      { attemptId, increment: { commit: squashed, passed: true }, replaced: { increment: { commit: offBranch, passed: false } } }
+    ])
   })
 
-  it('never overwrites a named increment, and refuses a call that names none', async () => {
+  it('never replaces a passing increment, and refuses a call that names none', async () => {
     const { orchestrator, repo } = scene()
     const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
     expect(await codeOf(orchestrator.nameSprintIncrement({ attemptId, idempotencyKey: 'none' }))).toBe('invalid_input')
@@ -492,6 +500,7 @@ describe('name_sprint_increment on an acceptance node accepted without an increm
     const again = orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: repo.rev('dm-1') }, idempotencyKey: 'second' })
     expect(await codeOf(again)).toBe('conflict')
     expect((await orchestrator.getRun({ runId: run.id }))?.increments[0]?.increment).toMatchObject({ commit: squashed, passed: true })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ met: true })
   })
 })
 

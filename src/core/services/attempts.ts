@@ -1065,9 +1065,10 @@ export function reconcileAttempt(
 
 /**
  * The attempt `nameSprintIncrement` may name an increment for: a sprint acceptance node's standing attempt (accepted,
- * else submitted; never superseded) in a live run owned by this machine, which stored no increment yet.
+ * else submitted; never superseded) in a live run owned by this machine, which stored no increment yet or one whose
+ * verdict failed. A passing verdict is immutable. Returns the failed verdict being replaced, if any.
  */
-function nameableAttempt(ctx: Ctx, attemptId: string): { row: AttemptRow; run: RunRow } {
+function nameableAttempt(ctx: Ctx, attemptId: string): { row: AttemptRow; run: RunRow; replaced: SubmittedIncrement | null } {
   const row = loadAttempt(ctx, attemptId)
   const live = requireRun(ctx, row.run_id)
   if (!isActiveRunState(live.state)) {
@@ -1085,17 +1086,21 @@ function nameableAttempt(ctx: Ctx, attemptId: string): { row: AttemptRow; run: R
       state: row.state
     })
   }
-  if (row.increment_json !== null) {
-    fail('conflict', `${ticket.key}'s attempt already names its increment; a named increment is never overwritten.`, { attemptId: row.id })
+  const replaced = parseJson<SubmittedIncrement | null>(row.increment_json, null)
+  // A folder of repositories' verdicts pass only together, as the gate reads them.
+  const passed = Array.isArray(replaced) ? replaced.length > 0 && replaced.every((verdict) => verdict.passed) : replaced?.passed === true
+  if (passed) {
+    fail('conflict', `${ticket.key}'s attempt already names an increment that passed verification; a passing increment is never replaced.`, { attemptId: row.id })
   }
-  return { row, run }
+  return { row, run, replaced }
 }
 
 /**
- * Names the increment of a sprint acceptance node's standing attempt that stored none, for a submission that could
- * not name it (one resubmitted before `reconcile_attempt` took increments). The increment is refused and verified
- * exactly as `submitAttempt`'s (`verified` is the server's verdict), stored where the `increment_merged` gate reads
- * it, and recorded as an `attempt.increment_named` event. A stored increment is never replaced.
+ * Names the increment of a sprint acceptance node's standing attempt that stored none (one resubmitted before
+ * `reconcile_attempt` took increments), or replaces one whose verdict failed, so one mistaken name never leaves the
+ * checkpoint unpassable. The increment is refused and verified exactly as `submitAttempt`'s (`verified` is the
+ * server's verdict), stored where the `increment_merged` gate reads it, and recorded as an `attempt.increment_named`
+ * event that also names any failed verdict it replaced. A passing increment is never replaced.
  */
 export function nameSprintIncrement(
   ctx: Ctx,
@@ -1105,13 +1110,14 @@ export function nameSprintIncrement(
 ): AttemptView {
   requireCapability(ctx.session, 'attempt.review')
   return withIdempotency(ctx, { command: 'nameSprintIncrement', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
-    const { row, run } = nameableAttempt(ctx, input.attemptId)
+    const { row, run, replaced } = nameableAttempt(ctx, input.attemptId)
     const increment =
       verdictOf(ctx, row, input, verified) ??
       fail('invalid_input', 'Name the increment: increment { branch, commit }, or increments in a folder of repositories.', { attemptId: row.id })
     assertVerificationCurrent?.()
     ctx.db.run('UPDATE attempts SET increment_json = ?, updated_at = ? WHERE id = ?', toJson(increment), ctx.clock.nowIso(), row.id)
-    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.increment_named', payload: submittedPayload(increment) })
+    const payload = { ...submittedPayload(increment), ...(replaced === null ? {} : { replaced: submittedPayload(replaced) }) }
+    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.increment_named', payload })
     return attemptView(indexAttempt(ctx, run, row.id))
   })
 }

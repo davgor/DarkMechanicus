@@ -345,8 +345,10 @@ const attemptDecision = z.strictObject({
 })
 
 /**
- * The server's verdict on the increment an acceptance node named; written once, with the submission. `repo` (no
- * default) names the child repository in a folder of repositories, first as the server writes it.
+ * The server's verdict on the increment an acceptance node named: written with the submission (or the resubmission
+ * through `reconcile_attempt`), or named later by `name_sprint_increment` when the standing attempt stored none or
+ * stored a failed verdict (a passing one is never replaced). `repo` (no default) names the child repository in a
+ * folder of repositories, first as the server writes it.
  */
 const sprintIncrementRecord = z.strictObject({
   repo: repositoryName.optional(),
