@@ -279,7 +279,7 @@ describe('naming an increment', () => {
       id: 'increment_merged',
       label: 'Sprint increment merged',
       met: false,
-      detail: 'No sprint increment named yet: submit DR-1 with increment { branch, commit }'
+      detail: 'No sprint increment named yet: submit DR-1 with increment { branch, commit }, or name it with name_sprint_increment'
     })
   })
 
@@ -360,5 +360,188 @@ describe('two sprints, each squashed onto the epic branch', () => {
       [1, first],
       [2, second]
     ])
+  })
+})
+
+/** Past any lease the plan grants: the node's claim expires before it is submitted. */
+const LEASE_RUN_OUT_SECONDS = 24 * 3600
+
+/** Sprint 1's work delivered and squashed onto the epic branch, and the node claimed; its lease then runs out. */
+async function nodeLeaseLost(scene: Scene): Promise<{ run: RunView; planned: Planned; squashed: string; attemptId: string }> {
+  const { planned, run } = await started(scene)
+  await deliverWork(scene, run.id, planned.workId, 'dm-1')
+  const squashed = scene.repo.squash('dm-1', 'Sprint 1: build it')
+  const claim = issued(await scene.orchestrator.claimTicket({ runId: run.id, ticketId: planned.nodeId, worker: { label: 'acceptor' } }))
+  scene.harness.clock.advanceSeconds(LEASE_RUN_OUT_SECONDS)
+  const late = scene.orchestrator.submitAttempt({
+    attemptId: claim.attempt.id,
+    claimToken: claim.packet.claimToken,
+    outputs: { summary: 'Sprint verified.' },
+    increment: { branch: EPIC_BRANCH, commit: squashed }
+  })
+  expect(await codeOf(late)).toBe('expired_claim')
+  return { run, planned, squashed, attemptId: claim.attempt.id }
+}
+
+/** The DM-1108 incident: the node resubmitted through reconcile_attempt without an increment, then accepted. */
+async function acceptedWithoutIncrement(scene: Scene): Promise<{ run: RunView; planned: Planned; squashed: string; attemptId: string }> {
+  const lost = await nodeLeaseLost(scene)
+  await scene.orchestrator.reconcileAttempt({ attemptId: lost.attemptId, resolution: 'resubmit', outputs: { summary: 'Sprint verified.' } })
+  await scene.orchestrator.acceptAttempt({ attemptId: lost.attemptId })
+  const gate = await gateOf(scene.orchestrator, lost.run.id)
+  expect([gate?.met, gate?.detail]).toEqual([false, 'No sprint increment named yet: submit DR-1 with increment { branch, commit }, or name it with name_sprint_increment'])
+  return lost
+}
+
+async function eventsOf(agent: Workspace, runId: string, kind: string) {
+  return (await agent.listEvents({ runId, limit: 500 })).events.filter((event) => event.kind === kind)
+}
+
+describe('an acceptance node whose lease expired before it was submitted', () => {
+  const scene = useScene()
+
+  it('resubmits its increment through reconcile_attempt, verified, so the accepted node meets increment_merged', async () => {
+    const { orchestrator } = scene()
+    const { run, squashed, attemptId } = await nodeLeaseLost(scene())
+    const view = await orchestrator.reconcileAttempt({
+      attemptId,
+      resolution: 'resubmit',
+      outputs: { summary: 'Sprint verified.' },
+      increment: { branch: EPIC_BRANCH, commit: squashed }
+    })
+    expect(view).toMatchObject({ state: 'submitted', increment: { branch: EPIC_BRANCH, commit: squashed, passed: true, reasons: [] } })
+    expect((await eventsOf(orchestrator, run.id, 'attempt.reconciled')).at(-1)?.payload).toMatchObject({
+      attemptId,
+      resolution: 'resubmit',
+      increment: { commit: squashed, passed: true }
+    })
+    await orchestrator.acceptAttempt({ attemptId })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ id: 'increment_merged', met: true })
+  })
+
+  it('stores a failed verdict as submit_attempt does, keeping the gate unmet with its reasons', async () => {
+    const { orchestrator, repo } = scene()
+    const { run, attemptId } = await nodeLeaseLost(scene())
+    const offBranch = repo.rev('dm-1')
+    const view = await orchestrator.reconcileAttempt({
+      attemptId,
+      resolution: 'resubmit',
+      outputs: { summary: 'Sprint verified.' },
+      increment: { branch: EPIC_BRANCH, commit: offBranch }
+    })
+    expect(view.increment).toMatchObject({ passed: false, commit: offBranch })
+    expect(view.increment?.reasons.join(' ')).toContain(`not reachable from ${EPIC_BRANCH}`)
+    const gate = await gateOf(orchestrator, run.id)
+    expect([gate?.met, gate?.detail]).toEqual([false, expect.stringContaining('failed verification')])
+  })
+})
+
+describe('reconcile_attempt refuses an increment it cannot store', () => {
+  const scene = useScene()
+
+  it("refuses an increment named with 'abandon', which stores no submission, and leaves the attempt to reconcile", async () => {
+    const { orchestrator } = scene()
+    const { squashed, attemptId } = await nodeLeaseLost(scene())
+    const named = { branch: EPIC_BRANCH, commit: squashed }
+    expect(await codeOf(orchestrator.reconcileAttempt({ attemptId, resolution: 'abandon', increment: named }))).toBe('invalid_input')
+    const resubmitted = await orchestrator.reconcileAttempt({ attemptId, resolution: 'resubmit', outputs: { summary: 'Sprint verified.' }, increment: named })
+    expect(resubmitted).toMatchObject({ state: 'submitted', increment: { passed: true } })
+  })
+
+  it('refuses an increment on a work ticket as invalid_input, before anything is stored', async () => {
+    const { orchestrator, harness, repo } = scene()
+    const { planned, run } = await started(scene())
+    const claim = issued(await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } }))
+    harness.clock.advanceSeconds(LEASE_RUN_OUT_SECONDS)
+    const input = { attemptId: claim.attempt.id, outputs: { summary: 'Built it.' }, increment: { branch: EPIC_BRANCH, commit: repo.rev(EPIC_BRANCH) } }
+    expect(await codeOf(orchestrator.reconcileAttempt({ ...input, resolution: 'resubmit' }))).toBe('invalid_input')
+    expect((await orchestrator.reconcileAttempt({ attemptId: claim.attempt.id, resolution: 'resubmit', outputs: input.outputs })).state).toBe('submitted')
+  })
+})
+
+describe('name_sprint_increment on an acceptance node accepted without an increment', () => {
+  const scene = useScene()
+
+  it('names it, verified, so the accepted node meets increment_merged, and records the event', async () => {
+    const { orchestrator } = scene()
+    const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    const input = { attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'name-dr-1' }
+    const view = await orchestrator.nameSprintIncrement(input)
+    expect(view).toMatchObject({ state: 'accepted', increment: { branch: EPIC_BRANCH, commit: squashed, passed: true, reasons: [] } })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ id: 'increment_merged', met: true })
+    expect((await eventsOf(orchestrator, run.id, 'attempt.increment_named')).map((event) => event.payload)).toEqual([
+      { attemptId, increment: { commit: squashed, passed: true } }
+    ])
+    expect(await orchestrator.nameSprintIncrement(input)).toEqual(view)
+    expect((await orchestrator.getRun({ runId: run.id }))?.increments[0]).toMatchObject({ attemptId, attemptState: 'accepted' })
+  })
+
+  it('replaces a failed verdict with a corrected name, meeting the gate and recording the verdict it replaced', async () => {
+    const { orchestrator, repo } = scene()
+    const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    const offBranch = repo.rev('dm-1')
+    const failed = await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: offBranch }, idempotencyKey: 'wrong' })
+    expect(failed.increment).toMatchObject({ passed: false, commit: offBranch })
+    expect((await gateOf(orchestrator, run.id))?.detail).toContain('failed verification')
+    const corrected = await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'right' })
+    expect(corrected.increment).toMatchObject({ passed: true, commit: squashed })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ id: 'increment_merged', met: true })
+    expect((await eventsOf(orchestrator, run.id, 'attempt.increment_named')).map((event) => event.payload)).toEqual([
+      { attemptId, increment: { commit: offBranch, passed: false } },
+      { attemptId, increment: { commit: squashed, passed: true }, replaced: { increment: { commit: offBranch, passed: false } } }
+    ])
+  })
+
+  it('never replaces a passing increment, and refuses a call that names none', async () => {
+    const { orchestrator, repo } = scene()
+    const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    expect(await codeOf(orchestrator.nameSprintIncrement({ attemptId, idempotencyKey: 'none' }))).toBe('invalid_input')
+    await orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'first' })
+    const again = orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: repo.rev('dm-1') }, idempotencyKey: 'second' })
+    expect(await codeOf(again)).toBe('conflict')
+    expect((await orchestrator.getRun({ runId: run.id }))?.increments[0]?.increment).toMatchObject({ commit: squashed, passed: true })
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ met: true })
+  })
+})
+
+describe('name_sprint_increment refuses', () => {
+  const scene = useScene()
+
+  it('a work ticket (accepted, standing, with no increment), as invalid_input', async () => {
+    const { orchestrator, repo } = scene()
+    const { planned, run } = await started(scene())
+    const claim = issued(await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } }))
+    await orchestrator.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'Built it.' } })
+    await orchestrator.acceptAttempt({ attemptId: claim.attempt.id })
+    const named = { branch: EPIC_BRANCH, commit: repo.rev(EPIC_BRANCH) }
+    expect(await codeOf(orchestrator.nameSprintIncrement({ attemptId: claim.attempt.id, increment: named, idempotencyKey: 'k' }))).toBe('invalid_input')
+  })
+
+  it('an attempt that is not the standing one (a rejected submission), as unauthorized_transition', async () => {
+    const { orchestrator, repo } = scene()
+    const { planned, run } = await started(scene())
+    await deliverWork(scene(), run.id, planned.workId, 'dm-1')
+    const rejected = await submitNode(scene(), { runId: run.id, nodeId: planned.nodeId }, null)
+    await orchestrator.rejectAttempt({ attemptId: rejected.id, reasons: ['No increment named.'] })
+    const squashed = repo.squash('dm-1', 'Sprint 1: build it')
+    const call = orchestrator.nameSprintIncrement({ attemptId: rejected.id, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'k' })
+    expect(await codeOf(call)).toBe('unauthorized_transition')
+    expect(await gateOf(orchestrator, run.id)).toMatchObject({ met: false })
+  })
+
+  it('a run that is no longer active, as run_not_active', async () => {
+    const { orchestrator } = scene()
+    const { run, squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    await orchestrator.cancelRun({ runId: run.id, reason: 'stopped' })
+    const call = orchestrator.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'k' })
+    expect(await codeOf(call)).toBe('run_not_active')
+  })
+
+  it('a session without attempt.review, as unauthorized', async () => {
+    const { harness, repo } = scene()
+    const { squashed, attemptId } = await acceptedWithoutIncrement(scene())
+    const worker = harness.open('worker', { root: repo.root, git: createGitAdapter(repo.root) })
+    const call = worker.nameSprintIncrement({ attemptId, increment: { branch: EPIC_BRANCH, commit: squashed }, idempotencyKey: 'k' })
+    expect(await codeOf(call)).toBe('unauthorized')
   })
 })

@@ -133,6 +133,7 @@ const PROBES: Record<CommandName, unknown> = {
   rejectAttempt: { attemptId: ATTEMPT, reasons: ['probe'] },
   failAttempt: { attemptId: ATTEMPT, claimToken: TOKEN, failure: { reason: 'probe' } },
   reconcileAttempt: { attemptId: ATTEMPT, resolution: 'abandon' },
+  nameSprintIncrement: { attemptId: ATTEMPT, increment: { branch: 'epic/probe', commit: 'abcdef1' }, idempotencyKey: 'probe' },
   carryForwardTicket: { runId: RUN, ticketId: TICKET, note: 'probe' },
   recordRowCheck: {
     runId: RUN,

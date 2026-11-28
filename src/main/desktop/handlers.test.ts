@@ -27,6 +27,7 @@ const AGENT_ONLY_COMMANDS = [
   'submitAttempt',
   'failAttempt',
   'carryForwardTicket',
+  'nameSprintIncrement',
   'recordRowCheck',
   'submitSprintReport',
   'startTransfer',
