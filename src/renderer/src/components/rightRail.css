@@ -8,6 +8,11 @@
   overflow: hidden;
 }
 
+/* The Browser tab's rail: about 45% of the stage, never under 420 px. */
+.rr.rr-wide {
+  flex: 0 0 max(420px, 45%);
+}
+
 /* The docked rail keeps only its stage-side glass edge. */
 .rr.glass {
   border-width: 0 0 0 1px;

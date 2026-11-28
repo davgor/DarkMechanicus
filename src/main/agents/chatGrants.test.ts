@@ -52,7 +52,7 @@ afterEach(() => {
 })
 
 /** The desktop's composition: a pool of real desktop workspaces, reached only for tracked folders. */
-async function rig(): Promise<Rig> {
+async function rig(browserAddress?: () => string | undefined): Promise<Rig> {
   const clock = createTestClock('2026-04-01T09:00:00.000Z')
   const ids = createSequentialIds()
   const git = createFakeGit({ branch: 'main', commit: 'b'.repeat(40), detached: false })
@@ -70,8 +70,13 @@ async function rig(): Promise<Rig> {
       }
       return pool.get(folder)
     },
-    cliFor: (folder) => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+    // A launch environment that already carries a browser address, which no chat may inherit.
+    cliFor: (folder) => {
+      const cli = buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder })
+      return { ...cli, env: { ...cli.env, DM_BROWSER_PIPE: 'inherited-pipe' } }
+    },
     minutes: 12 * 60,
+    browserAddress,
     log: (line) => logged.push(line)
   })
   return { grants, clock, pool, tracked, logged }
@@ -254,4 +259,47 @@ it('reopens the same durable chat grant and mailbox after idle eviction, then re
     await state.pool.closeAll()
     vi.useRealTimers()
   }
+})
+
+describe('chat grants: the browser pipe (browser.drive)', () => {
+  // Windows cannot remove a folder whose state.sqlite a workspace still holds open.
+  const pools: WorkspacePool[] = []
+  afterEach(async () => { await Promise.all(pools.splice(0).map((pool) => pool.closeAll())) })
+  const browserRig = async (address: () => string | undefined): Promise<Rig> => {
+    const state = await rig(address)
+    pools.push(state.pool)
+    return state
+  }
+
+  it.each([
+    ['orchestrator', 'browser-pipe'], ['worker', 'browser-pipe'], ['planner', undefined], ['reviewer', undefined]
+  ] as const)('gives a %s chat the browser pipe only when its role holds browser.drive', async (role, expected) => {
+    const state = await browserRig(() => 'browser-pipe')
+    const { cli } = await state.grants.issueChatCli(repo, { role, allowSave: false, label: `${role} chat` })
+    expect(cli.env['DM_BROWSER_PIPE']).toBe(expected)
+  })
+
+  it('launches a chat without the pipe when the browser pipe failed to start, never waiting for it', async () => {
+    const state = await browserRig(() => undefined)
+    const { cli } = await state.grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'worker chat' })
+    expect(cli.env).not.toHaveProperty('DM_BROWSER_PIPE')
+  })
+
+  it('authorizes only the live binding of a grant holding browser.drive', async () => {
+    const state = await browserRig(() => 'browser-pipe')
+    const issue = async (role: 'worker' | 'planner') => {
+      const issued = await state.grants.issueChatCli(repo, { role, allowSave: false, label: `${role} chat` })
+      return { ...issued, token: issued.cli.env['DM_SESSION_TOKEN'] ?? '' }
+    }
+    const worker = await issue('worker')
+    expect(() => state.grants.authorizeBrowser(worker.token)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    await state.grants.bindChatGrant(worker.grantId, { folder: repo, chatId: 'chat-w', generation: 'g1' })
+    expect(state.grants.authorizeBrowser(worker.token)).toMatchObject({ chatId: 'chat-w', grantId: worker.grantId })
+    const planner = await issue('planner')
+    await state.grants.bindChatGrant(planner.grantId, { folder: repo, chatId: 'chat-p', generation: 'g1' })
+    expect(state.grants.authorizeNaming(planner.token)).toMatchObject({ chatId: 'chat-p' })
+    expect(() => state.grants.authorizeBrowser(planner.token)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    await state.grants.revokeChatGrant(worker.grantId)
+    expect(() => state.grants.authorizeBrowser(worker.token)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+  })
 })

@@ -9,6 +9,7 @@ import {
 } from '../shared/agents/chatApi'
 import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi, type AgentChatEvent } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
+import { BROWSER_CHANNELS, browserStateSchema, type BrowserApi } from '../shared/browser/browserApi'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
 import { SETTINGS_CHANNELS, type SettingsApi } from '../shared/desktop/notificationSettings'
@@ -121,6 +122,34 @@ const agentChat: AgentChatApi = {
   attachEvidence: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attachEvidence, request)
 }
 
+/** The chat's in-app browser: one `browser:*` invoke per request; a pushed state that is not valid is dropped. */
+const browser: BrowserApi = {
+  state: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.state, request),
+  setView: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.setView, request),
+  navigate: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.navigate, request),
+  back: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.back, request),
+  forward: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.forward, request),
+  reload: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.reload, request),
+  stopAgent: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.stopAgent, request),
+  takeControl: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.takeControl, request),
+  handBack: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.handBack, request),
+  decideOrigin: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.decideOrigin, request),
+  openSignIn: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.openSignIn, request),
+  closeSignIn: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.closeSignIn, request),
+  capture: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.capture, request),
+  sites: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.sites, request),
+  removeSite: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.removeSite, request),
+  setEnabled: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.setEnabled, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: unknown): void => {
+      const parsed = browserStateSchema.safeParse(state)
+      if (parsed.success) listener(parsed.data)
+    }
+    ipcRenderer.on(BROWSER_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(BROWSER_CHANNELS.event, handler)
+  }
+}
+
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
 const sourceCheckout: SourceCheckoutApi = {
   get: () => ipcRenderer.invoke('sourceCheckout:get'),
@@ -165,6 +194,7 @@ const notifications: NotificationsApi = {
  */
 const dm: DmApi = {
   agentChat,
+  browser,
   forgeSetup: {
     provision: (input, operationId) => ipcRenderer.invoke('forgeSetup:provision', input, operationId),
     provisioning: () => ipcRenderer.invoke('forgeSetup:provisioning'),

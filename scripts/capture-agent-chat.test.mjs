@@ -11,6 +11,7 @@ import {
   STATES,
   STATE_DEADLINE_MS,
   electronEnv,
+  mediaOf,
   parseArgs,
   previewBuildConfig,
   runFailures,
@@ -32,7 +33,7 @@ const BASE = {
   needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, sprintDeliveryRegion: false,
   deliveryLine: null, deliveryApproval: null, previousDelivery: false, firstFailedCheck: null,
   imageChips: 0, thumbnails: 0, composerHeights: { idle: null, busy: null }, copyButtons: 0, workedForRows: [], roleNames: [], checkedCount: null,
-  errors: []
+  browserPanel: null, errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -45,14 +46,24 @@ const TREE = [['Magos', 1], ['Acolyte:DM-2', 2], ['Inquisitor:DM-2', 3], ['Servi
 const STALE_INSTALL = 'Installed app version: 0.49.0 is older than 0.50.0'
 const HELD = 'Sprint 1 delivery to main: the latest check failed'
 const PLAN = { agentChatRegion: false, railWidth: null, railRightOfStage: null }
-/** The agent-glass state's computed glass, as Chromium reports the shipped tokens. */
+const FROSTED = { background: 'rgba(33, 27, 24, 0.7)', alpha: 0.7, backdropFilter: 'blur(16px) saturate(1.2)' }
+/** The glass states' computed glass, as Chromium reports the shipped tokens: --glass-bg panes, the --glass-bg-pane transcript. */
 const GLASS = {
   backdrop: 'radial-gradient(75% 85% at 85% 0%, rgba(214, 155, 74, 0.28), rgba(0, 0, 0, 0) 70%), '
     + 'radial-gradient(70% 85% at 0% 100%, rgba(181, 26, 31, 0.3), rgba(0, 0, 0, 0) 70%), none',
-  rail: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
-  card: { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)' },
-  transcript: { background: 'rgba(21, 18, 17, 0.9)', backdropFilter: 'blur(16px) saturate(1.2)' }
+  reducedTransparency: false,
+  header: FROSTED,
+  rail: FROSTED,
+  card: FROSTED,
+  transcript: { background: 'rgba(21, 18, 17, 0.5)', alpha: 0.5, backdropFilter: 'blur(16px) saturate(1.2)' }
 }
+/** The folder chat's glass states, outside the epic workspace, with the Chat agents rail open. */
+const CHAT_GLASS = {
+  viewButtons: [], agentFontWeight: null, header: null, agentChatRegion: false, railWidth: 280, railRightOfStage: true, glass: { ...GLASS, card: null }
+}
+const PANEL = { background: 'rgb(40, 33, 29)', alpha: 1, backdropFilter: 'none' }
+/** agent-glass-solid under emulated reduced transparency: every pane the fallback's --panel-2. */
+const SOLID_GLASS = { ...CHAT_GLASS, glass: { ...GLASS, reducedTransparency: true, header: PANEL, rail: PANEL, card: null, transcript: PANEL } }
 const ROLE_CARD = { background: 'rgba(33, 27, 24, 0.7)', backdropFilter: 'blur(16px) saturate(1.2)', artWidth: 160, artHeight: 160, clipped: false }
 /** The agent-role-picker state's two cards, Magos checked, as the preview measures them. */
 const ROLE_CARDS = [
@@ -161,9 +172,10 @@ function passingDeliveryStates() {
 
 /**
  * Passing records for the rail states: the tree, the collapsed rail, the landings that expand it on their own, and
- * the glass rail beside a docked approval card.
+ * the frosted glass of the folder chat and the epic Agent tab, and the solid panes under reduced transparency.
  */
 function passingRailStates() {
+  const epicGlass = (state) => ready(state, { cardHeading: 'Acolyte:DM-442 wants to run: npm test', agentTabs: AGENT_TABS, glass: GLASS })
   return {
     'agent-tree': ready('agent-tree', { treeRows: TREE, finishedExpandedAtStart: false }),
     'rail-collapsed': ready('rail-collapsed', { railWidth: 40 }),
@@ -171,7 +183,11 @@ function passingRailStates() {
     'landing-activity': ready('landing-activity', {
       treeRows: TREE.map((entry) => entry.name === 'Acolyte:DM-1' ? { ...entry, selected: true } : entry)
     }),
-    'agent-glass': ready('agent-glass', { cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: GLASS })
+    'agent-glass-1024': ready('agent-glass-1024', CHAT_GLASS),
+    'agent-glass-1440': ready('agent-glass-1440', CHAT_GLASS),
+    'agent-glass-solid': ready('agent-glass-solid', SOLID_GLASS),
+    'epic-agent-glass-1024': epicGlass('epic-agent-glass-1024'),
+    'epic-agent-glass-1440': epicGlass('epic-agent-glass-1440')
   }
 }
 
@@ -203,14 +219,28 @@ function passingChatStates() {
 }
 
 /**
- * The question-multi state's docked card: the first of two questions, two options checked and both in view, Submit
+ * The question-multi state's docked card: one question (no step counter), two options checked and both in view, Submit
  * enabled and in view, and the transcript at its 96 px minimum or more.
  */
 const QUESTION = {
-  legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
+  legend: 'Which checks should the worker run before it submits?', progress: null, checkboxes: 4,
   checked: ['Lint', 'Unit tests'], checkedInView: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true,
   submitInView: true, transcriptHeight: 110, transcriptMin: 96
 }
+
+/**
+ * The question-form state's docked card: one glass-strong card holding every question, the defaults checked, one
+ * enabled Submit in view, and the transcript at its 96 px minimum or more. At 1440 everything shows without scrolling;
+ * at 1024 the fields scroll inside the card, the first question and its defaults in view.
+ */
+const FORM_LEGENDS = ['Which databases? (optional)', 'Which region?', 'Anything else? (optional)']
+const FORM = {
+  cards: 1, glassStrong: true, heading: 'Answer 3 questions', legends: FORM_LEGENDS,
+  kinds: ['checkbox', 'radio', 'text'], checked: [['SQLite', 'Postgres'], ['US'], []], count: '3 of 3 answered', submits: 1,
+  submitEnabled: true, legendsInView: FORM_LEGENDS, fieldsScroll: false,
+  checkedInView: ['SQLite', 'Postgres', 'US'], submitInView: true, transcriptHeight: 120, transcriptMin: 96
+}
+const FORM_1024 = { ...FORM, legendsInView: [FORM_LEGENDS[0]], fieldsScroll: true, checkedInView: ['SQLite', 'Postgres'] }
 
 /** The model-picker state: the chip on Opus 5.5 · High before Send, its menu open upward over the host's catalog. */
 const MODEL_PICKER = {
@@ -267,12 +297,22 @@ const AGENT_TABS = {
   aboveChat: true, activeJoined: true, roundedTop: true
 }
 
+/** Passing records for the docked question states: the one multi-select question and the form at both widths. */
+function passingQuestionStates() {
+  return {
+    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
+    'question-form-1024': ready('question-form-1024', { formCard: FORM_1024 }),
+    'question-form-1440': ready('question-form-1440', { formCard: FORM })
+  }
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
     ...passingRailStates(),
     ...passingChatStates(),
     ...passingDeliveryStates(),
+    ...passingQuestionStates(), ...passingBrowserStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -299,7 +339,7 @@ function passing() {
     'agent-magos-decided': ready('agent-magos-decided', {
       approvalRecord: 'Approval Denied by the Magos Run npm test Asked by Acolyte:DM-442 The Magos decided: docs only.'
     }),
-    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '3 needs you · 4 working', badgedRows: 3 }),
+    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '4 needs you · 4 working', badgedRows: 4 }),
     'agent-planners': ready('agent-planners', {
       treeRows: [row('Magos'), ...Array.from({ length: 9 }, (_, index) => row(index === 0 ? 'Lexmechanic' : `Lexmechanic-${index + 1}`, index === 1))]
     }),
@@ -309,7 +349,6 @@ function passing() {
     'agent-role-picker-1024': ready('agent-role-picker-1024', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'agent-role-picker-1440': ready('agent-role-picker-1440', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, ...picked(ROLE_CARDS), newChat: NEW_CHAT }),
-    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
     'epic-agent-tabs-1024': ready('epic-agent-tabs-1024', { agentTabs: AGENT_TABS }),
     'epic-agent-tabs-1440': ready('epic-agent-tabs-1440', { agentTabs: AGENT_TABS }),
     'model-picker-epic': epicModelPickerRecord(),
@@ -317,6 +356,71 @@ function passing() {
     'start-run-model': startRunModelRecord(),
     'lexmechanic-model': lexmechanicModelRecord()
   }
+}
+
+const BROWSER_TAB = 'Getting started · Fixture docs'
+const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
+const PAGE_STAND_IN = 'Preview only: the agent’s page is drawn here by the native browser view'
+/**
+ * The epic stage's width at each size (1280 the run's default, for the unsized states), the Browser rail's at
+ * max(420 px, 45% of it), and the rail's width on its Agents tab just before the Browser tab was clicked.
+ */
+const BROWSER_STAGE = {
+  1024: { stageWidth: 760, railWidth: 420, agentsWidth: 280 },
+  1280: { stageWidth: 1280, railWidth: 576, agentsWidth: 280 },
+  1440: { stageWidth: 1176, railWidth: 529.2, agentsWidth: 280 }
+}
+const DRIVEN = { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null }
+const SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
+/** A docked site card as the capture reads it, wholly above what follows it. */
+function siteCard(heading, label) {
+  return { heading, label, buttons: ['Allow once', 'Always allow', 'Deny'], above: true }
+}
+const EVIDENCE_NOTE = 'Evidence goes to the epic.'
+const NO_COMPOSER = 'No message is open for this chat here. Open its chat to add the capture to a message.'
+/** The camera's popover as the capture reads it: thumbnail loaded, inside the panel, Add to message on or off. */
+function cameraPopover(add, notes) {
+  return { thumbLoaded: true, buttons: [{ text: 'Add to message', enabled: add }, { text: 'Attach as evidence', enabled: true }], notes, inPanel: true }
+}
+const BROWSER_PANELS = {
+  'browser-empty': {
+    badge: 'Idle', tabs: ['Agent tab'], stopEnabled: false, toggle: 'Take control', enabled: false,
+    page: 'Agents open pages here. You will be asked before any new site loads.', privateAddress: null
+  },
+  'browser-agent': DRIVEN,
+  'browser-person': { badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
+  'browser-stopped': { badge: 'Stopped', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
+  'browser-private': {
+    badge: 'Idle', tabs: [BROWSER_TAB, PRIVATE_TAB], stopEnabled: false, toggle: 'Take control', enabled: true, page: '',
+    privateAddress: 'https://accounts.example.com/login'
+  },
+  'browser-origin': { ...DRIVEN, siteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') },
+  'browser-origin-page': { ...DRIVEN, siteCard: siteCard('This page wants to open http://127.0.0.1:5173', 'http://127.0.0.1:5173') },
+  'browser-origin-person': {
+    badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null,
+    siteCard: siteCard('You asked to open https://example.com', 'https://example.com')
+  },
+  'browser-sites': { ...DRIVEN, page: 'Browser hidden while Sites is open', sites: SITES, sitesInPanel: true },
+  'browser-origin-terminal': { ...DRIVEN, panelSiteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') },
+  'browser-camera': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(true, [EVIDENCE_NOTE]) },
+  'browser-camera-terminal': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(false, [NO_COMPOSER, EVIDENCE_NOTE]) }
+}
+/**
+ * A Browser state's record at one width (an unsized state at the run's 1280): the epic Agent tab with the rail widened
+ * over the panel. The controls, the page's preview-only label and the Agents rail follow the seeded panel, not `patch`.
+ */
+function browserRecord(state, patch = {}) {
+  const [, base, width = '1280'] = /^(.*?)(?:-(1024|1440))?$/.exec(state)
+  const { stageWidth, railWidth, agentsWidth } = BROWSER_STAGE[width]
+  const seeded = BROWSER_PANELS[base]
+  const derived = {
+    controls: ['Stop agent', seeded.toggle], pageStandIn: seeded.page === '' ? PAGE_STAND_IN : null,
+    agentsRail: { tab: 'Agents', width: agentsWidth }
+  }
+  return ready(state, { railWidth, browserPanel: { ...seeded, ...derived, stageWidth, ...patch } })
+}
+function passingBrowserStates() {
+  return Object.fromEntries(STATES.filter((state) => state.startsWith('browser-')).map((state) => [state, browserRecord(state)]))
 }
 
 describe('capture-agent-chat: arguments and environment', () => {
@@ -340,9 +444,10 @@ describe('capture-agent-chat: arguments and environment', () => {
     expect(() => parseArgs(['--out', 'x', '--skip'])).toThrow(/Unknown argument: --skip/)
   })
 
-  it('drops every ELECTRON_*, NODE_OPTIONS, DM_SESSION_TOKEN and DM_DESKTOP_PIPE and keeps the rest', () => {
+  it('drops every ELECTRON_*, NODE_OPTIONS, DM_SESSION_TOKEN, DM_DESKTOP_PIPE and DM_BROWSER_PIPE and keeps the rest', () => {
     const env = electronEnv({
       ELECTRON_RUN_AS_NODE: '1', electron_enable_logging: '1', NODE_OPTIONS: '--inspect', DM_SESSION_TOKEN: 's', DM_DESKTOP_PIPE: 'p',
+      DM_BROWSER_PIPE: 'b', dm_browser_pipe: 'lower',
       PATH: '/bin', DM_SESSION_TOKEN_EXTRA: 'kept', TEMP: 't'
     })
     expect(env).toEqual({ PATH: '/bin', DM_SESSION_TOKEN_EXTRA: 'kept', TEMP: 't' })
@@ -350,26 +455,35 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 49 states once each, in capture order', () => {
+  it('lists the 81 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
-      'agent-planners', 'chat-rail-legacy', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
-      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
+      'agent-planners', 'chat-rail-legacy', 'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024',
+      'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
+      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'question-form-1024',
+      'question-form-1440', 'agent-transcript',
       'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
       'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
-      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
+      'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024',
+      'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
+      'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
+      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
+      'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440',
+      'browser-agent', 'browser-person', 'browser-origin'
     ])
-    expect(new Set(STATES).size).toBe(49)
-    expect(Object.isFrozen(STATES)).toBe(true)
+    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([81, true])
   })
+})
 
+describe('capture-agent-chat: Sprint 3 states and bounds', () => {
   it('captures the full Sprint 3 image and polish set, each state once', () => {
     expect(S3_STATES).toEqual([
-      'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
-      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
-      'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
+      'chat-images', 'image-result', 'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript',
+      'agent-worked-for', 'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi',
+      'mail-card', 'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
     ])
     expect(S3_STATES.filter((state) => !STATES.includes(state))).toEqual([])
     expect(new Set(S3_STATES).size).toBe(S3_STATES.length)
@@ -382,9 +496,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 750 s overall bound: 49 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 1230 s overall bound: 81 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(750_000)
+    expect(OVERALL_LIMIT_MS).toBe(1_230_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -396,6 +510,145 @@ describe('capture-agent-chat: state list and bounds', () => {
       configFile: join(preview, 'vite.config.ts'), root: preview,
       build: { outDir, emptyOutDir: true, rollupOptions: { input: join(preview, 'agent.html') } }
     })
+  })
+})
+
+describe('capture-agent-chat: Browser tab states', () => {
+  it('fails a Browser rail left at the Agents width', () => {
+    const record = browserRecord('browser-agent-1440')
+    record.observations.railWidth = 280
+    expect(validateObservations('browser-agent-1440', record)).toEqual([
+      'browser-agent-1440: expected the rail is open at max(420 px, 45% of the stage); got [280,1176]',
+      'browser-agent-1440: expected the Browser rail is wider than the rail was on its Agents tab; got [{"tab":"Agents","width":280},280]'
+    ])
+  })
+
+  it('holds the 420 px floor at 1024', () => {
+    expect(validateObservations('browser-person-1024', browserRecord('browser-person-1024'))).toEqual([])
+    expect(validateObservations('browser-person-1024', browserRecord('browser-person-1024', { stageWidth: 1000 })))
+      .toEqual(['browser-person-1024: expected the rail is open at max(420 px, 45% of the stage); got [420,1000]'])
+  })
+
+  it('fails a wrong badge, an enabled Stop for the person and a mislabelled toggle', () => {
+    expect(validateObservations('browser-person-1440', browserRecord('browser-person-1440', {
+      badge: 'Idle', stopEnabled: true, toggle: 'Take control'
+    }))).toEqual([
+      'browser-person-1440: expected the badge reads You have control; got "Idle"',
+      'browser-person-1440: expected Stop agent is disabled; got true',
+      'browser-person-1440: expected the toggle reads Hand back; got "Take control"'
+    ])
+  })
+
+  it('fails a private state without its tab label or its typed address, and an empty state with agents on', () => {
+    expect(validateObservations('browser-private-1024', browserRecord('browser-private-1024', { tabs: [BROWSER_TAB], privateAddress: null })))
+      .toEqual([
+        `browser-private-1024: expected the tab strip reads ${JSON.stringify([BROWSER_TAB, PRIVATE_TAB])}; got ${JSON.stringify([BROWSER_TAB])}`,
+        'browser-private-1024: expected Private tab’s inline address field holds the typed address; got null'
+      ])
+    expect(validateObservations('browser-empty-1440', browserRecord('browser-empty-1440', { enabled: true })))
+      .toEqual(['browser-empty-1440: expected agents are not let use the browser and the page area shows the empty state; '
+        + 'got [true,"Agents open pages here. You will be asked before any new site loads."]'])
+  })
+})
+
+describe('capture-agent-chat: Browser agent, person and origin at the run’s size', () => {
+  it('fails a rail measured on another tab or never measured on Agents before the Browser tab', () => {
+    const failure = (rail) => validateObservations('browser-agent', browserRecord('browser-agent', { agentsRail: rail }))
+    expect(failure({ tab: 'Browser', width: 576 }))
+      .toEqual(['browser-agent: expected the Browser rail is wider than the rail was on its Agents tab; got [{"tab":"Browser","width":576},576]'])
+    expect(failure(null)).toEqual(['browser-agent: expected the Browser rail is wider than the rail was on its Agents tab; got [null,576]'])
+  })
+
+  it('passes the agent, person and origin states with the controls, badge and site card as seeded', () => {
+    for (const state of ['browser-agent', 'browser-person', 'browser-origin']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+    expect(viewportOf('browser-origin')).toEqual(DEFAULT_VIEWPORT)
+  })
+
+  it('fails a missing toggle, a Take control beside Hand back and a missing Stop agent', () => {
+    const failure = (state, controls) => validateObservations(state, browserRecord(state, { controls }))
+    expect(failure('browser-agent', ['Stop agent']))
+      .toEqual(['browser-agent: expected the controls are ["Stop agent","Take control"]; got ["Stop agent"]'])
+    expect(failure('browser-person', ['Stop agent', 'Take control', 'Hand back']))
+      .toEqual(['browser-person: expected the controls are ["Stop agent","Hand back"]; got ["Stop agent","Take control","Hand back"]'])
+    expect(failure('browser-person-1024', ['Hand back']))
+      .toEqual(['browser-person-1024: expected the controls are ["Stop agent","Hand back"]; got ["Hand back"]'])
+  })
+
+  it('fails an empty page area without its preview-only label, and a label left over a page note', () => {
+    expect(validateObservations('browser-agent', browserRecord('browser-agent', { pageStandIn: null })))
+      .toEqual(['browser-agent: expected an empty page area carries the preview-only label, and a page note replaces it; got ["",null]'])
+    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { pageStandIn: PAGE_STAND_IN })))
+      .toEqual(['browser-sites-1440: expected an empty page area carries the preview-only label, and a page note replaces it; '
+        + `got ${JSON.stringify(['Browser hidden while Sites is open', PAGE_STAND_IN])}`])
+  })
+})
+
+describe('capture-agent-chat: Browser site card and Sites states', () => {
+  it('passes every site card and the Sites popover as seeded', () => {
+    for (const state of ['browser-origin-1024', 'browser-origin-page-1440', 'browser-origin-person-1024', 'browser-sites-1440', 'browser-origin-terminal-1024']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+  })
+
+  it('fails a site card that names the wrong asker, drops a button or sits below the composer', () => {
+    const card = BROWSER_PANELS['browser-origin-page'].siteCard
+    const heading = 'This page wants to open http://127.0.0.1:5173'
+    const expected = `browser-origin-page-1024: expected the chat docks the site card "${heading}" above the composer, and only there; got `
+    for (const patch of [{ heading: 'An agent wants to open http://127.0.0.1:5173' }, { buttons: ['Allow once', 'Deny'] }, { above: false }]) {
+      const wrong = { ...card, ...patch }
+      expect(validateObservations('browser-origin-page-1024', browserRecord('browser-origin-page-1024', { siteCard: wrong })))
+        .toEqual([`${expected}${JSON.stringify([wrong, null])}`])
+    }
+    expect(validateObservations('browser-origin-1440', browserRecord('browser-origin-1440', { siteCard: null })))
+      .toEqual(['browser-origin-1440: expected the chat docks the site card "Acolyte:DM-442 wants to open https://api.github.com" above the composer, '
+        + 'and only there; got [null,null]'])
+  })
+
+  it('fails a terminal chat’s card missing from the Browser panel, under the page area, or shown twice', () => {
+    const card = BROWSER_PANELS['browser-origin-terminal'].panelSiteCard
+    const expected = 'browser-origin-terminal-1024: expected the Browser panel docks the site card '
+      + '"Acolyte:DM-442 wants to open https://api.github.com" above the page area, and only there; got '
+    const failures = (patch) => validateObservations('browser-origin-terminal-1024', browserRecord('browser-origin-terminal-1024', patch))
+    expect(failures({ panelSiteCard: null })).toEqual([`${expected}[null,null]`])
+    expect(failures({ panelSiteCard: { ...card, above: false } })).toEqual([`${expected}${JSON.stringify([{ ...card, above: false }, null])}`])
+    expect(failures({ siteCard: card })).toEqual([`${expected}${JSON.stringify([card, card])}`])
+  })
+
+  it('fails a Sites state whose popover misses a site, leaves the page area shown or spills out of the panel', () => {
+    const missing = SITES.slice(1)
+    expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sites: missing })))
+      .toEqual([`browser-sites-1024: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
+        + `got ${JSON.stringify([missing, 'Browser hidden while Sites is open'])}`])
+    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '', pageStandIn: PAGE_STAND_IN })))
+      .toEqual([`browser-sites-1440: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
+        + `got ${JSON.stringify([SITES, ''])}`])
+    expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sitesInPanel: false })))
+      .toEqual(['browser-sites-1024: expected the Sites popover stays inside the Browser panel; got false'])
+  })
+})
+
+describe('capture-agent-chat: Browser camera states', () => {
+  it('passes the capture popover for a GUI chat and for a terminal one', () => {
+    for (const state of ['browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+  })
+
+  it('fails a popover with no loaded thumbnail, Add to message on for a terminal chat, or the page area shown', () => {
+    const popover = BROWSER_PANELS['browser-camera'].camera
+    const expected = (state, buttons, notes) => `${state}: expected the capture popover shows its thumbnail, ${JSON.stringify(buttons)} and `
+      + `${JSON.stringify(notes)} inside the panel over the hidden page area; got `
+    const gui = expected('browser-camera-1024', popover.buttons, popover.notes)
+    expect(validateObservations('browser-camera-1024', browserRecord('browser-camera-1024', { camera: { ...popover, thumbLoaded: false } })))
+      .toEqual([`${gui}${JSON.stringify([{ ...popover, thumbLoaded: false }, 'Browser hidden while the capture is open'])}`])
+    expect(validateObservations('browser-camera-1440', browserRecord('browser-camera-1440', { page: '', pageStandIn: PAGE_STAND_IN })))
+      .toEqual([`${expected('browser-camera-1440', popover.buttons, popover.notes)}${JSON.stringify([popover, ''])}`])
+    const terminal = BROWSER_PANELS['browser-camera-terminal'].camera
+    const wrong = { ...terminal, buttons: popover.buttons }
+    expect(validateObservations('browser-camera-terminal-1024', browserRecord('browser-camera-terminal-1024', { camera: wrong })))
+      .toEqual([`${expected('browser-camera-terminal-1024', terminal.buttons, terminal.notes)}${JSON.stringify([wrong, 'Browser hidden while the capture is open'])}`])
   })
 })
 
@@ -800,17 +1053,65 @@ describe('capture-agent-chat: per-state observations', () => {
   })
 })
 
-describe('capture-agent-chat: agent-glass observations', () => {
-  it('requires agent-glass to show the glows, a frosted rail and card, and a near-solid transcript', () => {
-    const glass = (patch) => validateObservations('agent-glass', ready('agent-glass', {
-      cardHeading: 'Acolyte:DM-442 wants to run: npm test', glass: { ...GLASS, ...patch }
-    }))
-    expect(glass({ backdrop: 'none' })).toEqual(['agent-glass: expected the stage paints the brass and crimson radial glows; got none'])
-    expect(glass({ rail: { background: 'rgb(40, 33, 29)', backdropFilter: 'none' } }))
-      .toEqual(['agent-glass: expected the open rail is frosted glass; got {"background":"rgb(40, 33, 29)","backdropFilter":"none"}'])
-    expect(glass({ card: { background: 'rgba(33, 27, 24, 0.95)', backdropFilter: 'blur(16px) saturate(1.2)' } })).toHaveLength(1)
-    expect(glass({ transcript: { background: 'rgba(21, 18, 17, 0.5)', backdropFilter: 'none' } })).toHaveLength(1)
-    expect(validateObservations('agent-glass', ready('agent-glass'))).toHaveLength(4)
+const withGlass = (record, patch) => ({ ...record, glass: { ...record.glass, ...patch } })
+/** A glass state's problems with its passing record's glass (and other fields) patched. */
+const chatGlass = (state, patch = {}, extra = {}) => validateObservations(state, ready(state, { ...withGlass(CHAT_GLASS, patch), ...extra }))
+const epicGlass = (state, patch = {}, extra = {}) => validateObservations(state, ready(state, {
+  cardHeading: 'Acolyte:DM-442 wants to run: npm test', agentTabs: AGENT_TABS, glass: { ...GLASS, ...patch }, ...extra
+}))
+const solidGlass = (patch = {}) => validateObservations('agent-glass-solid', ready('agent-glass-solid', withGlass(SOLID_GLASS, patch)))
+
+describe('capture-agent-chat: folder chat glass states', () => {
+  it('takes the folder and epic glass at 1024x768 and 1440x900, and agent-glass-solid alone under reduced transparency', () => {
+    expect(viewportOf('agent-glass-1024')).toEqual({ width: 1024, height: 768 })
+    expect(viewportOf('epic-agent-glass-1440')).toEqual({ width: 1440, height: 900 })
+    expect(mediaOf('agent-glass-solid')).toEqual([{ name: 'prefers-reduced-transparency', value: 'reduce' }])
+    expect(STATES.filter((state) => mediaOf(state).length > 0)).toEqual(['agent-glass-solid'])
+  })
+
+  it('passes a frosted header, rail and transcript pane over the glows in the folder chat and the epic Agent tab', () => {
+    for (const state of ['agent-glass-1024', 'agent-glass-1440']) expect(chatGlass(state)).toEqual([])
+    for (const state of ['epic-agent-glass-1024', 'epic-agent-glass-1440']) expect(epicGlass(state)).toEqual([])
+    expect(solidGlass()).toEqual([])
+  })
+
+  it('fails a glass state for missing glows, reduced transparency, a closed rail, or a pane that is solid, too opaque or reports no alpha', () => {
+    expect(chatGlass('agent-glass-1024', { backdrop: 'none' })).toEqual(['agent-glass-1024: expected the stage paints the brass and crimson radial glows; got none'])
+    expect(chatGlass('agent-glass-1024', { reducedTransparency: true })).toEqual(['agent-glass-1024: expected transparency is not reduced; got true'])
+    expect(chatGlass('agent-glass-1440', {}, { railWidth: null, railRightOfStage: null }))
+      .toEqual(['agent-glass-1440: expected the rail is open at 280 px right of the chat; got [null,null]'])
+    expect(chatGlass('agent-glass-1440', { header: PANEL })).toEqual([
+      'agent-glass-1440: expected the chat header is frosted glass (a blur, alpha 0.72 or less) and reports its alpha; got {"background":"rgb(40, 33, 29)","alpha":1,"backdropFilter":"none"}'
+    ])
+    expect(chatGlass('agent-glass-1440', { transcript: { ...GLASS.transcript, background: 'rgba(21, 18, 17, 0.9)', alpha: 0.9 } }))
+      .toEqual([expect.stringMatching(/^agent-glass-1440: expected the transcript pane is frosted glass/)])
+    expect(chatGlass('agent-glass-1024', { rail: { ...FROSTED, alpha: null } }))
+      .toEqual([expect.stringMatching(/^agent-glass-1024: expected the agent rail is frosted glass/)])
+    expect(validateObservations('agent-glass-1024', ready('agent-glass-1024'))).toHaveLength(5)
+  })
+})
+
+describe('capture-agent-chat: epic and reduced-transparency glass states', () => {
+  it('fails the epic glass unless the Magos tab is selected and joined to the header and the docked card is frosted', () => {
+    const [magos, planner] = AGENT_TABS.tabs
+    const tabs = (patch) => epicGlass('epic-agent-glass-1024', {}, { agentTabs: { ...AGENT_TABS, ...patch } })
+    expect(tabs({ activeJoined: false })).toEqual([expect.stringMatching(/^epic-agent-glass-1024: expected the Magos tab is selected and joined to the glass header/)])
+    expect(tabs({ tabs: [{ ...magos, name: 'Magos, working' }, planner] })).toEqual([])
+    expect(tabs({ tabs: [{ ...magos, selected: false }, { ...planner, selected: true }] })).toHaveLength(1)
+    expect(epicGlass('epic-agent-glass-1440', { card: PANEL })).toEqual([expect.stringMatching(/^epic-agent-glass-1440: expected the docked approval card is frosted glass/)])
+    expect(epicGlass('epic-agent-glass-1440', { transcript: PANEL })).toHaveLength(1)
+    expect(validateObservations('epic-agent-glass-1440', ready('epic-agent-glass-1440'))).toHaveLength(7)
+  })
+
+  it('requires agent-glass-solid to match reduced transparency with every pane opaque and unblurred', () => {
+    expect(solidGlass({ reducedTransparency: false })).toEqual(['agent-glass-solid: expected the page matches reduced transparency; got false'])
+    expect(solidGlass({ header: FROSTED })).toEqual([
+      'agent-glass-solid: expected the chat header is a solid panel (alpha 1, no backdrop filter) and reports its alpha; got {"background":"rgba(33, 27, 24, 0.7)","alpha":0.7,"backdropFilter":"blur(16px) saturate(1.2)"}'
+    ])
+    expect(solidGlass({ transcript: { ...PANEL, backdropFilter: 'blur(16px) saturate(1.2)' } }))
+      .toEqual([expect.stringMatching(/^agent-glass-solid: expected the transcript pane is a solid panel/)])
+    expect(solidGlass({ rail: { ...PANEL, alpha: null } })).toEqual([expect.stringMatching(/^agent-glass-solid: expected the agent rail is a solid panel/)])
+    expect(validateObservations('agent-glass-solid', ready('agent-glass-solid'))).toHaveLength(4)
   })
 })
 
@@ -890,12 +1191,12 @@ describe('capture-agent-chat: question-multi observations', () => {
   const question = (patch, checkedCount = 2) => validateObservations('question-multi',
     ready('question-multi', { questionCard: { ...QUESTION, ...patch }, checkedCount }))
 
-  it('passes Question 1 of 2 with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
+  it('passes one question with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
     expect(question({})).toEqual([])
   })
 
-  it('fails missing progress, another selection, a wrong count, a disabled Submit and no card', () => {
-    expect(question({ progress: null })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question headed Question 1 of 2/)])
+  it('fails a step counter, another selection, a wrong count, a disabled Submit and no card', () => {
+    expect(question({ progress: 'Question 1 of 2' })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question with its legend and no step counter/)])
     expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
     expect(question({ count: '1 selected' })).toHaveLength(1)
     expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
@@ -912,6 +1213,43 @@ describe('capture-agent-chat: question-multi observations', () => {
   it('reads the checked count and fails any other', () => {
     expect(question({}, 1)).toEqual(['question-multi: expected two options checked; got 1'])
     expect(question({}, null)).toEqual(['question-multi: expected two options checked; got null'])
+  })
+})
+
+describe('capture-agent-chat: question-form observations', () => {
+  const form = (patch, state = 'question-form-1440') => validateObservations(state,
+    ready(state, { formCard: { ...(state.endsWith('-1024') ? FORM_1024 : FORM), ...patch } }))
+
+  it('passes one card with every question, the defaults checked and one enabled Submit, at both widths', () => {
+    expect(form({})).toEqual([])
+    expect(form({}, 'question-form-1024')).toEqual([])
+  })
+
+  it('fails a second card, plain glass, a missing question, a wrong control and an unchecked default', () => {
+    expect(form({ cards: 2 })).toEqual([expect.stringMatching(/^question-form-1440: expected one docked glass-strong card/)])
+    expect(form({ glassStrong: false })).toHaveLength(1)
+    expect(form({ legends: FORM.legends.slice(0, 2) })).toEqual([expect.stringMatching(/^question-form-1440: expected every question at once/)])
+    expect(form({ kinds: ['checkbox', 'checkbox', 'text'] })).toHaveLength(1)
+    expect(form({ checked: [['SQLite'], ['US'], []] })).toEqual([expect.stringMatching(/^question-form-1440: expected the defaults checked/)])
+  })
+
+  it('fails a second Submit, a disabled one, a short count, Submit out of view and a squeezed transcript', () => {
+    expect(form({ submits: 2, submitEnabled: null })).toEqual([expect.stringMatching(/^question-form-1440: expected one enabled Submit/)])
+    expect(form({ submitEnabled: false })).toHaveLength(1)
+    expect(form({ count: '2 of 3 answered' })).toHaveLength(1)
+    expect(form({ submitInView: false })).toEqual([expect.stringMatching(/^question-form-1440: expected Submit in view/)])
+    expect(form({ transcriptHeight: 42 })).toEqual([expect.stringMatching(/^question-form-1440: expected the transcript keeps at least its declared minimum/)])
+    expect(validateObservations('question-form-1440', ready('question-form-1440'))).toHaveLength(7)
+  })
+
+  it('fails at 1440 a hidden question, a scrolling form or a default out of view; at 1024 a form that neither scrolls nor shows the first defaults', () => {
+    const view = /^question-form-\d+: expected at 1440 every question and checked default in view/
+    expect(form({ legendsInView: FORM.legends.slice(0, 2) })).toEqual([expect.stringMatching(view)])
+    expect(form({ fieldsScroll: true })).toEqual([expect.stringMatching(view)])
+    expect(form({ checkedInView: ['SQLite', 'Postgres'] })).toEqual([expect.stringMatching(view)])
+    expect(form({ fieldsScroll: false }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
+    expect(form({ checkedInView: ['SQLite'] }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
+    expect(form({ legendsInView: [] }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
   })
 })
 

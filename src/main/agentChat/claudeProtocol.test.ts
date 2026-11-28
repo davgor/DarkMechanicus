@@ -77,7 +77,7 @@ const expected: Record<string, ChatItem[]> = {
       tool: 'AskUserQuestion', summary: 'Which database?', input: { questions } }],
   question_multi: [tool('question_multi', 'AskUserQuestion', { questions: multiQuestions }, 'Answered'),
     { kind: 'approval_request', id: 'approval:req_T1_question_multi', at, requestId: 'req_T1_question_multi', category: 'other',
-      tool: 'AskUserQuestion', summary: 'Which letters?', input: { questions: multiQuestions } },
+      tool: 'AskUserQuestion', summary: 'Answer 2 questions', input: { questions: multiQuestions } },
     text('msg_T1_134', 'answers: {"Which letters?":"A, C","Which database?":"SQLite"}')],
   interrupt: [hello, { kind: 'turn_stopped', id: 'stopped:uuid_T1_51', at }],
   error: [{ kind: 'error', id: 'error:uuid_T1_53', at, message: 'Fixture provider failure' }],
@@ -146,7 +146,7 @@ const expected: Record<string, ChatItem[]> = {
       } else {
         state = feed(fixture(name).slice(0, 2), state).state
         const answers: AgentChatAnswer[] = name === 'question_multi'
-          ? [{ promptId: 'req_T1_question_multi', optionIds: ['option_0', 'option_2'] }, { promptId: 'req_T1_question_multi:question:1', optionId: 'option_0' }]
+          ? [{ promptId: 'req_T1_question_multi', fields: [{ fieldId: 'field_0', optionIds: ['option_0', 'option_2'] }, { fieldId: 'field_1', optionIds: ['option_0'] }] }]
           : [{ promptId: expectedLine.response.request_id, optionId: name === 'question' ? 'option_0' : name === 'approval_chat' ? 'allow_chat' : 'allow_once' }]
         for (const answer of answers) {
           const result = encodeClaudeCommand({ type: 'answer', ...answer }, state, at)
@@ -234,47 +234,46 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
     expect(encodeClaudeCommand({ type: 'answer', promptId: 'plain', optionId: 'allow_chat' }, feed([approvalRequest('plain')]).state, at).lines).toEqual([])
     expect(JSON.parse(encodeClaudeCommand({ type: 'answer', promptId: 'held', optionId: 'deny', text: 'No' }, state, at).lines[0]).response.response).toEqual({ behavior: 'deny', message: 'No' })
   })
-  it('preserves question options and maps multiple answers into the held input', () => {
+  it('holds several questions as one form prompt and answers them all in one response, into the held input', () => {
     const input = { questions: [...questions, { ...questions[0], question: 'Which backup?' }], other: 'held' }
     const result = feed([approvalRequest('question', 'unknown', { tool_name: 'AskUserQuestion', input })])
-    expect(result.items).toEqual([expect.objectContaining({ kind: 'approval_request', requestId: 'question', tool: 'AskUserQuestion', category: 'other' })])
-    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { kind: 'question', multi: false, progress: { index: 1, total: 2 }, options: [
-      { id: 'option_0', label: 'SQLite', description: 'Local database' }, { id: 'option_1', label: 'Postgres', description: 'Server database' }, { id: 'text', label: 'Other' }
-    ] } })
-    const answers = { 'Which database?': 'SQLite', 'Which backup?': 'Postgres' }
-    const first = encodeClaudeCommand({ type: 'answer', promptId: 'question', optionId: 'option_0' }, result.state, at)
-    expect(first.lines).toEqual([])
-    expect(first.events).toMatchObject([
+    expect(result.items).toEqual([expect.objectContaining({ kind: 'approval_request', requestId: 'question', tool: 'AskUserQuestion', category: 'other', summary: 'Answer 2 questions' })])
+    const options = [{ id: 'option_0', label: 'SQLite', description: 'Local database' }, { id: 'option_1', label: 'Postgres', description: 'Server database' }]
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { kind: 'question', options: [], form: { fields: [
+      { id: 'field_0', title: 'Which database?', multi: false, text: 'other', options }, { id: 'field_1', title: 'Which backup?', multi: false, text: 'other', options }
+    ] } } })
+    expect(encodeClaudeCommand({ type: 'answer', promptId: 'question', optionId: 'option_0' }, result.state, at).lines).toEqual([])
+    expect(encodeClaudeCommand({ type: 'answer', promptId: 'question', fields: [{ fieldId: 'field_0', optionIds: ['option_0'] }] }, result.state, at).lines).toEqual([])
+    const last = encodeClaudeCommand({ type: 'answer', promptId: 'question', fields: [{ fieldId: 'field_1', optionIds: ['option_1'] }, { fieldId: 'field_0', optionIds: ['option_0'] }] }, result.state, at)
+    expect(last.lines).toHaveLength(1)
+    expect(JSON.parse(last.lines[0])).toEqual({ type: 'control_response', response: { subtype: 'success', request_id: 'question', response: { behavior: 'allow',
+      updatedInput: { ...input, answers: { 'Which database?': 'SQLite', 'Which backup?': 'Postgres' } } } } })
+    expect(last.events).toMatchObject([
       { type: 'item', item: { kind: 'approval_decision', requestId: 'question', decision: 'allow_once' } },
-      { type: 'item', item: { kind: 'user_message', text: 'SQLite' } },
-      { type: 'pending', prompt: { id: 'question:question:1', title: 'Which backup?', progress: { index: 2, total: 2 } } },
-      { type: 'item', item: { kind: 'approval_request', requestId: 'question:question:1', summary: 'Which backup?' } }
-    ])
-    const last = encodeClaudeCommand({ type: 'answer', promptId: 'question:question:1', optionId: 'option_1' }, first.state, at)
-    expect(JSON.parse(last.lines[0])).toEqual({ type: 'control_response', response: { subtype: 'success', request_id: 'question', response: { behavior: 'allow', updatedInput: { ...input, answers } } } })
-    expect(last.events.filter(event => event.type === 'item')).toMatchObject([
-      { item: { kind: 'approval_decision', requestId: 'question:question:1', decision: 'allow_once' } },
-      { item: { kind: 'user_message', text: 'Postgres' } }
+      { type: 'item', item: { kind: 'user_message', text: 'Which database?: SQLite\nWhich backup?: Postgres' } },
+      { type: 'pending', prompt: null }
     ])
   })
-  it('answers a multiSelect question with the chosen labels in option order, as Claude Code encodes them', () => {
+  it('answers three questions, one multiSelect, in one response with the labels joined as Claude Code joins them', () => {
     const input = { questions: [multiQuestions[0], { ...multiQuestions[0], question: 'Which tags?', options: [{ label: 'x, y' }, { label: 'say "hi"' }, { label: 'plain' }] }, questions[0]] }
     const result = feed([approvalRequest('multi', 'unknown', { tool_name: 'AskUserQuestion', input })])
-    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { id: 'multi', multi: true, progress: { index: 1, total: 3 } } })
-    for (const optionIds of [['option_0', 'option_7'], ['option_0', 'option_0'], ['option_0', 'text']]) {
-      const refused = encodeClaudeCommand({ type: 'answer', promptId: 'multi', optionIds }, result.state, at)
+    // Claude Code takes no empty answer, so every question is required, the multiSelect ones included (valid([]) is refused below).
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { id: 'multi', title: 'Answer 3 questions', form: { fields: [
+      { multi: true, required: true }, { multi: true, required: true }, { multi: false, required: true }] } } })
+    const valid = (first: string[]) => [{ fieldId: 'field_0', optionIds: first }, { fieldId: 'field_1', optionIds: ['option_2'] }, { fieldId: 'field_2', optionIds: ['option_1'] }]
+    for (const fields of [valid(['option_0', 'option_7']), valid(['option_0', 'option_0']), valid([]), [...valid(['option_0']).slice(0, 2), { fieldId: 'field_2', optionIds: ['option_0', 'option_1'] }],
+      [...valid(['option_0']).slice(0, 2), { fieldId: 'field_2', optionIds: ['option_0'], text: 'also' }], valid(['option_0']).slice(0, 2)]) {
+      const refused = encodeClaudeCommand({ type: 'answer', promptId: 'multi', fields }, result.state, at)
       expect([refused.lines, refused.events, refused.state.pending.get('multi')?.prompt.id]).toEqual([[], [], 'multi'])
     }
-    const first = encodeClaudeCommand({ type: 'answer', promptId: 'multi', optionIds: ['option_2', 'option_0'] }, result.state, at)
-    expect(first.events).toMatchObject([{ item: { kind: 'approval_decision' } }, { item: { kind: 'user_message', text: 'A, C' } },
-      { type: 'pending', prompt: { id: 'multi:question:1', multi: true, progress: { index: 2, total: 3 } } }, { item: { kind: 'approval_request' } }])
     // A label holding ", " or a quote is written as a JSON string, as Claude Code's own dialog writes it; the free text comes last.
-    const second = encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:1', optionIds: ['text', 'option_1', 'option_0'], text: 'mine' }, first.state, at)
-    expect(second.events).toMatchObject([{}, { item: { text: '"x, y", "say \\"hi\\"", mine' } }, { prompt: { id: 'multi:question:2', multi: false, progress: { index: 3, total: 3 } } }, {}])
-    expect(encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:2', optionIds: ['option_0'] }, second.state, at).lines).toEqual([])
-    const last = encodeClaudeCommand({ type: 'answer', promptId: 'multi:question:2', optionId: 'option_1' }, second.state, at)
+    const last = encodeClaudeCommand({ type: 'answer', promptId: 'multi', fields: [
+      { fieldId: 'field_0', optionIds: ['option_2', 'option_0'] }, { fieldId: 'field_1', optionIds: ['option_1', 'option_0'], text: 'mine' }, { fieldId: 'field_2', optionIds: ['option_1'] }
+    ] }, result.state, at)
+    expect(last.lines).toHaveLength(1)
     expect(JSON.parse(last.lines[0]).response.response).toEqual({ behavior: 'allow', updatedInput: { ...input,
       answers: { 'Which letters?': 'A, C', 'Which tags?': '"x, y", "say \\"hi\\"", mine', 'Which database?': 'Postgres' } } })
+    expect(last.state.pending.size).toBe(0)
   })
   it('refuses optionIds on an approval', () => {
     const state = feed([approvalRequest('plain')]).state

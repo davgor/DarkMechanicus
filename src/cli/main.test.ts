@@ -134,6 +134,32 @@ describe('dm --list and --describe', () => {
   })
 })
 
+describe('dm and the browser commands', () => {
+  it('describes browser_navigate and lists all seven browser commands under browser.drive', async () => {
+    const described = recorder(['--describe', 'browser_navigate'])
+    await runCli(described.host)
+    expect(payload(described).data).toMatchObject({
+      command: 'browser_navigate', alias: 'browserNavigate', capability: 'browser.drive', mutates: true, input: { fields: ['as', 'url'] }
+    })
+    expect(described.opened).toEqual([])
+    expect(described.exits).toEqual([0])
+    const listed = recorder(['--list'])
+    await runCli(listed.host)
+    const browser = (payload(listed).data as { command: string; capability: string; mutates: boolean }[])
+      .filter((entry) => entry.command.startsWith('browser_'))
+    expect(browser).toEqual([
+      'browser_click', 'browser_navigate', 'browser_press', 'browser_read', 'browser_screenshot', 'browser_status', 'browser_type'
+    ].map((command) => expect.objectContaining({ command, capability: 'browser.drive', mutates: !['browser_status', 'browser_read'].includes(command) })))
+  })
+
+  it('sends dm call browser_navigate to the command with its arguments', async () => {
+    const { recorded, seen } = capturing(['call', 'browser_navigate', '{"url":"https://example.com/"}'])
+    await runCli(recorded.host)
+    expect(seen).toEqual([{ url: 'https://example.com/' }])
+    expect(recorded.exits).toEqual([0])
+  })
+})
+
 describe('dm serverInfo', () => {
   it.each([
     ['an installed app', join('C:', 'Programs', 'x', 'resources', 'app.asar', 'out', 'main', 'cli.js'), true],

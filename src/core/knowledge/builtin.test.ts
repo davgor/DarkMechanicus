@@ -68,7 +68,8 @@ describe('built-in knowledge selection', () => {
       'final-validation-ci',
       'post-checkpoint-delivery',
       'sprint-delivery',
-      'learning-card'
+      'learning-card',
+      'agent-browser'
     ])
     for (const topic of topics) {
       const result = selectFacts(merged.facts, { role: 'orchestrator', topics: [topic], budgetTokens: DEFAULT_CONTEXT_BUDGET })

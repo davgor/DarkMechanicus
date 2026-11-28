@@ -1,4 +1,5 @@
-import type { AgentChatAnswer, AgentChatEvent, AgentTodoPhase, PendingPrompt } from '../../shared/agents/agentChat'
+import { pendingPromptSchema, type AgentChatAnswer, type AgentChatEvent, type AgentTodoPhase, type PendingPrompt } from '../../shared/agents/agentChat'
+import type { FormFieldAnswer } from './pendingPrompts'
 import type { ChatItem } from '../../shared/agents/chat'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import { taskCreateResult, taskCreateStarted, taskPhases, taskUpdate, todoWritePhases, type TaskList } from './todoLists'
@@ -13,7 +14,7 @@ type Thread = Extract<ChatItem, { kind: 'thread' }>
 type Block = { kind: 'text' | 'thinking' | 'tool_use'; text: string; emitted: number; committed: boolean; finalized?: boolean; toolId?: string }
 type Message = { id: string; at: string; threadId: string | null; blocks: Map<number, Block> }
 /** `inputClipped`: summaryInput cut a value, so the prompt shows less of the input than the CLI runs. */
-type HeldPrompt = { requestId: string; prompt: PendingPrompt; input: JsonObject; inputClipped: boolean; suggestions: JsonObject[]; questionIndex: number; answers: Record<string, string> }
+type HeldPrompt = { requestId: string; prompt: PendingPrompt; input: JsonObject; inputClipped: boolean; suggestions: JsonObject[] }
 
 /** Main-private reducer state: held inputs must never be serialized to the renderer. */
 export type ClaudeProtocolState = {
@@ -321,15 +322,29 @@ function assistant(context: Reduction, frame: JsonObject): void {
   if (!message) { message = { id, at, threadId, blocks: new Map() }; state.messages.set(id, message) }
   assistantBlocks(context, message, content)
 }
-function questionPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, questions: JsonObject[], index: number): PendingPrompt {
-  const question = questions[index]
-  const options = objects(question?.options).flatMap((option, index) => {
+function questionOptions(question: JsonObject | undefined): { id: string; label: string; description?: string }[] {
+  return objects(question?.options).flatMap((option, index) => {
     const label = string(option.label), description = string(option.description)
     return label ? [{ id: `option_${index}`, label, ...(description ? { description } : {}) }] : []
   })
+}
+/**
+ * One question as today's single prompt; several as one form prompt (`field_<n>`), answered together; every question
+ * is required (Claude Code takes no empty answer, a multiSelect one included). More questions or options than the
+ * contract carries keep the single prompt, which then refuses every answer: never a partial one.
+ */
+function questionPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, questions: JsonObject[]): PendingPrompt {
+  const form = questions.length > 1 && pendingPromptSchema.safeParse({ ...base, kind: 'question', title: `Answer ${questions.length} questions`, options: [], form: {
+    fields: questions.map((question, index) => ({
+      id: `field_${index}`, title: string(question.question).slice(0, 2_000), multi: question.multiSelect === true, options: questionOptions(question), text: 'other', required: true
+    }))
+  } })
+  if (form && form.success) return form.data
+  const question = questions[0]
+  const options = questionOptions(question)
   options.push({ id: 'text', label: options.length ? 'Other' : 'Answer' })
   return { ...base, kind: 'question', title: string(question?.question) || 'AskUserQuestion', options,
-    multi: question?.multiSelect === true, progress: { index: index + 1, total: questions.length } }
+    multi: question?.multiSelect === true, progress: { index: 1, total: questions.length } }
 }
 
 function objects(value: unknown): JsonObject[] {
@@ -369,9 +384,9 @@ function request(context: Reduction, frame: JsonObject): void {
   const suggestions = objects(body.permission_suggestions)
   const summary = summaryInput(input)
   const base = requestBase(state, body, { id, name, input: summary.input })
-  const prompt = name === 'AskUserQuestion' ? questionPrompt(base, objects(input.questions), 0)
+  const prompt = name === 'AskUserQuestion' ? questionPrompt(base, objects(input.questions))
     : approvalPrompt(base, suggestions)
-  state.pending.set(mask(id), { requestId: id, prompt: mask(prompt), input, inputClipped: summary.clipped, suggestions, questionIndex: 0, answers: {} })
+  state.pending.set(mask(id), { requestId: id, prompt: mask(prompt), input, inputClipped: summary.clipped, suggestions })
   recordPrompt(context, prompt)
   events.push({ type: 'pending', prompt: mask(prompt) })
 }
@@ -552,8 +567,9 @@ type Answer = Extract<ClaudeCommand, { type: 'answer' }>
 function multiSelectAnswer(labels: string[]): string {
   return labels.map(label => label.includes(', ') || label.includes('"') ? JSON.stringify(label) : label).join(', ')
 }
+type ChoiceAnswer = Extract<Answer, { optionId: string } | { optionIds: string[] }>
 /** The answer string in option order; null for an unknown or repeated id, an empty free text, or `optionIds` on a single question. */
-function questionAnswer(held: HeldPrompt, question: JsonObject, command: Answer): string | null {
+function questionAnswer(held: HeldPrompt, question: JsonObject, command: ChoiceAnswer): string | null {
   const multi = held.prompt.kind === 'question' && held.prompt.multi === true
   const ids = 'optionIds' in command ? command.optionIds : [command.optionId]
   if (('optionIds' in command && !multi) || new Set(ids).size !== ids.length || !ids.every(id => held.prompt.options.some(option => option.id === id))) return null
@@ -562,26 +578,47 @@ function questionAnswer(held: HeldPrompt, question: JsonObject, command: Answer)
   if (!answers.length || answers.some(answer => !answer)) return null
   return multi ? multiSelectAnswer(answers) : answers[0]
 }
+/**
+ * One question's answer string from its form field: the chosen labels in option order, then the free text; a
+ * multiSelect joined as Claude joins it. Null for an unknown or repeated id, or a single question without exactly
+ * one option or text.
+ */
+function questionFormAnswer(question: JsonObject, field: FormFieldAnswer): string | null {
+  const options = objects(question.options)
+  const chosen = field.optionIds.map(id => /^option_\d+$/.test(id) ? string(options[Number(id.slice('option_'.length))]?.label) : '')
+  if (new Set(chosen).size !== chosen.length || chosen.some(label => !label)) return null
+  const values = [...options.map(option => string(option.label)).filter(label => chosen.includes(label)), ...(field.text?.trim() ? [field.text] : [])]
+  if (question.multiSelect !== true) return values.length === 1 ? values[0] : null
+  return values.length ? multiSelectAnswer(values) : null
+}
+/** Every question's answer string, keyed by question text, from one form answer; null unless every question gets exactly one valid entry. */
+function formAnswers(held: HeldPrompt, fields: FormFieldAnswer[]): Record<string, string> | null {
+  const questions = objects(held.input.questions)
+  if (fields.length !== questions.length || new Set(fields.map(field => field.fieldId)).size !== fields.length) return null
+  const answers: Record<string, string> = {}
+  for (const [index, question] of questions.entries()) {
+    const field = fields.find(entry => entry.fieldId === `field_${index}`)
+    const answer = field ? questionFormAnswer(question, field) : null
+    if (answer === null) return null
+    Object.defineProperty(answers, string(question.question), { value: answer, enumerable: true, configurable: true, writable: true })
+  }
+  return answers
+}
 function answerQuestion(context: Reduction, held: HeldPrompt, command: Answer): JsonObject | null {
-  const questions = objects(held.input.questions), question = questions[held.questionIndex]
-  if (!question) return null
-  const answer = questionAnswer(held, question, command)
-  if (answer === null) return null
+  const questions = objects(held.input.questions)
+  let answers: Record<string, string> | null
+  if (held.prompt.kind === 'question' && held.prompt.form) answers = 'fields' in command ? formAnswers(held, command.fields) : null
+  else if ('fields' in command || questions.length !== 1) answers = null
+  else {
+    const answer = questionAnswer(held, questions[0], command)
+    answers = answer === null ? null : { [string(questions[0].question)]: answer }
+  }
+  if (answers === null) return null
   item(context.events, { kind: 'approval_decision', id: `decision:${command.promptId}`, at: context.at,
     ...scope(held.prompt.threadId), requestId: command.promptId, decision: 'allow_once', decidedBy: 'person' })
   item(context.events, { kind: 'user_message', id: `answer:${command.promptId}`, at: context.at,
-    ...scope(held.prompt.threadId), text: answer })
-  held.answers = { ...held.answers, [string(question.question)]: answer }
-  held.questionIndex++
-  if (held.questionIndex < questions.length) {
-    context.state.pending.delete(command.promptId)
-    held.prompt = mask(questionPrompt({ ...held.prompt, id: `${held.requestId}:question:${held.questionIndex}` }, questions, held.questionIndex))
-    context.state.pending.set(held.prompt.id, held)
-    context.events.push({ type: 'pending', prompt: held.prompt })
-    recordPrompt(context, held.prompt)
-    return null
-  }
-  return { behavior: 'allow', updatedInput: { ...held.input, answers: held.answers } }
+    ...scope(held.prompt.threadId), text: questions.length > 1 ? Object.entries(answers).map(([question, answer]) => `${question}: ${answer}`).join('\n') : Object.values(answers)[0] })
+  return { behavior: 'allow', updatedInput: { ...held.input, answers } }
 }
 function answerApproval(context: Reduction, held: HeldPrompt, command: Answer): JsonObject | null {
   if (!('optionId' in command) || !held.prompt.options.some(option => option.id === command.optionId)) return null

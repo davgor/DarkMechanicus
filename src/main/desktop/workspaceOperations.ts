@@ -1,5 +1,6 @@
 /** Trusted operations exclusive to the project utility process. Each goes through the same Workspace store. */
 import { join } from 'node:path'
+import type { Capability } from '../../core/authz'
 import type { Ctx } from '../../core/context'
 import { DomainError, fail } from '../../core/errors'
 import type { Workspace } from '../../core/workspace'
@@ -140,7 +141,7 @@ function mailReadOperations(ctx: Context) {
 function grantOperations(workspace: Workspace, ctx: Context) {
   return {
     issueChatGrant: (input: Parameters<Workspace['issueGrant']>[0]) => workspace.issueGrant(input),
-    verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | null) {
+    verifyChatGrant(grantId: string, tokenHash: string, capability: Capability | null) {
       const context = ctx()
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)

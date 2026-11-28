@@ -1,9 +1,12 @@
 import { z } from 'zod'
+import { pendingPromptSchema } from '../../shared/agents/agentChat'
+import type { FormFieldAnswer } from './pendingPrompts'
 import { thinkingLevelSchema, type ChatItem } from '../../shared/agents/chat'
 import type { OmpCommand, OmpEvent, OmpState } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { ompTodoPhases } from './todoLists'
-import { ompAnswerPrompt, ompHoldPrompt } from './ompPrompts'
+import { askDesired, askDriveStep, askFrameMatches, askPromptForm, askSummary, checkboxField, parseAskForm, type AskField, type OmpAskDrive } from './ompAskForm'
+import { ompAnswerForm, ompAnswerPrompt, ompFormSummary, ompHoldPrompt } from './ompPrompts'
 import { liftToolImages, type ToolResultBlob } from './toolResultImages'
 import { threadClaim, type CommandResultEvent, type ThreadClaimEvent } from './translatorEvents'
 
@@ -44,6 +47,8 @@ export class OmpReducer {
   readonly events: OmpEvent[] = []
   readonly internalEvents: (ThreadClaimEvent | CommandResultEvent)[] = []
   readonly blobs: ToolResultBlob[] = []
+  /** Frames main answers at once: a submitted ask form's later requests (`ompAskForm.ts`). */
+  readonly outbound: ObjectValue[] = []
   constructor(readonly state: OmpState, readonly at: string) {}
 
   emit(event: OmpEvent): void { this.events.push(maskAgentChatSecretsDeep(event)) }
@@ -65,7 +70,27 @@ export class OmpReducer {
     if (prior && prior.status !== 'running' && update.status === 'running') return
     const item = this.toolItem(update, prior)
     this.state.tools.set(update.id, item)
+    this.askTool(update, item)
     if (update.name !== 'todo' || update.status === 'failed' || update.status === 'cancelled') this.emit({ type: 'item', item })
+  }
+  /**
+   * The main thread's `ask` tool call, parsed from its latest arguments until its first request is held; a form main
+   * cannot parse leaves OMP's own requests to today's cards. The call ending drops a form it never asked.
+   */
+  askTool(update: ToolUpdate, item: ToolItem): void {
+    if (update.status !== 'running') { this.endAskTool(update.id); return }
+    if (update.name === 'ask' && !item.threadId && !this.askHeld()) this.parseAsk(update.id, update.args)
+  }
+  endAskTool(toolCallId: string): void {
+    if (this.state.ask?.toolCallId === toolCallId) this.state.ask = null
+  }
+  /** A form already shown or answered keeps its fields until it ends. */
+  askHeld(): boolean { return !!(this.state.ask?.wireId || this.state.ask?.desired) }
+  parseAsk(toolCallId: string, args: unknown): void {
+    const html = object(args).html
+    if (typeof html !== 'string') return
+    const fields = parseAskForm(html)
+    this.state.ask = fields ? { toolCallId, fields, wireId: null, request: null, desired: null, position: 0, rounds: 0, awaitingOther: false } : null
   }
   toolItem(update: ToolUpdate, prior?: ToolItem): ToolItem {
     const previous = prior ?? { at: this.at, input: {}, resultSummary: null }
@@ -219,16 +244,66 @@ export class OmpReducer {
   pending(): void { this.emit({ type: 'pending', prompt: this.state.pending[0]?.prompt ?? null }) }
   ui(frame: ObjectValue): void {
     if (frame.method === 'cancel') {
+      if (this.state.ask?.wireId === frame.targetId) this.state.ask = null
       const previous = this.state.pending[0]
       this.state.pending = this.state.pending.filter(held => held.wireId !== frame.targetId)
       if (previous !== this.state.pending[0]) this.pending()
       return
     }
-    const held = ompHoldPrompt(frame, ![...this.state.threads.values()].some(thread => thread.state === 'running'))
+    if (['select', 'input', 'editor'].includes(string(frame.method)) && this.askRequest(frame)) return
+    const held = ompHoldPrompt(frame, this.attributed())
     if (!held || this.state.pending.some(pending => pending.wireId === held.wireId)) return
+    this.hold(held)
+  }
+  attributed(): boolean { return ![...this.state.threads.values()].some(thread => thread.state === 'running') }
+  hold(held: OmpState['pending'][number]): void {
     this.state.pending.push(held)
     this.recordPrompt(held)
     if (this.state.pending.length === 1) this.pending()
+  }
+  /**
+   * A request of an ask form: answered at once from a submitted form, held as the form's one prompt when it is the
+   * form's first question, or (a lone checkbox `select`) held as a one-field form. A request that does not match
+   * stops the form with a visible notice and is shown as its own card; nothing is ever sent the person did not choose.
+   */
+  askRequest(frame: ObjectValue): boolean {
+    const ask = this.state.ask
+    if (ask?.desired) return this.driveRequest(ask, frame)
+    if (ask && !ask.wireId) {
+      if (askFrameMatches(ask.fields[0], frame, false) && this.holdForm(ask.fields, frame, ask.toolCallId)) return true
+      this.state.ask = null
+      this.error("The agent's ask form could not be shown as one form; its questions are shown one at a time.")
+    }
+    return this.loneCheckbox(frame)
+  }
+  /** The next request of a submitted form, answered at once; one that does not match stops the form. */
+  driveRequest(ask: OmpAskDrive, frame: ObjectValue): boolean {
+    const step = askDriveStep(ask, frame)
+    if ('frame' in step) {
+      this.outbound.push(step.frame)
+      if (step.done) this.state.ask = null
+      return true
+    }
+    this.state.ask = null
+    this.error(`${step.diverged} Its remaining questions are shown one at a time; nothing more was answered for you.`)
+    return this.loneCheckbox(frame)
+  }
+  loneCheckbox(frame: ObjectValue): boolean {
+    const field = this.state.ask ? null : checkboxField(frame)
+    return field !== null && this.holdForm([field], frame, null)
+  }
+  /** Holds the form prompt for `frame`; false when it is no prompt the contract carries (too many fields or options). */
+  holdForm(fields: AskField[], frame: ObjectValue, toolCallId: string | null): boolean {
+    const wireId = string(frame.id)
+    const title = fields.length === 1 ? fields[0].question : `Answer ${fields.length} questions`
+    const prompt = pendingPromptSchema.safeParse({
+      id: maskAgentChatSecretsDeep(wireId), title: maskAgentChatSecretsDeep(title), detail: '', threadId: null, callsign: null,
+      arbitration: { state: 'off', reason: null }, attributed: this.attributed(), kind: 'question', options: [], form: askPromptForm(fields, maskAgentChatSecretsDeep)
+    })
+    if (!wireId || !prompt.success || this.state.pending.some(pending => pending.wireId === wireId)) return false
+    this.state.ask = { toolCallId, fields, wireId, request: frame, desired: null, position: 0, rounds: 0, awaitingOther: false }
+    this.hold({ wireId, method: string(frame.method), secret: false, options: {}, fields: [], prompt: prompt.data })
+    return true
   }
   recordPrompt(held: OmpState['pending'][number]): void {
     this.emit({ type: 'item', item: { kind: 'approval_request', id: `omp:approval:${held.prompt.id}`, at: this.at,
@@ -283,6 +358,7 @@ export class OmpReducer {
   }
   cancelMain(): void {
     for (const [id, item] of this.state.tools) if (item.status === 'running' && !item.threadId) this.tool({ id, name: item.name, status: 'cancelled' })
+    this.state.ask = null
     if (this.state.pending.length) { this.state.pending = []; this.pending() }
   }
   promptResult(frame: ObjectValue): void {
@@ -302,27 +378,51 @@ export class OmpReducer {
     if (handler) this[handler](frame)
     else this.state.skipped++
   }
-  recordAnswer(held: OmpState['pending'][number], command: Extract<OmpCommand, { type: 'answer' }>): void {
-    const ids = 'optionIds' in command ? command.optionIds : [command.optionId]
+  /** The person's decision and, for a question that is not secret, what they answered as a user message. */
+  recordAnswer(held: OmpState['pending'][number], decision: 'allow_once' | 'allow_chat' | 'deny', text: string): void {
     this.emit({ type: 'item', item: { kind: 'approval_decision', id: `omp:decision:${held.prompt.id}`, at: this.at,
-      ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), requestId: held.prompt.id,
-      decision: held.prompt.kind === 'question' ? 'allow_once' : ids[0] as 'allow_once' | 'allow_chat' | 'deny', decidedBy: 'person' } })
+      ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), requestId: held.prompt.id, decision, decidedBy: 'person' } })
     if (held.prompt.kind === 'question' && !held.secret) this.emit({ type: 'item', item: {
-      kind: 'user_message', id: `omp:answer:${held.prompt.id}`, at: this.at,
-      ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}),
-      text: held.prompt.options.filter(option => ids.includes(option.id)).map(option => option.id === 'text' ? command.text! : option.label).join(', ')
+      kind: 'user_message', id: `omp:answer:${held.prompt.id}`, at: this.at, ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), text
     } })
   }
   answer(command: Extract<OmpCommand, { type: 'answer' }>): ObjectValue | null {
     const held = this.state.pending[0]
     if (!held || held.prompt.id !== command.promptId) return null
-    const answer = ompAnswerPrompt(held, 'optionIds' in command ? command.optionIds : command.optionId, command.text)
-    if (!answer || (!answer.next && !answer.frame)) return null
-    this.recordAnswer(held, command)
-    if (answer.next) { this.state.pending[0] = answer.next; this.recordPrompt(answer.next); this.pending(); return null }
+    const frame = 'fields' in command ? this.answerForm(held, command.fields) : this.answerChoice(held, command)
+    if (!frame) return null
     this.state.pending.shift()
     this.pending()
-    return answer.frame ?? null
+    return frame
+  }
+  answerChoice(held: OmpState['pending'][number], command: Exclude<Extract<OmpCommand, { type: 'answer' }>, { fields: unknown }>): ObjectValue | null {
+    const ids = 'optionIds' in command ? command.optionIds : [command.optionId]
+    const answer = ompAnswerPrompt(held, 'optionIds' in command ? command.optionIds : command.optionId, command.text)
+    if (!answer) return null
+    this.recordAnswer(held, held.prompt.kind === 'question' ? 'allow_once' : ids[0] as 'allow_once' | 'allow_chat' | 'deny',
+      held.prompt.options.filter(option => ids.includes(option.id)).map(option => option.id === 'text' ? command.text! : option.label).join(', '))
+    return answer.frame
+  }
+  /**
+   * Every field at once. An ask tool form answers its first request now and the rest as OMP sends them
+   * (`askRequest`); an `ask` or `form` request is answered by one native frame.
+   */
+  answerForm(held: OmpState['pending'][number], fields: FormFieldAnswer[]): ObjectValue | null {
+    const ask = this.state.ask
+    if (ask && ask.wireId === held.wireId && !ask.desired && ask.request) {
+      const desired = askDesired(ask.fields, fields, maskAgentChatSecretsDeep)
+      if (!desired) return null
+      ask.desired = desired
+      const step = askDriveStep(ask, ask.request)
+      if (!('frame' in step)) return null
+      if (step.done) this.state.ask = null
+      this.recordAnswer(held, 'allow_once', maskAgentChatSecretsDeep(askSummary(ask.fields, desired)))
+      return step.frame
+    }
+    const answer = ompAnswerForm(held, fields)
+    if (!answer) return null
+    this.recordAnswer(held, 'allow_once', maskAgentChatSecretsDeep(ompFormSummary(held, fields)))
+    return answer.frame
   }
   command(command: OmpCommand): ObjectValue | null {
     switch (command.type) {

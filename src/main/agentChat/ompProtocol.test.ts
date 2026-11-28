@@ -74,10 +74,11 @@ const scenarios: Record<string, ChatItem[]> = {
     { kind: 'approval_decision', id: 'omp:decision:ui_T1_question', at, requestId: 'ui_T1_question', decision: 'allow_once', decidedBy: 'person' },
     textItem('SQLite')
   ],
-  question_multi: ['', ':1'].flatMap((suffix, index) => [
-    { kind: 'approval_request', id: `omp:approval:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, category: 'other', tool: 'ask', summary: ['Which databases?', 'Which region?'][index] } as ChatItem,
-    { kind: 'approval_decision', id: `omp:decision:ui_T1_question_multi${suffix}`, at, requestId: `ui_T1_question_multi${suffix}`, decision: 'allow_once', decidedBy: 'person' } as ChatItem
-  ]).concat(textItem('answers: [{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]')),
+  question_multi: [
+    { kind: 'approval_request', id: 'omp:approval:ui_T1_question_multi', at, requestId: 'ui_T1_question_multi', category: 'other', tool: 'ask', summary: 'Answer 2 questions' },
+    { kind: 'approval_decision', id: 'omp:decision:ui_T1_question_multi', at, requestId: 'ui_T1_question_multi', decision: 'allow_once', decidedBy: 'person' },
+    textItem('answers: [{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]')
+  ],
   error: [{ kind: 'error', id: 'omp:error:1', at, message: 'Fixture provider failure' }],
   interrupt: [textItem('Partial'), { kind: 'turn_stopped', id: 'omp:stopped:1', at }],
   queued: [textItem('Hello world')],
@@ -100,9 +101,9 @@ function encodeFixtureResponse(h: { send(command: OmpCommand): string[] }, next?
   if (next?.type === 'follow_up') return h.send({ type: 'send', id: String(next.id), text: String(next.message) })
   return []
 }
-/** The person's answers to a golden's prompt: the multi golden answers two questions, the first with several options. */
+/** The person's answers to a golden's prompt: the multi golden answers both questions at once, the first with several options. */
 function fixtureAnswers(name: string, promptId: string): AgentChatAnswer[] {
-  if (name === 'question_multi') return [{ promptId, optionIds: ['option_0', 'option_1'] }, { promptId: `${promptId}:1`, optionId: 'option_0' }]
+  if (name === 'question_multi') return [{ promptId, fields: [{ fieldId: 'field_0', optionIds: ['option_0', 'option_1'] }, { fieldId: 'field_1', optionIds: ['option_0'] }] }]
   return [{ promptId, optionId: name === 'approval' ? 'allow_once' : name === 'approval_chat' ? 'allow_chat' : 'option_0' }]
 }
 function replayGolden(name: string) {
@@ -127,7 +128,8 @@ function expectCommittedDeltas(events: OmpEvent[]): void {
 
 describe('OMP golden protocol', () => {
   it('enumerates every golden pair, including both startup variants', () => {
-    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim', 'image_in', 'image_result'].sort())
+    // The ask tool goldens (`ask_multi_q*`, OMP 18.20.2) are replayed by ompPrompts.test.ts, which answers their form.
+    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim', 'image_in', 'image_result', 'ask_multi_q', 'ask_multi_q_changed'].sort())
   })
   for (const name of ['init', 'init_resume']) it(`bootstraps ${name} once with exact commands and todos`, () => {
     const h = harness(); const output = lines(name, 'out')
@@ -145,7 +147,7 @@ describe('OMP golden protocol', () => {
     if (name === 'question' || name === 'question_multi') expect(h.items().filter(item => item.kind === 'user_message')).toEqual([
       { kind: 'user_message', id: first.id, at, text: first.message },
       ...(name === 'question' ? [{ kind: 'user_message', id: 'omp:answer:ui_T1_question', at, text: 'SQLite' }]
-        : [{ kind: 'user_message', id: 'omp:answer:ui_T1_question_multi', at, text: 'SQLite, Postgres' }, { kind: 'user_message', id: 'omp:answer:ui_T1_question_multi:1', at, text: 'EU' }])
+        : [{ kind: 'user_message', id: 'omp:answer:ui_T1_question_multi', at, text: 'Which databases?: SQLite, Postgres\nWhich region?: EU' }])
     ])
     else expect(h.items().filter(item => item.kind === 'user_message')).toEqual([{ kind: 'user_message', id: first.id, at, text: first.message }, ...(name === 'queued' ? [{ kind: 'user_message', id: 'req_T1_followup', at, text: 'Second turn' }] : [])])
     expect(h.state.skipped).toBe(0)
@@ -188,14 +190,14 @@ describe('OMP prompts and security', () => {
     expect(h.state.pending[0].prompt).toEqual({ id: 'ui', title: 'Approve?', detail: '', threadId: null, callsign: null, arbitration: { state: 'off', reason: null }, attributed: false, kind: 'approval', options: [{ id: 'allow_once', label: 'Approve Once' }, { id: 'allow_chat', label: 'Approve bash for this session' }, { id: 'deny', label: 'Deny' }] })
     expect(h.send({ type: 'answer', id: 'answer', promptId: 'ui', optionId: 'permanent' })).toEqual([])
   })
-  it('answers multiple ask questions in their original order', () => {
+  it('answers multiple ask questions at once, in their original order', () => {
     const h = initialized()
     h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [{ id: 'one', question: 'One?', options: [{ label: 'A' }] }, { id: 'two', question: 'Two?', options: [] }] })
     expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionId: 'option_0' })).toEqual([])
-    expect(h.state.pending[0].prompt.id).toBe('ask:1')
-    expect(h.send({ type: 'answer', id: 'b', promptId: 'ask:1', optionId: 'text', text: 'B' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"one","selectedOptions":["A"]},{"id":"two","selectedOptions":[],"customInput":"B"}]}'])
-    expect(h.items().map(item => item.kind)).toEqual(['approval_request', 'approval_decision', 'user_message', 'approval_request', 'approval_decision', 'user_message'])
-    expect(h.items().filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['A', 'B'])
+    expect(h.send({ type: 'answer', id: 'b', promptId: 'ask', fields: [{ fieldId: 'field_1', optionIds: [], text: 'B' }, { fieldId: 'field_0', optionIds: ['option_0'] }] }))
+      .toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"one","selectedOptions":["A"]},{"id":"two","selectedOptions":[],"customInput":"B"}]}'])
+    expect(h.items().map(item => item.kind)).toEqual(['approval_request', 'approval_decision', 'user_message'])
+    expect(h.items().filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['One?: A\nTwo?: B'])
   })
 })
 
@@ -291,36 +293,34 @@ describe('OMP framing and streaming invariants', () => {
 })
 
 describe('OMP amended edge contracts', () => {
-  it('collects form fields, preserving numeric values and multi-choice values', () => {
+  it('collects every form field at once, preserving numeric values and multi-choice values with Other text', () => {
     const h = initialized()
     h.feed({ type: 'extension_ui_request', id: 'form', method: 'form', form: { sections: [{ blocks: [
       { kind: 'text', name: 'count', question: 'Count?', type: 'number' },
-      { kind: 'choice', name: 'letters', question: 'Letters?', multi: true, options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C', disabled: true }] }
+      { kind: 'choice', name: 'letters', question: 'Letters?', multi: true, other: true, options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C', disabled: true }] }
     ] }] } })
+    expect(h.state.pending[0].prompt).toMatchObject({ options: [], form: { fields: [{ id: 'field_0', text: 'only', options: [] }, { id: 'field_1', multi: true, text: 'other', options: [{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }] }] } })
     expect(h.send({ type: 'answer', id: 'one', promptId: 'form', optionId: 'text', text: '3' })).toEqual([])
-    expect(h.state.pending[0].prompt).toMatchObject({ options: [{ id: 'option_0', label: 'A' }, { id: 'option_1', label: 'B' }, { id: 'text', label: 'Other' }], multi: true, progress: { index: 2, total: 2 } })
-    expect(h.send({ type: 'answer', id: 'two', promptId: 'form:1', optionIds: ['option_1', 'option_0', 'text'], text: 'z' })).toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b","z"]}}'])
+    expect(h.send({ type: 'answer', id: 'two', promptId: 'form', fields: [{ fieldId: 'field_0', optionIds: [], text: '3' }, { fieldId: 'field_1', optionIds: ['option_1', 'option_0'], text: 'z' }] }))
+      .toEqual(['{"type":"extension_ui_response","id":"form","data":{"count":3,"letters":["a","b","z"]}}'])
   })
-  it('answers a multi ask with selectedOptions in option order and refuses unknown, repeated or text-less ids', () => {
+  it('answers a multi ask in one frame with selectedOptions in option order and refuses unknown, repeated or partial answers', () => {
     const h = initialized()
     h.feed({ type: 'extension_ui_request', id: 'ask', method: 'ask', questions: [
       { id: 'q', question: 'Choose', multi: true, options: ['A', 'B', 'C', 'D'].map(label => ({ label, description: `Letter ${label}` })) },
       { id: 'r', question: 'One', options: [{ label: 'X' }, { label: 'Y' }] }
     ] })
-    expect(h.state.pending[0].prompt).toMatchObject({ multi: true, progress: { index: 1, total: 2 }, options: [{ id: 'option_0', label: 'A', description: 'Letter A' }, { id: 'option_1' }, { id: 'option_2' }, { id: 'option_3' }, { id: 'text' }] })
-    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0'], ['option_0', 'text']]) {
-      expect(h.send({ type: 'answer', id: 'bad', promptId: 'ask', optionIds })).toEqual([])
+    expect(h.state.pending[0].prompt).toMatchObject({ options: [], form: { fields: [{ multi: true, text: 'other', options: [{ id: 'option_0', label: 'A', description: 'Letter A' }, { id: 'option_1' }, { id: 'option_2' }, { id: 'option_3' }] }, { multi: false }] } })
+    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0']]) {
+      expect(h.send({ type: 'answer', id: 'bad', promptId: 'ask', fields: [{ fieldId: 'field_0', optionIds }, { fieldId: 'field_1', optionIds: ['option_0'] }] })).toEqual([])
       expect(h.state.pending[0].prompt.id).toBe('ask')
     }
-    // A JSON list typed as free text is free text now, never a hidden selection.
-    const typed = encodeOmpCommand({ type: 'answer', id: 't', promptId: 'ask', optionId: 'text', text: '["A","B"]' }, h.state, at).state
-    expect(typed.pending[0].answers).toEqual([{ id: 'q', selectedOptions: [], customInput: '["A","B"]' }])
-    expect(h.send({ type: 'answer', id: 'a', promptId: 'ask', optionIds: ['option_2', 'option_0'] })).toEqual([])
-    expect(h.items().filter(item => item.kind === 'user_message').at(-1)).toMatchObject({ text: 'A, C' })
-    expect(h.state.pending[0].prompt).toMatchObject({ id: 'ask:1', multi: false, progress: { index: 2, total: 2 } })
-    expect(h.send({ type: 'answer', id: 'b', promptId: 'ask:1', optionIds: ['option_0', 'option_1'] })).toEqual([])
-    expect(h.state.pending[0].prompt.id).toBe('ask:1')
-    expect(h.send({ type: 'answer', id: 'c', promptId: 'ask:1', optionId: 'option_1' })).toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","C"]},{"id":"r","selectedOptions":["Y"]}]}'])
+    expect(h.send({ type: 'answer', id: 'partial', promptId: 'ask', fields: [{ fieldId: 'field_0', optionIds: ['option_0'] }] })).toEqual([])
+    expect(h.send({ type: 'answer', id: 'old', promptId: 'ask', optionIds: ['option_0'] })).toEqual([])
+    expect(h.send({ type: 'answer', id: 'c', promptId: 'ask', fields: [{ fieldId: 'field_0', optionIds: ['option_2', 'option_0'], text: '["A","B"]' }, { fieldId: 'field_1', optionIds: ['option_1'] }] }))
+      .toEqual(['{"type":"extension_ui_response","id":"ask","answers":[{"id":"q","selectedOptions":["A","C"],"customInput":"[\\"A\\",\\"B\\"]"},{"id":"r","selectedOptions":["Y"]}]}'])
+    expect(h.items().filter(item => item.kind === 'user_message').at(-1)).toMatchObject({ text: 'Choose: A, C, ["A","B"]\nOne: Y' })
+    expect(h.state.pending).toEqual([])
   })
   it('scopes successful todo execution through observed tail correlation and retains prior todos on invalid replacements', () => {
     const h = initialized()

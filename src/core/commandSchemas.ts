@@ -2,6 +2,7 @@ import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
 import { CHAT_ROLES } from '../shared/agents/chat'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
+import { BROWSER_ARGS } from '../shared/browser/browserControl'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
@@ -227,6 +228,13 @@ export const COMMAND_SCHEMAS = {
   getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,
   recoverTooling: toolingRecoveryInputSchema,
+  browserStatus: BROWSER_ARGS.browser_status,
+  browserNavigate: BROWSER_ARGS.browser_navigate,
+  browserClick: BROWSER_ARGS.browser_click,
+  browserType: BROWSER_ARGS.browser_type,
+  browserPress: BROWSER_ARGS.browser_press,
+  browserRead: BROWSER_ARGS.browser_read,
+  browserScreenshot: BROWSER_ARGS.browser_screenshot,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   standardizeProjectWork: z.strictObject({
     expectedRevision: z.number().int().positive(),

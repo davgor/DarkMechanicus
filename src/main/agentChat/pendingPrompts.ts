@@ -1,7 +1,11 @@
 import { DomainError } from '../../core/errors'
-import type { PendingPrompt } from '../../shared/agents/agentChat'
+import type { AgentChatAnswer, PendingPrompt } from '../../shared/agents/agentChat'
 import type { ChatRef } from '../agents/chatStore'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
+
+/** A form prompt's fields, and one field's answer of the `fields` answer that settles it (both translators). */
+export type PromptForm = NonNullable<Extract<PendingPrompt, { kind: 'question' }>['form']>
+export type FormFieldAnswer = Extract<AgentChatAnswer, { fields: unknown }>['fields'][number]
 
 export type ArbiterOutcome = { decision: 'allow_once' | 'deny' | 'escalate'; reason: string }
 /**

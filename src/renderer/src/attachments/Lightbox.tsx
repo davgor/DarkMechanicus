@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
+import { useOverlayOpen } from '../components/overlays'
 import './attachments.css'
 
 /** What the shared image views need of an image: an id, the words that name it, its size, and whether its bytes are gone. */
@@ -114,6 +115,7 @@ export function Lightbox<T extends LightboxItem>({ items, index, srcOf, badge, b
   const count = items.length
   useFocusOnOpen(closeRef)
   useLightboxKeys(count, index, onIndex, onClose)
+  useOverlayOpen()
   const item = items[index]
   if (item === undefined) {
     return <></>

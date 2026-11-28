@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createBrowserClient, type BrowserClient } from './desktop/browserClient'
 import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -71,6 +72,8 @@ export interface OpenWorkspaceOptions {
   grantToken?: string
   /** Pure Node authenticated naming transport; defaults to the hosted terminal environment. */
   desktopClient?: DesktopClient
+  /** Pure Node authenticated browser transport (`DM_BROWSER_PIPE`); defaults to the hosted terminal environment. */
+  browserClient?: BrowserClient
   pid?: number | null
   clock?: Clock
   ids?: IdGenerator
@@ -173,11 +176,14 @@ function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
   })
 }
 
+/** The hosted terminal environment, with this CLI session's grant as the pipes' credential. */
+function controlEnv(options: OpenWorkspaceOptions): Readonly<Record<string, string | undefined>> {
+  return options.grantToken === undefined ? process.env : { ...process.env, DM_SESSION_TOKEN: options.grantToken }
+}
+
 /** Exported for tests that need the core itself (e.g. `gitFor`); everything else opens a `Workspace`. */
 function workspaceDesktopClient(options: OpenWorkspaceOptions): DesktopClient {
-  return options.desktopClient ?? createDesktopClient({
-    env: options.grantToken === undefined ? process.env : { ...process.env, DM_SESSION_TOKEN: options.grantToken }
-  })
+  return options.desktopClient ?? createDesktopClient({ env: controlEnv(options) })
 }
 
 /**
@@ -211,6 +217,14 @@ export class RepositoryWorkspace implements WorkspaceCore {
   get desktopClient(): DesktopClient {
     this.builtDesktopClient ??= workspaceDesktopClient(this.options)
     return this.builtDesktopClient
+  }
+
+  /** Built on first use: only the `browser_*` commands reach the browser pipe. */
+  private builtBrowserClient: BrowserClient | null = null
+
+  get browserClient(): BrowserClient {
+    this.builtBrowserClient ??= this.options.browserClient ?? createBrowserClient({ env: controlEnv(this.options) })
+    return this.builtBrowserClient
   }
 
   readonly repoRoot: string

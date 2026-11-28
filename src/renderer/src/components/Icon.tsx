@@ -10,6 +10,12 @@ const ICON_PATHS = {
   'chevron-right': 'M6 4l4 4-4 4',
   folder: 'M2 4.5h4l1.5 1.5H14v6.5H2z',
   agent: 'M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5',
+  /** A robot head: the agent's own browser tab. */
+  bot: 'M3.5 6h9v7h-9zM8 6V3.5M8 3.5h.01M6 9h.01M10 9h.01M6.5 11h3M2 9v2M14 9v2',
+  /** A globe: the in-app browser. */
+  globe: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM2 8h12M8 2c-2 2-2 10 0 12M8 2c2 2 2 10 0 12',
+  'arrow-left': 'M13 8H3M7 4L3 8l4 4',
+  'arrow-right': 'M3 8h10M9 4l4 4-4 4',
   plus: 'M8 3v10M3 8h10',
   warning: 'M8 2.5l6 11H2zM8 6.5v3M8 11.5h.01',
   bell: 'M3 11.5h10l-1.5-2V7a3.5 3.5 0 0 0-7 0v2.5zM6.5 13.5a1.7 1.7 0 0 0 3 0',
@@ -30,6 +36,8 @@ const ICON_PATHS = {
   lock: 'M4 7.5h8v6H4zM5.5 7.5v-2a2.5 2.5 0 0 1 5 0v2',
   /** A framed picture: a model that reads images. */
   image: 'M2.5 3.5h11v9h-11zM2.5 10.5l3-3 3 3 2-2 3 3M10.5 6.5h.01',
+  /** A camera: the Browser panel's capture of the agent tab. */
+  camera: 'M2 5h3l1.25-1.5h3.5L11 5h3v8H2zM8 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   /** A bar chart: the Metrics dashboard. */
   chart: 'M2.5 13.5h11M4.5 11V8.5M8 11V4M11.5 11V6.5',
   /** A gear (eight closed teeth round a hub, not loose rays that read as a sun): the app Settings screen. */

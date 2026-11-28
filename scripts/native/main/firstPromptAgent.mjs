@@ -29,6 +29,7 @@ async function infer(prompt) {
   const env = { ...process.env }
   delete env.DM_SESSION_TOKEN
   delete env.DM_DESKTOP_PIPE
+  delete env.DM_BROWSER_PIPE
   delete env.ELECTRON_RUN_AS_NODE
   const args = ['-p', '--model', process.env.DM515_MODEL, '--thinking', 'minimal', '--no-tools', '--no-session', '--no-title', '--no-extensions', '--no-skills', '--no-rules', '--no-context-files', '--no-lsp', '--max-time', '90', '--max-cost', '1', '--system-prompt', system, prompt]
   report({ event: 'model-request', model: process.env.DM515_MODEL, prompt, instructionsPath })

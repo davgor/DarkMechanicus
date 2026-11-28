@@ -4,6 +4,7 @@ import { AgentTree } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentStatus, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
 import { chatAgentNodes } from '../agentTree/chatAgentNodes'
 import type { RevealThread } from '../agents/revealThread'
+import { browserRailTab } from '../browser/BrowserPanel'
 import { RightRail } from '../components/RightRail'
 import { useRailState, type RailStateHandle } from '../components/useRailState'
 import { useNow } from '../epic/clock'
@@ -74,8 +75,11 @@ export function useThreadReveal(state: AgentChatState, landing: string | null | 
   return { reveal, show }
 }
 
-/** The rail beside an ordinary chat: its Agents tab lists the chat and the subagents it started. */
-export function ChatAgentsRail({ chatId, chat, agentLabel, state, rail, selected, select }: {
+/** The rail beside an ordinary chat: its Agents tab lists the chat and the subagents it started; its Browser tab shows the chat's browser. */
+export function ChatAgentsRail({ folder, folderKey, chatId, chat, agentLabel, state, rail, selected, select }: {
+  folder: string | null
+  /** The folder's attachment key, the host of the chat's image addresses (the Browser camera's thumbnail). */
+  folderKey: string | null
   chatId: string
   chat: RailChat
   agentLabel: string
@@ -91,5 +95,6 @@ export function ChatAgentsRail({ chatId, chat, agentLabel, state, rail, selected
     <AgentTree tree={tree} selectedId={selected} now={now} label="Chat agent tree"
       onSelect={(id) => { if (id !== rootId(chatId)) select(id) }} />
   )
-  return <RightRail label="Chat agents" rail={rail} tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }]} />
+  return <RightRail label="Chat agents" rail={rail}
+    tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }, browserRailTab({ folder, folderKey, chatId })]} />
 }

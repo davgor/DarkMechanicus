@@ -1,0 +1,6 @@
+/* The site prompt's origin reads as data, never as a link: plain monospace text the person checks before allowing. */
+.origin-prompt-origin {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
