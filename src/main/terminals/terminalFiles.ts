@@ -6,8 +6,9 @@
  *
  * An OMP chat whose grant is bound to its mailbox also gets, per launch, the private descriptor its Skitarii mail client
  * reads (`resources/skitarii/extension/dmClient.ts`): `omp/<chat id>/dm-client/<generation>.json`, inside the chat's
- * own OMP folder, so deleting the chat removes it. It is written after the grant is issued and before the spawn, removed
- * when that launch ends, and a new launch removes any a crash left behind.
+ * own OMP folder, so deleting the chat removes it. Terminal and GUI launches choose it by one rule (`writeLaunchDmClient`):
+ * it is written after the grant is issued and before the spawn, removed when that launch ends, and a new launch removes
+ * any a crash left behind.
  */
 import { readdir, rm } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
@@ -18,6 +19,7 @@ import {
 } from '../../../resources/skitarii/extension/dmClient'
 import { chatIdSchema, type ChatRole, type DarkMechanicusCli } from '../../shared/agents/chat'
 import type { ReachTarget } from '../agents/chatReach'
+import type { AgentView } from '../../shared/desktop/api'
 import { cliInstructions, skitariiMailGuidance } from '../agents/cliInstructions'
 import type { ConversationTarget } from '../agents/conversationMessage'
 import { transferGuidance } from '../../mcp/transferKickoff'
@@ -302,4 +304,48 @@ export async function writeWorldMailDescriptor(options: DmClientOptions & { reac
 /** Removes a launch's descriptor once it has ended; one already gone is fine. */
 export async function removeDmClientDescriptor(path: string): Promise<void> {
   await rm(path, { force: true })
+}
+
+/** What a launch's descriptor is chosen from; a terminal and a GUI launch pass the same facts. */
+export interface LaunchDmClientOptions {
+  userData: string
+  platform: NodeJS.Platform
+  kind: AgentView['kind']
+  chatId: string
+  /** The chat record's folder: null for a project-less chat. */
+  chatFolder: string | null
+  /** The launch folder: `resolveLaunchFolder`'s path, or a project-less chat's scratch folder. */
+  folder: string
+  /** The launch it is for, which its grants are bound to. */
+  generation: string
+  /** The issued invocation; the descriptor never holds its grant. */
+  cli: DarkMechanicusCli
+  /** The mailbox the grant was bound to; null when it has none. */
+  endpointId: string | null
+  /** The folders a world or project-less launch reaches; undefined for a plain project launch. */
+  reach: readonly ReachTarget[] | undefined
+  cultRole?: 'magos' | 'acolyte'
+}
+
+/** Whether the launch has a mailbox, so its instructions name the mail tools: an OMP launch that is not project-less. */
+export function launchHasMailbox(kind: AgentView['kind'], chatFolder: string | null, reach: readonly ReachTarget[] | undefined): boolean {
+  return kind === 'omp' && (reach === undefined || chatFolder !== null)
+}
+
+/**
+ * The one descriptor rule of every OMP launch: a world launch (a tracked chat with reach) gets the world-mail
+ * descriptor; a grant bound to a mailbox gets the full DM client; no mailbox but a desktop pipe gets the recovery-only
+ * descriptor; otherwise none. Returns the written path, or null when the launch gets none.
+ */
+export async function writeLaunchDmClient(options: LaunchDmClientOptions): Promise<string | null> {
+  const { userData, platform, chatId, folder, generation, cli } = options
+  if (options.kind !== 'omp') return null
+  if (options.chatFolder !== null && options.reach !== undefined) {
+    return writeWorldMailDescriptor({ userData, chatId, generation, folder, cli, platform, reach: options.reach })
+  }
+  const address = cli.env['DM_DESKTOP_PIPE']
+  if (options.endpointId === null) {
+    return address === undefined ? null : writeRecoveryClientDescriptor({ userData, chatId, generation, address })
+  }
+  return writeDmClientDescriptor({ userData, chatId, generation, folder, cli, platform, ...(options.cultRole === undefined ? {} : { cultRole: options.cultRole }) })
 }

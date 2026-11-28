@@ -33,6 +33,7 @@ import type * as Shared from '../../shared/domain/agentMail'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 import { dmClientDescriptorPath, writeDmClientDescriptor } from './terminalFiles'
+import { agentChatRig } from '../agentChat/__mocks__/agentChatRig'
 
 const TOKEN = 'grant-token-7f3a'
 const CHAT = 'ch_mail'
@@ -532,6 +533,44 @@ describe('native browser route isolation', () => {
     const result = await createDmClient(realDeps(chatEnv({ DM_BROWSER_PIPE: 'browser-address' }))).run(command, {})
     expect(result.ok).toBe(true)
     if (result.ok) expect((result.data as Echo).env).not.toHaveProperty('DM_BROWSER_PIPE')
+  })
+})
+
+describe('native route isolation over a descriptor the GUI launch wrote (DM-1118)', () => {
+  it('gives browser_status only the browser pipe, name_chat only the desktop pipe, and a mail call neither', async () => {
+    const r = agentChatRig('omp')
+    try {
+      const bin = join(r.root, 'out', 'main')
+      mkdirSync(bin, { recursive: true })
+      writeFileSync(join(bin, 'cli.js'), FIXTURE_CLI)
+      const issue = r.deps.issueChatCli, start = r.deps.startProcess!, launches: NodeJS.ProcessEnv[] = []
+      r.deps.issueChatCli = async (target, grant, chat) => {
+        const issued = await issue(target, grant, chat)
+        return { ...issued, endpointId: 'me_gui', cli: { ...issued.cli, env: { ...issued.cli.env, DM_DESKTOP_PIPE: 'desktop-address', DM_BROWSER_PIPE: 'browser-address' } } }
+      }
+      r.deps.startProcess = spec => { launches.push(spec.env ?? {}); return start(spec) }
+      await r.sessions.start(r.newChat())
+      // The GUI chat's own process environment, as OMP and so the extension's client see it.
+      const env = launches[0]!
+      expect(env[DM_CLIENT_DESCRIPTOR_ENV]).toMatch(/[\\/]dm-client[\\/][^\\/]+\.json$/)
+      const browser = await createDmClient(realDeps(env)).run('browser_status', {})
+      const naming = await createDmClient(realDeps(env)).run('name_chat', { title: 'GUI launch' })
+      expect([browser.ok, naming.ok]).toEqual([true, true])
+      if (!browser.ok || !naming.ok) return
+      const [browserEnv, namingEnv] = [(browser.data as Echo).env, (naming.data as Echo).env]
+      expect(browserEnv['DM_BROWSER_PIPE']).toBe('browser-address')
+      expect(browserEnv).not.toHaveProperty('DM_DESKTOP_PIPE')
+      expect(namingEnv['DM_DESKTOP_PIPE']).toBe('desktop-address')
+      expect(namingEnv).not.toHaveProperty('DM_BROWSER_PIPE')
+      const child = fakeChild(JSON.stringify({ ok: true, data: { endpointId: 'me_gui', name: 'GUI', role: 'worker', boundAt: '2026-11-28T00:00:00.000Z' } }))
+      const spawn = vi.fn(() => child)
+      expect(await createDmClient({ ...realDeps(env), spawn }).call('identity', {})).toMatchObject({ ok: true })
+      const mailEnv = (spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }])[2].env
+      expect(mailEnv).not.toHaveProperty('DM_DESKTOP_PIPE')
+      expect(mailEnv).not.toHaveProperty('DM_BROWSER_PIPE')
+    } finally {
+      await r.cleanup()
+    }
   })
 })
 

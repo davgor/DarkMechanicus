@@ -7,6 +7,8 @@ import { removeScratch } from '../../test/removeScratch'
 import { createChatStore, type ChatRef, type ChatStore, type NewChat } from '../agents/chatStore'
 import { agentChatRig } from './__mocks__/agentChatRig'
 import { restartMarkerHook, resumeAfterRestart, takeRestartMarker, writeRestartMarker } from './restartResume'
+import { DM_CLIENT_DESCRIPTOR_ENV, parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
+import { dmClientDescriptorPath } from '../terminals/terminalFiles'
 
 const NOW = Date.parse('2026-11-26T05:00:00.000Z')
 const TEXT = '[App restarted after an update from v0.83.0 to v0.84.0: resume your run from get_run]'
@@ -246,6 +248,33 @@ for (const kind of ['claude', 'omp'] as const) describe(`restart resume over the
     expect(r.store.getChat(magos)!.sessionId).toBe(session)
     expect(r.store.readTranscript(magos)!.items.filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['[slow]', TEXT])
   })
+})
+
+it('the resumed omp GUI Magos launches with its DM client descriptor in its env and on disk, bound to its grant’s generation (DM-1118)', async () => {
+  const r = agentChatRig('omp')
+  rigs.push(r)
+  const issue = r.deps.issueChatCli, start = r.deps.startProcess!, bind = r.deps.bindChatGrant!
+  const launches: NodeJS.ProcessEnv[] = [], generations: string[] = []
+  r.deps.issueChatCli = async (folder, grant, chat) => {
+    const issued = await issue(folder, grant, chat)
+    return { ...issued, endpointId: 'me_magos', cli: { ...issued.cli, env: { ...issued.cli.env, DM_DESKTOP_PIPE: 'desktop-address', DM_BROWSER_PIPE: 'browser-address' } } }
+  }
+  r.deps.startProcess = spec => { launches.push(spec.env ?? {}); return start(spec) }
+  r.deps.bindChatGrant = (grantId, identity) => { generations.push(identity.generation); return bind(grantId, identity) }
+  const magos = r.store.createChat({ folder: r.repo, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, runId: 'run-1', surface: 'gui' })
+  const file = join(r.userData, 'agents', 'restart-resume.json'), logs: string[] = []
+  writeRestartMarker(file, { fromVersion: '0.83.0', writtenAt: new Date(NOW - 60_000).toISOString(), chats: [{ folder: r.repo, chatId: magos.id }] })
+  await resumeAfterRestart({
+    file, version: '0.84.0', now: NOW, trackedFolder: folder => folder, store: r.store, runActive: async () => true, sessions: r.sessions,
+    log: { info: message => { logs.push(message) }, warn: message => { logs.push(message) } }
+  })
+  expect(logs).toEqual([`Restart resume sent chat ${magos.id} the restart message.`])
+  expect(launches).toHaveLength(1)
+  expect(generations).toHaveLength(1)
+  const descriptor = launches[0]![DM_CLIENT_DESCRIPTOR_ENV]
+  expect(descriptor).toBe(dmClientDescriptorPath(r.userData, magos.id, generations[0]!))
+  expect(existsSync(descriptor!)).toBe(true)
+  expect(parseDmClientDescriptor(descriptor!, readFileSync(descriptor!, 'utf8'))).toMatchObject({ ok: true, value: { chatId: magos.id, recoveryAddress: 'desktop-address' } })
 })
 
 it('a Magos whose terminal is live at startup is neither switched nor started, and the terminal is left running', async () => {

@@ -3275,19 +3275,50 @@ async function browserDrive(session, signal) {
 }
 
 /**
+ * The Skitarii chat's `[browser-native]` turn (`fakeAgentCli.mjs`): its fake calls `browser_status` through the
+ * extension's own client over the descriptor its GUI launch named (DM-1118), not the `dm` line. The descriptor must be
+ * `<userData>/agents/omp/<chatId>/dm-client/<generation>.json`, present while the chat runs and naming this chat and
+ * generation; the status must show the agent tab at `url`. If the fake's runtime cannot load the TypeScript client,
+ * the descriptor checks stand alone and `limit` records the exact load error.
+ */
+async function nativeBrowserStatus(session, signal, chat, url) {
+  const text = '[browser-native]'
+  const turn = await browserTurn(session, signal, chat.id, text)
+  if (turn.calls.length !== 0) throw new Error(`${text}: the fake ran the dm line: ${JSON.stringify(turn.calls)}`)
+  const outcome = JSON.parse(turn.reply ?? 'null')
+  const facts = { descriptor: launchDescriptor(session, chat, outcome), generation: outcome.generation }
+  if (outcome.loadError !== undefined) return { ...facts, limit: `The fake could not load the extension client: ${outcome.loadError}` }
+  const status = outcome.reply?.ok === true ? outcome.reply.data : null
+  if (status?.enabled !== true || status.tab?.url !== url) {
+    throw new Error(`${text}: native browser_status answered ${JSON.stringify(outcome.reply)}, not the agent tab at ${url}.`)
+  }
+  return { ...facts, status }
+}
+
+/** The descriptor path the fake's `[browser-native]` outcome names, once it is this running chat's file for its generation. */
+function launchDescriptor(session, chat, outcome) {
+  const expected = join(session.userData, 'agents', 'omp', chat.id, 'dm-client', `${outcome?.generation}.json`)
+  const named = outcome?.descriptor === expected && outcome.exists === true && outcome.names === true && outcome.chatId === chat.id
+  if (!named || !existsSync(expected)) throw new Error(`[browser-native]: the launch's descriptor is not this running chat's: ${JSON.stringify(outcome)}`)
+  return expected
+}
+
+/**
  * Browser 2: a Skitarii (omp-kind) GUI chat, started with the folder's default switched to the omp fake, drives the
- * Browser tab with its own grant and browser pipe (`driveFixture`); the default is the claude fake again after it.
+ * Browser tab with its own grant and browser pipe (`driveFixture`), then asks `browser_status` natively over its DM
+ * client descriptor (`nativeBrowserStatus`); the default is the claude fake again after it.
  */
 async function browserSkitarii(session, signal) {
   await until(session, signal, folderDefault, session.folderPath, 'omp')
   const chat = await openBrowserChat(session, signal, SKITARII_CHAT_PROMPT)
   if (chat.agent !== 'omp') throw new Error(`The Skitarii browser chat runs ${chat.agent}, not omp.`)
   const driven = await driveFixture(session, signal, chat, 'e2e-browser-skitarii-view.png')
+  const native = await nativeBrowserStatus(session, signal, chat, `${session.browser.servers.a.origin}/`)
   const screenshot = await capture(session, 'e2e-browser-skitarii.png', WINDOW)
   const launches = coordLaunches(readLog(session), chat.id).filter((launch) => launch.mode === 'omp' && isAlive(launch.pid))
   if (launches.length !== 1) throw new Error(`The Skitarii chat has ${launches.length} live omp fakes, not one.`)
   await until(session, signal, folderDefault, session.folderPath, 'claude')
-  return { chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, launch: launches[0], ...driven, screenshot }
+  return { chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, launch: launches[0], ...driven, native, screenshot }
 }
 
 /**
