@@ -424,32 +424,46 @@ const BROWSER_LOOP_MS = 300
 const BROWSER_LOOP_READS = 20
 
 /**
- * A `[browser url=<u> cli=<path>]` keyword and its `-origin`, `-loop` and `-status` variants, or null. A value is one
- * word or a double-quoted string, so a `cli=` path may contain spaces.
+ * A `[browser url=<u>]` keyword and its `-origin`, `-read`, `-hidden`, `-loop` and `-status` variants, or null. A value
+ * is one word or a double-quoted string.
  */
 function browserKeyword(prompt) {
-  const match = prompt.match(/\[browser(?:-(origin|loop|status))?((?:\s+[a-z]+=(?:"[^"]*"|[^\s"\]]+))*)\s*\]/)
+  const match = prompt.match(/\[browser(?:-(origin|read|hidden|loop|status))?((?:\s+[a-z]+=(?:"[^"]*"|[^\s"\]]+))*)\s*\]/)
   if (match === null) return null
   const options = Object.fromEntries([...match[2].matchAll(/([a-z]+)=(?:"([^"]*)"|([^\s"\]]+))/g)].map((option) => [option[1], option[2] ?? option[3]]))
-  return { variant: match[1] ?? 'browser', url: options.url, cli: options.cli }
+  return { variant: match[1] ?? 'browser', url: options.url }
 }
 
-/** The ref of the `browser_read {mode:'tree'}` line naming the fixture's `button "Change text"`, or undefined. */
-function changeTextRef(reply) {
-  const content = typeof reply.data?.content === 'string' ? reply.data.content : ''
-  return content.split(/\r?\n/).find((line) => line.includes('button "Change text"'))?.match(/\[(e\d{1,6})\]/)?.[1]
+/** The ref of the `browser_read {mode:'tree'}` line naming `role "name"` (the fixture's button or Name box), or undefined. */
+function treeRef(reply, role, name) {
+  const content = typeof reply?.data?.content === 'string' ? reply.data.content : ''
+  return content.split(/\r?\n/).find((line) => line.includes(`${role} "${name}"`))?.match(/\[(e\d{1,6})\]/)?.[1]
 }
+
+/** What the `[browser]` scenario types into the fixture's Name box; the page echoes it into `#echo`. */
+const BROWSER_TYPED = 'Ada'
 
 const browserFailure = (op, reply) => `browser failed: ${op} ${reply.error?.code}: ${reply.error?.message}`
 
-/** Each non-loop scenario's steps, given its `url=`: an op and its arguments, made from the previous step's reply. */
+/**
+ * Each non-loop scenario's steps, given its `url=`: an op and its arguments, made from the earlier steps' replies in
+ * order (refs come from the scenario's tree read). `-read` reads a page as text; `-hidden` reads and clicks a view the
+ * person has hidden, then asks for a screenshot, which a hidden view refuses.
+ */
 const BROWSER_STEPS = {
   status: () => [['browser_status', () => ({})]],
   origin: (url) => [['browser_navigate', () => ({ url, as: BROWSER_AS })], ['browser_status', () => ({})]],
+  read: (url) => [['browser_navigate', () => ({ url, as: BROWSER_AS })], ['browser_read', () => ({ mode: 'text' })]],
+  hidden: () => [
+    ['browser_read', () => ({ mode: 'tree' })],
+    ['browser_click', ([tree]) => ({ ref: treeRef(tree, 'button', 'Change text') })],
+    ['browser_screenshot', () => ({ label: 'hidden' })]
+  ],
   browser: (url) => [
     ['browser_navigate', () => ({ url, as: BROWSER_AS })],
     ['browser_read', () => ({ mode: 'tree' })],
-    ['browser_click', (tree) => ({ ref: changeTextRef(tree) })],
+    ['browser_click', ([, tree]) => ({ ref: treeRef(tree, 'button', 'Change text') })],
+    ['browser_type', ([, tree]) => ({ ref: treeRef(tree, 'textbox', 'Name'), text: BROWSER_TYPED })],
     ['browser_read', () => ({ mode: 'text' })],
     ['browser_screenshot', () => ({ label: 'fixture' })]
   ]
@@ -457,19 +471,23 @@ const BROWSER_STEPS = {
 
 /** Runs `steps` in order, never retried, stopping at the first refusal (or once the turn was stopped: null). */
 async function runBrowserSteps(steps, step) {
-  let previous = null
+  const replies = []
   for (const [op, argsOf] of steps) {
-    const args = argsOf(previous)
-    if (op === 'browser_click' && args.ref === undefined) return 'browser failed: the tree read names no button "Change text"'
-    previous = await step(op, args)
-    if (previous === null) return null
-    if (!previous.ok) return browserFailure(op, previous)
+    const args = argsOf(replies)
+    if ('ref' in args && args.ref === undefined) return `browser failed: the tree read names no target for ${op}`
+    const reply = await step(op, args)
+    if (reply === null) return null
+    if (!reply.ok) return browserFailure(op, reply)
+    replies.push(reply)
   }
   return 'browser done'
 }
 
-/** `[browser-loop]`: a text read every BROWSER_LOOP_MS, at most BROWSER_LOOP_READS times, until one fails. */
-async function browserLoop(step, pause) {
+/** `[browser-loop url=<u>]`: navigates to `url`, then a text read every BROWSER_LOOP_MS, at most BROWSER_LOOP_READS times, until one fails. */
+async function browserLoop(url, step, pause) {
+  const navigated = await step('browser_navigate', { url, as: BROWSER_AS })
+  if (navigated === null) return null
+  if (!navigated.ok) return browserFailure('browser_navigate', navigated)
   for (let reads = 0; reads < BROWSER_LOOP_READS; reads++) {
     if (reads > 0 && !(await pause(BROWSER_LOOP_MS))) return null
     const read = await step('browser_read', { mode: 'text' })
@@ -481,15 +499,14 @@ async function browserLoop(step, pause) {
 
 /**
  * Runs a `[browser…]` scenario, as an agent drives the in-app browser: each step is one `dm call browser_*` through
- * `process.execPath <cli>` with this run's own env (its grant and browser pipe) and cwd, run in order and never
+ * the instructions' `dm` line with this run's own env (its grant and browser pipe) and cwd, run in order and never
  * retried. `step(op, args)` runs and shows one call and answers its JSON, or null once the turn was stopped. Answers
  * the turn's reply: `browser done`, after a `[browser-loop]` line naming the code its reads stopped on; or
  * `browser failed: …` with the first refusal.
  */
-async function browserScenario({ variant, url, cli }, step, pause) {
-  if (cli === undefined) return 'browser failed: the prompt names no cli='
-  if (variant === 'loop') return browserLoop(step, pause)
-  if (variant !== 'status' && url === undefined) return 'browser failed: the prompt names no url='
+async function browserScenario({ variant, url }, step, pause) {
+  if (!['status', 'hidden'].includes(variant) && url === undefined) return 'browser failed: the prompt names no url='
+  if (variant === 'loop') return browserLoop(url, step, pause)
   return runBrowserSteps(BROWSER_STEPS[variant](url), step)
 }
 
@@ -694,9 +711,10 @@ class ProtocolReplay {
   }
 
   /**
-   * `[browser…]` on the text golden: OMP's prompt is acknowledged at once, then each `dm call browser_*` step shows as
-   * a `Bash` tool call once it returns (`browserScenario`), and the turn replies with the outcome. A turn stopped
-   * meanwhile runs no further step, ends the loop's wait and drops the late outcome.
+   * `[browser…]` on the text golden: OMP's prompt is acknowledged at once, then each `dm call browser_*` step, run
+   * through the instructions' `dm` line, shows as a `Bash` tool call once it returns (`browserScenario`), and the turn
+   * replies with the outcome. A turn stopped meanwhile runs no further step, ends the loop's wait and drops the late
+   * outcome.
    */
   browser(message, keyword) {
     const lines = this.turnLines('text', message)
@@ -706,7 +724,7 @@ class ProtocolReplay {
     const held = { lines: [], index: 0, waiting: 'browser', promptId: message.id, tails: new Map() }
     this.tailQueries.clear()
     this.active = held
-    const dm = { command: process.execPath, args: [keyword.cli], env: {} }
+    const dm = instructionsDm()
     let index = 0
     const step = async (op, args) => {
       if (this.active !== held) return null
@@ -717,7 +735,8 @@ class ProtocolReplay {
       return reply
     }
     const pause = (ms) => new Promise((resolvePause) => { this.timer = setTimeout(() => resolvePause(this.active === held), ms) })
-    void browserScenario(keyword, step, pause).then((text) => {
+    const outcome = dm === null ? Promise.resolve('browser failed: the instructions give no dm command line') : browserScenario(keyword, step, pause)
+    void outcome.then((text) => {
       if (text === null || this.active !== held) return
       this.active = { ...held, lines: withReply(lines.slice(head), withoutToken(text)), waiting: null }
       this.pump()

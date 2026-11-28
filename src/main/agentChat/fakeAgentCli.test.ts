@@ -696,20 +696,21 @@ it('OMP [mail] acknowledges the prompt, finds the role\'s peer in the epic and m
 })
 
 const browserPipe = '\\\\.\\pipe\\dm-browser-fixture'
-const treeContent = '[e1] heading "Fixture"\n  [e7] button "Change text"\n  [e8] link "Other page"'
+const treeContent = '[e1] heading "Fixture"\n  [e7] button "Change text"\n  [e9] textbox "Name"\n  [e8] link "Other page"'
 
 /**
- * A stand-in for `out/main/cli.js` in `dir`: it appends each call (argv, whether the grant reached it, its browser pipe
- * and cwd) to `calls` and answers canned JSON per op. `browser_read` fails with `stopped` from the `STUB_FAIL_READ`th
- * read on, and `browser_status` plants the grant token in its reply, which the fake must never show.
+ * Instructions whose `dm` line runs a Node stand-in for the dm CLI in `dir`: it appends each call (its argv from
+ * `call` on, whether the grant reached it, its browser pipe and cwd) to `calls` and answers canned JSON per op.
+ * `browser_read` fails with `stopped` from the `STUB_FAIL_READ`th read on, `browser_screenshot` with `view_hidden`
+ * when STUB_HIDDEN is set, and `browser_status` plants the grant token in its reply, which the fake must never show.
  */
-function browserStub(dir: string): { cli: string; calls: string } {
+function browserInstructions(dir: string): { file: string; calls: string } {
   mkdirSync(dir, { recursive: true })
   const calls = join(dir, 'browser-calls.jsonl')
   const stub = join(dir, 'cli.mjs')
   writeFileSync(stub, [
     "import { appendFileSync, existsSync, readFileSync } from 'node:fs'",
-    'const argv = process.argv.slice(2), op = argv[1], input = JSON.parse(argv[2])',
+    "const all = process.argv.slice(2), argv = all.slice(all.indexOf('call')), op = argv[1], input = JSON.parse(argv[2])",
     `const log = ${JSON.stringify(calls)}`,
     "const reads = existsSync(log) ? readFileSync(log, 'utf8').split('\\n').filter((line) => line.includes('\"browser_read\"')).length : 0",
     "appendFileSync(log, JSON.stringify({ argv, grant: process.env.DM_SESSION_TOKEN !== undefined, pipe: process.env.DM_BROWSER_PIPE, cwd: process.cwd() }) + '\\n')",
@@ -717,18 +718,22 @@ function browserStub(dir: string): { cli: string; calls: string } {
     'const failAt = Number(process.env.STUB_FAIL_READ) || Infinity',
     'const answers = {',
     '  browser_navigate: () => ({ tab: { ...tab, url: input.url } }),',
-    `  browser_read: () => ({ url: tab.url, title: tab.title, untrusted: true, content: input.mode === 'tree' ? ${JSON.stringify(treeContent)} : 'Clicked', truncated: false }),`,
+    `  browser_read: () => ({ url: tab.url, title: tab.title, untrusted: true, content: input.mode === 'tree' ? ${JSON.stringify(treeContent)} : 'Clicked\\nAda', truncated: false }),`,
     '  browser_click: () => ({ tab }),',
+    '  browser_type: () => ({ tab }),',
     "  browser_screenshot: () => ({ image: { id: 'img_1', mimeType: 'image/png' }, url: tab.url, path: 'C:\\\\shots\\\\fixture.png' }),",
     "  browser_status: () => ({ enabled: true, owner: 'agent', tab, pendingOrigin: null, planted: process.env.DM_SESSION_TOKEN })",
     '}',
-    "if (op === 'browser_read' && reads + 1 >= failAt) {",
-    "  process.stdout.write(JSON.stringify({ ok: false, error: { code: 'stopped', message: 'The person stopped the agent.' } }))",
-    '  process.exitCode = 1',
-    '} else process.stdout.write(JSON.stringify({ ok: true, data: answers[op]() }))',
+    "const refusal = (code, message) => { process.stdout.write(JSON.stringify({ ok: false, error: { code, message } })); process.exitCode = 1 }",
+    "if (op === 'browser_read' && reads + 1 >= failAt) refusal('stopped', 'The person stopped the agent.')",
+    "else if (op === 'browser_screenshot' && process.env.STUB_HIDDEN === '1') refusal('view_hidden', 'The browser view is not visible.')",
+    'else process.stdout.write(JSON.stringify({ ok: true, data: answers[op]() }))',
     ''
   ].join('\n'))
-  return { cli: stub, calls }
+  const line = `ELECTRON_RUN_AS_NODE=1 '${process.execPath}' '${stub}' --repo ${scratch.replaceAll('\\', '/')}`
+  const file = join(dir, 'instructions.md')
+  writeFileSync(file, ['```sh', `${line} call get_capabilities '{}'  # run a command`, '```'].join('\n'))
+  return { file, calls }
 }
 
 const browserCalls = (file: string): { argv: string[]; grant: boolean; pipe: string; cwd: string }[] =>
@@ -751,8 +756,10 @@ function bashCalls(protocol: Protocol, stdout: string): { id: string; command: s
   })
 }
 
-async function browserRun(protocol: Protocol, text: string, env: NodeJS.ProcessEnv = {}): Promise<Harness> {
-  const harness = await initialize(protocol, [], cli, { DM_SESSION_TOKEN: grant, DM_BROWSER_PIPE: browserPipe, ...env })
+/** Runs one `text` turn with `instructions` (none when null) given as the protocol's instructions flag. */
+async function browserRun(protocol: Protocol, text: string, instructions: string | null, env: NodeJS.ProcessEnv = {}): Promise<Harness> {
+  const flag = protocol === 'claude' ? '--append-system-prompt-file' : '--append-system-prompt'
+  const harness = await initialize(protocol, instructions === null ? [] : [flag, instructions], cli, { DM_SESSION_TOKEN: grant, DM_BROWSER_PIPE: browserPipe, ...env })
   harness.send(prompt(protocol, text))
   await harness.until(() => completed(protocol, harness.stdout))
   expect(await finish(harness)).toBe(0)
@@ -762,14 +769,15 @@ async function browserRun(protocol: Protocol, text: string, env: NodeJS.ProcessE
 }
 
 for (const protocol of protocols) {
-  it(`${protocol} [browser] runs the five browser ops in order through a quoted cli path with spaces, with its own env and cwd, as Bash tool calls`, async () => {
-    const { cli: stub, calls } = browserStub(join(scratch, 'dm cli with spaces'))
-    const harness = await browserRun(protocol, `Drive it [browser url=http://127.0.0.1:4100/ cli="${stub}"]`)
+  it(`${protocol} [browser] navigates, reads, clicks, types Ada, reads and screenshots through the instructions' dm line, with its own env and cwd, as Bash tool calls`, async () => {
+    const { file, calls } = browserInstructions(join(scratch, 'dm cli with spaces'))
+    const harness = await browserRun(protocol, 'Drive it [browser url="http://127.0.0.1:4100/"]', file)
     const recorded = browserCalls(calls)
     expect(recorded.map((call) => call.argv)).toEqual([
       ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/","as":"Acolyte:DM-442"}'],
       ['call', 'browser_read', '{"mode":"tree"}'],
       ['call', 'browser_click', '{"ref":"e7"}'],
+      ['call', 'browser_type', '{"ref":"e9","text":"Ada"}'],
       ['call', 'browser_read', '{"mode":"text"}'],
       ['call', 'browser_screenshot', '{"label":"fixture"}']
     ])
@@ -777,17 +785,23 @@ for (const protocol of protocols) {
     for (const call of recorded) expect(call.cwd.toLowerCase()).toBe(scratch.toLowerCase())
     const tools = bashCalls(protocol, harness.stdout)
     expect(tools.map((tool) => tool.command)).toEqual(recorded.map((call) => `dm ${call.argv[0]} ${call.argv[1]} ${call.argv[2]}`))
-    expect(tools.map((tool) => tool.id)).toEqual([1, 2, 3, 4, 5].map((step) => `${protocol === 'claude' ? 'toolu' : 'call'}_T1_browser${step}`))
+    expect(tools.map((tool) => tool.id)).toEqual([1, 2, 3, 4, 5, 6].map((step) => `${protocol === 'claude' ? 'toolu' : 'call'}_T1_browser${step}`))
     expect(tools.every((tool) => !tool.isError)).toBe(true)
     expect(JSON.parse(tools[1].result)).toEqual({ ok: true, data: { url: 'http://127.0.0.1:4100/', title: 'Fixture', untrusted: true, content: treeContent, truncated: false } })
-    expect(JSON.parse(tools[4].result)).toMatchObject({ ok: true, data: { path: 'C:\\shots\\fixture.png' } })
+    expect(JSON.parse(tools[5].result)).toMatchObject({ ok: true, data: { path: 'C:\\shots\\fixture.png' } })
     expect(replyText(protocol, harness.stdout)).toBe('browser done')
+  })
+
+  it(`${protocol} [browser] without a dm line in its instructions calls nothing and says so`, async () => {
+    const harness = await browserRun(protocol, '[browser url=http://127.0.0.1:4100/]', null)
+    expect(bashCalls(protocol, harness.stdout)).toEqual([])
+    expect(replyText(protocol, harness.stdout)).toBe('browser failed: the instructions give no dm command line')
   })
 }
 
 it('OMP [browser-origin] navigates to the second origin, then reads the status', async () => {
-  const { cli: stub, calls } = browserStub(join(scratch, 'stub'))
-  const harness = await browserRun('omp', `[browser-origin url=http://localhost:4101/ cli=${stub}]`)
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser-origin url=http://localhost:4101/]', file)
   expect(browserCalls(calls).map((call) => call.argv)).toEqual([
     ['call', 'browser_navigate', '{"url":"http://localhost:4101/","as":"Acolyte:DM-442"}'],
     ['call', 'browser_status', '{}']
@@ -796,30 +810,56 @@ it('OMP [browser-origin] navigates to the second origin, then reads the status',
   expect(replyText('omp', harness.stdout)).toBe('browser done')
 })
 
+it('[browser-read] navigates to the page and reads it as text, and nothing else', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('claude', '[browser-read url=http://127.0.0.1:4100/inject]', file)
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/inject","as":"Acolyte:DM-442"}'],
+    ['call', 'browser_read', '{"mode":"text"}']
+  ])
+  expect(JSON.parse(bashCalls('claude', harness.stdout)[1].result).data.untrusted).toBe(true)
+  expect(replyText('claude', harness.stdout)).toBe('browser done')
+})
+
+it('[browser-hidden] reads and clicks the current page, then replies with the screenshot\'s view_hidden refusal', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('claude', '[browser-hidden]', file, { STUB_HIDDEN: '1' })
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_read', '{"mode":"tree"}'],
+    ['call', 'browser_click', '{"ref":"e7"}'],
+    ['call', 'browser_screenshot', '{"label":"hidden"}']
+  ])
+  expect(bashCalls('claude', harness.stdout).map((tool) => tool.isError)).toEqual([false, false, true])
+  expect(replyText('claude', harness.stdout)).toBe('browser failed: browser_screenshot view_hidden: The browser view is not visible.')
+})
+
 it('OMP [browser-status] makes one status call and never shows the grant token its reply carried', async () => {
-  const { cli: stub, calls } = browserStub(join(scratch, 'stub'))
-  const harness = await browserRun('omp', `[browser-status cli=${stub}]`)
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser-status]', file)
   expect(browserCalls(calls)).toEqual([expect.objectContaining({ argv: ['call', 'browser_status', '{}'], grant: true, pipe: browserPipe })])
   const [status] = bashCalls('omp', harness.stdout)
   expect(JSON.parse(status.result).data.planted).toBe('[redacted]')
   expect(replyText('omp', harness.stdout)).toBe('browser done')
 })
 
-it('OMP [browser-loop] reads every 300 ms until the first failing read, reports its code and calls nothing after it', async () => {
-  const { cli: stub, calls } = browserStub(join(scratch, 'stub'))
+it('OMP [browser-loop] navigates first, then reads every 300 ms until the first failing read, reports its code and calls nothing after it', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
   const started = Date.now()
-  const harness = await browserRun('omp', `[browser-loop cli=${stub}]`, { STUB_FAIL_READ: '3' })
+  const harness = await browserRun('omp', '[browser-loop url=http://127.0.0.1:4100/slow]', file, { STUB_FAIL_READ: '3' })
   expect(Date.now() - started).toBeGreaterThanOrEqual(600)
-  expect(browserCalls(calls).map((call) => call.argv)).toEqual(Array.from({ length: 3 }, () => ['call', 'browser_read', '{"mode":"text"}']))
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/slow","as":"Acolyte:DM-442"}'],
+    ...Array.from({ length: 3 }, () => ['call', 'browser_read', '{"mode":"text"}'])
+  ])
   const tools = bashCalls('omp', harness.stdout)
-  expect(tools.map((tool) => tool.isError)).toEqual([false, false, true])
-  expect(JSON.parse(tools[2].result)).toEqual({ ok: false, error: { code: 'stopped', message: 'The person stopped the agent.' } })
+  expect(tools.map((tool) => tool.isError)).toEqual([false, false, false, true])
+  expect(JSON.parse(tools[3].result)).toEqual({ ok: false, error: { code: 'stopped', message: 'The person stopped the agent.' } })
   expect(replyText('omp', harness.stdout)).toBe('browser loop stopped: browser_read stopped\nbrowser done')
 })
 
 it('OMP [browser] stops at the first refused step and replies with its code', async () => {
-  const { cli: stub, calls } = browserStub(join(scratch, 'stub'))
-  const harness = await browserRun('omp', `[browser url=http://127.0.0.1:4100/ cli=${stub}]`, { STUB_FAIL_READ: '1' })
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser url=http://127.0.0.1:4100/]', file, { STUB_FAIL_READ: '1' })
   expect(browserCalls(calls).map((call) => call.argv[1])).toEqual(['browser_navigate', 'browser_read'])
   expect(replyText('omp', harness.stdout)).toBe('browser failed: browser_read stopped: The person stopped the agent.')
 })

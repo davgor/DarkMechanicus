@@ -4,13 +4,16 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
+import { folderStoreId } from '../src/main/agentChat/folderStoreId'
 import { resolveAgentExecutable } from '../src/main/terminals/agentExecutable'
 import {
   assertHandoffOrder,
   assertToggleLaunches,
+  browserToolCalls,
   chatLaunches,
   claudeSessionPath,
   consoleText,
+  countLines,
   coordLaunches,
   coordMailBody,
   evidenceComment,
@@ -24,6 +27,7 @@ import {
   launchModelFlags,
   newChatLaunch,
   newerVersion,
+  newTargets,
   parseArgs,
   pngSize,
   refusedImages,
@@ -36,12 +40,14 @@ import {
   runStep,
   seededAgents,
   sha12,
+  siteFile,
   staleRoots,
   stepPhases,
   switchControls,
   transcriptImageRefs,
   turnEnded,
   verdict,
+  viewTarget,
   waitFor,
   withNodeFirst,
   wrapperSource,
@@ -257,12 +263,14 @@ describe('writeShim: fake-omp', () => {
 describe('seededAgents', () => {
   const shims = { claude: 'C:\\run\\shim\\fake-claude.cmd', omp: 'C:\\run\\shim\\fake-omp.cmd' }
 
-  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp', () => {
+  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp or when asked to', () => {
     expect(seededAgents(shims, 'claude')).toEqual([{ kind: 'claude', executablePath: shims.claude, version: '2.1.329' }])
-    expect(seededAgents(shims, 'omp')).toEqual([
+    const both = [
       { kind: 'claude', executablePath: shims.claude, version: '2.1.329' },
       { kind: 'omp', executablePath: shims.omp, version: '18.16.0' }
-    ])
+    ]
+    expect(seededAgents(shims, 'omp')).toEqual(both)
+    expect(seededAgents(shims, 'claude', true)).toEqual(both)
   })
 })
 
@@ -469,6 +477,20 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'polish-picker'])).toThrow('polish-picker drive the claude fake.')
     expect(parseArgs(['--out', 'x', '--steps', 'polish-multiquestion'])).toMatchObject({ agent: 'omp', keys: ['ready', 'polish-multiquestion'] })
     expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'polish-multiquestion'])).toThrow('polish-multiquestion drive the omp fake: leave out --agent claude.')
+  })
+
+  it('runs the browser steps only when named, on the claude default with their fixed deadlines; never with --agent omp', () => {
+    const browser = ['browser-drive', 'browser-skitarii', 'browser-shot', 'browser-guard', 'browser-signin']
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('browser-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', [...browser, 'quit'].join(',')])
+    expect(parsed).toMatchObject({ agent: 'claude', keys: ['ready', ...browser, 'quit'] })
+    expect(stepPhases(parsed.keys).map((phase) => [phase.name, phase.deadlineMs])).toEqual([
+      ['app ready', undefined], ['browser-drive', 60_000], ['browser-skitarii', 60_000], ['browser-shot', 30_000],
+      ['browser-guard', 30_000], ['browser-signin', 20_000], ['quit', undefined]
+    ])
+    expect(parseArgs(['--out', 'x', '--steps', 'browser-skitarii']).agent).toBe('claude')
+    expect(parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'browser-skitarii']).keys).toEqual(['ready', 'browser-skitarii'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'browser-drive,browser-skitarii'])).toThrow('browser-drive, browser-skitarii run on the claude default: leave out --agent omp.')
   })
 })
 
@@ -767,5 +789,71 @@ describe('model steps', () => {
     expect(launchModelFlags(['--mode', 'rpc-ui', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high'])).toEqual({ model: 'anthropic/claude-sonnet-5-5', thinking: 'high' })
     expect(launchModelFlags(['--mode', 'rpc-ui'])).toEqual({ model: null, thinking: null })
     expect(launchModelFlags(['--model'])).toEqual({ model: null, thinking: null })
+  })
+})
+
+describe('siteFile', () => {
+  it('names the folder\'s site file by the app\'s own folderStoreId and holds a version 1 list of the origins', () => {
+    const folder = 'C:\\Users\\Me\\AppData\\Local\\Temp\\dm-e2e-agent-chat-x\\e2e-repo'
+    const file = siteFile('C:\\run\\user-data', folder, ['http://127.0.0.1:4100'], 'win32')
+    expect(file.path).toBe(join('C:\\run\\user-data', 'browser', 'sites', `${folderStoreId(folder, 'win32')}.json`))
+    expect(JSON.parse(file.text)).toEqual({ version: 1, origins: ['http://127.0.0.1:4100'] })
+    expect(siteFile('C:\\run\\user-data', folder.toUpperCase(), [], 'win32').path).toBe(file.path)
+    expect(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path).toBe(join('/run/user-data', 'browser', 'sites', `${folderStoreId('/tmp/E2E-repo', 'linux')}.json`))
+    expect(siteFile('/run/user-data', '/tmp/e2e-repo', [], 'linux').path).not.toBe(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path)
+  })
+})
+
+describe('browser-guard proofs', () => {
+  it('names only the DevTools targets that appeared after a click, by type and URL', () => {
+    const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+    const view = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4100/' }
+    expect(newTargets([app, view], [app, { ...view, url: 'chrome-error://chromewebdata/' }])).toEqual([])
+    expect(newTargets([app, view], [app, view, { id: 'P1', type: 'page', url: 'http://127.0.0.1:4101/' }])).toEqual(['page http://127.0.0.1:4101/'])
+  })
+
+  it('counts the log lines holding a refusal, so a click waits for a new one rather than an earlier one', () => {
+    const log = '21:08:45.459 > browser popup blocked http://127.0.0.1:4101\r\nother\n21:09:01.000 > browser popup blocked http://127.0.0.1:4101\n(node:1) electron: Failed to load URL: http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT'
+    expect(countLines(log, 'browser popup blocked http://127.0.0.1:4101')).toBe(2)
+    expect(countLines(log, 'http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT')).toBe(1)
+    expect(countLines(log, 'browser download cancelled')).toBe(0)
+  })
+})
+
+describe('viewTarget', () => {
+  const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+  const view = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4100/' }
+  const other = { id: 'V2', type: 'page', url: 'http://127.0.0.1:4101/' }
+  const worker = { id: 'W1', type: 'service_worker', url: 'http://127.0.0.1:4100/' }
+
+  it('finds a browser view by its exact URL or its id, never the app page or a non-page target', () => {
+    expect(viewTarget([app, worker, view, other], { url: 'http://127.0.0.1:4100/' })).toBe(view)
+    expect(viewTarget([app, view, other], { id: 'V2' })).toBe(other)
+    expect(viewTarget([app, view], { url: 'http://127.0.0.1:4100' })).toBeNull()
+    expect(viewTarget([app], { id: 'APP' })).toBeNull()
+    expect(viewTarget([], { url: 'http://127.0.0.1:4100/' })).toBeNull()
+  })
+
+  it('refuses two views showing the URL: the harness could not tell which one it drives', () => {
+    expect(() => viewTarget([view, { ...view, id: 'V3' }], { url: view.url })).toThrow('2 browser views show http://127.0.0.1:4100/: V1, V3.')
+  })
+})
+
+describe('browserToolCalls', () => {
+  const bash = (command, resultSummary, status = 'completed') => ({ name: 'Bash', input: { command }, status, resultSummary })
+
+  it('parses the fake\'s dm call browser_* Bash calls in order, with the CLI reply, skipping any other call', () => {
+    const tools = [
+      { name: 'Read', input: { file_path: 'a' }, status: 'completed', resultSummary: 'x' },
+      bash('dm call browser_navigate {"url":"http://127.0.0.1:4100/","as":"Acolyte:DM-442"}', '{"ok":true,"data":{"tab":{"url":"http://127.0.0.1:4100/"}}}'),
+      bash('npm test', 'passed'),
+      bash('dm call browser_screenshot {"label":"hidden"}', '{"ok":false,"error":{"code":"view_hidden","message":"m"}}', 'failed'),
+      bash('dm call browser_read {"mode":"text"}', 'not json')
+    ]
+    expect(browserToolCalls(tools)).toEqual([
+      { op: 'browser_navigate', args: { url: 'http://127.0.0.1:4100/', as: 'Acolyte:DM-442' }, status: 'completed', reply: { ok: true, data: { tab: { url: 'http://127.0.0.1:4100/' } } } },
+      { op: 'browser_screenshot', args: { label: 'hidden' }, status: 'failed', reply: { ok: false, error: { code: 'view_hidden', message: 'm' } } },
+      { op: 'browser_read', args: { mode: 'text' }, status: 'completed', reply: null }
+    ])
   })
 })

@@ -5,8 +5,10 @@
  *   node scripts/browser-fixture-server.mjs     starts both servers and prints their origins (Ctrl+C stops them)
  *
  * Every response carries `Cache-Control: no-store`; a path with no page is a 404. `requests` lists every path either
- * server received, in arrival order, including the 404s.
+ * server received, in arrival order, including the 404s. `/download` names a file unique to the run
+ * (`downloadName`, `dm-e2e-<uuid>.bin`), so a test can look for it in any folder a download could land in.
  */
+import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 
@@ -62,7 +64,7 @@ function send(res, status, headers, body = '') {
 const html = (res, body) => send(res, 200, { 'Content-Type': 'text/html; charset=utf-8' }, body)
 const notFound = (res) => send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not found\n')
 
-/** Serves server a's pages. `ctx` holds b's origin and port, known once both listen. */
+/** Serves server a's pages. `ctx` holds b's origin and port, known once both listen, and the download's file name. */
 function routeA(req, res, ctx, timers) {
   switch (new URL(req.url, 'http://fixture').pathname) {
     case '/':
@@ -73,7 +75,7 @@ function routeA(req, res, ctx, timers) {
       return send(
         res,
         200,
-        { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': 'attachment; filename="fixture.txt"' },
+        { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="${ctx.downloadName}"` },
         'Fixture download\n'
       )
     case '/to-file':
@@ -137,7 +139,7 @@ async function listen(handler) {
 export async function startFixtureServers() {
   const requests = []
   const timers = new Set()
-  const ctx = { bOrigin: '', bPort: 0 }
+  const ctx = { bOrigin: '', bPort: 0, downloadName: `dm-e2e-${randomUUID()}.bin` }
   const b = await listen((req, res) => {
     requests.push(req.url)
     routeB(req, res)
@@ -162,6 +164,7 @@ export async function startFixtureServers() {
   return {
     a: { origin: a.origin, close: a.close },
     b: { origin: b.origin, close: b.close },
+    downloadName: ctx.downloadName,
     requests,
     close
   }
