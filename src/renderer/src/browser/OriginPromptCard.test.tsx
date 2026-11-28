@@ -131,7 +131,7 @@ it('says so when Always allow could not save the site: the card is gone and the 
   emit(pushed('browser-agent'))
   expect(screen.queryByRole('alertdialog')).toBeNull()
   expect(screen.getByRole('alert').textContent)
-    .toBe("Couldn't save https://api.github.com to Always allow: A folder can always allow at most 200 sites.")
+    .toBe("Couldn't save https://api.github.com to Always allow, so the page did not open: A folder can always allow at most 200 sites.")
 })
 
 it('keeps the card with its error when Allow once or Deny fails otherwise, and lets the person answer again', async () => {

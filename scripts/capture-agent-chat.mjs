@@ -34,7 +34,7 @@ export const STATES = Object.freeze([
   'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
   'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
   'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
-  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440'
+  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024'
 ])
 
 /**
@@ -56,8 +56,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 73 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 1_110_000
+/** A declared bound once the preview is built: 74 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 1_125_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -310,14 +310,20 @@ function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
 
 /** The folder's always-allowed sites the Sites state seeds, and the page area's note while the popover hides the view. */
 const BROWSER_SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
-const BROWSER_HIDDEN = 'Browser hidden while a dialog is open'
+const BROWSER_HIDDEN = 'Browser hidden while Sites is open'
 const SITE_BUTTONS = ['Allow once', 'Always allow', 'Deny']
 
-/** The chat's site card docked above the composer, headed by who asked, labelled by the origin, with its three answers. */
-function siteCardCheck(heading, origin) {
-  const card = (o) => o.browserPanel?.siteCard ?? null
-  return [`the chat docks the site card "${heading}" above the composer`, (o) => card(o)?.heading === heading && card(o).label === origin
-    && JSON.stringify(card(o).buttons) === JSON.stringify(SITE_BUTTONS) && card(o).aboveComposer === true, (o) => JSON.stringify(card(o))]
+/**
+ * The site card headed by who asked, labelled by the origin, with its three answers, docked in one place only: above a
+ * GUI chat's composer, or (a terminal chat) in the Browser panel above the page area the native view covers.
+ */
+function siteCardCheck(heading, origin, where = 'chat') {
+  const [key, other, place] = where === 'chat' ? ['siteCard', 'panelSiteCard', 'the chat docks'] : ['panelSiteCard', 'siteCard', 'the Browser panel docks']
+  const card = (o) => o.browserPanel?.[key] ?? null
+  return [`${place} the site card "${heading}" above ${where === 'chat' ? 'the composer' : 'the page area'}, and only there`,
+    (o) => card(o)?.heading === heading && card(o).label === origin && JSON.stringify(card(o).buttons) === JSON.stringify(SITE_BUTTONS)
+      && card(o).above === true && (o.browserPanel?.[other] ?? null) === null,
+    (o) => JSON.stringify([card(o), o.browserPanel?.[other] ?? null])]
 }
 
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
@@ -627,6 +633,10 @@ const STATE_CHECKS = {
       (o) => JSON.stringify([o.browserPanel?.sites, o.browserPanel?.page])],
     ['the Sites popover stays inside the Browser panel', (o) => o.browserPanel?.sitesInPanel === true,
       (o) => JSON.stringify(o.browserPanel?.sitesInPanel)]
+  ],
+  'browser-origin-terminal': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com', 'panel')
   ]
 }
 

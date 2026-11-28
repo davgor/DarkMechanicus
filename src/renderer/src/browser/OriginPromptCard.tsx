@@ -46,13 +46,14 @@ type Outcome = { closed: true; notice: Notice | null } | { closed: false; error:
 
 /**
  * A stale answer closes the card with a notice, and so does an Always allow whose save failed (the folder's site cap,
- * say): main has already cleared the prompt and answers that error to this call (DM-870). Any other failure keeps it.
+ * say): main has already cleared the prompt without loading the page and answers that error to this call (DM-870).
+ * Any other failure keeps the card.
  */
 function outcomeOf(prompt: PendingOrigin, decision: Decision, result: CommandResult<null>): Outcome {
   if (result.ok) return { closed: true, notice: null }
   if (result.error.code === 'stale_prompt') return { closed: true, notice: { promptId: prompt.id, text: STALE_TEXT, alert: false } }
   if (decision !== 'always') return { closed: false, error: result.error.message }
-  const text = `Couldn't save ${prompt.origin} to Always allow: ${result.error.message}`
+  const text = `Couldn't save ${prompt.origin} to Always allow, so the page did not open: ${result.error.message}`
   return { closed: true, notice: { promptId: prompt.id, text, alert: true } }
 }
 

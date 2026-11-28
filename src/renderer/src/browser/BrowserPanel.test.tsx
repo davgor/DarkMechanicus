@@ -303,3 +303,33 @@ describe('Browser rail tab', () => {
     expect(setViews().at(-1)).toBeNull()
   })
 })
+
+describe('BrowserPanel site card for a chat without its GUI column (terminal or thread)', () => {
+  it('docks the site card above the page area, never inside it, and places the view over the page area alone', async () => {
+    browser.current = browserScenarios['browser-origin']
+    render(<BrowserPanel folder={null} chatId={CHAT} api={browser} siteCard />)
+    const card = await screen.findByRole('alertdialog', { name: 'https://api.github.com' })
+    const page = screen.getByRole('region', { name: 'Browser page' })
+    expect(card.textContent).toMatch(/^Acolyte:DM-442 wants to open https:\/\/api\.github\.com/)
+    expect(page.contains(card)).toBe(false)
+    expect(card.compareDocumentPosition(page) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The view's bounds are the page area's own rect, which the card above it is not part of.
+    expect(setViews()).toEqual([box])
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(browser.callsOf('decideOrigin')).toEqual([[{ folder: null, chatId: CHAT, promptId: 'origin-agent', decision: 'deny' }]])
+  })
+
+  it('shows no site card without siteCard, where the chat column shows it instead', async () => {
+    await mount('browser-origin')
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
+  it('docks it through the rail tab only when asked', async () => {
+    browser.current = browserScenarios['browser-origin']
+    vi.stubGlobal('dm', { browser })
+    stored.set('dm.siteRail', JSON.stringify({ collapsed: false, tab: 'browser', cards: {} }))
+    render(<RightRail label="Epic agents" storageKey="dm.siteRail" tabs={[browserRailTab(null, CHAT, true)]} />)
+    expect(await screen.findByRole('alertdialog', { name: 'https://api.github.com' })).toBeTruthy()
+  })
+})

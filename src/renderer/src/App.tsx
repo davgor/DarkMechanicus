@@ -27,6 +27,7 @@ import { chatsFor } from './agents/useChats'
 import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
 import { AgentChat } from './agentChat/AgentChat'
+import { OriginPromptCard } from './browser/OriginPromptCard'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
@@ -174,6 +175,7 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
       peers={folder === null ? undefined : chatsFor(shell.chats.lists, folder).chats}
       onOpenChat={folder === null ? undefined : (chatId) => shell.actions.selectChat(folder, chatId)}
+      siteCard={<OriginPromptCard folder={folder} chatId={chat.id} api={window.dm.browser} />}
     />
   )
 }

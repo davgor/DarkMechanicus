@@ -668,6 +668,32 @@ describe('EpicAgentPanel: a pending browser site (DM-897 c3)', () => {
   })
 })
 
+describe('EpicAgentPanel: where a pending site prompt docks (DM-872)', () => {
+  const site = { id: 'origin-1', origin: 'https://api.github.com', requestedBy: 'agent' as const }
+  async function withSite(chat: ChatRecord): Promise<HTMLElement> {
+    const backend = backendWith()
+    backend.browser.current = { ...backend.browser.current, owner: 'agent', ownerLabel: 'Acolyte:DM-442', pendingOrigin: site }
+    openAgent(backend, [chat])
+    const stage = await agentStage()
+    fireEvent.click(within(stage).getByRole('tab', { name: 'Browser' }))
+    await waitFor(() => expect(within(stage).getAllByRole('alertdialog', { name: site.origin })).toHaveLength(1))
+    return stage
+  }
+
+  it('docks it in the Browser panel for a terminal chat, which has no chat column', async () => {
+    const stage = await withSite({ ...orchestrator, surface: 'terminal' })
+    const panel = within(stage).getByRole('region', { name: 'Browser' })
+    expect(within(panel).getByRole('alertdialog', { name: site.origin })).toBeTruthy()
+  })
+
+  it('docks it once, in the chat column above the composer, for a GUI chat', async () => {
+    const stage = await withSite(orchestrator)
+    const chat = within(stage).getByRole('region', { name: 'Magos chat' })
+    expect(within(chat).getByRole('alertdialog', { name: site.origin })).toBeTruthy()
+    expect(within(within(stage).getByRole('region', { name: 'Browser' })).queryByRole('alertdialog')).toBeNull()
+  })
+})
+
 describe('EpicAgentPanel: one push subscription per GUI chat', () => {
   const planners = Array.from({ length: 9 }, (_, index) => chatRecord({
     id: `chat_plan_${index + 1}`, folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',

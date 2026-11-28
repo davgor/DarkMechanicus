@@ -96,7 +96,7 @@ it('hides the native view while open, since the popover drops over the page, and
   expect(lastBounds()).toEqual(PAGE)
   await open()
   expect(lastBounds()).toBeNull()
-  expect(screen.getByRole('region', { name: 'Browser page' }).textContent).toBe('Browser hidden while a dialog is open')
+  expect(screen.getByRole('region', { name: 'Browser page' }).textContent).toBe('Browser hidden while Sites is open')
   act(() => { fireEvent.keyDown(document, { key: 'Escape' }) })
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(document.activeElement).toBe(trigger())

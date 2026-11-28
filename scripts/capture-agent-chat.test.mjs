@@ -364,9 +364,9 @@ const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't car
 const BROWSER_STAGE = { 1024: { stageWidth: 760, railWidth: 420 }, 1440: { stageWidth: 1176, railWidth: 529.2 } }
 const DRIVEN = { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null }
 const SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
-/** The chat's docked site card as the capture reads it. */
+/** A docked site card as the capture reads it, wholly above what follows it. */
 function siteCard(heading, label) {
-  return { heading, label, buttons: ['Allow once', 'Always allow', 'Deny'], aboveComposer: true }
+  return { heading, label, buttons: ['Allow once', 'Always allow', 'Deny'], above: true }
 }
 const BROWSER_PANELS = {
   'browser-empty': {
@@ -386,7 +386,8 @@ const BROWSER_PANELS = {
     badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null,
     siteCard: siteCard('You asked to open https://example.com', 'https://example.com')
   },
-  'browser-sites': { ...DRIVEN, page: 'Browser hidden while a dialog is open', sites: SITES, sitesInPanel: true }
+  'browser-sites': { ...DRIVEN, page: 'Browser hidden while Sites is open', sites: SITES, sitesInPanel: true },
+  'browser-origin-terminal': { ...DRIVEN, panelSiteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') }
 }
 /** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
 function browserRecord(state, patch = {}) {
@@ -430,7 +431,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 73 states once each, in capture order', () => {
+  it('lists the 74 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -445,9 +446,9 @@ describe('capture-agent-chat: state list and bounds', () => {
       'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024',
       'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
       'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
-      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440'
+      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024'
     ])
-    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([73, true])
+    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([74, true])
   })
 
   it('captures the full Sprint 3 image and polish set, each state once', () => {
@@ -467,9 +468,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 1110 s overall bound: 73 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 1125 s overall bound: 74 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(1_110_000)
+    expect(OVERALL_LIMIT_MS).toBe(1_125_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -522,7 +523,7 @@ describe('capture-agent-chat: Browser tab states', () => {
 
 describe('capture-agent-chat: Browser site card and Sites states', () => {
   it('passes every site card and the Sites popover as seeded', () => {
-    for (const state of ['browser-origin-1024', 'browser-origin-page-1440', 'browser-origin-person-1024', 'browser-sites-1440']) {
+    for (const state of ['browser-origin-1024', 'browser-origin-page-1440', 'browser-origin-person-1024', 'browser-sites-1440', 'browser-origin-terminal-1024']) {
       expect(validateObservations(state, browserRecord(state))).toEqual([])
     }
   })
@@ -530,21 +531,32 @@ describe('capture-agent-chat: Browser site card and Sites states', () => {
   it('fails a site card that names the wrong asker, drops a button or sits below the composer', () => {
     const card = BROWSER_PANELS['browser-origin-page'].siteCard
     const heading = 'This page wants to open http://127.0.0.1:5173'
-    const expected = `browser-origin-page-1024: expected the chat docks the site card "${heading}" above the composer; got `
-    for (const patch of [{ heading: 'An agent wants to open http://127.0.0.1:5173' }, { buttons: ['Allow once', 'Deny'] }, { aboveComposer: false }]) {
+    const expected = `browser-origin-page-1024: expected the chat docks the site card "${heading}" above the composer, and only there; got `
+    for (const patch of [{ heading: 'An agent wants to open http://127.0.0.1:5173' }, { buttons: ['Allow once', 'Deny'] }, { above: false }]) {
       const wrong = { ...card, ...patch }
       expect(validateObservations('browser-origin-page-1024', browserRecord('browser-origin-page-1024', { siteCard: wrong })))
-        .toEqual([expected + JSON.stringify(wrong)])
+        .toEqual([`${expected}${JSON.stringify([wrong, null])}`])
     }
     expect(validateObservations('browser-origin-1440', browserRecord('browser-origin-1440', { siteCard: null })))
-      .toEqual(['browser-origin-1440: expected the chat docks the site card "Acolyte:DM-442 wants to open https://api.github.com" above the composer; got null'])
+      .toEqual(['browser-origin-1440: expected the chat docks the site card "Acolyte:DM-442 wants to open https://api.github.com" above the composer, '
+        + 'and only there; got [null,null]'])
+  })
+
+  it('fails a terminal chat’s card missing from the Browser panel, under the page area, or shown twice', () => {
+    const card = BROWSER_PANELS['browser-origin-terminal'].panelSiteCard
+    const expected = 'browser-origin-terminal-1024: expected the Browser panel docks the site card '
+      + '"Acolyte:DM-442 wants to open https://api.github.com" above the page area, and only there; got '
+    const failures = (patch) => validateObservations('browser-origin-terminal-1024', browserRecord('browser-origin-terminal-1024', patch))
+    expect(failures({ panelSiteCard: null })).toEqual([`${expected}[null,null]`])
+    expect(failures({ panelSiteCard: { ...card, above: false } })).toEqual([`${expected}${JSON.stringify([{ ...card, above: false }, null])}`])
+    expect(failures({ siteCard: card })).toEqual([`${expected}${JSON.stringify([card, card])}`])
   })
 
   it('fails a Sites state whose popover misses a site, leaves the page area shown or spills out of the panel', () => {
     const missing = SITES.slice(1)
     expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sites: missing })))
       .toEqual([`browser-sites-1024: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
-        + `got ${JSON.stringify([missing, 'Browser hidden while a dialog is open'])}`])
+        + `got ${JSON.stringify([missing, 'Browser hidden while Sites is open'])}`])
     expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '' })))
       .toEqual([`browser-sites-1440: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
         + `got ${JSON.stringify([SITES, ''])}`])

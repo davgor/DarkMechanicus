@@ -240,3 +240,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A terminal chat's site prompt docks above the page area, which shrinks for it, so the native view never covers it. */
+.bp .origin-prompt {
+  flex: 0 0 auto;
+  max-height: 40%;
+  margin: 0;
+}
+
+.bp .agent-prompt-notice {
+  margin: 0;
+  font-size: 12px;
+}

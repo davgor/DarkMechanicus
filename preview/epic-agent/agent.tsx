@@ -760,12 +760,20 @@ const browserStates: Record<string, StateDef> = {
       context.backend.browser.current = browserScenarios['browser-agent']
       context.backend.browser.siteList = [...browserSites]
     }
+  },
+  // The Magos runs in a terminal, so it has no chat column: its site card docks in the Browser panel above the page.
+  'browser-origin-terminal': {
+    ...browserState('browser-origin', async () => { await until(() => $('.bp .origin-prompt h3'), 'the Browser panel’s site card') }),
+    seed: (context) => {
+      context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
+      context.backend.browser.current = browserScenarios['browser-origin']
+    }
   }
 }
 
 /** The chat's site card for the seeded pending origin, docked above the composer. */
 async function siteCard(): Promise<void> {
-  await until(() => $('.origin-prompt h3'), 'the chat’s site card')
+  await until(() => $('section.agent-chat .origin-prompt h3'), 'the chat’s site card')
 }
 
 /** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
@@ -1522,22 +1530,24 @@ function browserObservations(): Record<string, unknown> | null {
     page: text($('.bp-content', panel)),
     privateAddress: address instanceof HTMLInputElement ? address.value : null,
     stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null,
-    siteCard: siteCardObservations(),
+    siteCard: siteCardObservations($('section.agent-chat .origin-prompt'), $('section.agent-chat .chat-composer')),
+    panelSiteCard: siteCardObservations($('.origin-prompt', panel), $('.bp-content', panel)),
     sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
     sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect())
   }
 }
 
-/** The chat's docked site card: its heading, label and buttons, and whether it sits in the chat above the composer. */
-function siteCardObservations(): Record<string, unknown> | null {
-  const card = $('section.agent-chat .origin-prompt')
+/**
+ * A docked site card: its heading, label and buttons, and whether it sits wholly above what follows it (the chat's
+ * composer, or the Browser panel's page area the native view covers).
+ */
+function siteCardObservations(card: HTMLElement | null, next: HTMLElement | null): Record<string, unknown> | null {
   if (card === null) return null
-  const composer = $('section.agent-chat .chat-composer')
   return {
     heading: text($('h3', card)),
     label: card.getAttribute('aria-label'),
     buttons: [...card.querySelectorAll('button')].map(text),
-    aboveComposer: composer === null ? null : card.getBoundingClientRect().bottom <= composer.getBoundingClientRect().top
+    above: next === null ? null : card.getBoundingClientRect().bottom <= next.getBoundingClientRect().top
   }
 }
 
@@ -1693,7 +1703,8 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 const SIZED_STATES: Record<string, true> = {
   'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
   'question-form': true, 'browser-empty': true, 'browser-agent': true, 'browser-person': true, 'browser-stopped': true,
-  'browser-private': true, 'browser-origin': true, 'browser-origin-page': true, 'browser-origin-person': true, 'browser-sites': true
+  'browser-private': true, 'browser-origin': true, 'browser-origin-page': true, 'browser-origin-person': true, 'browser-sites': true,
+  'browser-origin-terminal': true
 }
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */
