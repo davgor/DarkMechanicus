@@ -23,7 +23,7 @@ interface BrowserTarget {
   href: string
 }
 
-export type NormalizedTarget = BrowserTarget | { refused: TargetRefusal }
+type NormalizedTarget = BrowserTarget | { refused: TargetRefusal }
 
 /**
  * What a host is, by its literal address or name:

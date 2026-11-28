@@ -115,7 +115,7 @@ export interface AgentTab {
   whenReady(signal?: AbortSignal): Promise<void>
 }
 
-type NavigateResult = { ok: true } | { ok: false; code: Extract<BrowserErrorCode, 'origin_blocked' | 'invalid_url' | 'secret_refused' | 'navigation_failed'> }
+export type NavigateResult = { ok: true } | { ok: false; code: Extract<BrowserErrorCode, 'origin_blocked' | 'invalid_url' | 'secret_refused' | 'navigation_failed'> }
 type DecideResult = { ok: true } | { ok: false; code: 'stale_prompt' }
 
 export interface BrowserHost {
