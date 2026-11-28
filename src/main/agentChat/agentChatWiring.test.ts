@@ -394,14 +394,16 @@ describe('agent chat wiring: a pending browser origin of a live GUI chat (DM-897
   })
 })
 
+const browserApproval = (id: string, tool: NonNullable<PendingPrompt['tool']>): PendingPrompt => ({
+  id, kind: 'approval', title: `${tool.name} wants to run`, detail: '', threadId: null, callsign: null, attributed: true,
+  arbitration: { state: 'off', reason: null }, tool, options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }]
+})
+const browserGate = (state: ReturnType<typeof app>, chat: ChatRef, prompt: PendingPrompt) => state.owned().arbitrate({
+  ref: chat, chat: state.gui.store.getChat(chat)!, agent: state.gui.deps.agentFor('claude')!, prompt, inputClipped: false
+})
+
 describe('agent chat wiring: browser tool approvals never reach the arbiter (DM-897 c2, R19-1)', () => {
-  const approval = (id: string, tool: NonNullable<PendingPrompt['tool']>): PendingPrompt => ({
-    id, kind: 'approval', title: `${tool.name} wants to run`, detail: '', threadId: null, callsign: null, attributed: true,
-    arbitration: { state: 'off', reason: null }, tool, options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }]
-  })
-  const gateOf = (state: ReturnType<typeof app>, chat: ChatRef, prompt: PendingPrompt) => state.owned().arbitrate({
-    ref: chat, chat: state.gui.store.getChat(chat)!, agent: state.gui.deps.agentFor('claude')!, prompt, inputClipped: false
-  })
+  const approval = browserApproval, gateOf = browserGate
 
   it("Claude's Bash `dm call browser_*` and MCP browser_* prompts go to the person; another Bash command reaches the runner", async () => {
     const runner = stubRunner({ verdict: { decision: 'allow_once', reason: 'Routine.' } })
@@ -433,6 +435,26 @@ describe('agent chat wiring: browser tool approvals never reach the arbiter (DM-
       chat: record, agentKind: 'claude', folder: record.folder, settings: DEFAULT_NOTIFICATION_SETTINGS, platform: process.platform, allowedRoots: [],
       prompt: approval('p-mcp', { name: 'mcp__darkmechanicus__browser_navigate', input: { url: 'docs' } })
     })).toBeNull()
+  })
+})
+
+describe('agent chat wiring: quoted, escaped and camelCase `dm call browser*` never reach the arbiter (DM-897 c2)', () => {
+  it('matches the command with shell quoting and escapes stripped, and the camelCase alias; other commands still reach the runner', async () => {
+    const runner = stubRunner({ verdict: { decision: 'allow_once', reason: 'Routine.' } })
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
+    const commands = [
+      'dm call browserNavigate --args-file nav.json', 'dm call "browser_click" --ref e12', "dm call 'browser_click' --ref e12",
+      'dm call browser\\_click --ref e12', 'dm call brow""ser_click --ref e12', 'dm call brow^ser_click --ref e12',
+      'dm call -- browser_click --ref e12', 'dm call `browser_click` --ref e12'
+    ]
+    for (const [index, command] of commands.entries()) {
+      const gate = browserGate(state, chat, browserApproval(`p-${index}`, { name: 'Bash', input: { command } }))
+      expect([command, gate.state, gate.state === 'deciding' ? null : gate.reason]).toEqual([command, 'escalated', exclusionText('never_arbitrate')])
+    }
+    expect(runner.start).not.toHaveBeenCalled()
+    for (const command of ['echo tests', 'echo browser_navigate', 'dm call status', 'grep -r browser_click src']) {
+      expect([command, browserGate(state, chat, browserApproval(`n-${command}`, { name: 'Bash', input: { command } })).state]).toEqual([command, 'deciding'])
+    }
   })
 })
 

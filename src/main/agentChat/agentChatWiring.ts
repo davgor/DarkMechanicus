@@ -112,15 +112,24 @@ function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent
   })
 }
 
-/** MCP browser tools (`browser_*`, bare or `mcp__darkmechanicus__`-prefixed) and Claude's `Bash … dm call browser_*`. */
+/** MCP browser tools (`browser_*`, bare or `mcp__darkmechanicus__`-prefixed). */
 const MCP_BROWSER_TOOL = /^(mcp__darkmechanicus__)?browser_/
-const CLI_BROWSER_CALL = /\bcall\s+browser_/
+/** Quotes and escape characters a shell drops (POSIX `"` `'` `\`, PowerShell `` ` ``, cmd `^`), removed before matching. */
+const SHELL_QUOTING = /["'`\\^]/g
+/** `dm call [--] browser_*` and its camelCase alias (`browserNavigate`, which the CLI's `resolveCommand` accepts). */
+const CLI_BROWSER_CALL = /\bcall\s+(?:--\s+)?browser(?:_|[A-Z])/
 
-/** A browser tool approval: the Magos never decides it, so it always reaches the person (R19-1). */
+/**
+ * A browser tool approval: the Magos never decides it, so it always reaches the person (R19-1). Claude calls the browser
+ * as `Bash … dm call browser_*`; the command is matched with shell quoting and escapes stripped, so `"browser_click"`,
+ * `browser\_click` or `brow""ser_click` still match. A false positive only sends a prompt to the person. Residual: a
+ * command name the shell builds at run time (`dm call $X`, command substitution) is not recognised here.
+ */
 function browserToolApproval({ prompt }: ArbitrationInput): boolean {
   const tool = prompt.tool
   if (tool === undefined) return false
-  return MCP_BROWSER_TOOL.test(tool.name) || (tool.name === 'Bash' && CLI_BROWSER_CALL.test(String(tool.input['command'] ?? '')))
+  if (MCP_BROWSER_TOOL.test(tool.name)) return true
+  return tool.name === 'Bash' && CLI_BROWSER_CALL.test(String(tool.input['command'] ?? '').replace(SHELL_QUOTING, ''))
 }
 
 export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push, arbiter, attention }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
