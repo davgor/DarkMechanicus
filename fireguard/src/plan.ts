@@ -3,28 +3,30 @@ import { requireCount, shardRunCount, type Position } from './partition.js';
 import { scopeAndAst, type RunFireguardDeps } from './runFireguard.js';
 
 /**
- * Grading seconds each CI shard aims for. A shard job adds about 12 s of setup, and the scope/plan
- * and merge jobs about 45 s more, so a typical pull request's Fireguard returns in about 2 minutes
- * (PR replay of #110 at 120 s per shard: 134 s grading step, 145 s shard job, run 46179646792).
+ * Estimated grading seconds each CI shard aims for. A shard job adds about 14 s of setup, the
+ * scope/plan and merge jobs about 40 s and job hand-offs a few more, so a typical pull request's
+ * Fireguard returns in about 2 minutes. The estimate is a mean fit; the longest shard measured up to
+ * 20 s over it (#110 replay at 75 s: estimated 68 s, longest grading step 81 s, run 46180200415).
  */
-export const GRADING_TARGET_SECONDS = 75;
+export const GRADING_TARGET_SECONDS = 50;
 /** Most grading shards one pull request may start; past it, shards run over the target. */
 export const MAX_GRADING_SHARDS = 40;
 
 /**
  * Seconds per unit of grading work on one CI shard (ubuntu-latest, FIREGUARD_CONCURRENCY=1,
  * VITEST_MAX_WORKERS=2), fitted by least squares to the "Grade disjoint flake runs and production
- * modules" step of all 68 shard jobs of PR runs 46139982809, 46110799286, 46058107052,
- * 46118788858 and 46103701366 against each shard report's flake runs, graded test files and
- * mutants. Per run, the fit's total is within 15% of the measured grading time of the large runs.
+ * modules" step of all 84 shard jobs of the mutant-sharded runs 46180200415, 46179646792,
+ * 46178522119 and 46178525828 against each shard report's flake runs, graded test files and mutants.
  */
 export const SHARD_TIMING = {
   /** Snapshot, warm Vitest start and reporting, once per shard with work. */
-  setupSeconds: 13,
+  setupSeconds: 0.44,
+  /** One flake run, whatever its files: fresh test workers and collection. */
+  flakeRunSeconds: 4.71,
   /** One graded test file in one flake run. */
-  testFileRunSeconds: 1.16,
+  testFileRunSeconds: 0.835,
   /** One mutant on a changed line. */
-  mutantSeconds: 2.66,
+  mutantSeconds: 3.54,
 };
 
 /** The units a whole (unsharded) grade executes: every one of them runs on exactly one shard. */
@@ -52,7 +54,8 @@ export function estimateShardSeconds(work: GradingWork, shard: Position): number
   const runs = shardRunCount(work.flakeRuns, shard);
   const mutants = shardRunCount(work.mutants, shard);
   if (runs + mutants === 0) return 0;
-  return SHARD_TIMING.setupSeconds + runs * work.gradedTestFiles * SHARD_TIMING.testFileRunSeconds +
+  return SHARD_TIMING.setupSeconds +
+    runs * (SHARD_TIMING.flakeRunSeconds + work.gradedTestFiles * SHARD_TIMING.testFileRunSeconds) +
     mutants * SHARD_TIMING.mutantSeconds;
 }
 

@@ -52,7 +52,7 @@ describe('grading plan sizing', () => {
   it('plans the fewest shards that each meet the target for a small diff', () => {
     const plan = planGrading(work(2, 100, 5));
     expect(plan.count).toBeGreaterThan(1);
-    expect(plan.count).toBeLessThan(8);
+    expect(plan.count).toBeLessThan(MAX_GRADING_SHARDS / 2);
     expect(plan.estimatedShardSeconds).toBeLessThanOrEqual(GRADING_TARGET_SECONDS);
     expect(estimateShardSeconds(plan.work, { index: 1, count: plan.count - 1 }))
       .toBeGreaterThan(GRADING_TARGET_SECONDS);
@@ -60,8 +60,8 @@ describe('grading plan sizing', () => {
   });
 
   it('plans more shards as permutation volume grows, each within the target, up to the cap', () => {
-    const small = planGrading(work(9, 100, 11));
-    const medium = planGrading(work(10, 100, 100));
+    const small = planGrading(work(2, 100, 5));
+    const medium = planGrading(work(4, 100, 40));
     const large = planGrading(work(79, 100, 1700));
     expect(small.count).toBeLessThan(medium.count);
     expect(medium.count).toBeLessThan(large.count);

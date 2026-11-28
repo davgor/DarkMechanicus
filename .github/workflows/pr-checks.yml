@@ -226,9 +226,11 @@ jobs:
         env:
           SCOPE_RESULT: ${{ needs.fireguard-scope.result }}
         run: test "$SCOPE_RESULT" = success
+      # The merge diffs nothing: it only resolves HEAD and the pinned base commit, so it fetches those
+      # two commits instead of the whole history.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Fetch the pinned base commit
+        run: git fetch --no-tags --depth=1 origin "$FIREGUARD_BASE_REF"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
