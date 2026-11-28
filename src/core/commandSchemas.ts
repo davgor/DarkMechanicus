@@ -344,7 +344,8 @@ export const COMMAND_SCHEMAS = {
   addAttachment: z.strictObject({
     path: z.string().min(1).max(4096),
     label: z.string().max(LIMITS.label),
-    purpose: attachmentPurpose
+    purpose: attachmentPurpose,
+    claimToken: claimToken.optional()
   }),
   uploadAttachment: z.strictObject({
     /** Plain base64 of the image: no `data:` prefix, base64 alphabet only. */
@@ -358,7 +359,8 @@ export const COMMAND_SCHEMAS = {
     ticketId: stableId.optional(),
     body: commentBody,
     attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional(),
-    idempotencyKey
+    idempotencyKey,
+    claimToken: claimToken.optional()
   }),
   listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
   createKanbanCard: z.strictObject({ ...kanbanCardFields, size: z.enum(TICKET_SIZES).optional(), idempotencyKey }),
@@ -380,7 +382,8 @@ export const COMMAND_SCHEMAS = {
     cardId: stableId,
     body: commentBody,
     attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional(),
-    idempotencyKey
+    idempotencyKey,
+    claimToken: claimToken.optional()
   }),
   listKanbanMessages: z.strictObject({ cardId: stableId }),
   playKanbanCard: z.strictObject({ cardId: stableId }),

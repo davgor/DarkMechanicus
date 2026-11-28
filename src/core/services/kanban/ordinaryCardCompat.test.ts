@@ -24,8 +24,8 @@ function goldenPacket(packet: KanbanPacket): unknown {
     key: packet.key,
     attemptId: packet.attemptId,
     claimToken: packet.claimToken,
-    leaseExpiresAt: '2026-10-31T09:15:00.000Z',
-    heartbeatIntervalSeconds: 300,
+    leaseExpiresAt: '2026-10-31T10:00:00.000Z',
+    heartbeatIntervalSeconds: 1200,
     card: {
       title: 'Fix the flaky upload test',
       body: 'Only this.',

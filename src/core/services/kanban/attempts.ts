@@ -436,6 +436,36 @@ export function heartbeatKanbanCard(ctx: Ctx, input: HeartbeatKanbanCardInput): 
   })
 }
 
+/** A live card claim `token` proves on this computer, or null: a forged, stale, ended or overdue claim. */
+function liveCardClaim(ctx: Ctx, attemptId: string, token: string): ClaimRow | null {
+  const row = ctx.db.get<ClaimRow>('SELECT * FROM kanban_attempts WHERE id = ?', attemptId)
+  if (row === undefined || row.lease_expires_at === null || isBefore(row.lease_expires_at, ctx.clock.nowIso())) return null
+  if (row.machine_id !== null && row.machine_id !== ctx.machineId) return null
+  try {
+    verifyCardClaim(ctx, row, token)
+  } catch {
+    return null
+  }
+  return row
+}
+
+/**
+ * Renews the lease of the live card claim `claimToken` proves, by the length it holds, as a heartbeat without a note
+ * or a state change would (see `renewAttemptLease`). Returns whether the token named a card attempt at all.
+ */
+export function renewCardLease(ctx: Ctx, claimToken: string): boolean {
+  const attemptId = claimToken.slice(0, Math.max(0, claimToken.indexOf('.')))
+  if (ctx.db.get('SELECT 1 FROM kanban_attempts WHERE id = ?', attemptId) === undefined) return false
+  if (liveCardClaim(ctx, attemptId, claimToken) === null) return true
+  ctx.db.tx(() => {
+    const row = liveCardClaim(ctx, attemptId, claimToken)
+    if (row === null) return
+    const now = ctx.clock.nowIso()
+    ctx.db.run('UPDATE kanban_attempts SET lease_expires_at = ?, heartbeat_at = ? WHERE id = ?', addSeconds(now, heldLeaseSeconds(ctx, row)), now, row.id)
+  })
+  return true
+}
+
 /**
  * Stores the attempt's outputs and evidence, masked, and moves the card to Ready for review. `verification` carries
  * what the command proved against Git before this transaction: the merge's `assertCurrent`, and for a sprint learning

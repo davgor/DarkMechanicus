@@ -369,6 +369,8 @@ interface AddAttachmentInput {
   path: string
   label: string
   purpose: AttachmentPurpose
+  /** A claim holder's token: the call renews that live claim's lease. */
+  claimToken?: string
 }
 
 /** An image's bytes sent by the desktop app (never a path). */
@@ -396,6 +398,8 @@ export interface AddCommentInput {
   /** Staged image ids (`addAttachment`) to attach, at most 20; either purpose. */
   attachments?: string[]
   idempotencyKey?: string
+  /** A claim holder's token: the call renews that live claim's lease. */
+  claimToken?: string
 }
 
 export interface AddKanbanMessageInput {
@@ -405,6 +409,8 @@ export interface AddKanbanMessageInput {
   /** Staged image ids (`addAttachment`) to attach, at most 20; either purpose. */
   attachments?: string[]
   idempotencyKey?: string
+  /** A card claim holder's token: the call renews that live claim's lease. */
+  claimToken?: string
 }
 
 /** A new Kanban card's content. It always starts in Backlog; the key and author come from the server. */
@@ -450,7 +456,7 @@ export interface LaunchKanbanCardsInput {
 /** Claims a card queued by desktop Play or an authorized orchestrator launch. */
 export interface ClaimKanbanCardInput {
   cardId: string
-  /** 30 to 86,400 seconds; 900 when omitted. */
+  /** 30 to 86,400 seconds; 3,600 when omitted. */
   leaseSeconds?: number
   idempotencyKey?: string
 }

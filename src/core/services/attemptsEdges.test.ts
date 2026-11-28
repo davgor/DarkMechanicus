@@ -57,7 +57,7 @@ describe('heartbeatAttempt — the lease length a heartbeat keeps', () => {
     ctx.db.run('UPDATE attempts SET lease_expires_at = NULL WHERE id = ?', claimed.attempt.id)
     ctx.clock.advanceSeconds(10)
     const beat = heartbeatAttempt(withRole(ctx, 'worker'), { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
-    expect(beat).toMatchObject({ state: 'running', leaseExpiresAt: '2026-01-01T00:15:10.000Z' })
+    expect(beat).toMatchObject({ state: 'running', leaseExpiresAt: '2026-01-01T01:00:10.000Z' })
   })
 
   it('keeps the claimed length, but uses the plan default once time given back leaves no positive length', () => {
@@ -75,7 +75,7 @@ describe('heartbeatAttempt — the lease length a heartbeat keeps', () => {
     )
     ctx.clock.advanceSeconds(10)
     const beat = (claimed: typeof kept) => heartbeatAttempt(worker, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }).leaseExpiresAt
-    expect([beat(kept), beat(credited)]).toEqual(['2026-01-01T00:01:10.000Z', '2026-01-01T00:15:10.000Z'])
+    expect([beat(kept), beat(credited)]).toEqual(['2026-01-01T00:01:10.000Z', '2026-01-01T01:00:10.000Z'])
   })
 })
 

@@ -854,7 +854,7 @@ describe('set_policies', () => {
       op: 'set_policies',
       patch: { retryLimit: 5, onTicketFailure: 'pause_run', maxConcurrency: 4 }
     })
-    expect(bundle.policies).toEqual({ maxConcurrency: 4, retryLimit: 5, onTicketFailure: 'pause_run', leaseSeconds: 900 })
+    expect(bundle.policies).toEqual({ maxConcurrency: 4, retryLimit: 5, onTicketFailure: 'pause_run', leaseSeconds: 3600 })
   })
 
   it('accepts the smallest valid values and unlimited concurrency', () => {

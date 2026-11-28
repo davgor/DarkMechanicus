@@ -46,6 +46,7 @@ import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
 import { completeSavedRevision, previewSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
+import { LEASE_COMMANDS, renewClaimAfter } from './services/claimRenewal'
 import { COMMAND_SCHEMAS } from './commandSchemas'
 
 export interface OpenWorkspaceOptions {
@@ -94,6 +95,12 @@ export interface OpenWorkspaceOptions {
   autoReconcile?: boolean
   /** The desktop owner reconciles on its sync lane after opening: open neither reconciles nor flushes first. */
   deferOpenReconcile?: boolean
+  /**
+   * Internal: the `dm` CLI opens for one lease command (a heartbeat). Open neither prunes staged images, reconciles nor
+   * flushes, and the command flushes nothing after it, so keeping a live claim alive waits on no work but its own
+   * short write; the next ordinary session reconciles and flushes what is pending.
+   */
+  leaseOnly?: boolean
   /** Who serves this session. `packaged` is true only for the installed app; missing means false. */
   serverInfo?: { name: string; version: string; packaged?: boolean }
   /**
@@ -411,8 +418,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
       this.store = this.createStore(db, project)
 
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens; a mailbox
-      // poll, which runs every few seconds and touches nothing else, leaves that to ordinary sessions.
-      if (!restricted) {
+      // poll, which runs every few seconds and touches nothing else, and a lease command leave that to ordinary sessions.
+      if (!restricted && !this.leaseOnly()) {
         pruneStagedAttachments(this.store.ctx)
       }
       this.finishOpen()
@@ -433,8 +440,13 @@ export class RepositoryWorkspace implements WorkspaceCore {
     })
   }
 
+  /** A `dm` CLI session opened for one lease command (`OpenWorkspaceOptions.leaseOnly`). */
+  private leaseOnly(): boolean {
+    return this.transport === 'cli' && this.options.leaseOnly === true
+  }
+
   private finishOpen(): void {
-    if (this.options.mailPoll === true || this.options.mailRead === true || (this.isDesktopSession() && this.options.deferOpenReconcile === true)) return
+    if (this.options.mailPoll === true || this.options.mailRead === true || this.leaseOnly() || (this.isDesktopSession() && this.options.deferOpenReconcile === true)) return
     // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
     // A db project has nothing tracked to reconcile at all.
     if (this.layout.mode === 'repo' && this.options.autoReconcile !== false && !this.branchChanged()) {
@@ -851,11 +863,24 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.assertStillGranted()
     if (this.store !== null) refreshSavePermission(this.store.ctx)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
+    if (this.leaseOnly() && !LEASE_COMMANDS.includes(name)) {
+      fail('unauthorized', 'A lease session may only run a heartbeat.', { command: name })
+    }
     const result = await tagTransactions('command', () => this.runCommand(name, input, () => run(this, input)))
-    if (spec.mutates && this.store) {
+    this.afterCommand(name, input, spec.mutates === true)
+    return result
+  }
+
+  /**
+   * After a command succeeded: renews the lease its claim token proves, then flushes what it queued. A lease session
+   * leaves the flush to the next ordinary session.
+   */
+  private afterCommand(name: CommandName, input: unknown, mutates: boolean): void {
+    if (!this.store) return
+    renewClaimAfter(this.store.ctx, name, input)
+    if (mutates && !this.leaseOnly()) {
       this.safeFlush()
     }
-    return result
   }
 
   private executePeerRead(name: CommandName, rawInput: unknown): unknown {

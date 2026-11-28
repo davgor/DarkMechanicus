@@ -149,7 +149,7 @@ describe('reconcileAttempt resubmitting an acceptance node', () => {
   it('stores no increment, so the gate stays unmet until a submission names one', () => {
     const ctx = createTestCtx()
     const { node } = nodeClaim(ctx)
-    ctx.clock.advanceSeconds(3600)
+    ctx.clock.advanceSeconds(3601)
     const view = reconcileAttempt(ctx, {
       attemptId: node.attempt.id,
       resolution: 'resubmit',

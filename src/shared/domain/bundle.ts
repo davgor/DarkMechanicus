@@ -281,7 +281,7 @@ export const DEFAULT_POLICIES: PlanPolicies = {
   maxConcurrency: null,
   retryLimit: 3,
   onTicketFailure: 'continue_independent',
-  leaseSeconds: 900
+  leaseSeconds: 3600
 }
 
 /** Orchestrator retries per ticket over the epic's runs when a plan does not set `autoRetryLimit`. */

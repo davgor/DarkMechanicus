@@ -44,7 +44,7 @@ describe('computeChanges without a base', () => {
         target: 'policies',
         id: 'policies',
         label: 'Policies',
-        detail: 'max concurrency unlimited; retry limit 3; on ticket failure continue_independent; lease 900s'
+        detail: 'max concurrency unlimited; retry limit 3; on ticket failure continue_independent; lease 3600s'
       },
       { kind: 'added', target: 'rationale', id: 'rationale', label: 'Planning rationale', detail: 'Planning rationale added' }
     ])
@@ -60,7 +60,7 @@ describe('computeChanges without a base', () => {
       'added sprint: Sprint 2 added',
       'added ticket: DM-1 Ticket 1 added to Sprint 1',
       'added ticket: DM-2 Ticket 2 added to Sprint 2',
-      'added policies: max concurrency 4; retry limit 3; on ticket failure continue_independent; lease 900s'
+      'added policies: max concurrency 4; retry limit 3; on ticket failure continue_independent; lease 3600s'
     ])
   })
 })
@@ -248,7 +248,7 @@ describe('computeChanges for policies and rationale', () => {
         target: 'policies',
         id: 'policies',
         label: 'Policies',
-        detail: 'max concurrency unlimited → 2; retry limit 3 → 5; on ticket failure continue_independent → pause_run; lease 900s → 600s'
+        detail: 'max concurrency unlimited → 2; retry limit 3 → 5; on ticket failure continue_independent → pause_run; lease 3600s → 600s'
       }
     ])
     expect(details(next, cleared)).toEqual(['edited policies: max concurrency 2 → unlimited'])
