@@ -94,7 +94,16 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      # One installed node_modules per lockfile, saved here and restored by every grading job instead
+      # of each running npm ci (about 14 s apiece on the Fireguard critical path).
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       # Sizes the grading matrix from this diff's own work (flake runs, graded test files, mutants
       # on changed lines) at about 2 minutes per shard, up to 40 shards. Runs no test.
       - name: Plan grading shards from the diff
@@ -130,8 +139,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Grade disjoint flake runs and production modules
         env:
           SHARD_INDEX: ${{ matrix.index }}
@@ -165,8 +180,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       - uses: actions/download-artifact@v4
         with:
           pattern: fireguard-shard-*
