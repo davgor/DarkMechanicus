@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -158,13 +158,16 @@ for (const protocol of protocols) {
         const harness = await initialize(protocol)
         harness.send(prompt(protocol, `[${scenario}]`, 1, protocol === 'omp' ? goldenPromptId(scenario) : undefined))
         const expected = golden(protocol, scenario)
-        const request = lines(expected).find((line) => {
+        const requests = lines(expected).filter((line) => {
           const frame = JSON.parse(line)
-          return frame.type === 'control_request' || frame.type === 'extension_ui_request' && ['select', 'ask'].includes(frame.method)
+          return frame.type === 'control_request' || frame.type === 'extension_ui_request' && ['select', 'ask', 'input', 'editor'].includes(frame.method)
         })
-        if (request) {
+        // An OMP ask tool form (`ask_multi_q*`) asks one request at a time; each gets the golden response with its id.
+        const responses = lines(golden(protocol, scenario, 'in')).slice(1)
+        for (const [index, request] of requests.entries()) {
           await harness.until(() => harness.stdout.includes(request))
-          harness.send(lines(golden(protocol, scenario, 'in'))[1])
+          const id = JSON.parse(request).id
+          harness.send(protocol === 'omp' ? responses.find((line) => JSON.parse(line).id === id)! : responses[index])
         }
         await sendGoldenCommands(harness, protocol, scenario)
         await harness.until(() => completed(protocol, harness.stdout))
@@ -247,6 +250,28 @@ for (const protocol of protocols) {
       expect(await finish(harness)).toBe(0)
       expect(expected).toContain(goldenEcho)
       expect(harness.stdout).toBe(expected.replaceAll(goldenEcho, echo(holder.answers)))
+    })
+
+    if (protocol === 'omp') it('[ask-multi-q] replays the recorded OMP 18.20.2 ask form one request at a time and echoes every response it received', async () => {
+      const harness = await initialize(protocol)
+      harness.send(prompt(protocol, '[ask-multi-q]'))
+      const expected = golden(protocol, 'ask_multi_q')
+      const requests = lines(expected).filter((line) => JSON.parse(line).type === 'extension_ui_request')
+      expect(requests.map((line) => JSON.parse(line).method)).toEqual(['select', 'select', 'input'])
+      // Not the golden's answers: the echo must report what reached the CLI, in arrival order.
+      const sent = lines(golden(protocol, 'ask_multi_q', 'in')).slice(1).map((line) => JSON.parse(line))
+      sent[2].value = 'Something else'
+      for (const [index, request] of requests.entries()) {
+        await harness.until(() => harness.stdout.includes(request))
+        expect(completed(protocol, harness.stdout)).toBe(false)
+        harness.send(sent[index])
+      }
+      await harness.until(() => completed(protocol, harness.stdout))
+      expect(await finish(harness)).toBe(0)
+      const echo = (value: unknown): string => JSON.stringify(`answers: ${JSON.stringify(value)}`)
+      const original = lines(golden(protocol, 'ask_multi_q', 'in')).slice(1).map((line) => JSON.parse(line))
+      expect(expected).toContain(echo(original))
+      expect(harness.stdout).toBe(expected.replaceAll(echo(original), echo(sent)))
     })
 
     it('interrupt during slow ends the turn with the golden interrupt tail', async () => {
@@ -668,6 +693,175 @@ it('OMP [mail] acknowledges the prompt, finds the role\'s peer in the epic and m
   expect(dmCalls(calls)).toHaveLength(3)
   expect(await finish(harness)).toBe(0)
   expect(harness.stderr).toBe('')
+})
+
+const browserPipe = '\\\\.\\pipe\\dm-browser-fixture'
+const treeContent = '[e1] heading "Fixture"\n  [e7] button "Change text"\n  [e9] textbox "Name"\n  [e8] link "Other page"'
+
+/**
+ * Instructions whose `dm` line runs a Node stand-in for the dm CLI in `dir`: it appends each call (its argv from
+ * `call` on, whether the grant reached it, its browser pipe and cwd) to `calls` and answers canned JSON per op.
+ * `browser_read` fails with `stopped` from the `STUB_FAIL_READ`th read on, `browser_screenshot` with `view_hidden`
+ * when STUB_HIDDEN is set, and `browser_status` plants the grant token in its reply, which the fake must never show.
+ */
+function browserInstructions(dir: string): { file: string; calls: string } {
+  mkdirSync(dir, { recursive: true })
+  const calls = join(dir, 'browser-calls.jsonl')
+  const stub = join(dir, 'cli.mjs')
+  writeFileSync(stub, [
+    "import { appendFileSync, existsSync, readFileSync } from 'node:fs'",
+    "const all = process.argv.slice(2), argv = all.slice(all.indexOf('call')), op = argv[1], input = JSON.parse(argv[2])",
+    `const log = ${JSON.stringify(calls)}`,
+    "const reads = existsSync(log) ? readFileSync(log, 'utf8').split('\\n').filter((line) => line.includes('\"browser_read\"')).length : 0",
+    "appendFileSync(log, JSON.stringify({ argv, grant: process.env.DM_SESSION_TOKEN !== undefined, pipe: process.env.DM_BROWSER_PIPE, cwd: process.cwd() }) + '\\n')",
+    "const tab = { url: 'http://127.0.0.1:4100/', title: 'Fixture', loading: false }",
+    'const failAt = Number(process.env.STUB_FAIL_READ) || Infinity',
+    'const answers = {',
+    '  browser_navigate: () => ({ tab: { ...tab, url: input.url } }),',
+    `  browser_read: () => ({ url: tab.url, title: tab.title, untrusted: true, content: input.mode === 'tree' ? ${JSON.stringify(treeContent)} : 'Clicked\\nAda', truncated: false }),`,
+    '  browser_click: () => ({ tab }),',
+    '  browser_type: () => ({ tab }),',
+    "  browser_screenshot: () => ({ image: { id: 'img_1', mimeType: 'image/png' }, url: tab.url, path: 'C:\\\\shots\\\\fixture.png' }),",
+    "  browser_status: () => ({ enabled: true, owner: 'agent', tab, pendingOrigin: null, planted: process.env.DM_SESSION_TOKEN })",
+    '}',
+    "const refusal = (code, message) => { process.stdout.write(JSON.stringify({ ok: false, error: { code, message } })); process.exitCode = 1 }",
+    "if (op === 'browser_read' && reads + 1 >= failAt) refusal('stopped', 'The person stopped the agent.')",
+    "else if (op === 'browser_screenshot' && process.env.STUB_HIDDEN === '1') refusal('view_hidden', 'The browser view is not visible.')",
+    'else process.stdout.write(JSON.stringify({ ok: true, data: answers[op]() }))',
+    ''
+  ].join('\n'))
+  const line = `ELECTRON_RUN_AS_NODE=1 '${process.execPath}' '${stub}' --repo ${scratch.replaceAll('\\', '/')}`
+  const file = join(dir, 'instructions.md')
+  writeFileSync(file, ['```sh', `${line} call get_capabilities '{}'  # run a command`, '```'].join('\n'))
+  return { file, calls }
+}
+
+const browserCalls = (file: string): { argv: string[]; grant: boolean; pipe: string; cwd: string }[] =>
+  existsSync(file) ? lines(readFileSync(file, 'utf8')).map((line) => JSON.parse(line)) : []
+
+/** The run's `Bash` tool calls, in order: their id, command, result text and whether they failed. */
+function bashCalls(protocol: Protocol, stdout: string): { id: string; command: string; result: string; isError: boolean }[] {
+  const frames = lines(stdout).map((line) => JSON.parse(line))
+  if (protocol === 'omp') {
+    return frames.filter((frame) => frame.type === 'tool_execution_end' && frame.toolName === 'Bash')
+      .map((frame) => ({ id: frame.toolCallId, command: frame.args.command, result: frame.result.content[0].text, isError: frame.isError }))
+  }
+  const uses = frames.filter((frame) => frame.type === 'assistant').flatMap((frame) => frame.message.content)
+    .filter((block: { type: string; name?: string }) => block.type === 'tool_use' && block.name === 'Bash')
+  const results = frames.filter((frame) => frame.type === 'user').flatMap((frame) => frame.message.content)
+    .filter((block: { type: string }) => block.type === 'tool_result')
+  return uses.map((use: { id: string; input: { command: string } }) => {
+    const result = results.find((block: { tool_use_id: string }) => block.tool_use_id === use.id)
+    return { id: use.id, command: use.input.command, result: result.content, isError: result.is_error }
+  })
+}
+
+/** Runs one `text` turn with `instructions` (none when null) given as the protocol's instructions flag. */
+async function browserRun(protocol: Protocol, text: string, instructions: string | null, env: NodeJS.ProcessEnv = {}): Promise<Harness> {
+  const flag = protocol === 'claude' ? '--append-system-prompt-file' : '--append-system-prompt'
+  const harness = await initialize(protocol, instructions === null ? [] : [flag, instructions], cli, { DM_SESSION_TOKEN: grant, DM_BROWSER_PIPE: browserPipe, ...env })
+  harness.send(prompt(protocol, text))
+  await harness.until(() => completed(protocol, harness.stdout))
+  expect(await finish(harness)).toBe(0)
+  expect(harness.stdout).not.toContain(grant)
+  expect(harness.stderr).toBe('')
+  return harness
+}
+
+for (const protocol of protocols) {
+  it(`${protocol} [browser] navigates, reads, clicks, types Ada, reads and screenshots through the instructions' dm line, with its own env and cwd, as Bash tool calls`, async () => {
+    const { file, calls } = browserInstructions(join(scratch, 'dm cli with spaces'))
+    const harness = await browserRun(protocol, 'Drive it [browser url="http://127.0.0.1:4100/"]', file)
+    const recorded = browserCalls(calls)
+    expect(recorded.map((call) => call.argv)).toEqual([
+      ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/","as":"Acolyte:DM-442"}'],
+      ['call', 'browser_read', '{"mode":"tree"}'],
+      ['call', 'browser_click', '{"ref":"e7"}'],
+      ['call', 'browser_type', '{"ref":"e9","text":"Ada"}'],
+      ['call', 'browser_read', '{"mode":"text"}'],
+      ['call', 'browser_screenshot', '{"label":"fixture"}']
+    ])
+    for (const call of recorded) expect(call).toMatchObject({ grant: true, pipe: browserPipe })
+    for (const call of recorded) expect(call.cwd.toLowerCase()).toBe(scratch.toLowerCase())
+    const tools = bashCalls(protocol, harness.stdout)
+    expect(tools.map((tool) => tool.command)).toEqual(recorded.map((call) => `dm ${call.argv[0]} ${call.argv[1]} ${call.argv[2]}`))
+    expect(tools.map((tool) => tool.id)).toEqual([1, 2, 3, 4, 5, 6].map((step) => `${protocol === 'claude' ? 'toolu' : 'call'}_T1_browser${step}`))
+    expect(tools.every((tool) => !tool.isError)).toBe(true)
+    expect(JSON.parse(tools[1].result)).toEqual({ ok: true, data: { url: 'http://127.0.0.1:4100/', title: 'Fixture', untrusted: true, content: treeContent, truncated: false } })
+    expect(JSON.parse(tools[5].result)).toMatchObject({ ok: true, data: { path: 'C:\\shots\\fixture.png' } })
+    expect(replyText(protocol, harness.stdout)).toBe('browser done')
+  })
+
+  it(`${protocol} [browser] without a dm line in its instructions calls nothing and says so`, async () => {
+    const harness = await browserRun(protocol, '[browser url=http://127.0.0.1:4100/]', null)
+    expect(bashCalls(protocol, harness.stdout)).toEqual([])
+    expect(replyText(protocol, harness.stdout)).toBe('browser failed: the instructions give no dm command line')
+  })
+}
+
+it('OMP [browser-origin] navigates to the second origin, then reads the status', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser-origin url=http://localhost:4101/]', file)
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_navigate', '{"url":"http://localhost:4101/","as":"Acolyte:DM-442"}'],
+    ['call', 'browser_status', '{}']
+  ])
+  expect(bashCalls('omp', harness.stdout).map((tool) => tool.command)).toEqual(['dm call browser_navigate {"url":"http://localhost:4101/","as":"Acolyte:DM-442"}', 'dm call browser_status {}'])
+  expect(replyText('omp', harness.stdout)).toBe('browser done')
+})
+
+it('[browser-read] navigates to the page and reads it as text, and nothing else', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('claude', '[browser-read url=http://127.0.0.1:4100/inject]', file)
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/inject","as":"Acolyte:DM-442"}'],
+    ['call', 'browser_read', '{"mode":"text"}']
+  ])
+  expect(JSON.parse(bashCalls('claude', harness.stdout)[1].result).data.untrusted).toBe(true)
+  expect(replyText('claude', harness.stdout)).toBe('browser done')
+})
+
+it('[browser-hidden] reads and clicks the current page, then replies with the screenshot\'s view_hidden refusal', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('claude', '[browser-hidden]', file, { STUB_HIDDEN: '1' })
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_read', '{"mode":"tree"}'],
+    ['call', 'browser_click', '{"ref":"e7"}'],
+    ['call', 'browser_screenshot', '{"label":"hidden"}']
+  ])
+  expect(bashCalls('claude', harness.stdout).map((tool) => tool.isError)).toEqual([false, false, true])
+  expect(replyText('claude', harness.stdout)).toBe('browser failed: browser_screenshot view_hidden: The browser view is not visible.')
+})
+
+it('OMP [browser-status] makes one status call and never shows the grant token its reply carried', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser-status]', file)
+  expect(browserCalls(calls)).toEqual([expect.objectContaining({ argv: ['call', 'browser_status', '{}'], grant: true, pipe: browserPipe })])
+  const [status] = bashCalls('omp', harness.stdout)
+  expect(JSON.parse(status.result).data.planted).toBe('[redacted]')
+  expect(replyText('omp', harness.stdout)).toBe('browser done')
+})
+
+it('OMP [browser-loop] navigates first, then reads every 300 ms until the first failing read, reports its code and calls nothing after it', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const started = Date.now()
+  const harness = await browserRun('omp', '[browser-loop url=http://127.0.0.1:4100/slow]', file, { STUB_FAIL_READ: '3' })
+  expect(Date.now() - started).toBeGreaterThanOrEqual(600)
+  expect(browserCalls(calls).map((call) => call.argv)).toEqual([
+    ['call', 'browser_navigate', '{"url":"http://127.0.0.1:4100/slow","as":"Acolyte:DM-442"}'],
+    ...Array.from({ length: 3 }, () => ['call', 'browser_read', '{"mode":"text"}'])
+  ])
+  const tools = bashCalls('omp', harness.stdout)
+  expect(tools.map((tool) => tool.isError)).toEqual([false, false, false, true])
+  expect(JSON.parse(tools[3].result)).toEqual({ ok: false, error: { code: 'stopped', message: 'The person stopped the agent.' } })
+  expect(replyText('omp', harness.stdout)).toBe('browser loop stopped: browser_read stopped\nbrowser done')
+})
+
+it('OMP [browser] stops at the first refused step and replies with its code', async () => {
+  const { file, calls } = browserInstructions(join(scratch, 'stub'))
+  const harness = await browserRun('omp', '[browser url=http://127.0.0.1:4100/]', file, { STUB_FAIL_READ: '1' })
+  expect(browserCalls(calls).map((call) => call.argv[1])).toEqual(['browser_navigate', 'browser_read'])
+  expect(replyText('omp', harness.stdout)).toBe('browser failed: browser_read stopped: The person stopped the agent.')
 })
 
 it('OMP with FAKE_AGENT_DELIVER_MAIL delivers its inbox into its session file at startup, as the app\'s receipts read it', async () => {

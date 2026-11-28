@@ -120,6 +120,14 @@ export const chatRecordSchema = z.object({
   transferEpicId: z.string().min(1).optional(),
   /** The Kanban card this chat carries, when Play started it; absent for every other chat and for chats stored before Kanban. */
   cardId: z.string().min(1).optional(),
+  /**
+   * The cult run this chat is a member of, when the cult launcher (`cultLauncher.ts`) started it as its Magos or an
+   * acolyte; absent for every other chat and for chats stored before cults. Member chats are left out of the folder
+   * chat lists in main.
+   */
+  cultRunId: z.string().min(1).optional(),
+  /** The chat's role in its cult run; set together with `cultRunId`. */
+  cultRole: z.enum(['magos', 'acolyte']).optional(),
   /** Durable interruption marker; null only after server-verified runtime availability. */
   /** Dedicated tooling repair scope; prevents recursive repair orchestration. */
   repairIncidentId: z.string().min(1).optional(),
@@ -228,6 +236,11 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     category: z.enum(APPROVAL_CATEGORIES),
     tool: z.string().min(1),
     summary: z.string(),
+    /**
+     * The request asked the person questions (a question prompt: Claude Code's AskUserQuestion, an OMP ask or form),
+     * never for a permission; its record reads as a question, answered or not.
+     */
+    question: z.boolean().optional(),
     /** The raw detail the vendor sent (the command, the edit), as the adapter passes it on. */
     input: toolInputSchema.optional(),
     /** The label of the thread (`threadId`) the request was raised in; absent in the chat's own thread. */

@@ -31,6 +31,7 @@ import { FakeBackend, deliveryScenario, scenario } from '../../src/renderer/src/
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
 import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
+import { browserScenarios, browserSites, type BrowserScenarioName } from '../../src/renderer/src/browser/__mocks__/browserScenario'
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
@@ -276,7 +277,7 @@ function namedApproval(): AgentChatSnapshot {
   }
 }
 
-/** The first of two questions in one multi-select ask, docked over the conversation. */
+/** One multi-select question that is not a form (a Claude Code single multiSelect question), docked over the conversation. */
 function multiQuestion(): AgentChatSnapshot {
   return {
     ...scenarios.empty.snapshot,
@@ -285,7 +286,7 @@ function multiQuestion(): AgentChatSnapshot {
     pending: {
       id: 'question-multi-1', kind: 'question', title: 'Which checks should the worker run before it submits?',
       detail: 'Choose every check that applies.', threadId: null,
-      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true,
       options: [
         { id: 'option_0', label: 'Lint', description: 'ESLint over the changed files' },
         { id: 'option_1', label: 'Typecheck', description: 'Both tsconfig projects' },
@@ -293,6 +294,33 @@ function multiQuestion(): AgentChatSnapshot {
         { id: 'option_3', label: 'Build' },
         { id: 'text', label: 'Other' }
       ]
+    }
+  }
+}
+
+/**
+ * Every question of one ask as one form (the recorded OMP ask): a checkbox group with two defaults, a radio group with
+ * its default and Other, and a free-text field, docked over the conversation.
+ */
+function formQuestion(): AgentChatSnapshot {
+  return {
+    ...scenarios.empty.snapshot,
+    items: conversation,
+    status: 'busy',
+    pending: {
+      id: 'question-form-1', kind: 'question', title: 'Answer 3 questions', detail: '', threadId: null,
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, options: [],
+      form: { fields: [
+        { id: 'databases', title: 'Which databases?', multi: true, text: 'none', required: false, options: [
+          { id: 'option_0', label: 'SQLite', description: 'The local store', preselected: true },
+          { id: 'option_1', label: 'Postgres', description: 'The shared server', preselected: true },
+          { id: 'option_2', label: 'MySQL' }, { id: 'option_3', label: 'DuckDB' }
+        ] },
+        { id: 'region', title: 'Which region?', multi: false, text: 'other', required: true, options: [
+          { id: 'option_0', label: 'EU' }, { id: 'option_1', label: 'US', preselected: true }, { id: 'option_2', label: 'APAC' }
+        ] },
+        { id: 'note', title: 'Anything else?', multi: false, text: 'only', required: false, options: [] }
+      ] }
     }
   }
 }
@@ -325,6 +353,20 @@ function transcriptSnapshot(): AgentChatSnapshot {
     }
   ]
   return { items, status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
+}
+
+/** The folder glass states' chat: the person's ask, a helper the turn started, then the reply, so the rail holds a subagent. */
+function glassChatSnapshot(): AgentChatSnapshot {
+  const [ask, reply] = transcriptSnapshot().items
+  const helper: ChatItem = { id: 'th-442', at: AT, kind: 'thread', parentItemId: null, label: 'Acolyte:DM-442 Run tests', state: 'running', callsign: DM442 }
+  return { ...transcriptSnapshot(), items: [ask, helper, reply] }
+}
+
+/** Opens the folder chat's Agents rail and waits for the glass header, rail and the transcript's reply. */
+async function reachChatGlass(): Promise<void> {
+  await clickWhenPresent(() => $('.agent-chat-agents'), 'the Agents button')
+  await until(() => $('.agent-chat-header.glass') && $('aside.rr.glass[data-collapsed="false"]') && $('.agent-chat-scroll .chat-msg-assistant'),
+    'the glass header, the open glass rail and the transcript’s reply')
 }
 
 /** The mail-card state's Magos chat: the person's ask and the reply, with the Lexmechanic exchange between them. */
@@ -545,11 +587,28 @@ const agentStates: Record<string, StateDef> = {
       await until(() => $('.agent-prompt .agent-prompt-arbitration'), 'the named approval card')
     }
   },
+  // The folder chat over its own backdrop: frosted header, open Agents rail and transcript pane.
   'agent-glass': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: glassChatSnapshot() } },
+    reach: reachChatGlass
+  },
+  // The same folder chat captured with reduced transparency emulated: every pane is a solid panel.
+  'agent-glass-solid': {
+    mount: 'chat',
+    seed: (context) => { context.chatApi.snapshotResult = { ok: true, data: glassChatSnapshot() } },
+    reach: reachChatGlass
+  },
+  // The epic Agent tab, Magos tab selected and rail open, over the stage's one backdrop with a docked approval card.
+  'epic-agent-glass': {
     mount: 'epic',
-    seed: (context) => snapshot(context, namedApproval()),
+    seed: (context) => {
+      snapshot(context, namedApproval())
+      context.chats = [{ ...ORCHESTRATOR, agent: 'omp' }, { ...PLANNER, agent: 'omp' }]
+    },
     reach: async () => {
       await openAgentTab()
+      await until(() => $('.ats-tab.is-active [aria-label="Magos"]'), 'the selected Magos tab')
       await until(() => $('aside.rr.glass[data-collapsed="false"]') && $('.agent-prompt.glass[role="alertdialog"]'), 'the open glass rail and docked approval card')
     }
   },
@@ -566,6 +625,15 @@ const agentStates: Record<string, StateDef> = {
       await until(() => text($('.agent-prompt-count')) === '2 selected', '2 selected')
     }
   },
+  'question-form': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, formQuestion()),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => $('.agent-prompt-form-card .agent-prompt-form'), 'the docked form of three questions')
+      await until(() => text($('.agent-prompt-form-card .agent-prompt-count')) === '3 of 3 answered', '3 of 3 answered')
+    }
+  },
   'agent-magos-decided': {
     mount: 'epic',
     seed: (context) => snapshot(context, magosDecided()),
@@ -579,7 +647,8 @@ const agentStates: Record<string, StateDef> = {
   'agent-needs-you': {
     mount: 'epic',
     // The planner chat is not watched (no transcript, so no subagent rows): its subagent's prompt badges its own row.
-    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing.
+    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing;
+    // its pending browser site (DM-897) is always shown and badges the Magos's own row.
     seed: (context) => {
       snapshot(context, treeSnapshot())
       context.chats.push(PLANNER)
@@ -587,7 +656,8 @@ const agentStates: Record<string, StateDef> = {
         ok: true, data: [
           attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?'),
           { ...attention('th-plan-look', 'off', 'Read the plan?'), chatId: PLANNER.id, callsign: null },
-          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false }
+          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false },
+          { ...attention('th-look', 'off', 'https://docs.example'), kind: 'site', promptId: 'site-1', threadId: null, callsign: null }
         ]
       }
     },
@@ -597,6 +667,7 @@ const agentStates: Record<string, StateDef> = {
       await until(() => buttonNamed('Lexmechanic needs you'), 'the unwatched planner’s needs-you dot')
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
+      await until(() => buttonNamed('Magos needs you'), 'the Magos’s browser site dot')
     }
   },
   // Ten GUI chats: the run's Magos and nine planners, each named apart, with the second planner selected.
@@ -638,6 +709,100 @@ const agentStates: Record<string, StateDef> = {
 
 async function reachGraph(): Promise<void> {
   await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph')
+}
+
+/**
+ * The epic rail as it stood with its Agents tab selected, measured just before a Browser state clicks the Browser tab,
+ * so the capture can show the Browser tab widens it; null outside the Browser states.
+ */
+let agentsRail: { tab: string | null; width: number } | null = null
+
+/**
+ * The epic rail's Browser tab over `FakeBrowser` seeded from `browserScenario.ts`, reached by real clicks: the Agent
+ * view, then the rail's Browser tab. The native view does not exist here, so the content area shows only its own box.
+ */
+function browserState(scenario: BrowserScenarioName, after?: () => Promise<void>): StateDef {
+  return {
+    mount: 'epic',
+    seed: (context) => { context.backend.browser.current = browserScenarios[scenario] },
+    reach: async () => {
+      await openAgentTab()
+      const rail = await until(() => $('aside[aria-label="Epic agents"][data-collapsed="false"]'), 'the expanded Epic agents rail')
+      agentsRail = { tab: text($('[role="tab"][aria-selected="true"]', rail)), width: rail.getBoundingClientRect().width }
+      await clickWhenPresent(() => $('aside[aria-label="Epic agents"] :is([role="tab"], .rr-strip-tab)[aria-label="Browser"]'),
+        'the rail’s Browser tab')
+      await until(() => { const badge = text($('.bp [aria-label="Browser owner"]')); return badge !== null && badge !== 'Loading…' },
+        'the Browser panel’s ownership badge')
+      await after?.()
+    }
+  }
+}
+
+/**
+ * The Browser tab's states: no tab with agents off, an Acolyte driving, the person in control, stopped, a private tab,
+ * a site card per asker (agent, page, person) docked in the chat beside the panel, the open Sites popover, and the
+ * camera's capture popover for a GUI chat and for a terminal one.
+ */
+const browserStates: Record<string, StateDef> = {
+  'browser-empty': browserState('browser-empty'),
+  'browser-agent': browserState('browser-agent'),
+  'browser-person': browserState('browser-person'),
+  'browser-stopped': browserState('browser-stopped'),
+  // The private tab is open over the agent tab, and Private tab's inline address field holds the next address.
+  'browser-private': browserState('browser-private', async () => {
+    await clickWhenPresent(() => buttonNamed('Private tab', $('.bp') ?? document), 'the Private tab button')
+    const field = await until(() => $('.bp input[aria-label="Private tab address"]') as HTMLInputElement | null, 'the private tab address field')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, 'https://accounts.example.com/login')
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await until(() => field.value === 'https://accounts.example.com/login', 'the typed private address')
+  }),
+  'browser-origin': browserState('browser-origin', siteCard),
+  'browser-origin-page': browserState('browser-origin-page', siteCard),
+  'browser-origin-person': browserState('browser-origin-person', siteCard),
+  // The folder's three always-allowed sites, listed in the open Sites popover with the page area hidden behind it.
+  'browser-sites': {
+    ...browserState('browser-agent', async () => {
+      await clickWhenPresent(() => buttonNamed('Sites', $('.bp') ?? document), 'the Sites button')
+      await until(() => $('.bp-sites-popover .bp-sites-row'), 'the Sites popover’s rows')
+    }),
+    seed: (context) => {
+      context.backend.browser.current = browserScenarios['browser-agent']
+      context.backend.browser.siteList = [...browserSites]
+    }
+  },
+  // The Magos runs in a terminal, so it has no chat column: its site card docks in the Browser panel above the page.
+  'browser-origin-terminal': {
+    ...browserState('browser-origin', async () => { await until(() => $('.bp .origin-prompt h3'), 'the Browser panel’s site card') }),
+    seed: (context) => {
+      context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
+      context.backend.browser.current = browserScenarios['browser-origin']
+    }
+  },
+  // The camera's capture of the agent tab in its popover over the hidden page area: Add to message for the Magos's
+  // composer, and Attach as evidence to the epic (the badge's DM-442 is not one of the plan's tickets).
+  'browser-camera': browserState('browser-agent', capture),
+  // The Magos runs in a terminal, whose view has no composer: Add to message is off and says why.
+  'browser-camera-terminal': {
+    ...browserState('browser-agent', capture),
+    seed: (context) => {
+      context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
+      context.backend.browser.current = browserScenarios['browser-agent']
+    }
+  }
+}
+
+/** The chat's site card for the seeded pending origin, docked above the composer. */
+async function siteCard(): Promise<void> {
+  await until(() => $('section.agent-chat .origin-prompt h3'), 'the chat’s site card')
+}
+
+/** Captures the agent tab with the toolbar's camera, real clicks only, and waits for the popover's loaded thumbnail. */
+async function capture(): Promise<void> {
+  await clickWhenPresent(() => buttonNamed('Capture the agent tab', $('.bp') ?? document), 'the camera button')
+  await until(() => {
+    const thumb = $('.bp-camera-popover img.bp-camera-thumb')
+    return thumb instanceof HTMLImageElement && thumb.complete && thumb.naturalWidth > 0
+  }, 'the capture popover’s thumbnail')
 }
 
 /** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
@@ -895,7 +1060,8 @@ const STATES: Record<string, StateDef> = {
       await chooseCatalogModel('Opus 5.5', 'Max')
     }
   },
-  ...deliveryStates
+  ...deliveryStates,
+  ...browserStates
 }
 
 // ---------------------------------------------------------------------------------------------- observations
@@ -970,10 +1136,13 @@ function boxInside(inner: DOMRect, outer: DOMRect): boolean {
   return inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1 && inner.left >= outer.left - 1 && inner.right <= outer.right + 1
 }
 
-/** Which checked options and whether Submit show in the card, and the transcript's height beside it against its minimum. */
+/**
+ * Which checked options and whether Submit show in the card, and the transcript's height beside it against its minimum.
+ * The scrolling list is a form's fields, else a multi question's options.
+ */
 function questionLayout(form: HTMLElement, checkedRows: HTMLElement[]): Record<string, unknown> {
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
-  const list = form.querySelector<HTMLElement>('.agent-prompt-choices')
+  const list = form.querySelector<HTMLElement>('.agent-prompt-fields, .agent-prompt-choices')
   const card = form.closest<HTMLElement>('.agent-prompt')
   const transcript = card?.closest('.agent-chat')?.querySelector<HTMLElement>('.agent-chat-scroll') ?? null
   const viewport = new DOMRect(0, 0, window.innerWidth, window.innerHeight)
@@ -1008,17 +1177,59 @@ function questionObservations(): Record<string, unknown> | null {
   }
 }
 
-/** The computed glass of the Agent stage: the backdrop's image, and the rail's, docked card's and transcript's surfaces. */
+/**
+ * The docked form prompt: its glass, heading, each fieldset's legend, control kind and checked options, the answered
+ * count, every Submit button and whether it is enabled, which legends show in the scrolling field list and whether it
+ * scrolls, and the same layout as a multi question; null without one.
+ */
+function formObservations(): Record<string, unknown> | null {
+  const form = $('.agent-prompt-form-card .agent-prompt-form')
+  const card = form?.closest<HTMLElement>('.agent-prompt') ?? null
+  if (form === null || card === null) return null
+  const fields = [...form.querySelectorAll<HTMLElement>('fieldset.agent-prompt-field')]
+  const list = form.querySelector<HTMLElement>('.agent-prompt-fields')
+  const viewport = new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+  const legendsInView = list === null ? [] : fields.map((field) => field.querySelector('legend')).filter((legend) => legend !== null
+    && boxInside(legend.getBoundingClientRect(), list.getBoundingClientRect()) && boxInside(legend.getBoundingClientRect(), viewport)).map(text)
+  const checkedRows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')].filter((row) => row.querySelector('input')?.checked === true)
+  const submits = [...card.querySelectorAll<HTMLButtonElement>('button')].filter((button) => text(button) === 'Submit')
+  const kind = (field: HTMLElement): string => field.querySelector('input[type="checkbox"]') ? 'checkbox'
+    : field.querySelector('input[type="radio"]') ? 'radio' : field.querySelector('textarea') ? 'text' : 'none'
+  return {
+    cards: document.querySelectorAll('.agent-prompt[role="alertdialog"]').length,
+    glassStrong: card.classList.contains('glass-strong'),
+    heading: text(card.querySelector('h3')),
+    legends: fields.map((field) => text(field.querySelector('legend'))),
+    kinds: fields.map(kind),
+    checked: fields.map((field) => [...field.querySelectorAll<HTMLInputElement>('input:checked')]
+      .map((input) => text(input.closest('label')?.querySelector('.agent-prompt-check-label') ?? null))),
+    count: text(card.querySelector('.agent-prompt-count')),
+    submits: submits.length,
+    submitEnabled: submits.length === 1 ? !submits[0].matches(':disabled') : null,
+    legendsInView,
+    fieldsScroll: list === null ? null : list.scrollHeight > list.clientHeight,
+    ...questionLayout(form, checkedRows)
+  }
+}
+
+/**
+ * The computed glass of the Agent stage (the epic's, else the folder chat's): the backdrop's image, whether the page
+ * matches reduced transparency, and the header's, rail's, docked card's and transcript pane's surfaces with their alpha.
+ */
 function glassObservations(): Record<string, unknown> | null {
-  const stage = $('section.eap')
+  const stage = $('section.eap') ?? $('section.agent-chat')
   if (stage === null) return null
-  const surface = (element: HTMLElement | null): { background: string; backdropFilter: string } | null => {
+  const surface = (element: HTMLElement | null): { background: string; alpha: number | null; backdropFilter: string } | null => {
     if (element === null) return null
     const style = getComputedStyle(element)
-    return { background: style.backgroundColor, backdropFilter: style.backdropFilter }
+    const channels = /^rgba?\(([^)]*)\)$/.exec(style.backgroundColor)?.[1].split(',') ?? null
+    const alpha = channels === null ? null : channels.length === 4 ? Number(channels[3]) : 1
+    return { background: style.backgroundColor, alpha, backdropFilter: style.backdropFilter }
   }
   return {
     backdrop: getComputedStyle(stage).backgroundImage,
+    reducedTransparency: window.matchMedia('(prefers-reduced-transparency: reduce)').matches,
+    header: surface($('.agent-chat-header')),
     rail: surface($('aside.rr')),
     card: surface($('.agent-prompt')),
     transcript: surface($('.agent-chat-scroll'))
@@ -1327,6 +1538,79 @@ function polishObservations(): Record<string, unknown> {
   }
 }
 
+/** The Browser panel's control buttons a person can see, of Stop agent, Take control and Hand back, in that order. */
+const BROWSER_CONTROLS = ['Stop agent', 'Take control', 'Hand back']
+
+/** The panel's ownership badge, tab titles and control buttons: whether Stop agent is on and what the toggle reads. */
+function browserControlObservations(panel: HTMLElement): Record<string, unknown> {
+  const stop = buttonNamed('Stop agent', panel)
+  return {
+    badge: text($('[aria-label="Browser owner"]', panel)),
+    tabs: [...panel.querySelectorAll('.bp-tab-title')].map(text),
+    stopEnabled: stop === null ? null : !stop.disabled,
+    toggle: text(buttonNamed('Take control', panel) ?? buttonNamed('Hand back', panel)),
+    controls: BROWSER_CONTROLS.filter((name) => buttonNamed(name, panel) !== null)
+  }
+}
+
+/** The page area's own note, and the preview-only label the preview draws over it while it holds none. */
+function browserPageObservations(content: HTMLElement | null): { page: string | null; pageStandIn: string | null } {
+  const standIn = content === null ? 'none' : getComputedStyle(content, '::before').content
+  return { page: text(content), pageStandIn: standIn === 'none' || standIn === 'normal' ? null : standIn.replace(/^"|"$/g, '') }
+}
+
+/**
+ * The Browser panel's chrome as a person reads it, the stage the widened rail shares, the rail as it stood on its Agents
+ * tab, the chat's site card and the open Sites popover's origins; null without a panel.
+ */
+function browserObservations(): Record<string, unknown> | null {
+  const panel = $('section.bp')
+  if (panel === null) return null
+  const enabled = $('input[role="switch"]', panel)
+  const address = $('input[aria-label="Private tab address"]', panel)
+  const sites = $('.bp-sites-popover', panel)
+  const content = $('.bp-content', panel)
+  return {
+    ...browserControlObservations(panel),
+    enabled: enabled instanceof HTMLInputElement ? enabled.checked : null,
+    ...browserPageObservations(content),
+    privateAddress: address instanceof HTMLInputElement ? address.value : null,
+    stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null,
+    agentsRail,
+    siteCard: siteCardObservations($('section.agent-chat .origin-prompt'), $('section.agent-chat .chat-composer')),
+    panelSiteCard: siteCardObservations($('.origin-prompt', panel), content),
+    sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
+    sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect()),
+    camera: cameraObservations($('.bp-camera-popover', panel), panel)
+  }
+}
+
+/** The camera's popover: its thumbnail loaded, each button and whether it is on, its notes, and that it stays in the panel. */
+function cameraObservations(shot: HTMLElement | null, panel: HTMLElement): Record<string, unknown> | null {
+  if (shot === null) return null
+  const thumb = $('img.bp-camera-thumb', shot)
+  return {
+    thumbLoaded: thumb instanceof HTMLImageElement && thumb.complete && thumb.naturalWidth > 0,
+    buttons: [...shot.querySelectorAll('button')].map((button) => ({ text: text(button), enabled: !button.disabled })),
+    notes: [...shot.querySelectorAll('.bp-camera-note')].map(text),
+    inPanel: boxInside(shot.getBoundingClientRect(), panel.getBoundingClientRect())
+  }
+}
+
+/**
+ * A docked site card: its heading, label and buttons, and whether it sits wholly above what follows it (the chat's
+ * composer, or the Browser panel's page area the native view covers).
+ */
+function siteCardObservations(card: HTMLElement | null, next: HTMLElement | null): Record<string, unknown> | null {
+  if (card === null) return null
+  return {
+    heading: text($('h3', card)),
+    label: card.getAttribute('aria-label'),
+    buttons: [...card.querySelectorAll('button')].map(text),
+    above: next === null ? null : card.getBoundingClientRect().bottom <= next.getBoundingClientRect().top
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -1352,6 +1636,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
     questionCard: questionObservations(),
+    formCard: formObservations(),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),
@@ -1372,6 +1657,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     modelChoice: modelChoiceObservations(),
     ...deliveryObservations(),
     ...polishObservations(),
+    browserPanel: browserObservations(),
     errors: [...window.__errors]
   }
 }
@@ -1474,7 +1760,12 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 }
 
 /** The states the capture also takes at a fixed width, as `<state>-1024` and `<state>-1440`. */
-const SIZED_STATES: Record<string, true> = { 'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true }
+const SIZED_STATES: Record<string, true> = {
+  'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
+  'question-form': true, 'browser-empty': true, 'browser-agent': true, 'browser-person': true, 'browser-stopped': true,
+  'browser-private': true, 'browser-origin': true, 'browser-origin-page': true, 'browser-origin-person': true, 'browser-sites': true,
+  'browser-origin-terminal': true, 'browser-camera': true, 'browser-camera-terminal': true
+}
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */
 function definitionOf(state: string): StateDef | undefined {

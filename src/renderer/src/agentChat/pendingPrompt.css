@@ -61,9 +61,11 @@
 /*
  * A multi question keeps its question, count and Submit in view; only the options scroll. Its rows are one line each
  * (label, then the description cut to the row), so two or three options show even where the transcript keeps only its
- * minimum height (`--agent-transcript-min`).
+ * minimum height (`--agent-transcript-min`). A form card does the same with every question: its fields scroll
+ * together between the heading and the Submit row.
  */
-.agent-prompt.agent-prompt-multi-card {
+.agent-prompt.agent-prompt-multi-card,
+.agent-prompt.agent-prompt-form-card {
   display: flex;
   flex-direction: column;
   max-height: 60%;
@@ -73,19 +75,72 @@
 }
 
 .agent-prompt-multi-card .agent-prompt-tool,
-.agent-prompt-multi-card .agent-prompt-detail {
+.agent-prompt-multi-card .agent-prompt-detail,
+.agent-prompt-form-card .agent-prompt-tool,
+.agent-prompt-form-card .agent-prompt-detail {
   margin: 0;
 }
 
-.agent-prompt-multi-card > * {
+.agent-prompt-form-card h3 {
+  margin: 0 0 4px;
+}
+
+.agent-prompt-multi-card > *,
+.agent-prompt-form-card > * {
   flex: none;
 }
 
-.agent-prompt-multi-card > .agent-prompt-multi {
+.agent-prompt-multi-card > .agent-prompt-multi,
+.agent-prompt-form-card > .agent-prompt-form {
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
   min-height: 0;
+}
+
+.agent-prompt-fields {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.agent-prompt-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A form's options flow into as many columns as fit, so every question shows in a docked card of modest height. */
+.agent-prompt-field .agent-prompt-choices {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  overflow: visible;
+}
+
+.agent-prompt-field .agent-prompt-other {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.agent-prompt-field .agent-prompt-other label {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-prompt-field > textarea,
+.agent-prompt-field .agent-prompt-other textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding-block: 4px;
+  resize: vertical;
 }
 
 .agent-prompt-multi fieldset {
@@ -106,11 +161,18 @@
   overflow: auto;
 }
 
-.agent-prompt-multi legend {
+.agent-prompt-multi legend,
+.agent-prompt-field legend {
   margin: 0;
   padding: 0;
   font-size: 14px;
   font-weight: 600;
+}
+
+.agent-prompt-optional {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .agent-prompt-check {

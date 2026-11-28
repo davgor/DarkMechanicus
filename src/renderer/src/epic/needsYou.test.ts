@@ -94,6 +94,16 @@ describe('needsYouRows: queued prompts and unlisted threads', () => {
     expect(counts.get('chat_orch')).toEqual({ own: 1, descendants: 0, deciding: 0 })
     expect(total(counts)).toBe(2)
   })
+
+  it('counts a browser site item on the chat row next to its shown prompt (DM-897 c3)', () => {
+    const site: AttentionItem = {
+      chatId: 'chat_orch', promptId: 'site-1', kind: 'site', threadId: null, callsign: null, arbitration: 'off', title: 'https://docs.example', shown: true
+    }
+    const counts = needsYouRows(rows, attention(prompt('chat_orch', 'th_w', 'escalated'), site))
+    expect(counts.get('chat_orch')).toEqual({ own: 1, descendants: 1, deciding: 0 })
+    expect(counts.get('th_w')).toEqual({ own: 1, descendants: 0, deciding: 0 })
+    expect(total(counts)).toBe(2)
+  })
 })
 
 describe('agentRows', () => {

@@ -1,7 +1,9 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
-import type { AgentChatApi } from '../../../shared/agents/agentChat'
+import type { AgentChatAnswer, AgentChatApi } from '../../../shared/agents/agentChat'
+import type { BrowserApi } from '../../../shared/browser/browserApi'
 import type { CommandResult } from '../../../shared/desktop/api'
+import { OriginPromptCard } from '../browser/OriginPromptCard'
 import { ChatTranscript } from '../agents/ChatTranscript'
 import { RevealThreadContext } from '../agents/revealThread'
 import type { Scheduler } from '../app/scheduler'
@@ -16,7 +18,7 @@ import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
-import { ChatImagesContext, useChatImages, type ChatImages } from './useChatImages'
+import { ChatImagesContext, useChatImages, type ChatImages, type ChatImagesHandle, type StageImage } from './useChatImages'
 import '../agents/chatView.css'
 import './agentChat.css'
 import '../agents/chatThreads.css'
@@ -45,6 +47,13 @@ interface Props {
   epic?: ChatEpic
   /** A Skitarii (OMP) chat: the composer offers its model and effort chip. Claude and every other chat has none. */
   skitarii?: boolean
+  /** The in-app browser (`window.dm.browser`): its pending site prompt docks above the composer. None shows no site card. */
+  browser?: BrowserApi
+  /**
+   * Hands the composer's images to a panel outside the chat (the epic's Browser rail, whose camera adds captures as
+   * chips); called with null once the chat closes. The chat's own rail gets them from context without it.
+   */
+  shareImages?(images: ChatImagesHandle | null): void
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -85,13 +94,25 @@ function useChatCommand(): ChatCommand {
 
 const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
+/** The composer's images, handed to `shareImages` (see `Props.shareImages`) while the chat is open, and null after. */
+function useComposerImages(stage: StageImage, shareImages: Props['shareImages']): ChatImages {
+  const images = useChatImages(stage)
+  const { addStaged } = images
+  useEffect(() => {
+    if (shareImages === undefined) return undefined
+    shareImages({ addStaged })
+    return () => shareImages(null)
+  }, [shareImages, addStaged])
+  return images
+}
+
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
-  epic, skitarii
+  epic, skitarii, browser, shareImages
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
-  const images = useChatImages(stageImage)
+  const images = useComposerImages(stageImage, shareImages)
   const evidence = useChatEvidence({ folder, chatId, api, items: state.items, epic })
   const command = useChatCommand()
   const agents = useChatRail(chatId)
@@ -121,17 +142,34 @@ function ChatView({
             <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
           </ChatEvidenceProvider></RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
-          <PendingPromptCard prompt={state.pending} answer={answer} />
+          <PromptSlot folder={folder} chatId={chatId} pending={state.pending} answer={answer} browser={browser} />
           <TodoCard chatId={chatId} state={state} />
           <Composer chatId={chatId} folderKey={folderKey} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state}
             command={command} images={images} send={send} stop={stop}
             model={skitarii ? <ModelPicker state={state} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
-          <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
+          <ChatAgentsRail folder={folder} folderKey={folderKey} chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents}
+            selected={reveal.target} select={show} />
         </div>}
       </div></ChatImagesContext.Provider>
     </section>
+  )
+}
+
+/** The prompt slot above the composer: the agent's approval or question, then the chat's browser site prompt below it. */
+function PromptSlot({ folder, chatId, pending, answer, browser }: {
+  folder: string | null
+  chatId: string
+  pending: ChatState['pending']
+  answer(request: AgentChatAnswer): Promise<CommandResult<null>>
+  browser: BrowserApi | undefined
+}): JSX.Element {
+  return (
+    <>
+      <PendingPromptCard prompt={pending} answer={answer} />
+      {browser && <OriginPromptCard folder={folder} chatId={chatId} api={browser} />}
+    </>
   )
 }
 
@@ -184,7 +222,7 @@ function ChatHeader({ state, agentLabel, acting, terminal, agents }: {
   const status = state.status === 'busy' ? 'working' : state.status === 'signed_out' ? 'signed out' : state.status ?? 'starting'
   const threads = state.items.filter((item) => item.kind === 'thread').length
   return (
-    <header className="agent-chat-header">
+    <header className="agent-chat-header glass">
       <h2>{agentLabel}</h2>
       <span className="agent-chat-status" role="status">{status}</span>
       {agents && <button className="btn btn-sm agent-chat-agents" type="button" aria-pressed={agents.open}
@@ -223,7 +261,8 @@ function Messages({ state, transcript, folder, agentLabel, imageSrc }: {
     }}>
       <div ref={content}>
         {state.items.length === 0 && transcript.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status} />
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status}
+          pendingId={state.pending?.id ?? null} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>

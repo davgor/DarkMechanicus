@@ -1,3 +1,4 @@
+import type { BrowserClient } from '../desktop/browserClient'
 import type { DesktopClient } from '../desktop/desktopClient'
 import type { CommandApi, CommandName } from '../../shared/domain/api'
 import type {
@@ -21,6 +22,8 @@ import type { z } from 'zod'
 /** What command specs may use from the open workspace. */
 export interface WorkspaceCore {
   readonly desktopClient: DesktopClient
+  /** The desktop's browser pipe (`DM_BROWSER_PIPE`), behind the `browser_*` commands. */
+  readonly browserClient: BrowserClient
   readonly repoRoot: string
   /** The Dark Mechanicus home directory (overall knowledge pointer, db-mode projects). */
   readonly homeDir: string

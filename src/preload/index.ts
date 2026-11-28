@@ -7,8 +7,10 @@ import {
   type ChatPushEvent,
   type ChatsApi
 } from '../shared/agents/chatApi'
+import { CULT_EVENT_CHANNEL, type CultPushEvent, type CultsApi } from '../shared/cults/cultApi'
 import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi, type AgentChatEvent } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
+import { BROWSER_CHANNELS, browserStateSchema, type BrowserApi } from '../shared/browser/browserApi'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
 import { SETTINGS_CHANNELS, type SettingsApi } from '../shared/desktop/notificationSettings'
@@ -85,6 +87,34 @@ const chats: ChatsApi = {
   mail
 }
 
+/** Cults: one `cults:*` invoke per request (main validates each argument), plus the pushed run snapshots. */
+const cults: CultsApi = {
+  list: () => ipcRenderer.invoke('cults:list'),
+  get: (cultId) => ipcRenderer.invoke('cults:get', cultId),
+  create: (input) => ipcRenderer.invoke('cults:create', input),
+  update: (cultId, input) => ipcRenderer.invoke('cults:update', cultId, input),
+  delete: (cultId) => ipcRenderer.invoke('cults:delete', cultId),
+  models: (refresh) => ipcRenderer.invoke('cults:models', refresh),
+  archetypes: () => ipcRenderer.invoke('cults:archetypes'),
+  start: (cultId, overrides) => ipcRenderer.invoke('cults:start', cultId, overrides),
+  pause: (runId) => ipcRenderer.invoke('cults:pause', runId),
+  resume: (runId) => ipcRenderer.invoke('cults:resume', runId),
+  stop: (runId) => ipcRenderer.invoke('cults:stop', runId),
+  killNow: (runId) => ipcRenderer.invoke('cults:killNow', runId),
+  raiseCap: (runId, cap) => ipcRenderer.invoke('cults:raiseCap', runId, cap),
+  decidePetition: (petitionId, approve, granted) => ipcRenderer.invoke('cults:decidePetition', petitionId, approve, granted),
+  dismissAcolyte: (runId, chatId) => ipcRenderer.invoke('cults:dismissAcolyte', runId, chatId),
+  runs: (cultId) => ipcRenderer.invoke('cults:runs', cultId),
+  pipeline: (runId, request) => ipcRenderer.invoke('cults:pipeline', runId, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: CultPushEvent): void => {
+      listener(event)
+    }
+    ipcRenderer.on(CULT_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(CULT_EVENT_CHANNEL, handler)
+  }
+}
+
 /**
  * Every agent-chat view shares one IPC listener, held while any view listens: each push is parsed once and handed to
  * each view, so the channel's listener count stays at one however many chats are open.
@@ -119,6 +149,34 @@ const agentChat: AgentChatApi = {
   attention: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attention, request),
   stageImage: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.stageImage, request),
   attachEvidence: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.attachEvidence, request)
+}
+
+/** The chat's in-app browser: one `browser:*` invoke per request; a pushed state that is not valid is dropped. */
+const browser: BrowserApi = {
+  state: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.state, request),
+  setView: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.setView, request),
+  navigate: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.navigate, request),
+  back: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.back, request),
+  forward: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.forward, request),
+  reload: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.reload, request),
+  stopAgent: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.stopAgent, request),
+  takeControl: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.takeControl, request),
+  handBack: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.handBack, request),
+  decideOrigin: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.decideOrigin, request),
+  openSignIn: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.openSignIn, request),
+  closeSignIn: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.closeSignIn, request),
+  capture: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.capture, request),
+  sites: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.sites, request),
+  removeSite: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.removeSite, request),
+  setEnabled: (request) => ipcRenderer.invoke(BROWSER_CHANNELS.setEnabled, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: unknown): void => {
+      const parsed = browserStateSchema.safeParse(state)
+      if (parsed.success) listener(parsed.data)
+    }
+    ipcRenderer.on(BROWSER_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(BROWSER_CHANNELS.event, handler)
+  }
 }
 
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
@@ -165,6 +223,7 @@ const notifications: NotificationsApi = {
  */
 const dm: DmApi = {
   agentChat,
+  browser,
   forgeSetup: {
     provision: (input, operationId) => ipcRenderer.invoke('forgeSetup:provision', input, operationId),
     provisioning: () => ipcRenderer.invoke('forgeSetup:provisioning'),
@@ -195,6 +254,7 @@ const dm: DmApi = {
   telegramStatus: () => ipcRenderer.invoke('telegram:status'),
   pairTelegram: () => ipcRenderer.invoke('telegram:pair'),
   chats,
+  cults,
   terminals: createTerminalsApi(ipcRenderer),
   sourceCheckout,
   crossRepoCorrections,

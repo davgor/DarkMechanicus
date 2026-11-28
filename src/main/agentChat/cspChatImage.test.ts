@@ -10,8 +10,9 @@ describe('renderer Content-Security-Policy', () => {
   it.each([
     ['production', PROD_CSP],
     ['development', DEV_CSP]
-  ])('lets the %s window load chat images and nothing more', (_name, policy) => {
-    expect(imgSrc(policy)).toBe("img-src 'self' data: dm-attachment: dm-chat-image:")
+  ])('lets the %s window load chat images and cult Shrines and nothing more', (_name, policy) => {
+    expect(imgSrc(policy)).toBe("img-src 'self' data: dm-attachment: dm-chat-image: dm-shrine:")
+    expect(policy.split('; ')).toContain('frame-src dm-shrine:')
     expect(policy).toContain("default-src 'self'")
     expect(policy.match(/dm-chat-image:/g)).toHaveLength(1)
   })

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { frameForMotion, spritePlacement } from './sprite'
+import { frameForMotion, spritePlacement, type SpriteSheet } from './sprite'
+import type { MotionAction } from './motion'
 import atlas from '../assets/mascot/atlas.json'
+import magosAtlas from '../assets/magos/atlas.json'
+import { MAGOS_SHEET } from '../cults/chamber/chamberArt'
+import type { MagosAction } from '../cults/chamber/chamberState'
 
-function expectAlignedFrames(action: keyof typeof atlas.actions): void {
+function expectAlignedFrames(action: MotionAction): void {
   const clip = atlas.actions[action]
   for (let index = 0; index < clip.frames.length; index += 1) {
     const progress = action === 'jump' ? [0, 0.14, 0.32, 0.5, 0.68, 0.86][index]! : index / clip.frames.length
@@ -82,5 +86,86 @@ describe('drill sprite placement', () => {
       expect(left.left + (frame.width - anchor.x) * left.scale).toBeCloseTo(173)
       expect(left.mirrored).toBe(true)
     }
+  })
+})
+
+describe('salute and type in the mascot image map', () => {
+  it('plays the one-shot salute once and loops type, pinned to each frame foot', () => {
+    expect(frameForMotion('salute', 0, 0).index).toBe(0)
+    expect(frameForMotion('salute', 250, 0).index).toBe(2)
+    expect(frameForMotion('salute', 5000, 0).index).toBe(5)
+    expect(frameForMotion('type', 130, 0).index).toBe(1)
+    expect(frameForMotion('type', 760, 0).index).toBe(0)
+    for (const action of ['salute', 'type'] as const) {
+      const clip = atlas.actions[action]
+      for (let index = 0; index < clip.frames.length; index += 1) {
+        const pose = spritePlacement({ action, elapsed: index * 1000 / clip.fps, progress: 0, facing: 'left', x: 90, y: 200 })
+        const frame = clip.frames[index]!
+        expect(pose.index).toBe(index)
+        expect(pose.image).toContain(`${action}.png`)
+        expect(pose.left + (frame.width - frame.footAnchor.x) * pose.scale).toBeCloseTo(90)
+        expect(pose.top + frame.footAnchor.y * pose.scale).toBeCloseTo(200)
+      }
+    }
+  })
+
+  it('scales the whole placement by an extra size factor', () => {
+    const base = spritePlacement({ action: 'type', elapsed: 0, progress: 0, facing: 'right', x: 50, y: 90 })
+    const small = spritePlacement({ action: 'type', elapsed: 0, progress: 0, facing: 'right', x: 50, y: 90, scale: 0.6 })
+    expect(small.scale).toBeCloseTo(base.scale * 0.6)
+    expect(small.width).toBeCloseTo(base.width * 0.6)
+    expect(small.left + small.anchorX).toBeCloseTo(50)
+  })
+})
+
+describe('the same reader on the Magos atlases', () => {
+  const actions = Object.keys(magosAtlas.actions) as MagosAction[]
+
+  it('reads every Magos clip at its own rate, holding one-shots on their last frame', () => {
+    expect(actions).toHaveLength(7)
+    expect(frameForMotion('idle', 340, 0, MAGOS_SHEET).index).toBe(2)
+    expect(frameForMotion('idle', 1010, 0, MAGOS_SHEET).index).toBe(0)
+    expect(frameForMotion('order_all', 260, 0, MAGOS_SHEET).index).toBe(2)
+    expect(frameForMotion('order_all', 9000, 0, MAGOS_SHEET).index).toBe(5)
+    expect(frameForMotion('petition', 9000, 0, MAGOS_SHEET).index).toBe(0)
+  })
+
+  it.each(actions)('pins every %s frame foot and draws left-facing art unmirrored', (action) => {
+    const clip = magosAtlas.actions[action]
+    for (let index = 0; index < clip.frames.length; index += 1) {
+      const elapsed = index * 1000 / clip.fps
+      const left = spritePlacement({ action, elapsed, progress: 0, facing: 'left', x: 400, y: 300 }, MAGOS_SHEET)
+      const right = spritePlacement({ action, elapsed, progress: 0, facing: 'right', x: 400, y: 300 }, MAGOS_SHEET)
+      const frame = clip.frames[index]!
+      expect(left.frame).toEqual(frame)
+      expect(left.image).toBe(MAGOS_SHEET.images[action])
+      expect(left.mirrored).toBe(false)
+      expect(right.mirrored).toBe(true)
+      expect(left.scale).toBeCloseTo(MAGOS_SHEET.cellSize / magosAtlas.cell.width * clip.renderScale)
+      expect(left.left + frame.footAnchor.x * left.scale).toBeCloseTo(400)
+      expect(right.left + (frame.width - frame.footAnchor.x) * right.scale).toBeCloseTo(400)
+      expect(left.top + frame.footAnchor.y * left.scale).toBeCloseTo(300)
+      expect(left.sheetWidth).toBeCloseTo(3 * magosAtlas.cell.width * left.scale)
+    }
+  })
+})
+
+describe('a sheet whose frames share the clip foot anchor', () => {
+  const sheet: SpriteSheet<'stand'> = {
+    atlas: { cell: { width: 200, height: 300 }, actions: { stand: { fps: 4, loop: true, renderScale: 1,
+      footAnchor: { x: 60, y: 280 }, frames: [{ x: 0, y: 0, width: 120, height: 290 },
+        { x: 200, y: 0, width: 140, height: 290, footAnchor: { x: 90, y: 270 } }] } } },
+    images: { stand: 'stand.png' }, cellSize: 100, facing: 'right'
+  }
+
+  it('pins a frame without its own anchor by the clip anchor, and a frame with one by its own', () => {
+    const shared = spritePlacement({ action: 'stand', elapsed: 0, progress: 0, facing: 'left', x: 100, y: 200 }, sheet)
+    expect(shared.scale).toBe(0.5)
+    expect(shared.left).toBe(100 - (120 - 60) * 0.5)
+    expect(shared.top).toBe(200 - 280 * 0.5)
+    const own = spritePlacement({ action: 'stand', elapsed: 250, progress: 0, facing: 'right', x: 100, y: 200 }, sheet)
+    expect(own.index).toBe(1)
+    expect(own.left).toBe(100 - 90 * 0.5)
+    expect(own.top).toBe(200 - 270 * 0.5)
   })
 })

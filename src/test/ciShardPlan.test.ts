@@ -46,3 +46,35 @@ it('emits GitHub matrices and the aggregation count from separate execution samp
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+it('raises the grading matrix to the graded diff the scope job counted, and grades an empty diff once', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dm-ci-plan-'))
+  try {
+    const path = join(directory, 'history.json')
+    const outputPath = join(directory, 'outputs')
+    const steps = [
+      { name: 'Grade disjoint flake runs and production modules', conclusion: 'success',
+        started_at: '2026-01-01T00:00:00Z', completed_at: '2026-01-01T00:00:45Z' },
+      { name: 'Record active Fireguard timing sample', conclusion: 'success' }
+    ]
+    writeFileSync(path, JSON.stringify({
+      fireguard: { runId: 2, jobs: [{ name: 'fireguard-shards (1/1)', conclusion: 'success', steps }] }
+    }))
+    const script = fileURLToPath(new URL('../../scripts/ciShardPlan.mjs', import.meta.url))
+    const gradingCount = (diffFiles: string): string => {
+      rmSync(outputPath, { force: true })
+      execFileSync(process.execPath, [script, '--history', path], {
+        env: { ...process.env, GITHUB_OUTPUT: outputPath, CI_GRADED_DIFF_FILES: diffFiles },
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      return readFileSync(outputPath, 'utf8').trim().split('\n')[2]
+    }
+    expect(gradingCount('5')).toBe('grading_count=5')
+    expect(gradingCount('254')).toBe('grading_count=16')
+    expect(gradingCount('0')).toBe('grading_count=1')
+    expect(gradingCount('')).toBe('grading_count=1')
+    expect(gradingCount('five')).toBe('grading_count=1')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

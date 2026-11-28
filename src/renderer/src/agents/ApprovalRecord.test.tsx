@@ -160,3 +160,36 @@ describe('ApprovalRecord: the decision', () => {
     expect(denied.querySelector('.chat-approval-answer-detail')?.textContent).toBe('The Magos decided: <img src=x onerror=alert(1)>')
   })
 })
+
+describe('ApprovalRecord: a question', () => {
+  const asked = request({ category: 'other', tool: 'select', summary: 'Answer 3 questions', question: true })
+
+  it('reads as a question headed by what it asks, waiting while its card is open, never as an approval to use a tool', () => {
+    render(<ApprovalRecord request={asked} answer={null} folder="/repo" waiting />)
+    const card = screen.getByRole('article')
+    expect(card.getAttribute('aria-label')).toBe('Question: Answer 3 questions')
+    expect(card.querySelector('.chat-msg-who')?.textContent).toBe('Question')
+    expect(card.querySelector('.chat-approval-title')?.textContent).toBe('Answer 3 questions')
+    expect(within(card).getByText('Waiting for your answer').getAttribute('data-state')).toBe('waiting')
+    expect(card.textContent).not.toContain('Use select')
+    expect(card.textContent).not.toContain('Not answered')
+    expect(card.querySelector('.chat-approval-summary')).toBe(null)
+  })
+
+  it('reads Answered once answered, Not answered when nothing answered it, and Declined when denied', () => {
+    expect(within(show(asked, decision({ decision: 'allow_once', decidedBy: 'person' }))).getByText('Answered').getAttribute('data-state')).toBe('accepted')
+    cleanup()
+    const cancelled = show(asked, decision({ decision: 'cancelled' }))
+    expect(within(cancelled).getByText('Not answered').getAttribute('data-state')).toBe('canceled')
+    expect(cancelled.querySelector('.chat-approval-answer-detail')?.textContent).toBe('No answer reached the agent.')
+    cleanup()
+    expect(within(show(asked, decision({ decision: 'deny' }))).getByText('Declined').getAttribute('data-state')).toBe('blocked')
+    cleanup()
+    expect(within(show(asked)).getByText('Not answered')).toBeTruthy()
+  })
+
+  it('shows an approval that is the live pending prompt as waiting too', () => {
+    render(<ApprovalRecord request={request({ category: 'command', tool: 'Bash' })} answer={null} folder="/repo" waiting />)
+    expect(within(screen.getByRole('article')).getByText('Waiting for your answer')).toBeTruthy()
+  })
+})

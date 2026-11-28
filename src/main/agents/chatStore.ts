@@ -29,6 +29,7 @@ import { canonicalPath } from '../desktop/folderRegistry'
 import { maskClaimTokensDeep } from './claimTokenMask'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import type { ChatImages } from '../agentChat/chatImages'
+import type { BrowserHost } from '../browser/browserHost'
 
 /** The filesystem surface the store uses; tests inject fakes through it. */
 export interface ChatStoreFs {
@@ -46,7 +47,7 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -111,6 +112,7 @@ interface StoreContext {
   now: () => string
   newId: () => string
   images: Pick<ChatImages, 'deleteChat'> | null
+  browser: Pick<BrowserHost, 'disposeChat'> | null
   /** Folder key -> the folder's chats by id, loaded from its index on first use. */
   indexes: Map<string, Map<string, ChatRecord>>
   /** Files whose tail was already checked for a truncated last line by this process. */
@@ -228,12 +230,13 @@ function chatTarget(input: NewChat) {
   return { targetRepository: project ? new URL(project.repository).pathname.slice(1, -4) : input.folder.split(/[\\/]/).filter(Boolean).at(-1) }
 }
 
-function chatMetadata(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'epicId' | 'surface'>> {
+function chatMetadata(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'epicId' | 'surface' | 'cultRunId' | 'cultRole'>> {
   return {
     ...(input.epicId === undefined ? {} : { epicId: input.epicId }),
     ...(input.surface === undefined ? {} : { surface: input.surface }),
     ...(input.repairIncidentId === undefined ? {} : { repairIncidentId: input.repairIncidentId }),
-    ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup })
+    ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup }),
+    ...(input.cultRunId === undefined ? {} : { cultRunId: input.cultRunId, ...(input.cultRole === undefined ? {} : { cultRole: input.cultRole }) })
   }
 }
 
@@ -326,6 +329,7 @@ function deleteChat(context: StoreContext, ref: ChatRef): void {
   const index = join(location.dir, INDEX_FILE)
   context.fs.removeFile(transcript)
   context.images?.deleteChat({ folder: location.folder, chatId: chat.id })
+  context.browser?.disposeChat({ folder: location.folder, chatId: chat.id })
   context.fs.replaceFile(index, indexWithout(readLines(context.fs, index).join('\n'), chat.id))
   loadIndex(context, location).delete(chat.id)
 }
@@ -340,6 +344,8 @@ export function createChatStore(options: {
   newId?: () => string
   /** The chats' image store (`agentChat/chatImages`); deleting a chat removes its images with its transcript. */
   images?: Pick<ChatImages, 'deleteChat'>
+  /** The agent browser (`browser/browserHost`); deleting a chat closes its browser views. */
+  browser?: Pick<BrowserHost, 'disposeChat'>
 }): ChatStore {
   const context: StoreContext = {
     root: options.root,
@@ -347,6 +353,7 @@ export function createChatStore(options: {
     now: options.now ?? (() => new Date().toISOString()),
     newId: options.newId ?? (() => `chat_${randomUUID()}`),
     images: options.images ?? null,
+    browser: options.browser ?? null,
     indexes: new Map(),
     checked: new Set()
   }

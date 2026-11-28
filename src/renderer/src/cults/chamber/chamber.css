@@ -1,0 +1,248 @@
+/* The cult chamber scene (CultChamber). Every rule is scoped under .cc-chamber. */
+
+.cc-chamber {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  user-select: none;
+}
+
+.cc-chamber .cc-scene,
+.cc-chamber .cc-props,
+.cc-chamber .cc-actors,
+.cc-chamber .cc-effects {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cc-chamber .cc-backdrop,
+.cc-chamber .cc-viewscreen,
+.cc-chamber .cc-prop {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+
+.cc-chamber .cc-viewscreen-window {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+/* A glowing noosphere conduit from the helm's cogitator to the comms pane at the room's right edge. */
+.cc-chamber .cc-conduit {
+  position: absolute;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lens) 40%, transparent), var(--lens));
+  box-shadow: 0 0 6px var(--lens), 0 0 14px color-mix(in srgb, var(--lens) 60%, transparent);
+}
+
+.cc-chamber[data-animated="true"] .cc-conduit {
+  animation: cc-conduit-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes cc-conduit-pulse {
+  50% { opacity: 0.7; }
+}
+
+.cc-chamber .cc-magos,
+.cc-chamber .cc-acolyte .pg-mascot-sprite {
+  position: absolute;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* Acolytes wear the member colour; the Magos is never tinted. */
+.cc-chamber .cc-acolyte .pg-mascot-sprite {
+  pointer-events: auto;
+  cursor: pointer;
+  filter: hue-rotate(var(--member-hue));
+}
+
+.cc-chamber .cc-acolyte[data-selected="true"] .pg-mascot-sprite {
+  filter: hue-rotate(var(--member-hue)) drop-shadow(0 0 4px var(--accent-hover)) drop-shadow(0 0 2px var(--accent));
+}
+
+.cc-chamber .cc-nameplate {
+  position: absolute;
+  transform: translateX(-50%);
+  max-width: 120px;
+  overflow: hidden;
+  padding: 0 5px;
+  border: 1px solid hsl(var(--member-hue) 70% 58%);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--ink);
+  font: 600 calc(11px * max(0.8, var(--cc-sprite-scale))) / 1.45 var(--font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.cc-chamber .cc-acolyte[data-selected="true"] .cc-nameplate {
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 1px hsl(var(--member-hue) 70% 58%), 0 0 8px var(--accent);
+  z-index: 1;
+}
+
+/* Crowded rooms stagger plates into rows; a plate with no free row hides unless selected, speaking or outlined. */
+.cc-chamber .cc-nameplate[data-hidden="true"] {
+  visibility: hidden;
+}
+
+/* Reduced motion: an order outlines its recipients' plates instead of sending a packet or ring. */
+.cc-chamber .cc-nameplate[data-outlined="true"] {
+  outline: 2px solid var(--lens);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.cc-chamber .cc-world,
+.cc-chamber .cc-bubbles,
+.cc-chamber .cc-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cc-chamber .cc-world > .cc-actors {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- Speech bubbles: plain text, bordered in the speaker's colour, a tail pointing at the head ---- */
+
+.cc-chamber .cc-bubble {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: 1px solid var(--bubble-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  color: var(--ink);
+  font: 12px / 16px var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+}
+
+.cc-chamber .cc-bubble::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--tail-x) - 6px);
+  bottom: -7px;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid var(--bubble-color);
+  border-bottom: 1px solid var(--bubble-color);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  transform: rotate(45deg);
+}
+
+/* ---- Effects ---- */
+
+.cc-chamber .cc-effects-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.cc-chamber .cc-packet-dot {
+  fill: var(--lens);
+  filter: drop-shadow(0 0 4px var(--lens)) drop-shadow(0 0 9px var(--lens));
+}
+
+.cc-chamber .cc-packet[data-purpose="report"] .cc-packet-dot {
+  fill: color-mix(in srgb, var(--lens) 70%, white);
+}
+
+.cc-chamber .cc-packet-trail {
+  fill: var(--lens);
+}
+
+.cc-chamber .cc-ring {
+  fill: none;
+  stroke: var(--lens);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px var(--lens));
+}
+
+.cc-chamber .cc-beam {
+  fill: color-mix(in srgb, var(--lens) 45%, white);
+  filter: blur(6px);
+  mix-blend-mode: screen;
+}
+
+.cc-chamber .cc-spark {
+  fill: var(--chamber-spark);
+  filter: drop-shadow(0 0 3px var(--chamber-spark-glow));
+}
+
+/* ---- Run-state theatrics on the scene root ---- */
+
+.cc-chamber .cc-shade {
+  background: var(--chamber-shade);
+  opacity: 0;
+}
+
+.cc-chamber .cc-lights-dim .cc-shade {
+  opacity: 0.62;
+  transition: opacity 4s ease-in;
+}
+
+.cc-chamber .cc-blackout .cc-shade {
+  opacity: 1;
+  transition: none;
+}
+
+/* No active run: the empty room with its lights off; the viewscreen's window stays lit above the shade. */
+.cc-chamber .cc-lights-off .cc-shade {
+  opacity: 0.78;
+}
+
+.cc-chamber .cc-stasis .cc-world {
+  filter: grayscale(1) brightness(0.7);
+}
+
+.cc-chamber .cc-stasis-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(40 60 80 / 30%);
+}
+
+.cc-chamber .cc-stasis-plate {
+  padding: 6px 22px;
+  border: 2px solid var(--chamber-stasis-edge);
+  border-radius: 6px;
+  background: rgb(10 18 26 / 82%);
+  color: var(--chamber-stasis-ink);
+  font: 700 22px var(--font-mono);
+  letter-spacing: 0.4em;
+}
+
+.cc-chamber .cc-warning-lights {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 4px rgb(229 40 60 / 85%), inset 0 0 48px 12px rgb(229 40 60 / 55%);
+}
+
+.cc-chamber[data-animated="true"] .cc-warning-lights {
+  animation: cc-warning-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes cc-warning-pulse {
+  50% { opacity: 0.35; }
+}
+
+/* Reduced motion: states render, statically. */
+.cc-chamber .cc-scene[data-reduced="true"] .cc-shade {
+  transition: none;
+}

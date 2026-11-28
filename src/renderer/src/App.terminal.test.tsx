@@ -189,3 +189,23 @@ describe('App Skitarii inbox over the chat terminal', () => {
     expect(h.terminalKit.latest().host).toBe(workspace().getByTestId('terminal-host'))
   })
 })
+
+describe('App chat terminal: a browser site prompt', () => {
+  it('docks the chat’s site card above its terminal, without taking focus, and answers it', async () => {
+    h.dm.browser.current = {
+      ...h.dm.browser.current, owner: 'agent', ownerLabel: 'Acolyte:DM-442',
+      pendingOrigin: { id: 'origin-1', origin: 'https://api.github.com', requestedBy: 'agent' }
+    }
+    h.mount()
+    await settle()
+    await openChat()
+    const card = workspace().getByRole('alertdialog', { name: 'https://api.github.com' })
+    expect(card.textContent).toMatch(/^Acolyte:DM-442 wants to open https:\/\/api\.github\.com/)
+    expect(card.compareDocumentPosition(workspace().getByTestId('terminal-host')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(card.contains(document.activeElement)).toBe(false)
+    fireEvent.click(within(card).getByRole('button', { name: 'Allow once' }))
+    await settle()
+    expect(h.dm.browser.callsOf('decideOrigin')).toEqual([[{ folder: '/a', chatId: 'chat_a', promptId: 'origin-1', decision: 'once' }]])
+    expect(workspace().queryByRole('alertdialog')).toBeNull()
+  })
+})

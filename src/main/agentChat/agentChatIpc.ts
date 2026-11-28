@@ -45,6 +45,14 @@ import type { AgentChatSessions } from './agentChatSessions'
 import type { ChatImages } from './chatImages'
 import type { OmpModels } from './ompModels'
 
+/** An answer request without its chat reference, as the sessions take it. */
+function promptAnswer(request: z.infer<typeof agentChatAnswerSchema>): Parameters<AgentChatSessions['answer']>[1] {
+  if ('fields' in request) return { promptId: request.promptId, fields: request.fields }
+  const { promptId, text } = request
+  const choice = 'optionIds' in request ? { optionIds: request.optionIds } : { optionId: request.optionId }
+  return { promptId, ...choice, ...(text === undefined ? {} : { text }) }
+}
+
 /** The folder workspace commands `attachEvidence` uses: the desktop's own workspace (`desktopWorkspace`). */
 type EvidenceWorkspace = Pick<CommandApi, 'uploadAttachment' | 'addComment' | 'listComments' | 'getRun'>
 
@@ -205,9 +213,7 @@ export function createAgentChatHandlers<S>(deps: AgentChatHandlerDeps<S>): Agent
     }),
     answer: input => answer(deps, async () => {
       const { ref, request } = chatRequest(registry, agentChatAnswerSchema, input)
-      const { promptId, text } = request
-      const choice = 'optionIds' in request ? { optionIds: request.optionIds } : { optionId: request.optionId }
-      await sessions.answer(ref, { promptId, ...choice, ...(text === undefined ? {} : { text }) })
+      await sessions.answer(ref, promptAnswer(request))
       return null
     }),
     // The only call that passes a confirmation: an explicit request from the app window, answered in that window.

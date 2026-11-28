@@ -27,6 +27,7 @@ import { chatsFor } from './agents/useChats'
 import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
 import { AgentChat } from './agentChat/AgentChat'
+import { OriginPromptCard } from './browser/OriginPromptCard'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
@@ -54,6 +55,7 @@ import type { FolderTab } from './app/folderTabs'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
 import { SettingsView } from './settings/SettingsView'
+import { CultPage } from './cults/CultPage'
 import { UntrackDialog } from './sidebar/UntrackDialog'
 
 type EpicView = ComponentType<EpicWorkspaceProps>
@@ -160,7 +162,8 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
     const callsign = rootCallsignOf(chat)?.role
     const skitarii = shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'
     return <AgentChat folder={folder} folderKey={folderKey} chatId={chat.id} agentLabel={cli} agentChip={callsign === undefined ? cli : `${callsign} · ${cli}`}
-      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii} />
+      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii}
+      browser={window.dm.browser} />
   }
   return (
     <TerminalPane
@@ -173,6 +176,7 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
       peers={folder === null ? undefined : chatsFor(shell.chats.lists, folder).chats}
       onOpenChat={folder === null ? undefined : (chatId) => shell.actions.selectChat(folder, chatId)}
+      siteCard={<OriginPromptCard folder={folder} chatId={chat.id} api={window.dm.browser} />}
     />
   )
 }
@@ -302,6 +306,10 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvi
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
   if (view.kind === 'settings') return <SettingsView />
+  if (view.kind === 'cult') {
+    return <CultPage cultId={view.cultId} agentName={agentName('omp', props.shell.agents.agents)} kit={props.terminalKit} scheduler={props.scheduler}
+      openMember={view.memberChatId === null ? null : { chatId: view.memberChatId }} onOpenEpic={props.shell.actions.selectEpic} />
+  }
   if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics' || view.kind === 'learnings') && view.folder.forgeParent) {
     return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
@@ -498,6 +506,8 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onCreateFo
       onCreateForgeWorld={onCreateForgeWorld}
       onAddAgent={actions.openAddAgent}
       onSelectAgent={actions.openAgent}
+      onSelectCult={actions.openCult}
+      onOpenCultMember={actions.openCult}
       onAgentStatus={shell.agents.recordStatus}
       onSelectFolder={actions.selectFolder}
       onSelectEpic={actions.selectEpic}

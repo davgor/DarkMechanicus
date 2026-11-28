@@ -5,6 +5,7 @@
  */
 import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
 import { FakeAgentChat } from '../../__mocks__/fakeAgentChat'
+import { FakeBrowser } from '../../__mocks__/fakeBrowser'
 import { FakeSettings } from '../../__mocks__/fakeSettings'
 import { FakeNotifications } from '../../__mocks__/fakeNotifications'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
@@ -55,6 +56,7 @@ import { FakeChats } from '../../__mocks__/fakeChats'
 import { idleCrossRepoCorrections } from '../../__mocks__/idleCrossRepoCorrections'
 import { idleSourceCheckout } from '../../__mocks__/idleSourceCheckout'
 import { idleTerminals } from '../../__mocks__/idleTerminals'
+import { idleCults } from '../../__mocks__/idleCults'
 import type { Runner } from '../runner'
 import {
   checkpointView,
@@ -158,8 +160,10 @@ export class FakeBackend implements DmApi {
   async pairTelegram() { return 'pair-code' }
   /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
   chats: ChatsApi
+  cults = idleCults()
   terminals = idleTerminals()
   agentChat = new FakeAgentChat()
+  browser = new FakeBrowser()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
   settings = new FakeSettings()

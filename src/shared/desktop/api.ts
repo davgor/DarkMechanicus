@@ -4,9 +4,11 @@
  * clipboard, and external links are separate narrow methods.
  */
 import type { ChatsApi } from '../agents/chatApi'
+import type { CultsApi } from '../cults/cultApi'
 import type { AgentChatApi } from '../agents/agentChat'
 import type { TerminalColors } from '../agents/terminalColors'
 import type { TerminalsApi } from '../agents/terminalApi'
+import type { BrowserApi } from '../browser/browserApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
 import type { KanbanCardView } from '../domain/kanban'
@@ -280,8 +282,12 @@ export interface DmApi {
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
+  /** Cults and their live runs: the `cults:*` channels and their `cults:event` push. */
+  cults: CultsApi
   /** Structured CLI chats: validated `agentChat:*` requests and events. */
   agentChat: AgentChatApi
+  /** The chat's in-app browser: validated `browser:*` requests and `browser:event` state pushes. */
+  browser: BrowserApi
   /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
   terminals: TerminalsApi
   /** The local Dark Mechanicus source checkout: the `sourceCheckout:*` channels. */

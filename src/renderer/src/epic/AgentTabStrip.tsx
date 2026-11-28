@@ -189,7 +189,7 @@ function TabItem({ tab, selected, agent, onSelect, onClose }: {
   onClose(): void
 }): JSX.Element {
   return (
-    <div className={classNames('ats-tab', selected && 'is-active', !tab.live && 'is-stopped')}>
+    <div className={classNames('ats-tab', selected && 'is-active glass', !tab.live && 'is-stopped')}>
       <button type="button" role="tab" className="ats-select" data-chat-id={tab.chatId} aria-selected={selected}
         aria-label={tabLabel(tab)} tabIndex={selected ? 0 : -1} title={tabTooltip(tab, agent)} onClick={onSelect}>
         <TabIcon callsign={tab.callsign} />

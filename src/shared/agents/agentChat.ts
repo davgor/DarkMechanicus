@@ -35,13 +35,25 @@ export const agentChatInterruptSchema = z.strictObject(chatRef)
 /** Ends the chat's GUI process (its transcript stays); a stopped chat starts again on its next start. */
 export const agentChatStopSchema = z.strictObject(chatRef)
 const answerFields = { ...chatRef, promptId: z.string().min(1), text: z.string().max(20_000).optional() }
-/** Exactly one of `optionId` (one option) or `optionIds` (a multi question's chosen options, `text` among them for free text). */
+/** The most questions one form prompt carries, and the most options one of its fields offers. */
+const FORM_FIELDS_MAX = 20
+const FORM_OPTIONS_MAX = 50
+/** One field's answer: its chosen option ids (option order is main's) and, where the field takes it, free text. */
+const formFieldAnswerSchema = z.strictObject({
+  fieldId: z.string().min(1).max(200), optionIds: z.array(z.string().min(1)).max(FORM_OPTIONS_MAX), text: z.string().max(20_000).optional()
+})
+/**
+ * Exactly one of `optionId` (one option), `optionIds` (a multi question's chosen options, `text` among them for free
+ * text) or `fields` (every field of a form prompt at once, one entry per field).
+ */
 export const agentChatAnswerSchema = z.union([
   z.strictObject({ ...answerFields, optionId: z.string().min(1) }),
-  z.strictObject({ ...answerFields, optionIds: z.array(z.string().min(1)).min(1).max(50) })
+  z.strictObject({ ...answerFields, optionIds: z.array(z.string().min(1)).min(1).max(50) }),
+  z.strictObject({ ...chatRef, promptId: z.string().min(1), fields: z.array(formFieldAnswerSchema).min(1).max(FORM_FIELDS_MAX) })
 ])
+type AgentChatFormFieldAnswer = z.infer<typeof formFieldAnswerSchema>
 /** A prompt answer without its chat reference, as main's sessions and translators take it. */
-export type AgentChatAnswer = { promptId: string; text?: string } & ({ optionId: string } | { optionIds: string[] })
+export type AgentChatAnswer = { promptId: string } & ({ optionId: string; text?: string } | { optionIds: string[]; text?: string } | { fields: AgentChatFormFieldAnswer[] })
 export const agentChatSetSurfaceSchema = z.strictObject({ ...chatRef, surface: surfaceSchema })
 export const agentChatSnapshotRequestSchema = z.strictObject(chatRef)
 export const agentChatAttentionSchema = z.strictObject({ folder: z.string().nullable() })
@@ -81,6 +93,22 @@ const promptFields = {
   arbitration: z.strictObject({ state: z.enum(['off', 'deciding', 'escalated']), reason: z.string().max(500).nullable() }),
   tool: z.strictObject({ name: z.string().min(1), input: z.record(z.string(), z.json()) }).optional()
 }
+/**
+ * Every question of one multi-question ask, shown and answered together (`fields` answer). `text` says whether a field
+ * takes free text: never, beside its options ('other'), or only text. `preselected` options and `defaultText` are the
+ * agent's defaults, kept when the person leaves them untouched. `required` says whether the field must be answered:
+ * a checkbox group without it may be sent empty; absent, a checkbox group (`multi`) and a text field are optional and a
+ * radio group (one choice) is required.
+ */
+const formSchema = z.strictObject({
+  fields: z.array(z.strictObject({
+    id: z.string().min(1).max(200), title: z.string().max(2_000), multi: z.boolean(),
+    options: z.array(z.strictObject({ id: z.string().min(1), label: z.string(), description: z.string().optional(), preselected: z.boolean().optional() })).max(FORM_OPTIONS_MAX),
+    text: z.enum(['none', 'other', 'only']),
+    defaultText: z.string().max(20_000).optional(),
+    required: z.boolean().optional()
+  })).min(1).max(FORM_FIELDS_MAX)
+})
 export const pendingPromptSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...promptFields, kind: z.literal('approval'), options: z.array(z.strictObject({ id: z.enum(['allow_once', 'allow_chat', 'deny']), label: z.string() })) }),
   z.strictObject({ ...promptFields, kind: z.literal('question'),
@@ -88,7 +116,9 @@ export const pendingPromptSchema = z.discriminatedUnion('kind', [
     /** Several options may be chosen and sent together as `optionIds`; absent means one choice. */
     multi: z.boolean().optional(),
     /** This question's 1-based place among the questions of one ask. */
-    progress: z.strictObject({ index: z.number().int().min(1), total: z.number().int().min(1) }).optional() })
+    progress: z.strictObject({ index: z.number().int().min(1), total: z.number().int().min(1) }).optional(),
+    /** Present for a form prompt: its `options` are empty and only a `fields` answer settles it. */
+    form: formSchema.optional() })
 ])
 export type PendingPrompt = z.infer<typeof pendingPromptSchema>
 
@@ -103,9 +133,11 @@ const threadTodos = { threadId: z.string().nullable(), phases: z.array(agentTodo
 /**
  * One prompt of a live GUI chat that waits on the person or the Magos: never tool input. `shown` marks the head of the
  * chat's queue (the prompt its card shows); prompts behind it keep the translator's `off` until they reach the head.
+ * A `site` item is the chat's pending browser origin prompt (any chat, live GUI or not): always shown, never arbitrated
+ * (`off`), on the chat's own row (`threadId` and `callsign` null), its title the masked origin.
  */
 export const attentionItemSchema = z.strictObject({
-  chatId: chatIdSchema, promptId: z.string().min(1), kind: z.enum(['approval', 'question']),
+  chatId: chatIdSchema, promptId: z.string().min(1), kind: z.enum(['approval', 'question', 'site']),
   threadId: z.string().nullable(), callsign: callsignSchema.nullable(), arbitration: z.enum(['off', 'deciding', 'escalated']),
   title: z.string().max(200), shown: z.boolean()
 })

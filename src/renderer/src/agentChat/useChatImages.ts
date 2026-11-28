@@ -1,4 +1,4 @@
-import { createContext, useRef, useState } from 'react'
+import { createContext, useCallback, useRef, useState } from 'react'
 import { CHAT_IMAGES_PER_MESSAGE } from '../../../shared/agents/agentChat'
 import type { ChatImageRef } from '../../../shared/agents/chat'
 import type { CommandResult } from '../../../shared/desktop/api'
@@ -8,10 +8,10 @@ import {
 } from '../attachments/useImageAttach'
 
 /** Hands main one image's plain base64 for the chat (`agentChat.stageImage`). */
-type StageImage = (data: string) => Promise<CommandResult<{ image: ChatImageRef }>>
+export type StageImage = (data: string) => Promise<CommandResult<{ image: ChatImageRef }>>
 
 /** What other panels may do with the composer's images: add one main already staged for the chat. */
-interface ChatImagesHandle {
+export interface ChatImagesHandle {
   /** Adds a staged image as a chip; refuses it inline and answers false when the message is full. */
   addStaged(ref: ChatImageRef): boolean
 }
@@ -78,11 +78,19 @@ export function useChatImages(stage: StageImage): ChatImages {
   // second paste before the first one lands sees the first one's images.
   const list = useRef<readonly ChatImageRef[]>([])
   const staging = useRef(0)
-  const room = (): number => CHAT_IMAGES_PER_MESSAGE - list.current.length - staging.current
-  const publish = (next: readonly ChatImageRef[]): void => {
+  const room = useCallback((): number => CHAT_IMAGES_PER_MESSAGE - list.current.length - staging.current, [])
+  const publish = useCallback((next: readonly ChatImageRef[]): void => {
     list.current = next
     setImages(next)
-  }
+  }, [])
+  // Stable for the chat's life, so the composer can hand it to panels outside the chat (`AgentChat.shareImages`).
+  const addStaged = useCallback((ref: ChatImageRef): boolean => {
+    if (list.current.some((image) => image.id === ref.id)) return true
+    const full = room() <= 0
+    setError(full ? FULL : null)
+    if (!full) publish([...list.current, ref])
+    return !full
+  }, [room, publish])
 
   const take = (files: File[]): void => {
     const { accepted, problem } = sortIntake(files, room())
@@ -104,13 +112,7 @@ export function useChatImages(stage: StageImage): ChatImages {
     images,
     error,
     staging: inFlight > 0,
-    addStaged: (ref) => {
-      if (list.current.some((image) => image.id === ref.id)) return true
-      const full = room() <= 0
-      setError(full ? FULL : null)
-      if (!full) publish([...list.current, ref])
-      return !full
-    },
+    addStaged,
     remove: (id) => drop([id]),
     clear: drop,
     targetProps: targetPropsFor(take),

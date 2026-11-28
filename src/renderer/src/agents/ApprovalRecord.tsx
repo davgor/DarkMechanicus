@@ -3,7 +3,7 @@ import { formatCallsign } from '../../../shared/agents/callsign'
 import type { ApprovalRequestItem, ChatItem } from '../../../shared/agents/chat'
 import { classNames } from '../components/classNames'
 import { StatePill } from '../components/StatePill'
-import { answerView, approvalDetail, type ApprovalDetail, type DiffPreview } from './approvalModel'
+import { approvalDetail, requestState, type ApprovalDetail, type DiffPreview } from './approvalModel'
 
 type DecisionItem = Extract<ChatItem, { kind: 'approval_decision' }>
 
@@ -53,6 +53,8 @@ interface ApprovalRecordProps {
   answer: DecisionItem | null
   /** The chat's folder: where a command ran unless the request said otherwise. */
   folder: string
+  /** The request is the live chat's pending prompt, still waiting for the person in its card. */
+  waiting?: boolean
 }
 
 /**
@@ -65,23 +67,26 @@ function askedBy(request: ApprovalRequestItem): string | null {
 }
 
 /**
- * An approval request a chat stored before chats became terminals, as a record: what the agent asked to do and
- * the decision stored for it. Nothing here can be answered: the agent that asked is gone.
+ * An approval request a chat stored, as a record: what the agent asked to do, or the questions it asked, and the
+ * decision stored for it. Nothing here can be answered: a live chat's pending prompt is answered in its card, and
+ * this record reads as waiting until then.
  */
-export const ApprovalRecord = memo(function ApprovalRecord({ request, answer, folder }: ApprovalRecordProps): JSX.Element {
+export const ApprovalRecord = memo(function ApprovalRecord({ request, answer, folder, waiting = false }: ApprovalRecordProps): JSX.Element {
+  const question = request.question === true
   const detail = approvalDetail(request, folder)
+  const heading = question ? request.summary : detail.heading
   const asker = askedBy(request)
-  const view = answer === null ? null : answerView(answer)
+  const view = requestState(question, answer, waiting)
   return (
-    <article className={classNames('chat-approval-card', 'is-answered')} aria-label={`Approval request: ${detail.heading}`}>
+    <article className={classNames('chat-approval-card', 'is-answered')} aria-label={question ? `Question: ${heading}` : `Approval request: ${heading}`}>
       <div className="chat-approval-head">
-        <p className="chat-msg-who">Approval</p>
-        {view === null ? <StatePill state="canceled" label="Not answered" /> : <StatePill state={view.state} label={view.label} />}
+        <p className="chat-msg-who">{question ? 'Question' : 'Approval'}</p>
+        <StatePill state={view.state} label={view.label} />
       </div>
-      <p className="chat-approval-title">{detail.heading}</p>
+      <p className="chat-approval-title">{heading}</p>
       {asker === null ? null : <p className="chat-approval-thread">{asker}</p>}
-      <Details detail={detail} />
-      {view?.detail == null ? null : <p className="chat-approval-answer-detail">{view.detail}</p>}
+      {question ? null : <Details detail={detail} />}
+      {view.detail == null ? null : <p className="chat-approval-answer-detail">{view.detail}</p>}
     </article>
   )
 })

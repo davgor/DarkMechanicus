@@ -1,12 +1,14 @@
 /**
- * A `node:fs` whose `renameSync` refuses as Windows does while another handle holds the target open. Install it with
+ * A `node:fs` whose `renameSync` refuses as Windows does while another handle holds the target open, and whose
+ * `unlinkSync` can refuse a delete the same way. Install it with
  * `vi.mock('node:fs', async original => (await import('<path>/test/busyRename')).withBusyRename(await original()))`,
- * then `refuseRenames(...)` before the writer under test. Not shipped. This module imports no `node:fs` itself, so the
- * mock factory can load it.
+ * then `refuseRenames(...)` or `refuseUnlinks(...)` before the writer under test. Not shipped. This module imports no
+ * `node:fs` itself, so the mock factory can load it.
  */
 import type * as NodeFs from 'node:fs'
 
 const state = { codes: [] as string[], calls: 0, armed: false }
+const unlinks = { pattern: null as RegExp | null, code: '' }
 const BUSY = ['EPERM', 'EACCES', 'EBUSY']
 const realWait = Atomics.wait
 
@@ -32,9 +34,15 @@ export function renamesAsked(): number {
   return state.calls
 }
 
-/** Stops counting and refusing renames, and lets pauses block again. */
+/** Every delete of a path matching `pattern` throws `code` until `releaseRenames`, as Windows refuses to delete a held file. */
+export function refuseUnlinks(pattern: RegExp, code = 'EPERM'): void {
+  Object.assign(unlinks, { pattern, code })
+}
+
+/** Stops counting and refusing renames and deletes, and lets pauses block again. */
 export function releaseRenames(): void {
   Object.assign(state, { codes: [], calls: 0, armed: false })
+  Object.assign(unlinks, { pattern: null, code: '' })
   Atomics.wait = realWait
 }
 
@@ -48,6 +56,10 @@ export function withBusyRename(fs: typeof NodeFs): typeof NodeFs {
         if (code) throw Object.assign(new Error(`${code}: rename refused`), { code })
       }
       fs.renameSync(from, to)
+    },
+    unlinkSync(path: NodeFs.PathLike): void {
+      if (unlinks.pattern?.test(String(path))) throw Object.assign(new Error(`${unlinks.code}: delete refused`), { code: unlinks.code })
+      fs.unlinkSync(path)
     }
   }
 }

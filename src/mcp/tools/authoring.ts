@@ -116,7 +116,7 @@ const AUTHORING_TOOLS = [
   defineTool({
     name: 'set_epic_branch',
     description:
-      'Records the epic feature branch (repository, branch name, start commit). Workers integrate into this branch, never directly into the default branch. Rejected for completed epics.',
+      'Records the epic feature branch (repository, branch name, start commit). Workers integrate into this branch, never directly into the default branch. Rejected for completed epics. While a run is active, only a first binding (the epic has no branch yet) is allowed; repeating the same binding is a no-op, and changing a bound branch fails with active_run_exists.',
     kind: 'idempotent',
     input: { epicId, branch: epicBranch, expectedRevision: expectedRevision.optional() },
     run: (api, input) => api.setEpicBranch(input)

@@ -1,0 +1,244 @@
+import { createRoot } from 'react-dom/client'
+import '../../src/renderer/src/jitlessZod'
+import '../../src/renderer/src/styles.css'
+import './preview.css'
+import { xtermKit } from '../../src/renderer/src/agents/xtermKit'
+import { browserScheduler } from '../../src/renderer/src/app/scheduler'
+import { CultPage } from '../../src/renderer/src/cults/CultPage'
+import { FakeCults, cultView, memberDetail, runDetail } from '../../src/renderer/src/__mocks__/fakeCults'
+import { FakeDm } from '../../src/renderer/src/__mocks__/fakeDm'
+import { FakeExpansion } from '../../src/renderer/src/__mocks__/fakeExpansion'
+import { FakeTerminals } from '../../src/renderer/src/__mocks__/fakeTerminals'
+import { agentView, chatRecord, folderView } from '../../src/renderer/src/__mocks__/fixtures'
+import { Sidebar } from '../../src/renderer/src/sidebar/Sidebar'
+import type { CultMemberDetail, CultPipelineEntry, CultRunDetail, PipelineMember } from '../../src/shared/cults/cultApi'
+import type { CultPetitionView } from '../../src/shared/cults/cult'
+
+/**
+ * The Cult page over the renderer fakes, with the real sidebar, chamber and xterm, for screenshots. `?state=` picks the
+ * state; the page reaches it with real DOM clicks after mount, then sets `data-ready` on `#root`. The `shrine-*` states
+ * show the run's Shrine in the viewscreen (DM-632): its content loads from `dm-shrine:`, which only a host serving that
+ * scheme (an Electron capture over `src/main/cults/shrineProtocol.ts`) answers. The live chamber states (DM-667):
+ * `live` delivers new tool calls and mail after the page opened, `order-all` an order to every acolyte, and
+ * `sprite-inspector` clicks an acolyte in the room; `dark` is the room with no active run.
+ */
+const params = new URLSearchParams(window.location.search)
+const state = params.get('state') ?? 'idle'
+const WORK = '/home/u/code/alpha'
+const alpha = folderView({ path: WORK, name: 'alpha', displayPath: '~/code/alpha' })
+const minutesAgo = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString()
+
+const ACOLYTES: [string, string, string, string | null, string | null][] = [
+  ['Acolyte Ferrum-3', 'anthropic/claude-sonnet', 'normal', 'Needs deeper layout reasoning.', 'ui_ux'],
+  ['Acolyte Cogitas-3', 'anthropic/claude-haiku', 'low', null, 'quality'],
+  ['Acolyte Vox-4', 'openai/gpt-5', 'high', 'Security review of the IPC boundary.', 'security'],
+  ['Acolyte Aurum-3', 'anthropic/claude-haiku', 'low', null, null]
+]
+
+function members(at: string): CultMemberDetail[] {
+  const acolytes = ACOLYTES.map(([displayName, model, tier, tierReason, slot], index) => memberDetail({
+    chatId: `a${index + 1}`, role: 'acolyte', displayName, model, tier, tierReason, joinedAt: new Date(Date.parse(at) + (index + 1) * 60_000).toISOString(),
+    slotId: slot, workerType: slot as CultMemberDetail['workerType'], typeOrigin: slot === null ? 'magos_created' : 'definition_slot',
+    runWorkerTypeId: slot === null ? 'dyn_1' : null, reported: index === 1
+  }))
+  const activity = (index: number): CultMemberDetail['activity'] => index === 0
+    ? { working: true, tool: { name: 'edit', target: 'cults/CultPage.tsx' }, at }
+    : index === 2 ? { working: true, tool: { name: 'bash', target: 'npm run typecheck' }, at } : { working: false, tool: { name: 'read', target: 'docs/design/cults.md' }, at }
+  const departed = state.startsWith('pipeline') ? [memberDetail({
+    chatId: 'a5', role: 'acolyte', displayName: 'Acolyte Rubric-9', model: 'anthropic/claude-haiku', tier: 'low', state: 'dismissed',
+    joinedAt: new Date(Date.parse(at) + 5 * 60_000).toISOString(), leftAt: minutesAgo(4)
+  })] : []
+  return [memberDetail({ joinedAt: at, activity: { working: false, tool: null, at } }), ...acolytes.map((member, index) => ({ ...member, activity: activity(index) })), ...departed]
+}
+
+function petition(patch: Partial<CultPetitionView>): CultPetitionView {
+  return { id: 'pt', runId: 'run_1', kind: 'acolytes', additional: null, folderPath: null, reason: '', state: 'pending', granted: null, createdAt: minutesAgo(3), decidedAt: null, ...patch }
+}
+
+/** The published Shrine each `shrine-*` state shows; null for the empty viewscreen. */
+function shrineOf(): CultRunDetail['shrine'] {
+  const base = { publishedBy: 'Acolyte Ferrum-3', updatedAt: minutesAgo(1) }
+  if (state === 'shrine-image') return { ...base, path: `${WORK}/gerry/gerry.png`, kind: 'image', revision: '4' }
+  if (state === 'shrine-html' || state === 'shrine-enlarged') return { ...base, path: `${WORK}/gerry/index.html`, kind: 'html', revision: '7' }
+  return null
+}
+
+function activeRun(): CultRunDetail {
+  const at = minutesAgo(12)
+  const paused = state === 'paused'
+  const detail = runDetail({
+    state: paused ? 'paused' : 'running', startedAt: at, runningSince: paused ? null : at, accumulatedRunningMs: paused ? 9 * 60_000 + 25_000 : 0,
+    timeLimitMs: 90 * 60_000, workDir: WORK
+  }, members(at))
+  const petitions = state === 'petitions' ? [
+    petition({ id: 'pt_a', kind: 'acolytes', additional: 3, reason: 'The schema review needs two more reviewers to finish before the window closes.', createdAt: minutesAgo(5) }),
+    petition({ id: 'pt_f', kind: 'folder_access', folderPath: '/home/u/code/beta', reason: 'Read the shared IPC schema in beta.', createdAt: minutesAgo(4) }),
+    petition({ id: 'pt_s', kind: 'allow_save', reason: 'Save the drafted shrine plan to the board.', createdAt: minutesAgo(2) })
+  ] : []
+  return {
+    ...detail, petitions, shrine: shrineOf(),
+    workerTypes: [{ id: 'dyn_1', displayName: 'Lore keeper', description: 'd', mission: 'm', rationale: 'Keeps the chronicle of decisions.', requiredForConclusion: false, creatorMemberId: 'chat_magos', createdAt: at, updatedAt: at, retiredAt: null, origin: 'magos_created', state: 'active', assignedChatIds: ['a4'], reportCount: 0 }]
+  }
+}
+
+const CHRONICLE = 'Day 1: the council met. <script>alert("x")</script> <b>Not bold</b> **not markdown**\nThe shrine plan was drafted; Vox raised two IPC risks and Ferrum fixed the layout.'
+
+function pastRuns(): CultRunDetail[] {
+  return [
+    { ...runDetail({ id: 'run_0', state: 'ended', endReason: 'completed', startedAt: '2026-11-26T09:00:00.000Z', endedAt: '2026-11-26T10:32:15.000Z', runningSince: null, chronicle: CHRONICLE }), members: members('2026-11-26T09:00:00.000Z') },
+    runDetail({ id: 'run_m', state: 'ended', endReason: 'killed', startedAt: '2026-11-25T14:00:00.000Z', endedAt: '2026-11-25T14:03:40.000Z', runningSince: null })
+  ]
+}
+
+const SCREEN = (name: string): string => [
+  `\x1b[1;38;5;179m${name}\x1b[0m  \x1b[2m· omp · cult member\x1b[0m`, '',
+  '\x1b[38;5;108m●\x1b[0m Reading docs/design/cults.md (section 6)',
+  '\x1b[38;5;108m●\x1b[0m edit src/renderer/src/cults/CultPage.tsx',
+  '  \x1b[32m+ <RosterStrip run={run} roster={roster} … />\x1b[0m',
+  '\x1b[38;5;108m●\x1b[0m bash npm run typecheck', '  \x1b[2mtsc --noEmit -p tsconfig.web.json\x1b[0m', '  \x1b[32m✓ no errors\x1b[0m', '',
+  '\x1b[38;5;179m❯\x1b[0m '
+].join('\r\n')
+
+/** The `pipeline` state's timeline: the Magos and acolytes talking, an order to all, a pause and a petition, a departed member. */
+function pipelineEntries(): CultPipelineEntry[] {
+  const who = (chatId: string, displayName: string): PipelineMember => ({ chatId, displayName, role: chatId === 'chat_magos' ? 'magos' : 'acolyte' })
+  const magos = who('chat_magos', 'Magos Vettius')
+  const [ferrum, cogitas, vox, aurum] = ACOLYTES.map(([name], index) => who(`a${index + 1}`, name))
+  const rubric = who('a5', 'Acolyte Rubric-9')
+  const base = { eventKind: null, orderId: null, messageIds: [], inReplyTo: null, truncated: false }
+  const rows: Omit<CultPipelineEntry, 'seq' | 'at'>[] = [
+    { ...base, kind: 'event', eventKind: 'summoned', sender: rubric, recipients: [], text: 'Acolyte Rubric-9 was summoned.' },
+    { ...base, kind: 'message', sender: magos, recipients: [ferrum!], messageIds: ['m1'], text: 'Draft the shrine layout: a hero image, the plan summary and the ticket list.' },
+    { ...base, kind: 'message', sender: ferrum!, recipients: [magos], messageIds: ['m2'], inReplyTo: 'm1', text: 'Layout drafted in gerry/index.html. <b>Not bold</b> and **not markdown**: shown as typed.' },
+    { ...base, kind: 'message', sender: vox!, recipients: [ferrum!], messageIds: ['m3'], text: 'Your IPC call needs a zod schema before it reaches main.' },
+    { ...base, kind: 'message', sender: rubric, recipients: [magos], messageIds: ['m4'], text: 'My audit notes are in notes/rubric.md. Leaving the run now.' },
+    { ...base, kind: 'event', eventKind: 'dismissed', sender: rubric, recipients: [], text: 'Acolyte Rubric-9 was dismissed.' },
+    { ...base, kind: 'event', eventKind: 'petition_created', sender: magos, recipients: [], text: 'Petition (acolytes): The schema review needs two more reviewers.' },
+    { ...base, kind: 'event', eventKind: 'paused', sender: null, recipients: [], text: 'The run was paused.' },
+    { ...base, kind: 'event', eventKind: 'resumed', sender: null, recipients: [], text: 'The run was resumed.' },
+    { ...base, kind: 'order_all', eventKind: 'order_all', sender: magos, recipients: [ferrum!, cogitas!, vox!, aurum!], orderId: 'co_01m8', messageIds: ['o1', 'o2', 'o3', 'o4'], text: 'Conclude your reports within three minutes; send me your findings.' },
+    { ...base, kind: 'message', sender: cogitas!, recipients: [magos], messageIds: ['m5'], text: 'Quality report submitted: two flaky tests fixed, none skipped.' }
+  ]
+  return rows.map((row, index) => ({ ...row, seq: index + 1, at: minutesAgo(11 - index) }))
+}
+
+const dm = new FakeDm()
+const cults = new FakeCults()
+const terminals = new FakeTerminals()
+dm.cults = cults
+dm.terminals = terminals
+dm.folders = [alpha]
+window.dm = dm
+cults.cults = [cultView({ name: 'Shrine Builders', archetype: 'research_creative', charter: 'Build the Gerry Shrine: a plan, its tickets and the review of each, before the window closes.' })]
+cults.runsByCult = { cult_1: state === 'idle' || state === 'dark' ? pastRuns() : [activeRun(), ...pastRuns()] }
+cults.pipelines = { run_1: pipelineEntries(), run_0: pipelineEntries().slice(1, 6) }
+const names = ['Magos Vettius', ...ACOLYTES.map(([name]) => name)]
+dm.chats.chats = ['chat_magos', 'a1', 'a2', 'a3', 'a4'].map((id, index) => chatRecord({ id, folder: WORK, agent: 'omp', role: index === 0 ? 'orchestrator' : 'worker', title: names[index], cultRunId: 'run_1', cultRole: index === 0 ? 'magos' : 'acolyte' }))
+for (const [index, id] of ['chat_magos', 'a1', 'a2', 'a3', 'a4'].entries()) terminals.screens[id] = SCREEN(names[index])
+
+const click = (element: Element | null | undefined): void => (element as HTMLElement | null)?.click()
+const byLabel = (label: string): Element | null => document.querySelector(`[aria-label="${label}"]`)
+const buttonNamed = (text: string): Element | undefined => [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === text)
+// The preview's ES2022 lib predates Promise.withResolvers, so the executor form stays here.
+function tick(ms = 200): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
+}
+
+/** The inspector and watch states: an acolyte opened from the roster, and its watch tab. */
+async function driveMember(): Promise<void> {
+  if (state === 'inspector' || state === 'watch') {
+    click(document.querySelector('.cult-chip[data-member-id="a1"]'))
+    await tick()
+  }
+  if (state === 'watch') {
+    click(buttonNamed('Watch terminal'))
+    await tick(500)
+    click(byLabel('Close inspector'))
+  }
+}
+
+/** The pipeline states: the live tab with the order's recipients expanded, or a past run's pipeline opened. */
+async function drivePipeline(): Promise<void> {
+  if (state === 'pipeline-past') {
+    click(buttonNamed('Past runs'))
+    await tick()
+    click(document.querySelector('.cult-past-pipeline-toggle > summary'))
+    return
+  }
+  click(buttonNamed('Pipeline'))
+  await tick(500)
+  click(document.querySelector('.cult-pipe-recipients > summary'))
+  await tick()
+  // The person scrolls down to the newest entry, or up, where the timeline stops following and offers Jump to newest.
+  const list = document.querySelector('.cult-pipeline-list')
+  list?.scrollTo({ top: state === 'pipeline-top' ? 0 : list.scrollHeight })
+}
+
+/** After the page opened, as a live run delivers them: new tool calls in a snapshot, and new mail in the pipeline. */
+function deliverLive(): void {
+  const now = new Date().toISOString()
+  const run = activeRun()
+  const activity = (working: boolean, name: string, target: string): CultMemberDetail['activity'] => ({ working, tool: { name, target }, at: now })
+  const changed: Record<string, CultMemberDetail['activity']> = { a2: activity(true, 'grep', 'useChamberLog') }
+  const members = run.members.map((member) => (member.chatId in changed ? { ...member, activity: changed[member.chatId]! } : member))
+  const [magos, ferrum, , vox, aurum] = members.map((member): PipelineMember => ({ chatId: member.chatId, displayName: member.displayName, role: member.role }))
+  const base = { eventKind: null, orderId: null, inReplyTo: null, truncated: false, at: now, kind: 'message' as const }
+  cults.pipelines.run_1!.push(
+    { ...base, seq: 12, sender: magos!, recipients: [vox!], messageIds: ['n1'], text: 'Sweep the nave of stale imports.\nThen report to me.' },
+    { ...base, seq: 13, sender: aurum!, recipients: [ferrum!], messageIds: ['n2'], text: '<b>Schema</b> first: zod at the IPC edge.' }
+  )
+  cults.push({ ...run, members })
+}
+
+/** After the page opened, the Magos orders every acolyte at once. */
+function deliverOrder(): void {
+  const run = activeRun()
+  const [magos, ...acolytes] = run.members.map((member): PipelineMember => ({ chatId: member.chatId, displayName: member.displayName, role: member.role }))
+  cults.pipelines.run_1!.push({
+    seq: 12, at: new Date().toISOString(), kind: 'order_all', eventKind: 'order_all', sender: magos!, recipients: acolytes, orderId: 'co_live',
+    messageIds: acolytes.map((_, index) => `o${index}`), inReplyTo: null, truncated: false, text: 'Conclude your reports within three minutes.'
+  })
+  cults.push(run)
+}
+
+/** The live chamber states, reached once the room has settled: what arrives, or a click on a sprite. */
+async function driveChamber(): Promise<void> {
+  if (state === 'sprite-inspector') click(document.querySelector('.cc-acolyte[data-member-id="a3"] .pg-mascot-sprite'))
+  if (state === 'live') deliverLive()
+  if (state.startsWith('order-all')) deliverOrder()
+  // Packets and the order's ring are in flight, the bubbles up; an opened inspector has painted.
+  if (state === 'live' || state.startsWith('order-all') || state === 'sprite-inspector') await tick(state === 'live' ? 700 : 450)
+}
+
+/** Real DOM clicks to reach the state. */
+async function drive(): Promise<void> {
+  await tick(600)
+  click(byLabel('Runs of Shrine Builders'))
+  if (state === 'idle') click(document.querySelector('.cult-overrides > summary'))
+  await driveMember()
+  if (state === 'past') click(buttonNamed('Past runs'))
+  if (state.startsWith('pipeline')) await drivePipeline()
+  if (state === 'shrine-enlarged') click(document.querySelector('.cc-viewscreen-window .shrine-enlarge'))
+  await document.fonts.ready
+  // The chamber's walk-ins settle before the capture.
+  await tick(4000)
+  await driveChamber()
+  document.getElementById('root')?.setAttribute('data-ready', state)
+}
+
+const noop = (): void => undefined
+createRoot(document.getElementById('root') as HTMLElement).render(
+  <div className="app-shell">
+    <Sidebar version="0.87.0" folders={[alpha]} lists={{ [alpha.path]: { status: 'ready', epics: [], error: null } }}
+      selection={{ folderPath: alpha.path, epicId: null, agentPane: { kind: 'cult', cultId: 'cult_1' } }} agents={[agentView({ kind: 'omp' })]}
+      agentStatuses={{}} expansion={new FakeExpansion({ collapsedFolders: [alpha.path] })} footer={null}
+      chats={{ lists: {}, onNew: noop, onOpen: noop, onRename: async () => true, onDelete: async () => true }}
+      agentChats={{ list: { status: 'ready', chats: [] }, onOpen: noop, onRename: async () => true, onDelete: async () => true, onSummon: noop }}
+      onTrack={noop} onClone={noop} onAddAgent={noop} onSelectAgent={noop} onSelectCult={noop} onOpenCultMember={noop} onAgentStatus={noop}
+      onSelectFolder={noop} onSelectEpic={noop} kanbanCounts={{}} onSelectKanban={noop} onRequestUntrack={noop} />
+    <main className="app-main" aria-label="Workspace">
+      <CultPage cultId="cult_1" agentName="OMP" kit={xtermKit} scheduler={browserScheduler} />
+    </main>
+  </div>
+)
+void drive()

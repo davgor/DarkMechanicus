@@ -70,6 +70,8 @@ export interface AgentMailDesktopDeps {
     hasMessage(chat: ChatRecord, message: AgentMailMessageView & { project?: string }): boolean
     resume(chat: ChatRecord): Promise<string | null>
   }
+  /** The standing cult wake (`src/main/cults/cultWake.ts`): told which undelivered messages each chat holds. */
+  cultWake?: { offer(folder: string, recipient: ChatRecord, messages: readonly AgentMailMessageView[]): Promise<void> }
   /** Person-board work shares this unconditional tracked-folder monitor, including non-peer hosts. */
   board?: { poll(folder: string): Promise<void> }
   /** Delivers metadata to the app window; without it nothing is pushed. */
@@ -201,17 +203,21 @@ class ChatMailDesk {
     }
   }
 
-  private inspectPage(folder: string, chat: ChatRecord, messages: readonly AgentMailMessageView[], delivery: ChatMailState['delivery']): void {
+  private inspectPage(folder: string, chat: ChatRecord, messages: readonly AgentMailMessageView[], delivery: ChatMailState['delivery']): AgentMailMessageView[] {
+    const pending: AgentMailMessageView[] = []
     for (const message of messages) {
       try {
         const scoped = chat.folder === folder ? message : { ...message, project: folder }
-        if (delivery.problem !== null || !this.deps.delivery?.hasMessage(chat, scoped)) delivery.pendingCount += 1
-        else delivery.deliveredCount += 1
+        if (delivery.problem !== null || !this.deps.delivery?.hasMessage(chat, scoped)) {
+          delivery.pendingCount += 1
+          pending.push(message)
+        } else delivery.deliveredCount += 1
       } catch (error) {
         delivery.pendingCount += 1
         delivery.problem = error instanceof Error ? error.message : String(error)
       }
     }
+    return pending
   }
 
   private async deliveryState(box: ChatMailbox): Promise<ChatMailState['delivery']> {
@@ -220,7 +226,9 @@ class ChatMailDesk {
     let throughSeq: number | undefined
     for (;;) {
       const page = await box.workspace.call('mailRead', box.chat, { afterSeq, throughSeq, limit: AGENT_MAIL_LIMITS.pageSize })
-      this.inspectPage(box.folder, box.chat, page.messages, delivery)
+      const pending = this.inspectPage(box.folder, box.chat, page.messages, delivery)
+      // Only main's records decide whether a sender may wake this member (`cultWake.ts`); the body is never read there.
+      if (pending.length > 0) await this.deps.cultWake?.offer(box.folder, box.chat, pending)
       if (!page.hasMore) break
       afterSeq = page.nextCursor
       throughSeq = page.snapshotHighWater

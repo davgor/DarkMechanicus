@@ -96,6 +96,7 @@ import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
+import { readCultRules } from '../cults/cultRules'
 import { claudeSessionExists } from './claudeSession'
 import { ompAgentDir } from '../desktop/ompTheme'
 import { installSkitariiTheme } from './ompSkitariiTheme'
@@ -130,6 +131,7 @@ const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const SWITCHING = 'The chat is switching to the GUI, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
 const UNTRACKED = "The chat's folder was untracked, so its terminal was stopped."
+const ENDED = 'The chat was ended, so its terminal was stopped.'
 
 /** Why a chat named by `ref` cannot be found. */
 function noChat(ref: ChatRef): string {
@@ -206,6 +208,28 @@ export interface TerminalSessions {
   releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
+  /**
+   * Ends one chat's terminal (a cult member's end): with `graceful`, the PTY gets `withinMs` to exit on its own (see
+   * `GracefulEnd`); then, or at once, its start is cancelled or its tree killed (`killPtyTree`) and its grants revoked.
+   * Resolves once the kill has settled.
+   */
+  endChat(chatId: string, graceful?: GracefulEnd): Promise<void>
+  /**
+   * Adds a grant issued while the chat runs (a cult petition's folder grant) to its running PTY, so it is renewed with
+   * the others and revoked when the PTY ends. False, and nothing held, when no PTY of the chat runs on: revoke it then.
+   */
+  attachGrant(chatId: string, grantId: string): boolean
+  /**
+   * Takes an attached grant back from the chat's running PTY; false when none runs, it is being stopped (its revoke,
+   * which took the grant, has run) or it does not hold the grant.
+   */
+  detachGrant(chatId: string, grantId: string): boolean
+  /** Tells `listener` the chat id of every PTY that exits, however it ended; the returned function stops that. */
+  onExit(listener: (chatId: string) => void): () => void
+  /** Tells `listener` the chat id of every launch that has just started running (a new generation); the returned function stops that. */
+  onLaunch(listener: (chatId: string) => void): () => void
+  /** The running launch's generation (its descriptor's and grant binding's); null while no PTY of the chat runs. */
+  generationOf(chatId: string): string | null
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
   /** Observed live PTY only; a queued start or stored chat is not a running agent. */
   /** Delivers advisory context only to an already live terminal. */
@@ -225,6 +249,18 @@ export interface TerminalSessions {
   /** Quit: see the module comment. */
   dispose(): Promise<void>
 }
+
+/** A graceful end: ask the CLI to exit, type its exit keys if it still runs, and give it `withinMs` in all. */
+export interface GracefulEnd {
+  /** Asks the CLI to exit through a trusted channel (a cult member's control file); it may not settle. */
+  request?: () => Promise<void>
+  /** The CLI's exit keys (Ctrl+D for OMP), typed `inputAfterMs` after the request when the PTY still runs. */
+  input: string
+  /** At once when absent or 0. */
+  inputAfterMs?: number
+  withinMs: number
+}
+
 
 interface TerminalTimers {
   /** Runs `callback` every `ms`; the returned function stops it. */
@@ -246,6 +282,10 @@ interface GrantOptions {
   role: ChatRole
   allowSave: boolean
   label: string
+  /** False for a cult Magos: it saves only with Allow save, never through the run-ownership exception (DM-738). */
+  runSave?: boolean
+  /** True for a cult run's Magos or acolyte: a hidden terminal with no Browser panel, so its grant never drives the browser. */
+  cultMember?: boolean
 }
 
 /**
@@ -352,8 +392,8 @@ interface Live {
   pty: PtyProcess
   screen: TerminalScreen
   tree: PtyTree
-  /** The grants it runs on: one for a folder chat, one per reached folder for a project-less chat. */
-  grantIds: readonly string[]
+  /** The grants it runs on: one for a folder chat, one per reached folder for a project-less chat, and any attached. */
+  grantIds: string[]
   /** Why main stopped it, once it has; null while it runs on, or when it exited on its own. */
   stopMessage: string | null
   exited: boolean
@@ -413,6 +453,8 @@ interface Manager {
   /** Folders being untracked, in which nothing may start. */
   releasing: Set<string>
   closing: boolean
+  exitListeners: Set<(chatId: string) => void>
+  launchListeners: Set<(chatId: string) => void>
 }
 
 const nodeTimers: TerminalTimers = {
@@ -535,10 +577,16 @@ function hasLaunchMailbox(context: StartContext): boolean {
   return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
 }
 
+/** A cult member starts only with the rules its launcher wrote (`cultLauncher.ts`): a missing file fails the start. */
+async function cultRulesOf(userData: string, chat: ChatRecord): Promise<{ cultRules?: string }> {
+  return chat.cultRunId === undefined ? {} : { cultRules: await readCultRules(userData, chat.id) }
+}
+
 async function writeStartFiles(context: StartContext, repairCheckout: string | undefined): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(reach === undefined ? folder : null)
+  const cultRules = await cultRulesOf(userData, chat)
   const files = await writeTerminalFiles({
     forgeResolver: chat.forgeResolver !== undefined,
     userData,
@@ -555,7 +603,8 @@ async function writeStartFiles(context: StartContext, repairCheckout: string | u
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     conversation: chat.conversation,
-    ...(reach === undefined ? {} : { reach })
+    ...(reach === undefined ? {} : { reach }),
+    ...cultRules
   })
   if (agent.kind === 'omp') {
     // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
@@ -881,7 +930,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     chat,
     pty,
     screen,
-    grantIds,
+    grantIds: [...grantIds],
     stopMessage: null,
     exited: false,
     ended,
@@ -894,8 +943,9 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     revoke: () => {
       if (revoked === null) {
         live.revocationError = undefined
-        // A failed revocation is asked again by the next call rather than remembered.
-        revoked = Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId, error => { live.revocationError = error }))).then(() => {
+        // A failed revocation is asked again by the next call rather than remembered. `live.grantIds`, not the
+        // launch's: a cult upgrade attached to the running PTY (`attachGrant`) is revoked with it.
+        revoked = Promise.all(live.grantIds.map((grantId) => revokeGrant(manager, grantId, error => { live.revocationError = error }))).then(() => {
           if (live.revocationError !== undefined) revoked = null
         })
       }
@@ -949,6 +999,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     if (live.stopMessage === null) {
       void track(manager, pauseIfSignedOut(manager, chat))
     }
+    tellExit(manager, live)
     stopData()
     stopResponse()
     stopExit()
@@ -1130,7 +1181,10 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
   const repairCheckout = await step(recheckFolder(context))
   const files = await step(writeStartFiles(context, repairCheckout))
   await step(recheckFolder(context))
-  const grant = { role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title) }
+  const grant = {
+    role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title), ...(chat.cultRole === 'magos' ? { runSave: false } : {}),
+    ...(chat.cultRunId === undefined ? {} : { cultMember: true })
+  }
   const revokeAll = (grantIds: readonly string[]): void => {
     for (const grantId of grantIds) {
       void revokeGrant(manager, grantId)
@@ -1241,7 +1295,7 @@ async function withDmClient(context: StartContext, files: TerminalFiles, issued:
   if (issued.endpointId === null && address === undefined) return files
   const dmClient = issued.endpointId === null
     ? await writeRecoveryClientDescriptor({ userData, chatId: chat.id, generation, address: address! })
-    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
+    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform, ...(chat.cultRole === undefined ? {} : { cultRole: chat.cultRole }) })
   return { ...files, omp: { ...files.omp, dmClient } }
 }
 
@@ -1370,7 +1424,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     newSession: options.newSession === true, forgeSetupAuthorization: options.forgeSetupAuthorization }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
-        manager.entries.set(chat.id, outcome.live)
+        tellLaunch(manager, chat.id, outcome.live)
       } else {
         manager.entries.delete(chat.id)
       }
@@ -1570,6 +1624,62 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
+/** Gives a running PTY `withinMs` to exit on its own: the trusted request first, then its exit keys (at once or later). */
+async function exitOnItsOwn(manager: Manager, live: Live, graceful: GracefulEnd): Promise<void> {
+  const cancels: (() => void)[] = []
+  // `Promise.withResolvers` is outside this project's ES2022 lib.
+  const late = new Promise<void>((resolve) => {
+    cancels.push(manager.deps.timers.after(resolve, graceful.withinMs))
+  })
+  const typeKeys = (): void => {
+    if (!live.exited && live.stopMessage === null) live.pty.write(graceful.input)
+  }
+  graceful.request?.().catch((error: unknown) => {
+    manager.onError(error)
+  })
+  if (graceful.inputAfterMs === undefined || graceful.inputAfterMs <= 0) typeKeys()
+  else cancels.push(manager.deps.timers.after(typeKeys, graceful.inputAfterMs))
+  await Promise.race([live.ended, late])
+  for (const cancel of cancels) cancel()
+}
+
+/** `TerminalSessions.endChat`: a running PTY may first exit on its own, within the time given; see the interface. */
+async function endChat(manager: Manager, chatId: string, graceful?: GracefulEnd): Promise<void> {
+  const live = runningTerminal(manager, chatId)
+  if (live !== null && graceful !== undefined && live.stopMessage === null) await exitOnItsOwn(manager, live, graceful)
+  const entry = manager.entries.get(chatId) ?? live ?? undefined
+  const ended = entry === undefined ? null : await endEntry(manager, entry, ENDED)
+  // Resolves once its grants are revoked too, so a caller may close or remove their workspace next.
+  await Promise.all([ended?.kill, ended?.live.revoke()])
+}
+
+/** `TerminalSessions.attachGrant`: only a PTY that runs on and is not being stopped takes a grant. */
+function attachGrant(manager: Manager, chatId: string, grantId: string): boolean {
+  const live = runningTerminal(manager, chatId)
+  if (live === null || live.stopMessage !== null) return false
+  if (!live.grantIds.includes(grantId)) live.grantIds.push(grantId)
+  return true
+}
+
+function detachGrant(manager: Manager, chatId: string, grantId: string): boolean {
+  const live = runningTerminal(manager, chatId)
+  const index = live === null || live.stopMessage !== null ? -1 : live.grantIds.indexOf(grantId)
+  if (live === null || index < 0) return false
+  live.grantIds.splice(index, 1)
+  return true
+}
+
+/** Tells the exit listeners of a PTY's exit; a listener that throws is reported, never in the exit's way. */
+function tellExit(manager: Manager, live: Live): void {
+  for (const listener of manager.exitListeners) {
+    try {
+      listener(live.chat.id)
+    } catch (error) {
+      manager.onError(error)
+    }
+  }
+}
+
 /**
  * A confirmed surface handoff: validates and freezes only the named owner at once, then joins its close, tree kill and
  * revocation. Naming an owner whose cleanup failed retries that cleanup instead.
@@ -1696,7 +1806,9 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     pending: new Set(),
     deleting: new Set(),
     releasing: new Set(),
-    closing: false
+    closing: false,
+    exitListeners: new Set(),
+    launchListeners: new Set()
   }
   return {
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
@@ -1714,6 +1826,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget, relatedFolders) => releaseFolder(manager, folder, forget, relatedFolders),
     endAgent: (id) => endAgent(manager, id),
+    ...cultMemberEntries(manager),
     pasteIfRunning: (ref, text) => pasteIfRunning(manager, ref, text),
     activeChats: () => activeChats(manager),
     isRunning: (chatId) => runningTerminal(manager, chatId) !== null,
@@ -1722,6 +1835,40 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     stop: (ref, generation) => stopTerminal(manager, ref, generation),
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
+  }
+}
+
+/** Enters the chat's running launch, then tells the launch listeners; a listener that throws is reported, never in the start's way. */
+function tellLaunch(manager: Manager, chatId: string, live: Live): void {
+  manager.entries.set(chatId, live)
+  for (const listener of manager.launchListeners) {
+    try {
+      listener(chatId)
+    } catch (error) {
+      manager.onError(error)
+    }
+  }
+}
+
+/** What a cult supervisor ends, upgrades and watches member terminals with. */
+function cultMemberEntries(manager: Manager): Pick<TerminalSessions, 'endChat' | 'attachGrant' | 'detachGrant' | 'onExit' | 'onLaunch' | 'generationOf'> {
+  return {
+    endChat: (chatId, graceful) => endChat(manager, chatId, graceful),
+    attachGrant: (chatId, grantId) => attachGrant(manager, chatId, grantId),
+    detachGrant: (chatId, grantId) => detachGrant(manager, chatId, grantId),
+    onExit: (listener) => {
+      manager.exitListeners.add(listener)
+      return () => {
+        manager.exitListeners.delete(listener)
+      }
+    },
+    onLaunch: (listener) => {
+      manager.launchListeners.add(listener)
+      return () => {
+        manager.launchListeners.delete(listener)
+      }
+    },
+    generationOf: (chatId) => runningTerminal(manager, chatId)?.generation ?? null
   }
 }
 

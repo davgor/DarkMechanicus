@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { AgentChatSnapshot, AgentTodoPhase, AgentTodoTask, AttentionItem } from '../../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeChats } from '../__mocks__/fakeChats'
@@ -652,6 +653,92 @@ describe('EpicAgentPanel: needs you header and pushes', () => {
     expect(within(worker).getByRole('img', { name: 'Magos deciding' })).toBeTruthy()
     expect(within(worker).queryAllByRole('button', { name: /needs you$/ })).toHaveLength(0)
     expect(header(rail)).toMatch(/^1 needs you/)
+  })
+})
+
+describe('EpicAgentPanel: a pending browser site (DM-897 c3)', () => {
+  it('dots the chat row for a pending browser site and counts it as needs you', async () => {
+    const { backend, rail } = await railWith([])
+    const site: AttentionItem = {
+      chatId: 'chat_orch', promptId: 'site-1', kind: 'site', threadId: null, callsign: null, arbitration: 'off', title: 'https://docs.example', shown: true
+    }
+    act(() => backend.agentChat.emit({ folder: FOLDER, chatId: 'chat_orch', type: 'attention', items: [site] }))
+    const magos = within(rail).getByRole('treeitem', { name: 'Magos' })
+    expect(within(magos).getAllByRole('button', { name: 'Magos needs you' })).toHaveLength(1)
+    expect(header(rail)).toMatch(/^1 needs you/)
+  })
+})
+
+describe('EpicAgentPanel: where a pending site prompt docks (DM-872)', () => {
+  const site = { id: 'origin-1', origin: 'https://api.github.com', requestedBy: 'agent' as const }
+  async function withSite(chat: ChatRecord): Promise<HTMLElement> {
+    const backend = backendWith()
+    backend.browser.current = { ...backend.browser.current, owner: 'agent', ownerLabel: 'Acolyte:DM-442', pendingOrigin: site }
+    openAgent(backend, [chat])
+    const stage = await agentStage()
+    fireEvent.click(within(stage).getByRole('tab', { name: 'Browser' }))
+    await waitFor(() => expect(within(stage).getAllByRole('alertdialog', { name: site.origin })).toHaveLength(1))
+    return stage
+  }
+
+  it('docks it in the Browser panel for a terminal chat, which has no chat column', async () => {
+    const stage = await withSite({ ...orchestrator, surface: 'terminal' })
+    const panel = within(stage).getByRole('region', { name: 'Browser' })
+    expect(within(panel).getByRole('alertdialog', { name: site.origin })).toBeTruthy()
+  })
+
+  it('docks it once, in the chat column above the composer, for a GUI chat', async () => {
+    const stage = await withSite(orchestrator)
+    const chat = within(stage).getByRole('region', { name: 'Magos chat' })
+    expect(within(chat).getByRole('alertdialog', { name: site.origin })).toBeTruthy()
+    expect(within(within(stage).getByRole('region', { name: 'Browser' })).queryByRole('alertdialog')).toBeNull()
+  })
+})
+
+describe('EpicAgentPanel: the Browser camera (DM-873 c3, R19-1)', () => {
+  const image = { id: 'ci_0123456789abcdefghjkmnpqrs', mime: 'image/png' as const, width: 1280, height: 800, bytes: 4096 }
+  const docs = { url: 'http://127.0.0.1:4173/docs', title: 'Fixture docs', loading: false }
+
+  /** The epic's Agent stage for `chat`, its Browser tab open on an agent tab an Acolyte of DM-201 drives, captured once. */
+  async function captured(chat: ChatRecord): Promise<{ backend: FakeBackend; stage: HTMLElement; popover: HTMLElement }> {
+    const backend = backendWith()
+    backend.browser.current = { ...backend.browser.current, owner: 'agent', ownerLabel: 'Acolyte:DM-201', tab: docs }
+    backend.browser.captureResult = { ok: true, data: { image } }
+    openAgent(backend, [chat])
+    const stage = await agentStage()
+    fireEvent.click(within(stage).getByRole('tab', { name: 'Browser' }))
+    const camera = within(stage).getByRole('button', { name: 'Capture the agent tab' }) as HTMLButtonElement
+    await waitFor(() => expect(camera.disabled).toBe(false))
+    fireEvent.click(camera)
+    const popover = await within(stage).findByRole('dialog', { name: 'Captured page' })
+    return { backend, stage, popover }
+  }
+
+  it("adds the capture as a chip to the selected GUI chat's own composer", async () => {
+    const { backend, stage, popover } = await captured(orchestrator)
+    expect(backend.browser.callsOf('capture')).toEqual([[{ folder: FOLDER, chatId: orchestrator.id }]])
+    fireEvent.click(within(popover).getByRole('button', { name: 'Add to message' }))
+    const chat = within(stage).getByRole('region', { name: 'Magos chat' })
+    const chips = within(chat).getByRole('list', { name: 'Attached images' })
+    expect(within(chips).getAllByRole('img').map((node) => node.getAttribute('src')))
+      .toEqual([chatImageUrl(folder().attachmentKey, orchestrator.id, image.id)])
+    expect(within(stage).queryByRole('dialog', { name: 'Captured page' })).toBeNull()
+  })
+
+  it("attaches the capture as evidence to the driving Acolyte's bound ticket", async () => {
+    const { backend, popover } = await captured(orchestrator)
+    fireEvent.click(within(popover).getByRole('button', { name: 'Attach as evidence' }))
+    await waitFor(() => expect(backend.agentChat.callsOf('attachEvidence')).toEqual([[
+      { folder: FOLDER, chatId: orchestrator.id, imageId: image.id, epicId: 'ep_1', ticketId: 'tk_201' }
+    ]]))
+  })
+
+  it('turns Add to message off for a terminal chat, whose view has no composer, and still attaches as evidence', async () => {
+    const { backend, popover } = await captured({ ...orchestrator, surface: 'terminal' })
+    expect((within(popover).getByRole('button', { name: 'Add to message' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(popover.textContent).toContain('No message is open for this chat here.')
+    fireEvent.click(within(popover).getByRole('button', { name: 'Attach as evidence' }))
+    await waitFor(() => expect(backend.agentChat.callsOf('attachEvidence')).toHaveLength(1))
   })
 })
 

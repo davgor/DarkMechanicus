@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FakeDm } from '../__mocks__/fakeDm'
 import { FakeExpansion } from '../__mocks__/fakeExpansion'
 import { agentView, chatRecord, EPIC_A, epicSummary, folderView } from '../__mocks__/fixtures'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
@@ -9,6 +10,10 @@ import type { ChatListState } from '../agents/useChats'
 import type { EpicListState } from '../app/useEpicLists'
 import { Sidebar } from './Sidebar'
 
+// The CULTS section lists cults over window.dm; these tests have none.
+beforeEach(() => {
+  window.dm = new FakeDm()
+})
 afterEach(cleanup)
 
 const alpha = folderView({ path: '/a', name: 'alpha', displayPath: '~/code/alpha' })
@@ -69,6 +74,8 @@ function renderSidebar(
         calls.addAgent += 1
       }}
       onSelectAgent={(kind) => calls.agents.push(kind)}
+      onSelectCult={() => undefined}
+      onOpenCultMember={() => undefined}
       onAgentStatus={() => undefined}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
@@ -236,7 +243,9 @@ describe('Sidebar agents', () => {
     expect(calls.agents).toEqual(['claude'])
     expect(calls.track).toBe(0)
   })
+})
 
+describe('Sidebar agents pane', () => {
   it('does not highlight a folder while an agents pane is open', () => {
     render(
       <Sidebar
@@ -252,6 +261,8 @@ describe('Sidebar agents', () => {
         onClone={() => undefined}
         onAddAgent={() => undefined}
         onSelectAgent={() => undefined}
+        onSelectCult={() => undefined}
+        onOpenCultMember={() => undefined}
         onAgentStatus={() => undefined}
         onSelectFolder={() => undefined}
         onSelectEpic={() => undefined}

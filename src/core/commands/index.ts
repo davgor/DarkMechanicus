@@ -1,6 +1,8 @@
 import { agentMailCommands } from './agentMail'
 import { questionCommands } from './questions'
 import { chatNamingCommands } from './chatNaming'
+import { browserCommands } from './browser'
+import { cultCommands } from './cults'
 import { activityCommands } from './activity'
 import { attachmentCommands } from './attachments'
 import { authoringCommands } from './authoring'
@@ -23,6 +25,8 @@ import type { CommandTable } from './types'
 export const COMMANDS: CommandTable = {
   ...questionCommands,
   ...chatNamingCommands,
+  ...browserCommands,
+  ...cultCommands,
   ...repositoryCommands,
   ...authoringCommands,
   ...boardCommands,

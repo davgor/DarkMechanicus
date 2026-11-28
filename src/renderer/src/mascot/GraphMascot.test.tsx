@@ -225,3 +225,38 @@ describe('graph mascot starting state', () => {
     expect(frames.size).toBe(1)
   })
 })
+
+describe('graph mascot environment edges', () => {
+  it('draws nothing and schedules nothing when the board element never attaches', () => {
+    const detached = createRef<HTMLDivElement>()
+    const view = render(<GraphMascot board={detached} nodes={[]} viewport={{ x: 0, y: 0, zoom: 1 }} />)
+    expect(view.container.querySelector('.pg-mascot-sprite')).toBeNull()
+    expect(frames.size).toBe(0)
+  })
+
+  it('keeps its place on a board resize instead of respawning at the centre', () => {
+    let resized: (() => void) | null = null
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resized = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    const view = mount()
+    const sprite = view.container.querySelector<HTMLElement>('.pg-mascot-sprite')!
+    const top = Number.parseFloat(sprite.style.top)
+    expect(sprite.style.left).toBe('350px')
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 600 })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 400 })
+    act(() => resized!())
+    expect(sprite.style.left).toBe('350px')
+    expect(Number.parseFloat(sprite.style.top)).toBeCloseTo(top - 100)
+  })
+
+  it('animates normally where the platform has no matchMedia', () => {
+    vi.stubGlobal('matchMedia', undefined)
+    const view = mount()
+    expect(view.container.querySelector<HTMLElement>('.pg-mascot-layer')!.dataset.animated).toBe('true')
+    expect(frames.size).toBe(1)
+    expect(mediaListeners.size).toBe(0)
+  })
+})

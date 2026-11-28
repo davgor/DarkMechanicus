@@ -1,0 +1,161 @@
+/* The cult pipeline (PipelinePanel): a member filter over a scrolling timeline of messages and run events. Colours come
+   from the theme tokens in styles.css; a member's swatch and name take its roster colour (`--member-color`). */
+
+.cult-pipeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.cult-pipeline-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cult-pipeline-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cult-pipeline-filter select {
+  min-width: 160px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+.cult-pipeline-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Sized by the body, not by a percentage a flex item does not resolve, so the list itself scrolls and can follow. */
+.cult-pipeline-list {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.cult-pipeline-jump {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  background: var(--panel);
+  box-shadow: 0 2px 8px var(--overlay);
+}
+
+.cult-pipe-entry {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cult-pipe-entry.is-event {
+  background: var(--bg-canvas);
+}
+
+.cult-pipe-entry.is-order_all {
+  border-left: 3px solid var(--primary);
+  background: var(--primary-soft);
+}
+
+.cult-pipe-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+
+.cult-pipe-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cult-pipe-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--member-color);
+}
+
+.cult-pipe-name {
+  color: var(--member-color);
+  font-weight: 600;
+}
+
+.cult-pipe-role,
+.cult-pipe-system,
+.cult-pipe-time {
+  color: var(--muted);
+}
+
+.cult-pipe-left {
+  color: var(--faint);
+  font-style: italic;
+}
+
+.cult-pipe-to {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--ink-soft);
+}
+
+.cult-pipe-kind {
+  color: var(--ink-soft);
+}
+
+.cult-pipe-time {
+  margin-left: auto;
+}
+
+.cult-pipe-text {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cult-pipe-entry.is-event .cult-pipe-text {
+  color: var(--ink-soft);
+}
+
+.cult-pipe-recipients {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cult-pipe-recipients ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cult-past-pipeline {
+  height: 320px;
+  margin-top: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+}

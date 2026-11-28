@@ -71,7 +71,7 @@ describe('app settings: reading', () => {
     expect(settings.notifications()).toEqual(DEFAULT_NOTIFICATION_SETTINGS)
     expect(settings.notifications()).toEqual({
       version: 1,
-      events: { approval_needed: true, question: true, checkpoint_ready: true, run_failed: true, run_stalled: true },
+      events: { approval_needed: true, question: true, checkpoint_ready: true, run_failed: true, run_stalled: true, browser_site: true },
       sound: true,
       whenFocused: 'skip',
       arbitration: { enabled: true, alwaysAsk: [], autoHandleNotes: '' }
@@ -108,7 +108,7 @@ describe('app settings: reading a partly invalid value leniently', () => {
   })
 
   it('keeps a valid arbitration block next to an unknown event key (a later version) and other invalid parts', () => {
-    const stored = { ...RESTRICTIVE, version: 2, events: { ...RESTRICTIVE.events, browser_site: true }, sound: 'loud' }
+    const stored = { ...RESTRICTIVE, version: 2, events: { ...RESTRICTIVE.events, desktop_control: true }, sound: 'loud' }
     const { settings } = rig({ stored: JSON.stringify(stored) })
     expect(settings.notifications()).toEqual({ ...RESTRICTIVE, version: 1, sound: true })
   })
@@ -136,6 +136,22 @@ describe('app settings: reading a partly invalid value leniently', () => {
         autoHandleNotes: ''
       })
     }
+  })
+})
+
+describe('app settings: the browser_site event (DM-897 c4)', () => {
+  it('loads a stored Sprint 1 value (no browser_site key) unchanged, with browser_site on', () => {
+    const sprint1 = {
+      version: 1,
+      events: { approval_needed: true, question: false, checkpoint_ready: true, run_failed: true, run_stalled: false },
+      sound: false,
+      whenFocused: 'notify',
+      arbitration: { enabled: false, alwaysAsk: ['bash:rm', 'git.push'], autoHandleNotes: 'Never approve deploys.' }
+    }
+    const { settings } = rig({ stored: JSON.stringify(sprint1) })
+    expect(settings.notifications()).toEqual({ ...sprint1, events: { ...sprint1.events, browser_site: true } })
+    expect(settings.notifications().arbitration).toEqual({ enabled: false, alwaysAsk: ['bash:rm', 'git.push'], autoHandleNotes: 'Never approve deploys.' })
+    expect(settings.notifications().events.browser_site).toBe(true)
   })
 })
 
@@ -249,7 +265,7 @@ describe('app settings: tightening saves without a confirmation', () => {
     ['arbitration turned off', settingsWith({ enabled: false })],
     ['an always-ask entry added', settingsWith({ alwaysAsk: ['bash:rm'] })],
     ['events, sound and focus changed', settingsWith({}, {
-      events: { approval_needed: false, question: false, checkpoint_ready: false, run_failed: false, run_stalled: false },
+      events: { approval_needed: false, question: false, checkpoint_ready: false, run_failed: false, run_stalled: false, browser_site: false },
       sound: false,
       whenFocused: 'notify'
     })],
@@ -274,7 +290,7 @@ describe('app settings: tightening saves without a confirmation', () => {
 describe('app settings: invalid shapes', () => {
   const invalid: Array<[string, unknown]> = [
     ['an extra top-level key', { ...DEFAULT_NOTIFICATION_SETTINGS, extra: true }],
-    ['an extra event key', { ...DEFAULT_NOTIFICATION_SETTINGS, events: { ...DEFAULT_NOTIFICATION_SETTINGS.events, browser_site: true } }],
+    ['an extra event key', { ...DEFAULT_NOTIFICATION_SETTINGS, events: { ...DEFAULT_NOTIFICATION_SETTINGS.events, desktop_control: true } }],
     ['an extra arbitration key', { ...DEFAULT_NOTIFICATION_SETTINGS, arbitration: { ...DEFAULT_NOTIFICATION_SETTINGS.arbitration, trusted: true } }],
     ['51 always-ask entries', settingsWith({ alwaysAsk: Array.from({ length: 51 }, (_, i) => `tool.${i}`) })],
     ['notes of 4,001 characters', settingsWith({ autoHandleNotes: 'x'.repeat(4001) })],

@@ -134,6 +134,10 @@ src/shared/agents/terminalApi.ts - TerminalState
 src/shared/agents/terminalColors.ts - TERMINAL_COLOR_KEYS
 src/shared/agents/terminalColors.ts - TerminalColorKey
 src/shared/autoUpdate/types.ts - AUTO_UPDATE_EVENT_CHANNEL
+src/shared/browser/browserControl.ts - BROWSER_ARGS
+src/shared/browser/browserControl.ts - BrowserErrorCode
+src/shared/browser/browserControl.ts - BrowserReply
+src/shared/browser/browserControl.ts - BrowserRequest
 src/shared/desktop/api.ts - AgentAuthState
 src/shared/desktop/api.ts - AgentDownloadFailureCode
 src/shared/desktop/api.ts - AgentDownloadPhase

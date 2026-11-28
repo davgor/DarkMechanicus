@@ -103,6 +103,11 @@ interface IssueGrantInput {
   minutes?: number
   /** Only a planner or orchestrator grant can carry it; ignored for any other role. */
   allowSave?: boolean
+  /**
+   * False: the grant never saves through the DM-900 run-ownership exception (`requireSaveAuthority` in `plans.ts`), so
+   * only Allow save lets it save. A cult Magos grant is issued so (docs/design/cults.md section 10). Default true.
+   */
+  runSave?: boolean
 }
 
 /**
@@ -132,11 +137,12 @@ export function issueGrant(ctx: Ctx, input: IssueGrantInput): { grant: GrantView
     last_used_at: null
   }
   ctx.db.run(
-    `INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, issued_by_session, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO grants (id, role, allow_save, run_save, label, token_hash, machine_id, issued_by_session, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.role,
     bool(canSave),
+    bool(input.runSave !== false),
     row.label,
     hashToken(token),
     row.machine_id,
@@ -172,6 +178,26 @@ export function renewGrant(ctx: Ctx, input: { grantId: string; minutes: number }
   const expiresAt = expiryOf(ctx.clock, input.minutes)
   ctx.db.run('UPDATE grants SET expires_at = ? WHERE id = ?', expiresAt, row.id)
   return viewOf({ ...row, expires_at: expiresAt }, now)
+}
+
+/**
+ * Flips Allow save on a live grant: the desktop does this when a person approves a cult petition
+ * (docs/design/cults.md section 7). The CLI redeems its token at every call, so its next command
+ * sees the change without a restart.
+ */
+export function setGrantAllowSave(ctx: Ctx, input: { grantId: string; allowSave: boolean }): GrantView {
+  requireCapability(ctx.session, 'grant.issue')
+  const now = ctx.clock.nowIso()
+  const row = grantRow(ctx, input.grantId)
+  if (row.revoked_at !== null || row.expires_at <= now) {
+    fail('invalid_state', `Grant ${row.id} is revoked or has expired, so Allow save cannot change.`, { grantId: row.id })
+  }
+  if (row.role !== 'planner' && row.role !== 'orchestrator') {
+    fail('invalid_input', `Grant ${row.id} is a ${row.role} grant; only planner and orchestrator grants carry Allow save.`, { grantId: row.id })
+  }
+  const allowSave = bool(input.allowSave)
+  ctx.db.run('UPDATE grants SET allow_save = ? WHERE id = ?', allowSave, row.id)
+  return viewOf({ ...row, allow_save: allowSave }, now)
 }
 
 /** Revokes a grant. Already revoked is a no-op, so revoking twice is not an error. */

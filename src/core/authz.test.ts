@@ -62,7 +62,9 @@ const ORCHESTRATOR: Capability[] = [
   'kanban.claim',
   'kanban.report',
   'metrics.report',
-  'metrics.report_run'
+  'metrics.report_run',
+  'browser.drive',
+  'cult.act'
 ]
 
 const WORKER: Capability[] = [
@@ -74,8 +76,10 @@ const WORKER: Capability[] = [
   'comment.write',
   'attachment.write',
   'kanban.report',
+  'browser.drive',
   'metrics.report',
-  'mail.use'
+  'mail.use',
+  'cult.act'
 ]
 const REVIEWER: Capability[] = ['read', 'chat.name', 'human.ask', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 
@@ -150,7 +154,9 @@ const AGENT_ONLY = [
   'ticket.auto_retry',
   'metrics.report',
   'metrics.report_run',
-  'mail.use'
+  'mail.use',
+  'browser.drive',
+  'cult.act'
 ] as const
 
 const READER: Capability[] = ['read']
@@ -271,6 +277,28 @@ describe('mailbox capabilities', () => {
       'reviewer'
     ])
     expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('mail.manage'))).toEqual(['desktop'])
+  })
+
+  it('gives cult.act to the roles a Magos and its acolytes hold, never to the desktop', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('cult.act'))).toEqual([
+      'orchestrator',
+      'worker'
+    ])
+  })
+})
+
+describe('driving the in-app browser', () => {
+  it('gives browser.drive to the orchestrator and the worker alone, never the desktop, and never as human-only', () => {
+    for (const options of [{}, { allowSave: true }, { allowSave: false }]) {
+      expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, options).includes('browser.drive'))).toEqual(['orchestrator', 'worker'])
+    }
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('browser.drive')
+  })
+
+  it('lets every holder of browser.drive stage its screenshots as attachments', () => {
+    for (const role of ALL_ROLES.filter((each) => capabilitiesForRole(each).includes('browser.drive'))) {
+      expect(capabilitiesForRole(role)).toContain('attachment.write')
+    }
   })
 })
 

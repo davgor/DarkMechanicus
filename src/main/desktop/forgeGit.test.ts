@@ -1,12 +1,12 @@
 import { gatedRunner } from '../../test/gatedRunner'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { seedForgeFixture } from '../../test/forgeFixture'
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
 import { createGitRunner, type GitRunner } from '../git/runner'
-import { ForgeGit } from './forgeGit'
+import { FORGE_GIT_MAINTENANCE, ForgeGit } from './forgeGit'
 import { createForge, githubRemote, parseForge } from './forgeManifest'
 
 const cleanups: Array<() => void> = []
@@ -313,4 +313,47 @@ it('inspects each commit tree once in a sync that commits and merges', async () 
   await counting.sync(first, async () => undefined)
   const committed = gitIn(first, 'rev-parse', 'HEAD').trim()
   expect(trees).toEqual([published, committed])
+})
+
+/** The `-c` settings a git invocation carries before its subcommand. */
+function settingsBefore(args: readonly string[], subcommand: string): string[] {
+  return args.slice(0, args.indexOf(subcommand)).flatMap((arg, at, before) => arg === '-c' ? [before[at + 1] ?? ''] : [])
+}
+
+it('runs every local and network command with git maintenance kept inside it, set on the command line only', async () => {
+  const seen: (readonly string[])[] = []
+  const client = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: async request => { seen.push(request.args); return { code: 0, stdout: '', stderr: '' } }
+  })
+  await client.run('/repo', ['commit', '-m', 'Sync'])
+  await client.run('/repo', ['push', 'https://github.com/tester/tickets.git', 'main'], 'https://github.com/tester/tickets.git')
+  expect(FORGE_GIT_MAINTENANCE).toEqual(['-c', 'maintenance.autoDetach=false', '-c', 'gc.autoDetach=false'])
+  expect(seen.map((args, at) => settingsBefore(args, at === 0 ? 'commit' : 'push'))).toEqual([0, 1].map(() =>
+    expect.arrayContaining(['maintenance.autoDetach=false', 'gc.autoDetach=false'])))
+})
+
+it('finishes the automatic repack a commit starts before the command returns, and writes no setting to the config', async () => {
+  const scratch = scratchDir('forge-git-maintenance-')
+  cleanups.push(scratch.cleanup)
+  const root = scratch.path
+  gitIn(root, 'init', '-q', '--initial-branch=main')
+  gitIn(root, 'config', 'user.email', 'forge@example.test')
+  gitIn(root, 'config', 'user.name', 'Forge Test')
+  for (const name of ['one', 'two']) {
+    writeFileSync(join(root, name + '.txt'), name + '\n')
+    gitIn(root, 'add', '--', name + '.txt')
+    gitIn(root, 'commit', '-q', '-m', name)
+    gitIn(root, 'repack', '-q', '-d')
+  }
+  // Two packs over a limit of one: the next commit's automatic maintenance repacks them into one.
+  gitIn(root, 'config', 'maintenance.auto', 'true')
+  gitIn(root, 'config', 'gc.autoPackLimit', '1')
+  const config = readFileSync(join(root, '.git', 'config'), 'utf8')
+  const packs = () => readdirSync(join(root, '.git', 'objects', 'pack')).filter(name => name.endsWith('.pack')).length
+  expect(packs()).toBe(2)
+  writeFileSync(join(root, 'three.txt'), 'three\n')
+  gitIn(root, 'add', '--', 'three.txt')
+  await new ForgeGit({ getAccount: () => null, getToken: () => null }).run(root, ['commit', '-q', '-m', 'three'])
+  expect(packs()).toBe(1)
+  expect(readFileSync(join(root, '.git', 'config'), 'utf8')).toBe(config)
 })

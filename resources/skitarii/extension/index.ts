@@ -1,19 +1,23 @@
 /**
  * The Skitarii OMP extension: the mascot banner, the drill working indicator, the Mechanicus working messages and the
  * Skitarii title, the chat's private `dm` client (`dmClient.ts`), Skitarii mail's tools and inbox watcher and the
- * `dm_call` tool for every other Dark Mechanicus command (`messaging.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
+ * `dm_call` tool for every other Dark Mechanicus command (`messaging.ts`), the cult control watcher (`cultControl.ts`) and a cult member's status writer (`cultStatus.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
  * (`terminalLaunchSpec.ts`); it is never installed into the person's OMP folder. OMP runs it with its bundled Bun, which
  * reads the TypeScript and the JSON import directly. The logic is in `skitarii.ts`, `dmClient.ts` and `messaging.ts`;
  * this file only wires OMP's events.
  */
 import frames from '../mascot/frames.json'
 import { attachProjectStandards } from './projectStandards'
-import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient } from './dmClient'
-import { attachMessaging, type MailApi, type MailContext } from './messaging'
+import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient, type DmClientDeps } from './dmClient'
+import { cultRoleOf } from './cultTools'
+import { cultWakeGate } from './cultWake'
+import { attachMessaging, type CultMembership, type MailApi, type MailContext } from './messaging'
 import { worldMailClients } from './worldDmClient'
 import { attachWorldMessaging } from './worldMessaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
 import { attachHumanWait } from './humanWait'
+import { attachCultControl } from './cultControl'
+import { attachCultStatus, cultStatusWriter } from './cultStatus'
 
 /** The slice of OMP's `ExtensionAPI` this extension uses (`packages/coding-agent/src/extensibility/extensions/types.ts`). */
 interface OmpContext extends MailContext {
@@ -103,16 +107,27 @@ export function attachDmClient(pi: OmpApi, client: DmClient): DmClient {
   return client
 }
 
+/** A cult member's role and standing-wake gate, from its client descriptor; undefined for any other chat. */
+export async function cultMembership(deps: Pick<DmClientDeps, 'env' | 'readFile'>): Promise<CultMembership | undefined> {
+  const role = await cultRoleOf(deps.env, deps.readFile)
+  const gate = cultWakeGate({ ...deps.env }, deps.readFile)
+  return role === undefined || gate === null ? undefined : { role, gate }
+}
+
 export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   attach(pi, await ompLookup())
   const deps = nodeDmClientDeps()
   const client = createDmClient(deps)
   const world = await worldMailClients(deps)
+  const cult = world === null ? await cultMembership(deps) : undefined
   // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
-  if (world === null) attachMessaging(pi, client, PROCESS_TIMERS)
+  if (world === null) attachMessaging(pi, client, PROCESS_TIMERS, cult)
   else attachWorldMessaging(pi, world, PROCESS_TIMERS)
   const home = process.env.DARKMECHANICUS_HOME
   attachHumanWait(pi, world === null ? { home, client } : { home, projects: world.projects })
   if (world === null && process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
+  if (world === null) attachCultControl(pi, PROCESS_TIMERS, process.env)
+  const status = cult === undefined ? null : cultStatusWriter(process.env)
+  if (status !== null) attachCultStatus(pi, status)
   attachDmClient(pi, client)
 }

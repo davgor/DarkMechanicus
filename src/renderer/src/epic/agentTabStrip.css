@@ -35,15 +35,16 @@
   color: var(--muted);
 }
 
-.ats-tab:hover {
+.ats-tab:not(.is-active):hover {
   background: var(--panel-2);
   color: var(--ink-2);
 }
 
-/* The active tab takes the chat header's surface and covers the strip's line, so the two read as one. */
+/* The active tab takes the chat header's glass (its own .glass class, so the fallbacks turn both solid together) and
+   covers the strip's line, so the two read as one. */
 .ats-tab.is-active {
   border-color: var(--line);
-  background: var(--panel);
+  box-shadow: none;
   color: var(--ink);
 }
 
@@ -51,10 +52,10 @@
   content: "";
   position: absolute;
   right: 0;
-  bottom: -1px;
+  bottom: 0;
   left: 0;
   height: 1px;
-  background: var(--panel);
+  background: inherit;
 }
 
 /* A separator between two inactive tabs, as in a browser. */

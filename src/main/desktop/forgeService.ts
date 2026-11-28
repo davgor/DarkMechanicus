@@ -343,7 +343,7 @@ class ForgeService {
     }
     if (realpathSync.native(root) !== resolve(root)) throw new Error('Invalid Forge World checkout.')
     if (githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim()).toLowerCase() !== url.toLowerCase()) throw new Error('Checkout origin differs from requested Forge World.')
-    if (!existsSync(join(root, FORGE_FILE)) && adopt) createForge(root, parts[0])
+    if (!existsSync(join(root, FORGE_FILE)) && adopt) createForge(root, parts[0], this.deps.onRenameRetry)
     this.worldAt(root)
     if ((await this.git.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] })).code === 0) await this.git.inspectTree(root, 'HEAD')
     this.deps.registry.track(root)
@@ -647,7 +647,7 @@ class ForgeService {
       const url = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
       if (resolve((await this.git.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()) !== root) throw new Error('Select a Git repository root.')
       if (await this.deps.pool.get(root).call('initialized')) throw new Error('Choose a dedicated ticket repository for the Forge World.')
-      createForge(root, new URL(url).pathname.split('/')[1])
+      createForge(root, new URL(url).pathname.split('/')[1], this.deps.onRenameRetry)
       if (this.deps.provisioning !== undefined) writeForgeRecipebook(root, null, bundledForgeRecipes())
       await this.sync(root)
     })

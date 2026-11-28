@@ -14,6 +14,7 @@ import { mailboxChat } from '../agents/chatMailboxOperations'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
+import type { SitePromptEvent } from '../browser/browserHost'
 import { claudeSessionExists } from '../terminals/claudeSession'
 import { writeClaudeSettings } from '../terminals/claudeSettingsFile'
 import { ompSessionId, writeOmpFiles } from '../terminals/ompSession'
@@ -81,8 +82,13 @@ export interface AgentChatSessions {
   interrupt(ref: ChatRef): Promise<void>
   answer(ref: ChatRef, input: AgentChatAnswer): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
-  /** Every queued prompt of the folder's live GUI chats (null: project-less chats), head first per chat; never tool input. */
+  /**
+   * Every queued prompt of the folder's live GUI chats (null: project-less chats), head first per chat, then each of
+   * the folder's chats' pending browser origin prompt (`siteChanged`); never tool input.
+   */
   attention(folder: string | null): AttentionItem[]
+  /** A chat's pending browser origin prompt changed (`BrowserHost`): its attention list is pushed again. */
+  siteChanged(event: SitePromptEvent): void
   /**
    * A live terminal switches to the GUI only after `confirmTerminalStop` (Main-only, per call) resolves true for the
    * same owner generation; omitted, it refuses `busy`. Nothing renderer-supplied can stand in for it.
@@ -249,6 +255,8 @@ async function boundedShutdown(work: Promise<void>): Promise<void> {
 
 class SessionManager {
   private readonly entries = new Map<string, Entry>()
+  /** Each chat's pending browser origin prompt, by chat id, as `siteChanged` last reported it. */
+  private readonly sites = new Map<string, Extract<SitePromptEvent, { kind: 'site' }>>()
   private readonly callsignStates = new Map<string, Callsigns>()
   /** Ticket-key lookups per folder and attempt, and their settled values. */
   private readonly ticketKeys = new Map<string, Promise<string | null>>()
@@ -318,14 +326,32 @@ class SessionManager {
     return { model: live?.model ?? chat.model, thinking: live?.thinking ?? chat.thinking ?? null }
   }
   attention(folder: string | null): AttentionItem[] {
-    return [...this.entries.values()].filter(entry => entry.chat.folder === folder).flatMap(entry => this.attentionOf(entry))
+    const live = [...this.entries.values()].filter(entry => entry.chat.folder === folder)
+    const ids = new Set(live.map(entry => entry.chat.id))
+    const sitesOnly = [...this.sites.values()].filter(site => site.folder === folder && !ids.has(site.chatId))
+    return [...live.flatMap(entry => this.attentionOf(entry)), ...sitesOnly.flatMap(site => this.siteItems(site.chatId))]
   }
-  /** The entry's queue, head `shown`: masked, bounded titles and never tool input, prompt detail or options. */
+  siteChanged(event: SitePromptEvent): void {
+    if (event.kind === 'site') this.sites.set(event.chatId, event)
+    else if (!this.sites.delete(event.chatId)) return
+    const entry = this.entries.get(event.chatId)
+    if (entry !== undefined) this.pushAttention(entry)
+    else this.deps.push({ type: 'attention', folder: event.folder, chatId: event.chatId, items: this.siteItems(event.chatId) })
+  }
+  /** The entry's queue, head `shown`, then its site prompt: masked, bounded titles and never tool input, prompt detail or options. */
   private attentionOf(entry: Entry): AttentionItem[] {
-    return mask((entry.prompts?.queue() ?? []).map((prompt, index) => ({
+    return [...mask((entry.prompts?.queue() ?? []).map((prompt, index) => ({
       chatId: entry.chat.id, promptId: prompt.id, kind: prompt.kind, threadId: prompt.threadId, callsign: prompt.callsign,
       arbitration: prompt.arbitration.state, title: mask(prompt.title).slice(0, 200), shown: index === 0
-    })))
+    }))), ...this.siteItems(entry.chat.id)]
+  }
+  /** The chat's pending origin prompt as an item: always shown, never arbitrated, on the chat's own row, titled by its masked origin. */
+  private siteItems(chatId: string): AttentionItem[] {
+    const site = this.sites.get(chatId)
+    return site === undefined ? [] : [{
+      chatId, promptId: site.promptId, kind: 'site', threadId: null, callsign: null, arbitration: 'off',
+      title: mask(site.origin).slice(0, 200), shown: true
+    }]
   }
   /** Pushes the entry's attention list whenever it differs from the one last pushed; `[]` once it empties. */
   private pushAttention(entry: Entry): void {
@@ -647,6 +673,8 @@ class SessionManager {
       else this.settleRequest(entry, event)
     }
     this.storeToolImages(entry, result.blobs)
+    // A submitted ask form's answer to OMP's next request of it (`ompAskForm.ts`).
+    this.write(entry, result.lines)
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { return }
     const init = initLines(frame, entry.omp, randomUUID)
@@ -777,7 +805,8 @@ class SessionManager {
   }
   private async issue(entry: Entry, agent: AgentView, cwd: string, reach: ReachTarget[] | undefined) {
     const { chat } = entry, { deps } = this
-    const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120) }
+    const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120),
+      ...(chat.cultRunId === undefined ? {} : { cultMember: true }) }
     const identity = { ...mailboxChat(chat), kind: agent.kind }
     const issuing = reach === undefined
       ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId] }))
@@ -1144,5 +1173,6 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
     releaseFolder: (folder, forget, related) => manager.releaseFolder(folder, forget, related), endAgent: id => manager.endAgent(id),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
     busy: () => manager.busy(), dispose: () => manager.dispose(), attention: folder => manager.attention(folder),
+    siteChanged: event => manager.siteChanged(event),
     ompRequest: (ref, type) => manager.ompRequest(ref, type), setModel: (ref, choice, catalog) => manager.setModel(ref, choice, catalog) }
 }

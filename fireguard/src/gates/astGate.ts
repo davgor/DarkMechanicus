@@ -139,13 +139,9 @@ function getTestName(call: ts.CallExpression): string {
 }
 
 export function analyzeTestSource(path: string, source: string): FileAstMetrics {
-  const sourceFile = ts.createSourceFile(
-    path,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX
-  );
+  // The kind follows the extension: parsed as TSX, a `.ts` generic arrow (`async <T>(…) =>`) reads as a JSX tag and
+  // swallows the code after it, so a test's assertions went uncounted and it was reported empty.
+  const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
   let assertionCount = 0;
   let mockCount = 0;
   let tautologicalCount = 0;

@@ -6,6 +6,11 @@ import type { StandardizeProjectWorkInput, StandardizeProjectWorkResult } from '
 import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
+import type { BrowserActionResult, BrowserArgs, BrowserReadResult, BrowserStatusResult } from '../browser/browserControl'
+import type {
+  CultAcolytesResult, CultOrderAllResult, CultPetitionArgs, CultRecordSynthesisArgs, CultRetireWorkerTypeArgs, CultStatusResult, CultSummonArgs, CultSummonResult,
+  CultWorkerTypesResult
+} from '../cults/cultControl'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
@@ -480,6 +485,44 @@ export interface CommandApi {
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
   recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
+  // The chat's in-app browser, over the desktop's browser pipe (`browser.drive`; workers and orchestrators only)
+  browserStatus(input: BrowserArgs<'browser_status'>): Promise<BrowserStatusResult>
+  browserNavigate(input: BrowserArgs<'browser_navigate'>): Promise<BrowserActionResult>
+  browserClick(input: BrowserArgs<'browser_click'>): Promise<BrowserActionResult>
+  browserType(input: BrowserArgs<'browser_type'>): Promise<BrowserActionResult>
+  browserPress(input: BrowserArgs<'browser_press'>): Promise<BrowserActionResult>
+  /** Page-authored text or AX projection, marked `untrusted`; never a password field's value or its length. */
+  browserRead(input: BrowserArgs<'browser_read'>): Promise<BrowserReadResult>
+  /** Captures the shown view and stages it as an evidence attachment (also needs `attachment.write`). */
+  browserScreenshot(input: BrowserArgs<'browser_screenshot'>): Promise<AttachmentView>
+  // Cult members (src/shared/cults/cultControl.ts), relayed to the desktop over the control pipe. The caller's run and
+  // role come only from its live bound grant: a chat that is not a live member of a run is refused with `unauthorized`.
+  /** Both roles: own name, the Magos, the run's state, time left (null: unlimited), cap and pending petitions. */
+  cultStatus(input?: Record<string, never>): Promise<CultStatusResult>
+  /** Magos: starts an acolyte, on the cheapest signed-in model unless another is named with a tierReason for a higher tier. */
+  cultSummonAcolyte(input: CultSummonArgs): Promise<CultSummonResult>
+  /** Magos: ends one of its run's acolytes gracefully. */
+  cultDismissAcolyte(input: { name: string }): Promise<{ dismissed: string }>
+  /** Magos: the run's acolytes with models, states, worker types and report states, and its missing required slots. */
+  cultListAcolytes(input?: Record<string, never>): Promise<CultAcolytesResult>
+  /** Magos: asks the person for more acolytes, Allow save, or access to a tracked folder. */
+  cultPetition(input: CultPetitionArgs): Promise<{ petitionId: string; kind: CultPetitionArgs['kind']; state: 'pending' }>
+  /** Magos: one mailbox message to every live acolyte of its run, under one order id. */
+  cultOrderAll(input: { body: string }): Promise<CultOrderAllResult>
+  /** Magos: stores the chronicle (at most 32 KiB) and starts the end of the run. */
+  cultConcludeRun(input: { chronicle: string }): Promise<{ concluding: 'run' }>
+  /** Acolyte: stores its final report (a slot holder's, as its specialist report) and ends its service. */
+  cultConcludeService(input: { report: string }): Promise<{ concluding: 'service'; reportStored: boolean }>
+  /** Magos: a worker type for this run only, which acolytes may then be summoned as. */
+  cultCreateWorkerType(input: { displayName: string; description: string; mission: string; rationale: string; requiredForConclusion: boolean }): Promise<{ workerTypeId: string; displayName: string; requiredForConclusion: boolean }>
+  /** Magos: the worker types created for this run, retired ones included, with the acolytes that held each. */
+  cultListWorkerTypes(): Promise<CultWorkerTypesResult>
+  /** Magos: retires an optional run worker type no acolyte has held, with a reason. */
+  cultRetireWorkerType(input: CultRetireWorkerTypeArgs): Promise<{ retired: string }>
+  /** Magos (Plan Forge): its synthesis of the reports for its latest draft edit, before it concludes. */
+  cultRecordSynthesis(input: CultRecordSynthesisArgs): Promise<{ draftRevision: number; accepted: number; rejected: number }>
+  /** Magos or acolyte: shows one png, jpg, jpeg, svg or html file of the run's work dir (at most 10 MiB) on its Shrine. */
+  cultPublishShrine(input: { path: string }): Promise<{ shrinePath: string; kind: 'image' | 'html'; revision: string }>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>
@@ -537,6 +580,8 @@ export interface CommandApi {
     label: string
     minutes?: number
     allowSave?: boolean
+    /** False: never saves through the run-ownership exception, only with Allow save (a cult Magos). */
+    runSave?: boolean
   }): Promise<{ grant: GrantView; token: string }>
   listGrants(): Promise<GrantView[]>
   revokeGrant(input: { grantId: string }): Promise<GrantView>

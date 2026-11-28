@@ -6,7 +6,8 @@
  *    without case;
  * 2. the terminal's constants, `TERM` and `COLORTERM`, for OMP its hyperlink and synchronized-output switches, and for Claude the switch that
  *    turns off its own memory;
- * 3. the chat's `dm` environment: its grant (`DM_SESSION_TOKEN`) and `DARKMECHANICUS_HOME`, nothing else from
+ * 3. the chat's `dm` environment: its grant (`DM_SESSION_TOKEN`), the desktop's naming and browser pipe addresses
+ *    (`DM_DESKTOP_PIPE`, `DM_BROWSER_PIPE`) when the issued invocation carries them, and `DARKMECHANICUS_HOME`, nothing else from
  *    the invocation; on Windows a packaged app's `ELECTRON_RUN_AS_NODE=1` stays, as today, because there is no
  *    launcher to hold it (a known limitation); for an OMP chat with a mailbox, the path of its launch's mail client
  *    descriptor (`DM_SKITARII_CLIENT_DESCRIPTOR`, `terminalFiles.ts`), and for no other chat;
@@ -20,7 +21,7 @@ import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 
 /** Names main's own environment never passes on, in any letter case, even when the layers above set none. */
-const NEVER_PASSED = ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE', DM_CLIENT_DESCRIPTOR_ENV]
+const NEVER_PASSED = ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE', 'DM_BROWSER_PIPE', DM_CLIENT_DESCRIPTOR_ENV]
 
 const SCRUBBED = /^(?:ELECTRON_.*|NODE_OPTIONS)$/i
 
@@ -71,6 +72,7 @@ function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform, grantless: boo
   return {
     ...(granted ? { DM_SESSION_TOKEN: token } : {}),
     ...(cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { DM_DESKTOP_PIPE: cli.env['DM_DESKTOP_PIPE'] }),
+    ...(cli.env['DM_BROWSER_PIPE'] === undefined ? {} : { DM_BROWSER_PIPE: cli.env['DM_BROWSER_PIPE'] }),
     ...(home === undefined ? {} : { DARKMECHANICUS_HOME: home }),
     ...(platform === 'win32' && cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   }

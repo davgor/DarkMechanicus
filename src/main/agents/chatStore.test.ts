@@ -725,3 +725,19 @@ describe('live chat transcripts on the real filesystem', () => {
     }
   })
 })
+
+describe('deleting a chat closes its browser', () => {
+  it("disposes the chat's browser views with its images, and only that chat's", () => {
+    const disposed: unknown[] = []
+    const deletedImages: unknown[] = []
+    const store = createChatStore({
+      root: ROOT, fs: memoryFs(), now: counterNow(), newId: nextChatId,
+      images: { deleteChat: (ref) => { deletedImages.push(ref) } }, browser: { disposeChat: (ref) => { disposed.push(ref) } }
+    })
+    const gone = store.createChat(NEW_CHAT)
+    store.createChat(NEW_CHAT)
+    store.deleteChat(gone)
+    expect(disposed).toEqual([{ folder: REPO, chatId: gone.id }])
+    expect(disposed).toEqual(deletedImages)
+  })
+})
