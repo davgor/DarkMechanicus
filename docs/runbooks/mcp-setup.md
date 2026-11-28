@@ -353,6 +353,8 @@ The eight shipped skills are served as MCP prompts: `darkmechanicus-planner`, `d
 
 `heartbeat_attempt` takes an optional `progress` field: a note (at most 280 characters) and an optional step label (at most 64 characters) showing what work is in progress. The worker and orchestrator skills tell agents to send one with each heartbeat. The server stores the last 200 notes per attempt as local working data, never exports them with run history, and masks anything shaped like a claim token before storing. A refused heartbeat stores no note.
 
+It also takes an optional `worktree` field, `{ changedFiles, changedLines }`: the size of the worker's worktree diff against the commit its claim started from (committed, uncommitted and untracked changes), counts only, never paths or contents. The worker skill tells workers to send it with each heartbeat. Each attempt in `get_run` (and the heartbeat's answer) carries `worktree`: `state` is `unknown` until a heartbeat reports a diff, then `no_diff` or `changed`; `stalled` is true for a live claim (claimed or running) that still reports `no_diff` the plan's `noDiffAlertMinutes` (default 15) after it was claimed, and the desktop's attempts strip shows "no diff after N min" for it. A diff clears the flag. The flag is for the orchestrator's supervision alarms only: it never fails, expires or re-claims the attempt.
+
 For a folder of Git repositories (one project over several repositories, set up with `initialize_repository` and `layout: "multi_repo"`), see [Work across a folder of repositories](multi-repo-folders.md).
 
 ## Working with the desktop closed

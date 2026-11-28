@@ -50,7 +50,8 @@ import {
   ticketBudget,
   ticketInput,
   transferRef,
-  workStatus
+  workStatus,
+  worktreeDiffReport
 } from './schemas'
 import { evidenceRefSchema, measurementSchema } from './space/contract'
 import { LEDGER_LIMITS } from './space/ledger'
@@ -454,7 +455,8 @@ export const COMMAND_SCHEMAS = {
     attemptId: stableId,
     claimToken,
     leaseSeconds: leaseSeconds.optional(),
-    progress: heartbeatProgress.optional()
+    progress: heartbeatProgress.optional(),
+    worktree: worktreeDiffReport.optional()
   }),
   submitAttempt: z.strictObject({
     attemptId: stableId,

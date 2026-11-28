@@ -7,7 +7,8 @@ import { effectiveSprint, effectiveTicket, workStandards, type AppliedStandard }
 import { checkTicketDecision } from './deliveryWorkflow'
 import { join } from 'node:path'
 import type { ClaimTicketInput, HeartbeatAttemptInput, NameSprintIncrementInput, SubmitAttemptInput } from '../../shared/domain/api'
-import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
+import { type EpicBranch, noDiffAlertMinutesOf, type ReasoningEffort, type TicketContent } from '../../shared/domain/bundle'
+import { nextWorktreeJson, worktreeActivity } from './worktreeActivity'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import {
   type AttemptState,
@@ -675,8 +676,8 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
     const row = loadAttempt(ctx, input.attemptId)
     verifyClaim(ctx, row, input.claimToken)
     const now = ctx.clock.nowIso()
-    const leaseSeconds =
-      input.leaseSeconds ?? heldLeaseSeconds(ctx, row) ?? loadBundle(ctx, row.revision_id).policies.leaseSeconds
+    const policies = loadBundle(ctx, row.revision_id).policies
+    const leaseSeconds = input.leaseSeconds ?? heldLeaseSeconds(ctx, row) ?? policies.leaseSeconds
     ctx.db.run(
       "UPDATE attempts SET state = 'running', lease_expires_at = ?, heartbeat_at = ?, updated_at = ? WHERE id = ?",
       addSeconds(now, leaseSeconds),
@@ -684,13 +685,17 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
       now,
       row.id
     )
+    if (input.worktree !== undefined) {
+      ctx.db.run('UPDATE attempts SET worktree_json = ? WHERE id = ?', nextWorktreeJson(row.worktree_json, input.worktree, now), row.id)
+    }
     if (row.state === 'claimed') {
       recordAttempt(ctx, row, requireRun(ctx, row.run_id).epic_id, { kind: 'attempt.running' })
     }
     if (input.progress !== undefined) {
       recordProgress(ctx, row, input.claimToken, input.progress)
     }
-    const result = attemptView(loadAttempt(ctx, row.id))
+    const updated = loadAttempt(ctx, row.id)
+    const result = { ...attemptView(updated), worktree: worktreeActivity(updated, now, noDiffAlertMinutesOf(policies)) }
     const rules = workStandards(ctx.db, 'epic', requireRun(ctx, row.run_id).epic_id)
     const rule = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
     return rule ? { ...result, deliveryRequirements: rule } : result

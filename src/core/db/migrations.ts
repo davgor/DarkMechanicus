@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 39
+export const SCHEMA_VERSION = 40
 
 export interface Migration {
   version: number
@@ -1325,6 +1325,14 @@ const V39 = `
 ALTER TABLE grants ADD COLUMN run_save INTEGER NOT NULL DEFAULT 1 CHECK (run_save IN (0, 1));
 `
 
+/**
+ * v40 (DM-999): the worktree diff counts a claim's heartbeats last reported (`{changedFiles, changedLines, reportedAt,
+ * changedAt}`), for the run view's no-diff flag. Local working data: counts only, never exported with the run history.
+ */
+const V40 = `
+ALTER TABLE attempts ADD COLUMN worktree_json TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -1377,7 +1385,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 36, sql: V36 },
   { version: 37, sql: V37 },
   { version: 38, sql: V38 },
-  { version: 39, sql: V39 }
+  { version: 39, sql: V39 },
+  { version: 40, sql: V40 }
 ]
 
 export function readSchemaVersion(db: Db): number {

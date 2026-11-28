@@ -14,7 +14,8 @@ import {
   incrementRefs,
   LIMITS,
   rowCheckEntries,
-  stableId
+  stableId,
+  worktreeDiffReport
 } from '../../core/schemas'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandApi } from '../../shared/domain/api'
@@ -105,6 +106,10 @@ const HEARTBEAT_PROGRESS = z
 
 const HEARTBEAT_LEASE = leaseSeconds.describe(
   'Lease length in seconds from now; omit to keep the length of the lease the claim holds (what claim_ticket or your last heartbeat granted).'
+)
+
+const HEARTBEAT_WORKTREE = worktreeDiffReport.describe(
+  'Optional size of your worktree diff against the commit your claim started from (committed, uncommitted and untracked changes, e.g. from git diff --numstat plus untracked files): changedFiles and changedLines counts only, never paths or contents. Send it with each heartbeat: a live claim that still reports no diff after the plan\'s no-diff alert minutes (default 15) is flagged to the orchestrator in the run view. Detection only; it never fails or re-claims your work.'
 )
 
 const RUN_CONTROL_TOOLS = [
@@ -207,7 +212,13 @@ const ATTEMPT_TOOLS = [
     description:
       'Extends the lease of your claim while work continues; call it at the packet\'s heartbeatIntervalSeconds. Without leaseSeconds, the lease is extended by the length of the lease the claim holds (what claim_ticket or your last heartbeat granted, not the plan default), so a long claim stays long; pass leaseSeconds to change that length. Add `progress` { note, step? } to show your work: a short note (at most 280 characters) with an optional step label such as "testing". Notes are local working data: the server keeps the last 200 per attempt, never exports them with the run history, and masks anything shaped like a claim token before storing a note. A refused heartbeat stores no note. Writes from an expired or superseded claim fail with `expired_claim` or `stale_claim`.',
     kind: 'idempotent',
-    input: { attemptId, claimToken, leaseSeconds: HEARTBEAT_LEASE.optional(), progress: HEARTBEAT_PROGRESS.optional() },
+    input: {
+      attemptId,
+      claimToken,
+      leaseSeconds: HEARTBEAT_LEASE.optional(),
+      progress: HEARTBEAT_PROGRESS.optional(),
+      worktree: HEARTBEAT_WORKTREE.optional()
+    },
     run: (api, input) => api.heartbeatAttempt(input)
   }),
   defineTool({

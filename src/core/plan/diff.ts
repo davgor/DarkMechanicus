@@ -1,5 +1,6 @@
 import {
   autoRetryLimitOf,
+  noDiffAlertMinutesOf,
   type CapabilityProfile,
   type DependencyEdge,
   type EpicContent,
@@ -317,14 +318,21 @@ function relationChanges(sides: Sides): PlanChange[] {
   })
 }
 
-/** `withAuto` adds the orchestrator retry limit, shown only when either side sets it, so older diffs read the same. */
-function policyFields(policies: PlanPolicies, withAuto: boolean): [string, string][] {
+interface OptionalPolicies {
+  /** The orchestrator retry limit, shown only when either side sets it, so older diffs read the same. */
+  withAuto: boolean
+  /** DM-999: the no-diff alert, likewise shown only when either side sets it. */
+  withNoDiff: boolean
+}
+
+function policyFields(policies: PlanPolicies, optional: OptionalPolicies): [string, string][] {
   return [
     ['max concurrency', policies.maxConcurrency === null ? 'unlimited' : String(policies.maxConcurrency)],
     ['retry limit', String(policies.retryLimit)],
     ['on ticket failure', policies.onTicketFailure],
     ['lease', `${policies.leaseSeconds}s`],
-    ...(withAuto ? [['orchestrator retries', String(autoRetryLimitOf(policies))] as [string, string]] : [])
+    ...(optional.withAuto ? [['orchestrator retries', String(autoRetryLimitOf(policies))] as [string, string]] : []),
+    ...(optional.withNoDiff ? [['no-diff alert', `${noDiffAlertMinutesOf(policies)}m`] as [string, string]] : [])
   ]
 }
 
@@ -336,12 +344,15 @@ function policyChanges(base: PlanBundle | null, next: PlanBundle): PlanChange[] 
     label: 'Policies',
     detail
   })
-  const withAuto = next.policies.autoRetryLimit !== undefined || base?.policies.autoRetryLimit !== undefined
-  const after = policyFields(next.policies, withAuto)
+  const optional: OptionalPolicies = {
+    withAuto: next.policies.autoRetryLimit !== undefined || base?.policies.autoRetryLimit !== undefined,
+    withNoDiff: next.policies.noDiffAlertMinutes !== undefined || base?.policies.noDiffAlertMinutes !== undefined
+  }
+  const after = policyFields(next.policies, optional)
   if (base === null) {
     return [change('added', after.map(([label, value]) => `${label} ${value}`).join(SEPARATOR))]
   }
-  const phrases = policyFields(base.policies, withAuto).map(([label, value], position) => arrow(label, value, after[position][1]))
+  const phrases = policyFields(base.policies, optional).map(([label, value], position) => arrow(label, value, after[position][1]))
   const edit = editedOrNull(detailOf(phrases), (detail) => change('edited', detail))
   return edit ? [edit] : []
 }

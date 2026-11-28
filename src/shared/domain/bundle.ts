@@ -255,6 +255,12 @@ export interface PlanPolicies {
    * without it keeps its shape and hash and reads as `DEFAULT_AUTO_RETRY_LIMIT` (`autoRetryLimitOf`).
    */
   autoRetryLimit?: number
+  /**
+   * DM-999: minutes a live claim may report an empty worktree diff before the run view flags it as stalled (no diff),
+   * for the orchestrator's supervision. Detection only. No default is stored, like `autoRetryLimit`: a plan saved
+   * without it keeps its shape and hash and reads as `DEFAULT_NO_DIFF_ALERT_MINUTES` (`noDiffAlertMinutesOf`).
+   */
+  noDiffAlertMinutes?: number
 }
 
 export interface EpicContent {
@@ -290,6 +296,14 @@ const DEFAULT_AUTO_RETRY_LIMIT = 3
 /** The plan's orchestrator retry budget per ticket over the epic's runs, its default when unset. */
 export function autoRetryLimitOf(policies: PlanPolicies): number {
   return policies.autoRetryLimit ?? DEFAULT_AUTO_RETRY_LIMIT
+}
+
+/** Minutes a live claim may report no worktree diff before it is flagged, when a plan does not set `noDiffAlertMinutes`. */
+const DEFAULT_NO_DIFF_ALERT_MINUTES = 15
+
+/** The plan's no-diff alert threshold in minutes, its default when unset. */
+export function noDiffAlertMinutesOf(policies: PlanPolicies): number {
+  return policies.noDiffAlertMinutes ?? DEFAULT_NO_DIFF_ALERT_MINUTES
 }
 
 export function defaultCapabilityProfile(): CapabilityProfile {

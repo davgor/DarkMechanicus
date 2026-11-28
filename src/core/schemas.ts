@@ -299,12 +299,16 @@ export const sprintInput = z.strictObject({
     )
 })
 
+/** DM-999: minutes a live claim may report no worktree diff before the run view flags it (a day at most). */
+const noDiffAlertMinutes = z.number().int().min(1).max(1440)
+
 export const policiesPatch = z.strictObject({
   maxConcurrency: concurrencyCap.optional(),
   retryLimit: z.number().int().min(1).max(100).optional(),
   onTicketFailure: z.enum(TICKET_FAILURE_POLICIES).optional(),
   leaseSeconds: z.number().int().min(30).max(86_400).optional(),
-  autoRetryLimit: z.number().int().min(0).max(100).optional()
+  autoRetryLimit: z.number().int().min(0).max(100).optional(),
+  noDiffAlertMinutes: noDiffAlertMinutes.optional()
 })
 
 const clientRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.-]+$/).optional()
@@ -399,7 +403,9 @@ export const planBundle = z.strictObject({
     onTicketFailure: z.enum(TICKET_FAILURE_POLICIES),
     leaseSeconds: z.number().int().min(30).max(86_400),
     // No default, like a ticket's `size`: a plan saved without it keeps its shape and hash (`autoRetryLimitOf`).
-    autoRetryLimit: z.number().int().min(0).max(100).optional()
+    autoRetryLimit: z.number().int().min(0).max(100).optional(),
+    // DM-999: no default stored either (`noDiffAlertMinutesOf`).
+    noDiffAlertMinutes: noDiffAlertMinutes.optional()
   }),
   rationale: markdown
 })
@@ -495,6 +501,15 @@ export const attemptOutputsInput = z.strictObject({
 export const heartbeatProgress = z.strictObject({
   note: z.string().max(LIMITS.progressNote),
   step: z.string().max(LIMITS.progressStep).optional()
+})
+
+/**
+ * DM-999: the size of a worker's worktree diff against the commit its claim started from (committed, uncommitted and
+ * untracked changes), as counts only: never paths or file contents.
+ */
+export const worktreeDiffReport = z.strictObject({
+  changedFiles: z.number().int().min(0).max(1_000_000),
+  changedLines: z.number().int().min(0).max(100_000_000)
 })
 
 import { deliveryMerge, sprintDeployment } from './deliveryEvidenceSchema'

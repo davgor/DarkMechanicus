@@ -812,6 +812,19 @@ describe('validatePlan orchestrator retry limit', () => {
   })
 })
 
+describe('validatePlan no-diff alert (DM-999)', () => {
+  const NO_DIFF = 'No-diff alert must be a whole number of at least 1 minute.'
+
+  it('accepts no alert and whole minutes from 1', () => {
+    expect(errorsOf(withPolicies({ noDiffAlertMinutes: undefined }))).toEqual([])
+    expect(errorsOf(withPolicies({ noDiffAlertMinutes: 1 }))).toEqual([])
+  })
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects a no-diff alert of %s minutes', (noDiffAlertMinutes) => {
+    expect(errorsOf(withPolicies({ noDiffAlertMinutes }))).toEqual([{ code: 'invalid_policy', message: NO_DIFF }])
+  })
+})
+
 const DELIVERY = { target: 'main', release: true, verifyInstalled: false }
 
 /** Sprint 1 {DM-1, acceptance DM-2}, sprint 2 {DM-3, acceptance DM-4}; `delivery` patches each sprint by ordinal. */

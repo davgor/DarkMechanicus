@@ -4820,7 +4820,16 @@
             "submittedAt": "2026-11-15T10:06:00.000Z",
             "decidedAt": "2026-11-15T10:07:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000006",
@@ -4898,7 +4907,16 @@
             "submittedAt": "2026-11-15T09:53:00.000Z",
             "decidedAt": "2026-11-15T09:54:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000005",
@@ -4966,7 +4984,16 @@
             "submittedAt": "2026-11-15T09:40:00.000Z",
             "decidedAt": "2026-11-15T09:41:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000004",
@@ -5044,7 +5071,16 @@
             "submittedAt": "2026-11-15T09:22:00.000Z",
             "decidedAt": "2026-11-15T09:23:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           }
         ],
         "checkpoint": {

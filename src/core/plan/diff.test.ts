@@ -254,6 +254,16 @@ describe('computeChanges for policies and rationale', () => {
     expect(details(next, cleared)).toEqual(['edited policies: max concurrency 2 → unlimited'])
   })
 
+  it('shows the no-diff alert only when either side sets it, at its default when one side leaves it unset (DM-999)', () => {
+    const base = makeBundle([[1]])
+    const next = edited(base, (copy) => {
+      copy.policies.noDiffAlertMinutes = 30
+    })
+    expect(details(base, next)).toEqual(['edited policies: no-diff alert 15m → 30m'])
+    expect(details(next, base)).toEqual(['edited policies: no-diff alert 30m → 15m'])
+    expect(details(base, edited(base, (copy) => { copy.rationale = 'x' })).some((line) => line.includes('no-diff'))).toBe(false)
+  })
+
   it('distinguishes added, edited, and removed rationale', () => {
     const empty = makeBundle([[1]])
     const first = edited(empty, (copy) => {

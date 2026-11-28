@@ -64,6 +64,7 @@ function fullRow(overrides: Partial<AttemptRow> = {}): AttemptRow {
     failure_json: toJson(failure),
     decision_json: toJson(decision),
     increment_json: null,
+    worktree_json: null,
     created_at: 'T0',
     updated_at: 'T1',
     submitted_at: 'T2',

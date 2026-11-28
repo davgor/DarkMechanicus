@@ -280,6 +280,17 @@ export interface HeartbeatAttemptInput {
   leaseSeconds?: number
   /** A short working note shown with the attempt; kept locally, never exported with the run history. */
   progress?: { note: string; step?: string }
+  /**
+   * DM-999: the size of the worktree's diff against the commit the claim started from, as counts only (never paths
+   * or contents). The run view flags a live claim that still reports none after the plan's no-diff alert minutes.
+   */
+  worktree?: WorktreeDiffReport
+}
+
+/** Counts of a claim's worktree diff against its start commit: committed, uncommitted and untracked changes. */
+export interface WorktreeDiffReport {
+  changedFiles: number
+  changedLines: number
 }
 
 export interface SubmitAttemptInput {

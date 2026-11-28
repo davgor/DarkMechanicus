@@ -6204,7 +6204,16 @@
             "submittedAt": "2026-11-15T09:43:00.000Z",
             "decidedAt": "2026-11-15T09:44:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000005",
@@ -6267,7 +6276,16 @@
             "submittedAt": "2026-11-15T09:35:00.000Z",
             "decidedAt": "2026-11-15T09:36:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000004",
@@ -6345,7 +6363,16 @@
             "submittedAt": "2026-11-15T09:22:00.000Z",
             "decidedAt": "2026-11-15T09:23:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           }
         ],
         "checkpoint": {

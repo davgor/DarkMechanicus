@@ -223,8 +223,9 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`, then
   // (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
   // Changed on purpose: set_policies gained the optional autoRetryLimit (orchestrator retries per ticket over the epic's runs),
-  // and add_sprint/update_sprint gained the optional sprint `delivery` (DM-831).
-  update_plan_draft: 'aa3e54e9dd5cd43d',
+  // and add_sprint/update_sprint gained the optional sprint `delivery` (DM-831), then set_policies the optional
+  // noDiffAlertMinutes (DM-999).
+  update_plan_draft: '69f08a6d99ed420c',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',
@@ -235,7 +236,8 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   get_run: '404c90791e4f466b',
   get_ready_tickets: 'd481e0f29f2ca1c1',
   claim_ticket: '4e01c7293527281d',
-  heartbeat_attempt: '00ab97ed57813ee0',
+  // Changed on purpose: the optional `worktree` diff counts for no-diff detection (DM-999).
+  heartbeat_attempt: '85700ff36a92fb10',
   // Changed on purpose: acceptance nodes in a folder of repositories submit `increments`, one per touched repository.
   submit_attempt: '0f5c29bf69e7ecfa',
   accept_attempt: 'ab2483e798caa59b',

@@ -4,7 +4,7 @@
  */
 import type { StartRunInput } from '../../shared/domain/api'
 import { toolingLeaseTimeGivenBack } from './leaseCredits'
-import type { EpicBranch } from '../../shared/domain/bundle'
+import { type EpicBranch, noDiffAlertMinutesOf } from '../../shared/domain/bundle'
 import {
   ACTIVE_RUN_STATES,
   isOpenAttemptState,
@@ -41,6 +41,7 @@ import { requestWithoutKey, withIdempotency } from './idempotency'
 import { sprintIncrementViews } from './increments'
 import { latestSprintLearningCard } from './sprintLearningCards'
 import { enqueueOutbox } from './outbox'
+import { worktreeActivity } from './worktreeActivity'
 import { assertNoOpenTransfer } from './transferGuard'
 
 interface EpicRow {
@@ -162,12 +163,12 @@ function countTickets(tickets: TicketExecutionView[]): RunCounts {
   return counts
 }
 
-/** Open attempts plus the most recent ones, newest first. */
-function recentAttempts(rows: AttemptRow[]): AttemptView[] {
+/** Open attempts plus the most recent ones, newest first, each with its worktree activity at `now` (DM-999). */
+function recentAttempts(rows: AttemptRow[], now: string, alertMinutes: number): AttemptView[] {
   return [...rows]
     .reverse()
     .filter((row, index) => index < RECENT_ATTEMPTS || isOpenAttemptState(row.state))
-    .map(attemptView)
+    .map((row) => ({ ...attemptView(row), worktree: worktreeActivity(row, now, alertMinutes) }))
 }
 
 function buildRunView(ctx: Ctx, runId: string): RunView {
@@ -206,7 +207,7 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
       attempts: context.attempts.map(tierFactsAttempt),
       catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
     }),
-    attempts: recentAttempts(context.attempts),
+    attempts: recentAttempts(context.attempts, ctx.clock.nowIso(), noDiffAlertMinutesOf(bundle.policies)),
     checkpoint: null,
     learningCard: latestSprintLearningCard(ctx, run.id)
   }

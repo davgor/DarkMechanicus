@@ -1599,8 +1599,10 @@ function v30WithRecords(): { db: Db; cardId: string; eventIds: string[] } {
   const db = freshDb()
   migrate(db, MIGRATIONS.filter((migration) => migration.version <= 30))
   for (const table of LEGACY_COPIED) {
+    // Columns a later migration added (v40 `attempts.worktree_json`) are not in a v30 table: copy only the v30 ones.
+    const v30Columns = new Set(db.all<{ name: string }>(`PRAGMA table_info(${table})`).map((column) => column.name))
     for (const row of source.db.all<Record<string, string | number | null>>(`SELECT * FROM ${table}`)) {
-      const columns = Object.keys(row)
+      const columns = Object.keys(row).filter((column) => v30Columns.has(column))
       db.run(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`, ...columns.map((column) => row[column]))
     }
   }
@@ -1685,7 +1687,14 @@ describe('v31 learning storage upgrade', () => {
     const hashes = recordHashes(db, cardId, eventIds)
     expect(eventIds.length).toBeGreaterThan(0)
     expect(migrate(db)).toEqual({ from: 30, to: SCHEMA_VERSION })
-    expect(JSON.stringify(LEGACY_COPIED.map((table) => db.all(`SELECT * FROM ${table} ORDER BY 1`)))).toBe(rows)
+    // v40 adds `attempts.worktree_json` (DM-999), NULL on every row it finds: every other value stays as it was.
+    const migrated = LEGACY_COPIED.map((table) =>
+      db.all<Record<string, unknown>>(`SELECT * FROM ${table} ORDER BY 1`).map(({ worktree_json: worktree, ...row }) => {
+        expect(worktree ?? null).toBeNull()
+        return row
+      })
+    )
+    expect(JSON.stringify(migrated)).toBe(rows)
     expect(recordHashes(db, cardId, eventIds)).toEqual(hashes)
     expect(prettyJson(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(legacyText('history', LEGACY_RUN, 'run.json'))
     expect(contentHash(buildRunHistoryRecord(db, LEGACY_RUN))).toBe(contentHash(JSON.parse(legacyText('history', LEGACY_RUN, 'run.json'))))

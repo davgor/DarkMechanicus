@@ -30,6 +30,23 @@ describe('attempt text', () => {
   })
 })
 
+describe('no-diff flag (DM-999)', () => {
+  const worktree = { state: 'no_diff', alertMinutes: 15, changedFiles: 0, changedLines: 0, reportedAt: iso(0), changedAt: null } as const
+
+  it('names a stalled live claim and tones it for attention', () => {
+    const stalled = attempt('DM-202', 2, 'running', { leaseExpiresAt: iso(4 * MINUTE + 12_000), worktree: { ...worktree, stalled: true } })
+    expect(attemptText(stalled, KEYS, NOW)).toBe('DM-202 #2 running · lease 04:12 · no diff after 15 min')
+    expect(attemptText({ ...stalled, leaseExpiresAt: null }, KEYS, NOW)).toBe('DM-202 #2 running · no diff after 15 min')
+    expect(stripItems(runView({ attempts: [stalled] }), KEYS, NOW).map((item) => item.tone)).toEqual(['attention'])
+  })
+
+  it('shows nothing extra once the flag clears, or while the worktree is unknown', () => {
+    const cleared = attempt('DM-202', 2, 'running', { leaseExpiresAt: iso(4 * MINUTE + 12_000), worktree: { ...worktree, stalled: false } })
+    expect(attemptText(cleared, KEYS, NOW)).toBe('DM-202 #2 running · lease 04:12')
+    expect(stripItems(runView({ attempts: [cleared] }), KEYS, NOW).map((item) => item.tone)).toEqual(['running'])
+  })
+})
+
 describe('attempts strip', () => {
   it('shows open attempts by recency, then failures, skipping accepted and superseded ones', () => {
     const run = runView({

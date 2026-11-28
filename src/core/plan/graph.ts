@@ -272,18 +272,20 @@ function criterionIssues(bundle: PlanBundle): ValidationIssue[] {
   )
 }
 
+/** A whole-number policy, its least value and the issue when it is not one; `optional` policies may be unset. */
+type WholePolicy = { value: number | undefined; min: number; message: string; optional?: boolean }
+
 function policyIssues(bundle: PlanBundle): ValidationIssue[] {
   const { policies } = bundle
-  const issues: ValidationIssue[] = []
-  if (!Number.isInteger(policies.retryLimit) || policies.retryLimit < 1) {
-    issues.push({ code: 'invalid_policy', message: 'Retry limit must be a whole number of at least 1.' })
-  }
-  if (policies.autoRetryLimit !== undefined && (!Number.isInteger(policies.autoRetryLimit) || policies.autoRetryLimit < 0)) {
-    issues.push({ code: 'invalid_policy', message: 'Orchestrator retry limit must be a whole number of at least 0.' })
-  }
-  if (!Number.isInteger(policies.leaseSeconds) || policies.leaseSeconds < 30) {
-    issues.push({ code: 'invalid_policy', message: 'Lease duration must be at least 30 seconds.' })
-  }
+  const wholes: WholePolicy[] = [
+    { value: policies.retryLimit, min: 1, message: 'Retry limit must be a whole number of at least 1.' },
+    { value: policies.autoRetryLimit, min: 0, message: 'Orchestrator retry limit must be a whole number of at least 0.', optional: true },
+    { value: policies.noDiffAlertMinutes, min: 1, message: 'No-diff alert must be a whole number of at least 1 minute.', optional: true },
+    { value: policies.leaseSeconds, min: 30, message: 'Lease duration must be at least 30 seconds.' }
+  ]
+  const isValid = ({ value, min, optional }: WholePolicy): boolean =>
+    value === undefined ? optional === true : Number.isInteger(value) && value >= min
+  const issues: ValidationIssue[] = wholes.filter((policy) => !isValid(policy)).map(({ message }) => ({ code: 'invalid_policy', message }))
   const caps = [policies.maxConcurrency, ...bundle.sprints.map((sprint) => sprint.concurrencyCap)]
   if (caps.some((cap) => cap !== null && (!Number.isInteger(cap) || cap < 1))) {
     issues.push({ code: 'invalid_policy', message: 'Concurrency caps must be whole numbers of at least 1.' })

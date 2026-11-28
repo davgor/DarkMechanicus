@@ -162,7 +162,16 @@
             "submittedAt": "2026-11-15T09:46:00.000Z",
             "decidedAt": "2026-11-15T09:47:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000006",
@@ -240,7 +249,16 @@
             "submittedAt": "2026-11-15T09:33:00.000Z",
             "decidedAt": "2026-11-15T09:34:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           }
         ],
         "checkpoint": null,
@@ -418,7 +436,16 @@
             "submittedAt": "2026-11-15T09:46:00.000Z",
             "decidedAt": "2026-11-15T09:47:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           },
           {
             "id": "at_00000000000000000000000006",
@@ -496,7 +523,16 @@
             "submittedAt": "2026-11-15T09:33:00.000Z",
             "decidedAt": "2026-11-15T09:34:00.000Z",
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           }
         ],
         "checkpoint": null,
@@ -5059,7 +5095,16 @@
             "submittedAt": "2026-11-15T09:14:00.000Z",
             "decidedAt": null,
             "reconciledAt": null,
-            "superseded": false
+            "superseded": false,
+            "worktree": {
+              "state": "unknown",
+              "stalled": false,
+              "alertMinutes": 15,
+              "changedFiles": null,
+              "changedLines": null,
+              "reportedAt": null,
+              "changedAt": null
+            }
           }
         ],
         "checkpoint": null,

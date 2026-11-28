@@ -32,7 +32,7 @@ For host-heavy checks, follow planner's “Heavy-check scheduling”: mail known
 
 Diagnostics follow time-box-limits, not acceptance: preflight instrumentation, preserve failures and reassess unproductive rounds within authorized budgets. Repair demonstrated source or fixture causes within saved intent/ownership; mid-sprint scope changes: save and adopt with a reason (adopt-revision); retries need retry authority.
 
-At alarms inspect evidence, operation, next result and blockers. Productive workers continue on the same assignment/claim. Preserve deadlines, consent/cost, cleanup, fencing and verification.
+At alarms inspect evidence, `worktree.stalled`, operation, next result and blockers. Productive workers keep the same assignment/claim. Preserve deadlines, consent/cost, cleanup, fencing and verification.
 
 ## The loop
 

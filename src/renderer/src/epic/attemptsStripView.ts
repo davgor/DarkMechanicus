@@ -15,8 +15,11 @@ const STRIP_LIMIT = 3
 const RECENT_LIMIT = 12
 const NOTABLE = new Set<AttemptView['state']>(['failed', 'rejected', 'lease_expired'])
 
+/** The lease countdown, then DM-999's flag for a live claim still reporting no worktree diff past the plan's alert minutes. */
 function leaseDetail(item: AttemptView, now: number): string {
-  return item.leaseExpiresAt === null ? '' : `lease ${formatCountdown(item.leaseExpiresAt, now)}`
+  const lease = item.leaseExpiresAt === null ? [] : [`lease ${formatCountdown(item.leaseExpiresAt, now)}`]
+  const noDiff = item.worktree?.stalled === true ? [`no diff after ${item.worktree.alertMinutes} min`] : []
+  return [...lease, ...noDiff].join(' · ')
 }
 
 const DETAILS: Partial<Record<AttemptView['state'], (item: AttemptView, now: number) => string>> = {
@@ -43,7 +46,8 @@ function byRecency(items: AttemptView[]): AttemptView[] {
 }
 
 function toItem(item: AttemptView, keys: ReadonlyMap<string, string>, now: number): StripItem {
-  return { attemptId: item.id, ticketId: item.ticketId, text: attemptText(item, keys, now), tone: ATTEMPT_TONES[item.state] }
+  const tone = item.worktree?.stalled === true ? 'attention' : ATTEMPT_TONES[item.state]
+  return { attemptId: item.id, ticketId: item.ticketId, text: attemptText(item, keys, now), tone }
 }
 
 /** Open attempts first (newest first), then failures that need attention. */

@@ -526,6 +526,29 @@ export interface AttemptView {
   decidedAt: string | null
   reconciledAt: string | null
   superseded: boolean
+  /**
+   * DM-999: what the worker last reported of its worktree diff, with the no-diff flag the orchestrator's supervision
+   * reads. Present on the run view's attempts and on a heartbeat's answer.
+   */
+  worktree?: WorktreeActivity
+}
+
+/**
+ * DM-999: a claim's worktree activity as its heartbeats reported it. `unknown`: no heartbeat reported a diff (no known
+ * worktree), never stalled. `no_diff`: the last report was an empty diff. `changed`: the last report had changes.
+ * `stalled` is true only for a live claim (claimed or running) that reports `no_diff` at least `alertMinutes` after it
+ * was claimed. Detection only: it never fails, expires or re-claims the attempt. Counts only, never paths or contents.
+ */
+export interface WorktreeActivity {
+  state: 'unknown' | 'no_diff' | 'changed'
+  stalled: boolean
+  alertMinutes: number
+  changedFiles: number | null
+  changedLines: number | null
+  /** When a heartbeat last reported the diff; null while unknown. */
+  reportedAt: string | null
+  /** When a report last differed from the one before it (the first nonempty report counts); null while none has. */
+  changedAt: string | null
 }
 
 export interface HostModel {

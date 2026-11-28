@@ -57,6 +57,8 @@ export interface AttemptRow {
    * them, one per touched repository, each with its `repo`); null for every other attempt.
    */
   increment_json: string | null
+  /** DM-999: the worktree diff counts the claim's heartbeats last reported (`StoredWorktreeDiff`); null when none did. */
+  worktree_json: string | null
   created_at: string
   updated_at: string
   submitted_at: string | null
