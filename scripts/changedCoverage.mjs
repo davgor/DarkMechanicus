@@ -129,7 +129,7 @@ function changedPaths(base) {
 }
 
 /** The coverage include/exclude/thresholds and test globs vitest.config.ts declares. */
-async function loadVitestConfig() {
+export async function loadVitestConfig() {
   const { loadConfigFromFile } = await import('vite')
   const loaded = await loadConfigFromFile({ command: 'serve', mode: 'test' }, join(ROOT, 'vitest.config.ts'), ROOT, 'silent')
   const test = loaded?.config.test

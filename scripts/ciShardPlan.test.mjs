@@ -4,6 +4,7 @@ import { eligibleRun, planShards, readLiveHistory, timingSample } from './ciShar
 const start = Date.parse('2026-01-01T00:00:00Z')
 const iso = (seconds) => new Date(start + seconds * 1000).toISOString()
 const unitStep = 'Run disjoint Vitest shard'
+const coverageStep = 'Run disjoint Vitest shard with coverage'
 
 function job(name, seconds, stepName = unitStep) {
   return {
@@ -35,10 +36,11 @@ describe('execution-time CI shard planning', () => {
     const app = sample('app', [job('test-shards (vitest.config.ts, 2)', 599), job('test-shards (vitest.config.ts, 1)', 509)])
     const fireguardUnit = sample('fireguard-unit', unitJobs('fireguard-unit', [7, 19]))
     const plan = planShards({ app, 'fireguard-unit': fireguardUnit })
-    expect(counts(plan)).toEqual({ app: 10, 'fireguard-unit': 1 })
-    expect(plan.suites.app).toMatchObject({ source: 'history', runId: 15, seconds: [509, 599], totalSeconds: 1108 })
+    expect(counts(plan)).toEqual({ app: 11, 'fireguard-unit': 1 })
+    // A legacy app shard ran without coverage: its time carries the coverage overhead (x1.1, rounded).
+    expect(plan.suites.app).toMatchObject({ source: 'history', runId: 15, seconds: [560, 659], totalSeconds: 1219 })
     expect(plan.unit.include.filter((entry) => entry.suite === 'app'))
-      .toEqual(Array.from({ length: 10 }, (_, i) => ({ suite: 'app', config: 'vitest.config.ts', index: i + 1, count: 10 })))
+      .toEqual(Array.from({ length: 11 }, (_, i) => ({ suite: 'app', config: 'vitest.config.ts', index: i + 1, count: 11 })))
     expect(plan.unit.include.at(-1)).toEqual({ suite: 'fireguard-unit', config: 'fireguard/vitest.config.ts', index: 1, count: 1 })
     // Fireguard grading is sized by `fireguard --plan` from the diff, not by this history planner.
     expect(plan).not.toHaveProperty('grading')
@@ -47,9 +49,19 @@ describe('execution-time CI shard planning', () => {
   it('caps workload and keeps at least one shard after a complete short sample', () => {
     const plan = planShards({ app: sample('app', unitJobs('app', [2000, 2000])) })
     expect(counts(plan)).toEqual({ app: 16, 'fireguard-unit': 2 })
-    expect(plan.suites.app).toMatchObject({ limit: 16, estimatedSecondsPerShard: 250 })
+    expect(plan.suites.app).toMatchObject({ limit: 16, estimatedSecondsPerShard: 275 })
     expect(plan.targetSeconds).toBe(120)
     expect(plan.unit.include).toHaveLength(18)
+  })
+
+  it('times app shards from their coverage step as is, and only legacy app samples carry the overhead', () => {
+    const covered = (times) => times.map((seconds, i) => job(`test-shards (app, ${i + 1}/${times.length})`, seconds, coverageStep))
+    expect(sample('app', covered([300, 241]))).toEqual({ runId: 15, seconds: [300, 241] })
+    expect(sample('app', unitJobs('app', [300, 241]))).toEqual({ runId: 15, seconds: [330, 265] })
+    expect(sample('fireguard-unit', unitJobs('fireguard-unit', [300, 241]))).toEqual({ runId: 15, seconds: [300, 241] })
+    // The fireguard unit suite collects no coverage, so a coverage step never times it.
+    expect(sample('fireguard-unit', [job('test-shards (fireguard-unit, 1/1)', 300, coverageStep)])).toBeUndefined()
+    expect(counts(planShards({ app: sample('app', covered([300, 241])) })).app).toBe(5)
   })
 
   it('cold-starts independently when history is absent, partial or invalid', () => {
@@ -114,8 +126,9 @@ describe('live unit history', () => {
       return new Response(JSON.stringify(body))
     })
     const history = await readLiveHistory(env)
-    expect(history).toEqual({ app: { runId: 9, seconds: [600, 600] }, 'fireguard-unit': { runId: 9, seconds: [30] } })
-    expect(counts(planShards(history))).toEqual({ app: 10, 'fireguard-unit': 1 })
+    // Legacy app shards without a coverage step carry the coverage overhead (x1.1).
+    expect(history).toEqual({ app: { runId: 9, seconds: [660, 660] }, 'fireguard-unit': { runId: 9, seconds: [30] } })
+    expect(counts(planShards(history))).toEqual({ app: 11, 'fireguard-unit': 1 })
     expect(requests[0]).toContain('event=push')
     expect(requests[0]).toContain('&branch=main')
     expect(requests.some((url) => url.includes('event=pull_request'))).toBe(false)

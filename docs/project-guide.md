@@ -142,17 +142,20 @@ npm run spike:claims # multi-process competing-claim stress proof
 `.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
 - `shard-plan` — selects independent counts for app/scripts Vitest and Fireguard Vitest. It logs the policy and selected counts and uploads `ci-shard-plan.json`, including each source run ID and its per-shard execution seconds when available.
-- `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The `test` aggregate fails unless the plan and every shard succeed.
+- `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The app shards (`vitest.config.ts`) are also the coverage run: each runs with `--coverage` and the `blob` reporter (thresholds off, as one shard covers only part of the suite) and uploads its blob. The `test` aggregate fails unless the plan and every shard succeed.
+- `coverage` — merges the app shards' blobs on Windows (`vitest run --merge-reports .vitest-reports --coverage.enabled`), which enforces the `vitest.config.ts` thresholds on the merged total, then publishes the merged summary as the job summary (`scripts/coverageSummary.mjs`, exit 1 when a metric is below its threshold) and the `coverage-summary` artifact. No separate unsharded coverage run is needed.
 - `fireguard-scope` — pins the base commit and runs `fireguard --plan`, which sizes the grading matrix from this diff's own work and uploads `fireguard-plan.json` (see [grading shard sizing](#grading-shard-sizing)).
 - `fireguard-shards` — disjoint Ubuntu jobs split the 100 flake runs and the mutants on changed lines over one pinned HEAD/base. They start with the Vitest shards, not after them. The `fireguard` aggregate requires the scope/plan and all grading jobs, validates the entire report set against the planned count, and alone updates the sticky PR comment. See [shard reproduction](../fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
-Treat `test`, `fireguard`, `lint`, and `build` as the stable CI gate names when configuring required status checks. Coverage is not a GitHub job or artifact; `npm run coverage` still enforces the same local thresholds.
+Treat `test`, `coverage`, `fireguard`, `lint`, and `build` as the stable CI gate names when configuring required status checks. `npm run coverage` still enforces the same thresholds locally.
 
 ### Shard sizing
 
 Each unit suite independently uses its latest complete CI sample: `ceil(sum of shard execution seconds / 120)`, clamped to **1–16** per suite (at most 32 Windows jobs, below GitHub's 256-job limit per matrix). The planner reads named execution-step timestamps, not queue time, dependency installation, or installer-tool preparation. Step wall time includes startup, test setup and any reporting within the execution command.
+
+App shards are timed from their `Run disjoint Vitest shard with coverage` step, so the coverage overhead is in the sample. An older app sample timed the step without coverage (`Run disjoint Vitest shard`); the planner scales each of its shards by 1.1 (rounded), the measured local ratio of `npm run coverage` to `npm test`. The Fireguard unit suite collects no coverage and keeps its step.
 
 For each unit suite, the planner looks at the latest eight successful first-attempt default-branch push runs of **CI Checks**, including the legacy two-shard unit jobs. The planner reads only bounded GitHub job metadata, not executable artifacts. Missing, partial, inconsistent, or unavailable observations fall back independently to two shards per unit suite.
 
@@ -160,7 +163,7 @@ This is a target for the estimated average, not a per-job deadline. Vitest does 
 
 ### Grading shard sizing
 
-Grading time follows the graded diff, not history: `fireguard --plan` counts what this diff's grade executes (the 100 configured flake runs of its graded test files once the AST gate passes, and its mutants on changed lines) and estimates each shard's seconds from per-unit timings fitted to recorded CI shard runs (`SHARD_TIMING` in `fireguard/src/plan.ts`: 13 s per shard, 1.16 s per graded test file per flake run, 2.66 s per mutant). It picks the fewest shards whose longest one is estimated within **75 seconds** of grading (with about 12 s of shard setup and 45 s of scope/plan and merge jobs, a typical pull request's Fireguard returns in about 2 minutes), at most **40** and never more than there are flake runs or mutants to split. A diff with no grading work gets one shard. Past the cap the plan reports its honest longest-shard estimate.
+Grading time follows the graded diff, not history: `fireguard --plan` counts what this diff's grade executes (the 100 configured flake runs of its graded test files once the AST gate passes, and its mutants on changed lines) and estimates each shard's seconds from per-unit timings fitted to recorded CI shard runs (`SHARD_TIMING` in `fireguard/src/plan.ts`: 4.71 s per flake run plus 0.835 s per graded test file in it, 3.54 s per mutant). It picks the fewest shards whose longest one is estimated within **50 seconds** of grading (the estimate is a mean fit and the longest shard has run up to 20 s over it; with about 14 s of shard setup and 40 s of scope/plan and merge jobs, a typical pull request's Fireguard returns in about 2 minutes), at most **40** and never more than there are flake runs or mutants to split. A diff with no grading work gets one shard. Past the cap the plan reports its honest longest-shard estimate.
 
 Only the split changes: each shard runs its round-robin share of the flake runs and of all mutants in one deterministic order, so one large module's mutants spread over every shard instead of serialising one shard.
 

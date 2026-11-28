@@ -94,6 +94,14 @@ describe('deadInEveryProject', () => {
       { ...web, lines: ['src/renderer/only.ts:3 - Props'] }
     ])).toEqual(['src/main/only.ts:2 - helper', 'src/main/only.ts:9 - Shape', 'src/renderer/only.ts:3 - Props'])
   })
+
+  it('passes a shared export only node code uses and fails one no project uses, against an empty baseline', () => {
+    const dead = deadInEveryProject([
+      { ...node, lines: ['src/shared/contract.ts:7 - unused'] },
+      { ...web, lines: ['src/shared/contract.ts:4 - usedByMain', 'src/shared/contract.ts:7 - unused'] }
+    ])
+    expect(findNewDeadExports(dead, new Set())).toEqual(['src/shared/contract.ts:7 - unused'])
+  })
 })
 
 describe('projectFiles', () => {

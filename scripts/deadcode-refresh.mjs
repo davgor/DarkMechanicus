@@ -1,45 +1,18 @@
 /**
- * Rewrite .tsprune-ignore from current ts-prune findings.
+ * Rewrite .tsprune-ignore from current dead exports: those dead in every scanned project that includes their file,
+ * so a shared export one project uses never lands in the baseline.
  * Use after intentional export moves/deletes so `npm run deadcode` stays green.
  */
-import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { baselineKey, normalizeTsPruneLine } from './deadcode-check.mjs'
+import { baselineKey, collectDeadExports } from './deadcode-check.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IGNORE_PATH = join(ROOT, '.tsprune-ignore')
-const PROJECTS = ['tsconfig.node.json', 'tsconfig.web.json']
-
-/** @param {string} project */
-function runTsPrune(project) {
-  const result = spawnSync('npx', ['ts-prune', '--project', project], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    shell: true
-  })
-  if (result.error) {
-    throw result.error
-  }
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim()
-    throw new Error(stderr || `ts-prune failed for ${project} with exit code ${result.status}`)
-  }
-  return result.stdout
-    .split(/\r?\n/)
-    .map((line) => normalizeTsPruneLine(line))
-    .filter(Boolean)
-}
 
 function main() {
-  const findings = new Set()
-  for (const project of PROJECTS) {
-    for (const line of runTsPrune(project)) {
-      findings.add(baselineKey(line))
-    }
-  }
-  const lines = [...findings].sort()
+  const lines = [...new Set(collectDeadExports().map(baselineKey))].sort()
   const header = [
     '# Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)',
     '# Generated from tsconfig.node.json + tsconfig.web.json',
