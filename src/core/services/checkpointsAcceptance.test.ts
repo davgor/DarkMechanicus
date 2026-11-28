@@ -200,7 +200,7 @@ describe('a checkpoint cannot be passed without the acceptance node', () => {
     acceptTickets(ctx, run, [1, 2])
     const submitted = report(ctx, run)
     const message =
-      "Sprint 1 can't advance yet: DM-3 not started; No sprint increment named yet: submit DM-3 with increment { branch, commit }"
+      "Sprint 1 can't advance yet: DM-3 not started; No sprint increment named yet: submit DM-3 with increment { branch, commit }, or name it with name_sprint_increment"
     const approval = errorOf(() => approveCheckpoint(withRole(ctx, 'desktop'), { runId: run.runId, reportId: submitted.id }))
     expect(approval).toMatchObject({ code: 'gate_blocked', message })
     const advance = errorOf(() => advanceSprint(ctx, { runId: run.runId }))
