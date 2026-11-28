@@ -291,3 +291,9 @@ Before the restart the transcript has exactly 3 user_message items (lines 1, 152
 **Not repeated here.** The S3 packaged journey was run before the checkpoint, in the published v0.89.0 Portable with an isolated profile, and is recorded in the S3 report's deployment verification. This check did not launch a second instance of the person's installed app, which stays read-only. It confirms only that the installed asar carries the S3 code (5c).
 
 Nothing was restarted, installed, rerun or dispatched by this check.
+
+## S4 → S5 pre-restart record (Fix 73)
+
+pre-restart: chatId=chat_5c20535d-0320-4e28-8410-04e775097d19 sessionId=01a21b3e-b51c-77d1-b89d-0b423dd491b7 lastItemId=toolu_01CoNG5SifAmCPxkpD49ek84
+
+Recorded 2026-11-28T07:42:13Z before asking the person to install v0.92.0 and press Restart now. Release v0.92.0 = 7a31fb5cbb548fd2c768a184ad5c474f93c35895 (contains PR #109 squash 0c6ae052).
