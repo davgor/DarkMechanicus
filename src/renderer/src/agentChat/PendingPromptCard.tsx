@@ -217,24 +217,30 @@ function initialDraft(field: FormField): FieldDraft {
   return { chosen: new Set(field.multi ? preselected : preselected.slice(0, 1)), other: false, text: field.defaultText ?? '' }
 }
 
+/** Whether a field must be answered: as the agent says, else a radio group must and a checkbox group or text need not. */
+function isRequired(field: FormField): boolean {
+  return field.required ?? (field.text !== 'only' && !field.multi)
+}
+
 /**
- * A field's answer, or null while it has none. A text field always answers, sending `text` only once it differs from
- * the default so an untouched one keeps the agent's.
+ * A field's answer, or null while it has none. A text field answers unless it is required and blank, sending `text`
+ * only once it differs from the default so an untouched one keeps the agent's.
  */
 function fieldAnswer(field: FormField, draft: FieldDraft): FieldAnswer | null {
   if (field.text !== 'only') return choiceAnswer(field, draft)
+  if (isRequired(field) && draft.text.trim() === '') return null
   return draft.text === (field.defaultText ?? '') ? { fieldId: field.id, optionIds: [] } : { fieldId: field.id, optionIds: [], text: draft.text }
 }
 
 /**
  * A choice field's answer, or null while it has none: options in option order, nonblank Other text as one more pick
- * (a single choice's only when Other is chosen); a single choice takes exactly one pick, a multi one at least one.
+ * (a single choice's only when Other is chosen; its draft never holds more than one pick). An optional field may also
+ * go empty (a single choice only while Other is not chosen); a required one needs a pick.
  */
 function choiceAnswer(field: FormField, draft: FieldDraft): FieldAnswer | null {
   const written = field.text === 'other' && draft.text.trim() !== '' && (field.multi || draft.other)
   const optionIds = field.options.filter((option) => !draft.other && draft.chosen.has(option.id)).map((option) => option.id)
-  const picks = optionIds.length + (written ? 1 : 0)
-  if (field.multi ? picks === 0 : picks !== 1) return null
+  if (optionIds.length === 0 && !written) return isRequired(field) || draft.other ? null : { fieldId: field.id, optionIds }
   return written ? { fieldId: field.id, optionIds, text: draft.text } : { fieldId: field.id, optionIds }
 }
 
@@ -304,7 +310,7 @@ function FormFieldset({ name, field, draft, busy, update }: {
 }): JSX.Element {
   return (
     <fieldset className="agent-prompt-field" disabled={busy}>
-      <legend>{clip(field.title, 300)}</legend>
+      <legend>{clip(field.title, 300)}{!isRequired(field) && <span className="agent-prompt-optional"> (optional)</span>}</legend>
       {field.text === 'only'
         ? <textarea className="input" aria-label={clip(field.title, 300)} value={draft.text} maxLength={20_000} rows={1}
           onChange={(event) => update(() => ({ text: event.target.value }))} />

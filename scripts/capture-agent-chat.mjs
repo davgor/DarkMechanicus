@@ -201,8 +201,8 @@ const IMAGE_RESULT_CHECKS = [
   ['no Attach as evidence outside an epic', (o) => Array.isArray(o.chatImages?.evidence) && o.chatImages.evidence.length === 0,
     (o) => JSON.stringify(o.chatImages?.evidence)]
 ]
-/** The question-form state's questions, as the recorded OMP ask asks them. */
-const FORM_LEGENDS = ['Which databases?', 'Which region?', 'Anything else?']
+/** The question-form state's questions as the card heads them: the checkbox group and the text field are optional. */
+const FORM_LEGENDS = ['Which databases? (optional)', 'Which region?', 'Anything else? (optional)']
 /** At 1440 the form shows every question and checked default without scrolling. */
 const formAllInView = (card) => JSON.stringify(card?.legendsInView) === JSON.stringify(FORM_LEGENDS) && card.fieldsScroll === false
   && JSON.stringify(card.checkedInView) === '["SQLite","Postgres","US"]'

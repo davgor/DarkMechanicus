@@ -341,13 +341,17 @@ export function parseAskForm(html: string): AskField[] | null {
   return validFields(fields) ? fields : null
 }
 
-/** The form prompt's fields: option ids are positional, defaults preselected. */
+/**
+ * The form prompt's fields: option ids are positional, defaults preselected. `required` is the HTML's (any control of
+ * a group marked `required`), except that a radio group always takes exactly one pick.
+ */
 export function askPromptForm(fields: readonly AskField[], safe: (text: string) => string): PromptForm {
   return { fields: fields.map(field => ({
     id: safe(field.name), title: safe(field.question).slice(0, 2_000), multi: field.multi,
     options: field.options.map((option, index) => ({ id: `option_${index}`, label: safe(option.label), ...(option.checked ? { preselected: true } : {}) })),
     text: field.kind === 'text' ? 'only' as const : field.other ? 'other' as const : 'none' as const,
-    ...(field.kind === 'text' && field.value ? { defaultText: safe(field.value).slice(0, 20_000) } : {})
+    ...(field.kind === 'text' && field.value ? { defaultText: safe(field.value).slice(0, 20_000) } : {}),
+    required: field.kind === 'choice' && !field.multi ? true : field.required
   })) }
 }
 

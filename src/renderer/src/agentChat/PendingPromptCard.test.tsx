@@ -277,7 +277,8 @@ const form: QuestionPrompt = {
     { id: 'note', title: 'Anything else?', multi: false, text: 'only', options: [] }
   ] }
 }
-const group = (name: string) => screen.getByRole('group', { name })
+/** A form field's group by its question; an optional field's legend adds " (optional)". */
+const group = (name: string) => screen.getByRole('group', { name: (accessible) => accessible.replace(/\s*\(optional\)$/, '') === name })
 const checkedIn = (name: string) => [...group(name).querySelectorAll<HTMLInputElement>('input:checked')]
   .map((input) => input.closest('label')?.querySelector('.agent-prompt-check-label')?.textContent)
 const control = (field: string, role: 'checkbox' | 'radio', name: string) =>
@@ -289,7 +290,7 @@ it('shows every question of a form at once, each a fieldset with its legend, the
   expect(card.classList.contains('glass-strong')).toBe(true)
   expect(within(card).getByRole('heading').textContent).toBe('Answer 3 questions')
   expect(within(card).getAllByRole('group').map((fieldset) => [fieldset.tagName, fieldset.querySelector('legend')?.textContent]))
-    .toEqual([['FIELDSET', 'Which letters?'], ['FIELDSET', 'Which region?'], ['FIELDSET', 'Anything else?']])
+    .toEqual([['FIELDSET', 'Which letters? (optional)'], ['FIELDSET', 'Which region?'], ['FIELDSET', 'Anything else? (optional)']])
   expect(within(group('Which letters?')).getAllByRole('checkbox')).toHaveLength(4)
   expect(checkedIn('Which letters?')).toEqual(['Alpha', 'Charlie'])
   expect(within(group('Which region?')).getAllByRole('radio').map((radio) => radio.closest('label')?.textContent)).toEqual(['EU', 'US', 'APAC', 'Other'])
@@ -329,8 +330,10 @@ it('sends the untouched defaults, keeping a text field default by leaving its te
   ] }]])
 })
 
-it('waits for an answer to every choice field: an empty group, no radio, or Other without text keep Submit disabled', async () => {
-  const { api } = await mount(form)
+it('waits for an answer to every required field: an empty required group, no radio, or Other without text keep Submit disabled', async () => {
+  const required = { ...form, form: { fields: [{ ...form.form!.fields[0], required: true }, ...form.form!.fields.slice(1)] } }
+  const { api } = await mount(required)
+  expect(group('Which letters?').querySelector('legend')?.textContent).toBe('Which letters?')
   fireEvent.click(control('Which letters?', 'checkbox', 'Alpha'))
   fireEvent.click(control('Which letters?', 'checkbox', 'Charlie'))
   expect(screen.getByText('2 of 3 answered')).toBeTruthy()
@@ -344,6 +347,32 @@ it('waits for an answer to every choice field: an empty group, no radio, or Othe
   fireEvent.submit(submitButton().closest('form') as HTMLFormElement)
   await settle()
   expect(api.callsOf('answer')).toEqual([])
+})
+
+it('sends an optional checkbox group empty once every box is unticked, and an optional single choice with no pick', async () => {
+  const region = { ...form.form!.fields[1], required: false, options: form.form!.fields[1].options.map(({ id, label }) => ({ id, label })) }
+  const { api } = await mount({ ...form, form: { fields: [form.form!.fields[0], region, form.form!.fields[2]] } })
+  expect(group('Which region?').querySelector('legend')?.textContent).toBe('Which region? (optional)')
+  fireEvent.click(control('Which letters?', 'checkbox', 'Alpha'))
+  fireEvent.click(control('Which letters?', 'checkbox', 'Charlie'))
+  expect(checkedIn('Which letters?')).toEqual([])
+  expect(screen.getByText('3 of 3 answered')).toBeTruthy()
+  expect(submitButton().disabled).toBe(false)
+  fireEvent.click(submitButton())
+  await settle()
+  expect(api.callsOf('answer')).toEqual([[{ ...ref, promptId: 'form-1', fields: [
+    { fieldId: 'letters', optionIds: [] }, { fieldId: 'region', optionIds: [] }, { fieldId: 'note', optionIds: [] }
+  ] }]])
+})
+
+it('keeps a required text field from going blank', async () => {
+  const note = { ...form.form!.fields[2], required: true, defaultText: 'No' }
+  await mount({ ...form, form: { fields: [...form.form!.fields.slice(0, 2), note] } })
+  expect(group('Anything else?').querySelector('legend')?.textContent).toBe('Anything else?')
+  expect(submitButton().disabled).toBe(false)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Anything else?' }), { target: { value: '  ' } })
+  expect(screen.getByText('2 of 3 answered')).toBeTruthy()
+  expect(submitButton().disabled).toBe(true)
 })
 
 it('keeps Submit disabled until a single choice without a default gets its pick', async () => {

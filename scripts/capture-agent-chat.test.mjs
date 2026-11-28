@@ -233,13 +233,14 @@ const QUESTION = {
  * enabled Submit in view, and the transcript at its 96 px minimum or more. At 1440 everything shows without scrolling;
  * at 1024 the fields scroll inside the card, the first question and its defaults in view.
  */
+const FORM_LEGENDS = ['Which databases? (optional)', 'Which region?', 'Anything else? (optional)']
 const FORM = {
-  cards: 1, glassStrong: true, heading: 'Answer 3 questions', legends: ['Which databases?', 'Which region?', 'Anything else?'],
+  cards: 1, glassStrong: true, heading: 'Answer 3 questions', legends: FORM_LEGENDS,
   kinds: ['checkbox', 'radio', 'text'], checked: [['SQLite', 'Postgres'], ['US'], []], count: '3 of 3 answered', submits: 1,
-  submitEnabled: true, legendsInView: ['Which databases?', 'Which region?', 'Anything else?'], fieldsScroll: false,
+  submitEnabled: true, legendsInView: FORM_LEGENDS, fieldsScroll: false,
   checkedInView: ['SQLite', 'Postgres', 'US'], submitInView: true, transcriptHeight: 120, transcriptMin: 96
 }
-const FORM_1024 = { ...FORM, legendsInView: ['Which databases?'], fieldsScroll: true, checkedInView: ['SQLite', 'Postgres'] }
+const FORM_1024 = { ...FORM, legendsInView: [FORM_LEGENDS[0]], fieldsScroll: true, checkedInView: ['SQLite', 'Postgres'] }
 
 /** The model-picker state: the chip on Opus 5.5 · High before Send, its menu open upward over the host's catalog. */
 const MODEL_PICKER = {

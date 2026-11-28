@@ -310,15 +310,15 @@ function formQuestion(): AgentChatSnapshot {
       id: 'question-form-1', kind: 'question', title: 'Answer 3 questions', detail: '', threadId: null,
       attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, options: [],
       form: { fields: [
-        { id: 'databases', title: 'Which databases?', multi: true, text: 'none', options: [
+        { id: 'databases', title: 'Which databases?', multi: true, text: 'none', required: false, options: [
           { id: 'option_0', label: 'SQLite', description: 'The local store', preselected: true },
           { id: 'option_1', label: 'Postgres', description: 'The shared server', preselected: true },
           { id: 'option_2', label: 'MySQL' }, { id: 'option_3', label: 'DuckDB' }
         ] },
-        { id: 'region', title: 'Which region?', multi: false, text: 'other', options: [
+        { id: 'region', title: 'Which region?', multi: false, text: 'other', required: true, options: [
           { id: 'option_0', label: 'EU' }, { id: 'option_1', label: 'US', preselected: true }, { id: 'option_2', label: 'APAC' }
         ] },
-        { id: 'note', title: 'Anything else?', multi: false, text: 'only', options: [] }
+        { id: 'note', title: 'Anything else?', multi: false, text: 'only', required: false, options: [] }
       ] }
     }
   }

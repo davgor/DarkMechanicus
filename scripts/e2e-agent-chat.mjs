@@ -1863,7 +1863,7 @@ const checkedOf = (state) => JSON.stringify(state.fields.map((field) => field.ch
  */
 function formOption(_h, selector, { legend, option, via }) {
   const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
-    .find((entry) => entry.querySelector('legend')?.textContent === legend)
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
   const row = [...(fieldset?.querySelectorAll('label.agent-prompt-check') ?? [])]
     .find((entry) => entry.querySelector('.agent-prompt-check-label')?.textContent === option)
   const input = row?.querySelector('input')
@@ -1880,7 +1880,7 @@ function formOption(_h, selector, { legend, option, via }) {
 /** Focuses the free-text box of the form field `legend`. */
 function focusFormText(_h, selector, legend) {
   const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
-    .find((entry) => entry.querySelector('legend')?.textContent === legend)
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
   const box = fieldset?.querySelector(':scope > textarea')
   if (!box || box.disabled) return { ok: false, found: !!box }
   box.focus()
@@ -1935,8 +1935,10 @@ async function polishMultiselect(session, signal) {
 
 /** The prompt of the multi-question chat: the fake replays the recorded OMP 18.20.2 ask form (`ask_multi_q`). */
 const MULTI_QUESTION_PROMPT = '[ask-multi-q]'
-/** The recorded form's questions and the defaults OMP marks checked. */
+/** The recorded form's defaults OMP marks checked. */
 const ASK_DEFAULTS = '[["SQLite","Postgres"],["US"],[]]'
+/** Its questions as the card heads them: the HTML marks nothing required, so the checkbox group and the text are optional. */
+const ASK_LEGENDS = '["Which databases? (optional)","Which region?","Anything else? (optional)"]'
 
 /**
  * Polish 7, on the omp fake: a new folder chat's `[ask-multi-q]` docks one form with all three questions, SQLite and
@@ -1951,8 +1953,8 @@ async function polishMultiquestion(session, signal) {
   await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
   const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: MULTI_QUESTION_PROMPT })
   if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
-  const defaults = await formWhere(session, signal, (state) => state.fields.length === 3 && checkedOf(state) === ASK_DEFAULTS
-    && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
+  const defaults = await formWhere(session, signal, (state) => JSON.stringify(state.fields.map((field) => field.legend)) === ASK_LEGENDS
+    && checkedOf(state) === ASK_DEFAULTS && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
   const defaultsShot = await capture(session, 'e2e-polish-multiquestion-defaults.png', WINDOW)
   await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'focus' })
   await pressSpace(session)

@@ -169,6 +169,12 @@
   font-weight: 600;
 }
 
+.agent-prompt-optional {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .agent-prompt-check {
   display: flex;
   align-items: center;
