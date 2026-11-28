@@ -362,18 +362,31 @@ const BROWSER_TAB = 'Getting started · Fixture docs'
 const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
 /** The epic stage's width at each size, and the Browser rail's at max(420 px, 45% of it). */
 const BROWSER_STAGE = { 1024: { stageWidth: 760, railWidth: 420 }, 1440: { stageWidth: 1176, railWidth: 529.2 } }
+const DRIVEN = { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null }
+const SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
+/** The chat's docked site card as the capture reads it. */
+function siteCard(heading, label) {
+  return { heading, label, buttons: ['Allow once', 'Always allow', 'Deny'], aboveComposer: true }
+}
 const BROWSER_PANELS = {
   'browser-empty': {
     badge: 'Idle', tabs: ['Agent tab'], stopEnabled: false, toggle: 'Take control', enabled: false,
     page: 'Agents open pages here. You will be asked before any new site loads.', privateAddress: null
   },
-  'browser-agent': { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null },
+  'browser-agent': DRIVEN,
   'browser-person': { badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
   'browser-stopped': { badge: 'Stopped', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
   'browser-private': {
     badge: 'Idle', tabs: [BROWSER_TAB, PRIVATE_TAB], stopEnabled: false, toggle: 'Take control', enabled: true, page: '',
     privateAddress: 'https://accounts.example.com/login'
-  }
+  },
+  'browser-origin': { ...DRIVEN, siteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') },
+  'browser-origin-page': { ...DRIVEN, siteCard: siteCard('This page wants to open http://127.0.0.1:5173', 'http://127.0.0.1:5173') },
+  'browser-origin-person': {
+    badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null,
+    siteCard: siteCard('You asked to open https://example.com', 'https://example.com')
+  },
+  'browser-sites': { ...DRIVEN, page: 'Browser hidden while a dialog is open', sites: SITES }
 }
 /** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
 function browserRecord(state, patch = {}) {
@@ -417,7 +430,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 65 states once each, in capture order', () => {
+  it('lists the 73 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -430,10 +443,11 @@ describe('capture-agent-chat: state list and bounds', () => {
       'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
       'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
       'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024',
-      'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440'
+      'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
+      'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
+      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440'
     ])
-    expect(new Set(STATES).size).toBe(65)
-    expect(Object.isFrozen(STATES)).toBe(true)
+    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([73, true])
   })
 
   it('captures the full Sprint 3 image and polish set, each state once', () => {
@@ -453,9 +467,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 990 s overall bound: 65 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 1110 s overall bound: 73 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(990_000)
+    expect(OVERALL_LIMIT_MS).toBe(1_110_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -503,6 +517,37 @@ describe('capture-agent-chat: Browser tab states', () => {
     expect(validateObservations('browser-empty-1440', browserRecord('browser-empty-1440', { enabled: true })))
       .toEqual(['browser-empty-1440: expected agents are not let use the browser and the page area shows the empty state; '
         + 'got [true,"Agents open pages here. You will be asked before any new site loads."]'])
+  })
+})
+
+describe('capture-agent-chat: Browser site card and Sites states', () => {
+  it('passes every site card and the Sites popover as seeded', () => {
+    for (const state of ['browser-origin-1024', 'browser-origin-page-1440', 'browser-origin-person-1024', 'browser-sites-1440']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+  })
+
+  it('fails a site card that names the wrong asker, drops a button or sits below the composer', () => {
+    const card = BROWSER_PANELS['browser-origin-page'].siteCard
+    const heading = 'This page wants to open http://127.0.0.1:5173'
+    const expected = `browser-origin-page-1024: expected the chat docks the site card "${heading}" above the composer; got `
+    for (const patch of [{ heading: 'An agent wants to open http://127.0.0.1:5173' }, { buttons: ['Allow once', 'Deny'] }, { aboveComposer: false }]) {
+      const wrong = { ...card, ...patch }
+      expect(validateObservations('browser-origin-page-1024', browserRecord('browser-origin-page-1024', { siteCard: wrong })))
+        .toEqual([expected + JSON.stringify(wrong)])
+    }
+    expect(validateObservations('browser-origin-1440', browserRecord('browser-origin-1440', { siteCard: null })))
+      .toEqual(['browser-origin-1440: expected the chat docks the site card "Acolyte:DM-442 wants to open https://api.github.com" above the composer; got null'])
+  })
+
+  it('fails a Sites state whose popover misses a site or leaves the page area shown', () => {
+    const missing = SITES.slice(1)
+    expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sites: missing })))
+      .toEqual([`browser-sites-1024: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
+        + `got ${JSON.stringify([missing, 'Browser hidden while a dialog is open'])}`])
+    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '' })))
+      .toEqual([`browser-sites-1440: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
+        + `got ${JSON.stringify([SITES, ''])}`])
   })
 })
 

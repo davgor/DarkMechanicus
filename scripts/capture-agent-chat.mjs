@@ -32,7 +32,9 @@ export const STATES = Object.freeze([
   'new-chat-model', 'start-run-model', 'lexmechanic-model',
   'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
   'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
-  'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440'
+  'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
+  'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
+  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440'
 ])
 
 /**
@@ -54,8 +56,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 65 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 990_000
+/** A declared bound once the preview is built: 73 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 1_110_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -304,6 +306,18 @@ function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
     [`the toggle reads ${toggle}`, (o) => panel(o).toggle === toggle, (o) => JSON.stringify(panel(o).toggle)],
     [`the tab strip reads ${JSON.stringify(tabs)}`, (o) => JSON.stringify(panel(o).tabs) === JSON.stringify(tabs), (o) => JSON.stringify(panel(o).tabs)]
   ]
+}
+
+/** The folder's always-allowed sites the Sites state seeds, and the page area's note while the popover hides the view. */
+const BROWSER_SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
+const BROWSER_HIDDEN = 'Browser hidden while a dialog is open'
+const SITE_BUTTONS = ['Allow once', 'Always allow', 'Deny']
+
+/** The chat's site card docked above the composer, headed by who asked, labelled by the origin, with its three answers. */
+function siteCardCheck(heading, origin) {
+  const card = (o) => o.browserPanel?.siteCard ?? null
+  return [`the chat docks the site card "${heading}" above the composer`, (o) => card(o)?.heading === heading && card(o).label === origin
+    && JSON.stringify(card(o).buttons) === JSON.stringify(SITE_BUTTONS) && card(o).aboveComposer === true, (o) => JSON.stringify(card(o))]
 }
 
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
@@ -593,6 +607,24 @@ const STATE_CHECKS = {
     ...browserChecks('Idle', { stop: false, toggle: 'Take control', tabs: [BROWSER_TAB, PRIVATE_TAB] }),
     ['Private tab’s inline address field holds the typed address', (o) => o.browserPanel?.privateAddress === 'https://accounts.example.com/login',
       (o) => JSON.stringify(o.browserPanel?.privateAddress)]
+  ],
+  'browser-origin': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com')
+  ],
+  'browser-origin-page': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('This page wants to open http://127.0.0.1:5173', 'http://127.0.0.1:5173')
+  ],
+  'browser-origin-person': [
+    ...browserChecks('You have control', { stop: false, toggle: 'Hand back' }),
+    siteCardCheck('You asked to open https://example.com', 'https://example.com')
+  ],
+  'browser-sites': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    [`the Sites popover lists ${JSON.stringify(BROWSER_SITES)} over the hidden page area`,
+      (o) => JSON.stringify(o.browserPanel?.sites) === JSON.stringify(BROWSER_SITES) && o.browserPanel.page === BROWSER_HIDDEN,
+      (o) => JSON.stringify([o.browserPanel?.sites, o.browserPanel?.page])]
   ]
 }
 

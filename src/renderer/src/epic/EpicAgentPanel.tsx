@@ -235,7 +235,7 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   if (chat.surface === 'gui') {
     return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
       agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} epic={epic}
-      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} />
+      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} browser={window.dm.browser} />
   }
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }

@@ -160,7 +160,8 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
     const callsign = rootCallsignOf(chat)?.role
     const skitarii = shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'
     return <AgentChat folder={folder} folderKey={folderKey} chatId={chat.id} agentLabel={cli} agentChip={callsign === undefined ? cli : `${callsign} · ${cli}`}
-      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii} />
+      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii}
+      browser={window.dm.browser} />
   }
   return (
     <TerminalPane

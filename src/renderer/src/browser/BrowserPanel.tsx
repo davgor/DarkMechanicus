@@ -5,6 +5,7 @@ import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
 import { useAnyOverlayOpen } from '../components/overlays'
 import type { RailTab } from '../components/RightRail'
+import { SitesPopover } from './SitesPopover'
 import { useBrowser, type BrowserHandle } from './useBrowser'
 import './browserPanel.css'
 
@@ -136,7 +137,7 @@ function PrivateTabButton({ state, browser }: { state: BrowserState | null; brow
   )
 }
 
-function Toolbar({ state, browser }: { state: BrowserState | null; browser: BrowserHandle }): JSX.Element {
+function Toolbar({ state, browser, sites }: { state: BrowserState | null; browser: BrowserHandle; sites: JSX.Element }): JSX.Element {
   // Back, Forward and Reload act on the agent tab, so they wait for it and stand down while the private tab is shown.
   const navigable = state?.tab != null && state.signIn === null
   return (
@@ -153,6 +154,7 @@ function Toolbar({ state, browser }: { state: BrowserState | null; browser: Brow
       </button>
       <AddressBar key={state?.tab?.url ?? ''} state={state} browser={browser} />
       <PrivateTabButton state={state} browser={browser} />
+      {sites}
     </div>
   )
 }
@@ -187,8 +189,8 @@ function Controls({ state, browser }: { state: BrowserState | null; browser: Bro
 
 /**
  * The rail's Browser tab for one chat: its tab strip, toolbar, ownership badge and controls over the content area,
- * a placeholder whose rect main covers with the chat's native browser view. Menus and popovers of this panel open in
- * the toolbar, never over the content area, since the native view draws above the page.
+ * a placeholder whose rect main covers with the chat's native browser view. Menus and popovers of this panel open from
+ * the toolbar; the native view draws above the page, so it is hidden while the Sites popover drops over the content.
  */
 export function BrowserPanel({ folder, chatId, api = window.dm.browser }: {
   folder: string | null
@@ -197,18 +199,21 @@ export function BrowserPanel({ folder, chatId, api = window.dm.browser }: {
 }): JSX.Element {
   const browser = useBrowser(folder, chatId, api)
   const overlay = useAnyOverlayOpen()
+  const [sitesOpen, setSitesOpen] = useState(false)
+  const hidden = overlay || sitesOpen
   const content = useRef<HTMLDivElement>(null)
-  useViewPlacement({ api, folder, chatId, content, shown: !overlay })
+  useViewPlacement({ api, folder, chatId, content, shown: !hidden })
   const { state } = browser
   const blank = state !== null && state.tab === null && state.signIn === null
+  const sites = <SitesPopover folder={folder} api={api} open={sitesOpen} onOpenChange={setSitesOpen} />
   return (
     <section className="bp" aria-label="Browser">
       <TabStrip state={state} browser={browser} />
-      <Toolbar state={state} browser={browser} />
+      <Toolbar state={state} browser={browser} sites={sites} />
       <Controls state={state} browser={browser} />
       {browser.error !== null && <p className="bp-error" role="alert">{browser.error}</p>}
-      <div ref={content} className={classNames('bp-content', overlay && 'bp-content-hidden')} role="region" aria-label="Browser page">
-        {overlay ? <p className="bp-note">{HIDDEN_TEXT}</p> : blank ? <p className="bp-note">{EMPTY_TEXT}</p> : null}
+      <div ref={content} className={classNames('bp-content', hidden && 'bp-content-hidden')} role="region" aria-label="Browser page">
+        {hidden ? <p className="bp-note">{HIDDEN_TEXT}</p> : blank ? <p className="bp-note">{EMPTY_TEXT}</p> : null}
       </div>
     </section>
   )
