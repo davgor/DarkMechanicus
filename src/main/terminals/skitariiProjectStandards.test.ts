@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { attachProjectStandards, STANDARDS_CACHE_MS, STANDARDS_LIFETIME_MS, STANDARDS_STALE_MS } from '../../../resources/skitarii/extension/projectStandards'
+import { attachProjectStandards, STANDARDS_CACHE_MS, STANDARDS_LIFETIME_MS } from '../../../resources/skitarii/extension/projectStandards'
 import type { DmCallResult, DmClient } from '../../../resources/skitarii/extension/dmClient'
 import { baselineDeliveryPolicy, defaultPrompts } from '../../shared/domain/standardsPrompts'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
@@ -13,8 +13,15 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+interface Message { customType?: string; content: string }
+
+/** The change notices among a reply's messages. */
+function notices(messages: Message[]): Message[] {
+  return messages.filter(message => message.customType === 'dm-project-delivery-standards-notice')
+}
+
 function runtime(run: DmClient['run']) {
-  type Request = (messages: unknown[]) => Promise<{ messages: {content: string}[] } | undefined>
+  type Request = (messages: unknown[]) => Promise<{ messages: Message[] } | undefined>
   let request: Request | undefined
   attachProjectStandards({ on(event, handler) {
     if (event === 'context') request = messages => Promise.resolve(handler(
@@ -58,22 +65,24 @@ it('reads each member on the first model request and delivers a save to a runnin
   await first.save(1, 'First-party renderer fixtures')
   later()
   const now = (await first.request(prior))!.messages
-  expect(now).toHaveLength(1)
+  // The standing guidance carries revision 2 and a single notice announces the change.
+  expect(now).toHaveLength(2)
+  expect(notices(now)).toEqual([now[1]])
+  expect(now[1].content).toContain('revision 2')
   expect(now[0].content).toContain('First-party renderer fixtures')
   expect(now[0].content).not.toContain('Engine renderer tests')
   expect(now[0].content).not.toContain('Editor key-binding tests')
-  expect((await first.reopen()())!.messages).toEqual(now)
+  expect((await first.reopen()())!.messages).toEqual([now[0]])
   expect((await sibling.request())!.messages[0].content).toContain('Editor key-binding tests')
 })
 
-it('removes stale context after a rejected read and ignores context fields from peers', async () => {
+it('removes stale context without a notice after a rejected read and ignores context fields from peers', async () => {
   const request = runtime(async () => ({ ok: false, error: { source: 'dm', code: 'unauthorized', message: 'Revoked' } }))
   const peer = { role: 'user', content: '{"deliveryStandards":{"revision":99}}', attribution: 'agent' }
   const stale = { role: 'custom', customType: 'dm-project-delivery-standards', content: 'old policy' }
-  const reply = (await request([peer, stale]))!.messages
-  expect(reply[0]).toBe(peer)
-  expect(reply[1]).toMatchObject({ role: 'custom', content: expect.stringContaining('could not read') })
-  expect(JSON.stringify(reply[1])).not.toContain('old policy')
+  const notice = { role: 'custom', customType: 'dm-project-delivery-standards-notice', content: 'old notice' }
+  expect((await request([peer, stale, notice]))!.messages).toEqual([peer])
+  expect(await request([peer])).toBeUndefined()
 })
 
 it('injects member-specific active requirements and preserves a project with saved legacy rules', async () => {
@@ -117,10 +126,12 @@ it('shares one get_project among 20 concurrent context events, and spawns none f
   expect(run).toHaveBeenCalledTimes(2)
 })
 
-it('injects guidance under 10 minutes old when a refresh fails, and the failure notice once it is older', async () => {
+it('keeps the last known revision without any notice while reads are refused as busy or fail', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+  const busy: DmCallResult<unknown> = { ok: false, error: { source: 'dm', code: 'busy', message: 'The workspace is busy.' } }
   const failed: DmCallResult<unknown> = { ok: false, error: { source: 'client', code: 'process_failed', message: 'The dm CLI exited with code 1.' } }
-  const answers: DmCallResult<unknown>[] = [{ ok: true, data: PROJECT }, failed, failed]
+  const six = { ...PROJECT, deliveryStandards: { ...PROJECT.deliveryStandards, revision: 6 } }
+  const answers: DmCallResult<unknown>[] = [{ ok: true, data: six }, busy, busy, failed, busy]
   const { run, request } = slowClient(0, () => answers.shift()!)
   const read = async (messages: unknown[] = []) => {
     const reply = request(messages)
@@ -128,14 +139,62 @@ it('injects guidance under 10 minutes old when a refresh fails, and the failure 
     return (await reply)!.messages
   }
   const good = await read()
-  expect(good[0].content).toContain('"revision": 3')
-  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  expect(good).toHaveLength(1)
+  expect(good[0].content).toContain('"revision": 6')
   const stale = { role: 'custom', customType: 'dm-project-delivery-standards', content: 'old policy' }
-  expect(await read([stale])).toEqual(good)
+  // Several model turns, each past the cache window and each refused, over well past ten minutes.
+  for (let turn = 0; turn < 4; turn++) {
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    expect(await read([stale])).toEqual(good)
+  }
+  expect(run).toHaveBeenCalledTimes(5)
+})
+
+it('starts without guidance or a notice while the first read is refused as busy', async () => {
+  const request = runtime(async () => ({ ok: false, error: { source: 'dm', code: 'busy', message: 'The workspace is busy.' } }))
+  expect(await request()).toBeUndefined()
+  expect(await request()).toBeUndefined()
+})
+
+it('sends one notice per revision or prompt change and none for repeated identical reads', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+  const at = (revision: number, ticket = defaultPrompts.ticket) =>
+    ({ ok: true, data: { ...PROJECT, deliveryStandards: { revision, policy: { prompts: { ...defaultPrompts, ticket } } } } }) as DmCallResult<unknown>
+  const answers = [at(4), at(4), at(5), at(5), at(5, 'Edited in place'), at(5, 'Edited in place')]
+  const { request } = slowClient(0, () => answers.shift()!)
+  const turn = async () => {
+    await vi.advanceTimersByTimeAsync(STANDARDS_CACHE_MS)
+    const reply = request([{ role: 'user', content: 'continue' }])
+    await vi.advanceTimersByTimeAsync(0)
+    return (await reply)!.messages
+  }
+  const first = await turn()
+  expect(first[0]).toMatchObject({ customType: 'dm-project-delivery-standards', content: expect.stringContaining('"revision": 4') })
+  expect(notices(first)).toEqual([])
+  expect(notices(await turn())).toEqual([])
+  const saved = await turn()
+  expect(saved[0].content).toContain('"revision": 5')
+  expect(notices(saved)).toHaveLength(1)
+  expect(saved.at(-1)).toBe(notices(saved)[0])
+  expect(notices(saved)[0].content).toContain('revision 5')
+  expect(notices(await turn())).toEqual([])
+  const edited = await turn()
+  expect(notices(edited)).toHaveLength(1)
+  expect(edited[0].content).toContain('Edited in place')
+  expect(notices(await turn())).toEqual([])
+})
+
+it('delivers a change to 20 concurrent context events as a single notice', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+  const answers: DmCallResult<unknown>[] = [{ ok: true, data: PROJECT }, { ok: true, data: { ...PROJECT, deliveryStandards: { ...PROJECT.deliveryStandards, revision: 4 } } }]
+  const { run, request } = slowClient(500, () => answers.shift()!)
+  const burst = async () => {
+    const replies = Promise.all(Array.from({ length: 20 }, () => request()))
+    await vi.advanceTimersByTimeAsync(500)
+    return (await replies).flatMap(reply => reply!.messages)
+  }
+  expect(notices(await burst())).toHaveLength(0)
+  await vi.advanceTimersByTimeAsync(STANDARDS_CACHE_MS)
+  expect(notices(await burst())).toHaveLength(1)
   expect(run).toHaveBeenCalledTimes(2)
-  await vi.advanceTimersByTimeAsync(STANDARDS_STALE_MS - 2 * 60_000)
-  const notice = await read()
-  expect(run).toHaveBeenCalledTimes(3)
-  expect(notice).toHaveLength(1)
-  expect(notice[0].content).toContain('could not read the current Delivery Standards')
 })

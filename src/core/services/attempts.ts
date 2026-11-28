@@ -41,7 +41,7 @@ import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
-import { itemWorkflow } from './workflowPolicy'
+import { claimWorkflow, itemWorkflow } from './workflowPolicy'
 import { isAcceptanceTicket } from '../plan/acceptance'
 import { matchProfile } from '../plan/capabilities'
 import { LIMITS } from '../schemas'
@@ -457,7 +457,8 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
   const applied = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
   const ticket = effectiveTicket(ticketOf(context.bundle, row.ticket_id), applied)
   const sprintRule = rules.find(s => s.kind === 'sprint' && s.id === view.sprintId)
-  const deliveryStandards = isAcceptanceTicket(ticket) ? sprintRule : applied
+  const deliveryStandards = isAcceptanceTicket(ticket) ? claimWorkflow(ctx, context.run.epic_id, 'sprint', view.sprintId)
+    : claimWorkflow(ctx, context.run.epic_id, 'ticket', row.ticket_id)
   return {
     ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
     runId: context.run.id,
