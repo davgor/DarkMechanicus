@@ -297,3 +297,7 @@ Nothing was restarted, installed, rerun or dispatched by this check.
 pre-restart: chatId=chat_5c20535d-0320-4e28-8410-04e775097d19 sessionId=01a21b3e-b51c-77d1-b89d-0b423dd491b7 lastItemId=toolu_01CoNG5SifAmCPxkpD49ek84
 
 Recorded 2026-11-28T07:42:13Z before asking the person to install v0.92.0 and press Restart now. Release v0.92.0 = 7a31fb5cbb548fd2c768a184ad5c474f93c35895 (contains PR #109 squash 0c6ae052).
+
+pre-restart: chatId=chat_5c20535d-0320-4e28-8410-04e775097d19 sessionId=01a21b3e-b51c-77d1-b89d-0b423dd491b7 lastItemId=toolu_01N9AMF3nnVrqeFXdG5EuWDS
+
+Recorded 2026-11-28T11:43:59Z before asking the person to install v0.93.0 (28fd9e7c, contains PR #110 DM-1108 fix) and press Restart now; needed to name the Sprint 4 increment.
