@@ -1,0 +1,398 @@
+/**
+ * Publishing a run's Shrine (DM-632 c1, c3): every unsafe candidate refused (outside the work dir, `..`, a symlink out
+ * of it, another type, over 10 MiB); a publish and each change of the published file bump the revision and are told as a
+ * run change; the watch is debounced, scoped to that one file, reconciled against the file's stat when it starts and
+ * periodically (so an edit whose event came before the watch was live, or never came, still bumps), and stops when the
+ * run ends, is published over or the service is disposed. Over the real cult store and real files; the clock is a fake
+ * the test drives, and so is the watcher except in the last test, which runs the real `fs.watch` (whose event delivery
+ * the OS does not guarantee, so that test asserts only what the reconcile makes certain).
+ */
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Db } from '../../core/db/database'
+import { DomainError } from '../../core/errors'
+import type { CultMemberView, CultRunView } from '../../shared/cults/cult'
+import { SHRINE_MAX_BYTES } from '../../shared/cults/shrine'
+import { openAppDatabase } from '../desktop/appDatabase'
+import { FakeClock } from '../terminals/__mocks__/terminalSessionsRig'
+import { createCultShrines, type CultShrines, readShrine, resolveShrine, SHRINE_RECONCILE_MS } from './cultShrine'
+import { createCultStore, type CultStore } from './cultStore'
+import type { CultRunSnapshot } from './cultSupervisor'
+
+interface FakeWatcher {
+  dir: string
+  closed: boolean
+  fire(filename: string | null): void
+}
+
+interface Fixture {
+  root: string
+  work: string
+  outside: string
+  db: Db
+  store: CultStore
+  run: CultRunView
+  clock: FakeClock
+  watchers: FakeWatcher[]
+  changed: string[]
+  listeners: Set<(snapshot: CultRunSnapshot) => void>
+  shrines: CultShrines
+}
+
+let f: Fixture
+
+const MAGOS = { displayName: 'Magos Vettius' } as CultMemberView
+
+function fixture(): Fixture {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-shrine-')))
+  const work = join(root, 'work')
+  const outside = join(root, 'outside')
+  mkdirSync(work)
+  mkdirSync(outside)
+  const db = openAppDatabase(mkdtempSync(join(root, 'app-')))
+  const store = createCultStore({ db })
+  const cult = store.createCult({ name: 'Gerry the plant', charter: 'Grow.', scope: 'sanctum', folderPath: null, archetype: 'general', magosName: 'Magos Vettius', magosModelId: null, defaultTimeLimitMs: null })
+  const run = store.startRun(cult.id, { workDir: work })
+  const clock = new FakeClock()
+  const watchers: FakeWatcher[] = []
+  const changed: string[] = []
+  const listeners = new Set<(snapshot: CultRunSnapshot) => void>()
+  const shrines = createCultShrines({
+    cults: store,
+    supervisor: {
+      on: (_event, listener) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+      },
+      changed: (runId) => void changed.push(runId)
+    },
+    clock,
+    watch: (dir, onChange) => {
+      const watcher: FakeWatcher = { dir, closed: false, fire: (name) => { if (!watcher.closed) onChange(name) } }
+      watchers.push(watcher)
+      return { close: () => void (watcher.closed = true) }
+    }
+  })
+  return { root, work, outside, db, store, run, clock, watchers, changed, listeners, shrines }
+}
+
+beforeEach(() => {
+  f = fixture()
+})
+
+afterEach(() => {
+  f.shrines.dispose()
+  f.db.close()
+  rmSync(f.root, { recursive: true, force: true })
+})
+
+const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
+const write = (path: string, content: string | Buffer = PNG): string => {
+  writeFileSync(path, content)
+  return path
+}
+const run = (): CultRunView => f.store.getRun(f.run.id)!
+
+async function codeOf(work: Promise<unknown>): Promise<string> {
+  try {
+    await work
+  } catch (error) {
+    return error instanceof DomainError ? error.code : `raw:${String(error)}`
+  }
+  return 'accepted'
+}
+
+/** A real change of the file: new content, so its size and modified time differ. */
+function edit(path: string, content: string): void {
+  writeFileSync(path, content)
+}
+
+/** Publishes and lets the watch's start reconcile run (nothing changed yet), so later checks are the test's own. */
+async function published(name: string): Promise<void> {
+  await f.shrines.publish(run(), MAGOS, name)
+  f.clock.advance(0)
+  await f.shrines.settled()
+}
+
+describe('publish_shrine refusals (c1)', () => {
+  it('refuses a file outside the work dir, by absolute path and by ..', async () => {
+    write(join(f.outside, 'secret.png'))
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, join(f.outside, 'secret.png')))).toBe('shrine_refused')
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, '../outside/secret.png'))).toBe('shrine_refused')
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, f.work))).toBe('shrine_refused')
+    expect(f.watchers).toHaveLength(0)
+    expect(run().shrinePath).toBeNull()
+  })
+
+  it('refuses a symlink escape: a linked folder inside the work dir that leads out of it', async () => {
+    write(join(f.outside, 'secret.png'))
+    // A junction needs no privilege on Windows; elsewhere the type is ignored and it is a directory symlink.
+    symlinkSync(f.outside, join(f.work, 'door'), 'junction')
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'door/secret.png'))).toBe('shrine_refused')
+    expect(run().shrinePath).toBeNull()
+  })
+
+  it.runIf(process.platform !== 'win32')('refuses a file symlink out of the work dir and accepts one that stays inside, as its real path', async () => {
+    write(join(f.outside, 'secret.html'), '<p>secret</p>')
+    symlinkSync(join(f.outside, 'secret.html'), join(f.work, 'escape.html'))
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'escape.html'))).toBe('shrine_refused')
+    const real = write(join(f.work, 'real.png'))
+    symlinkSync(real, join(f.work, 'alias.png'))
+    expect(await f.shrines.publish(run(), MAGOS, 'alias.png')).toEqual({ shrinePath: real, kind: 'image', revision: '1' })
+  })
+
+  it('refuses every other type, a folder and a missing file; accepts png, jpg, jpeg, svg and html in any case', async () => {
+    for (const name of ['notes.txt', 'page.htm', 'tool.exe', 'shrine', 'image.png.txt', 'x.svgz']) {
+      write(join(f.work, name))
+      expect(await codeOf(f.shrines.publish(run(), MAGOS, name)), name).toBe('shrine_refused')
+    }
+    mkdirSync(join(f.work, 'folder.html'))
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'folder.html'))).toBe('shrine_refused')
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'missing.png'))).toBe('shrine_refused')
+    for (const name of ['a.png', 'b.jpg', 'c.jpeg', 'd.svg', 'e.html', 'F.PNG']) {
+      write(join(f.work, name))
+      expect(await codeOf(f.shrines.publish(run(), MAGOS, name)), name).toBe('accepted')
+    }
+  })
+
+  it('refuses a file over 10 MiB and accepts one of exactly 10 MiB', async () => {
+    const big = write(join(f.work, 'big.png'))
+    truncateSync(big, SHRINE_MAX_BYTES + 1)
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'big.png'))).toBe('shrine_refused')
+    truncateSync(big, SHRINE_MAX_BYTES)
+    expect(await codeOf(f.shrines.publish(run(), MAGOS, 'big.png'))).toBe('accepted')
+  })
+
+  it('refuses a paused or ended run', async () => {
+    write(join(f.work, 'a.png'))
+    expect(await codeOf(f.shrines.publish({ ...run(), state: 'paused' }, MAGOS, 'a.png'))).toBe('run_paused')
+    expect(await codeOf(f.shrines.publish({ ...run(), state: 'ended' }, MAGOS, 'a.png'))).toBe('run_ending')
+  })
+})
+
+describe('the published Shrine, live (c3)', () => {
+  it('records the real path, its kind, the publisher and a new revision on every publish', async () => {
+    const html = write(join(f.work, 'index.html'), '<h1>Gerry</h1>')
+    expect(await f.shrines.publish(run(), MAGOS, 'index.html')).toEqual({ shrinePath: html, kind: 'html', revision: '1' })
+    expect(run()).toMatchObject({ shrinePath: html, shrineRevision: '1' })
+    expect(await f.shrines.publish(run(), { displayName: 'Acolyte Brass' } as CultMemberView, 'index.html')).toMatchObject({ revision: '2' })
+    expect(f.store.latestShrineEvent(f.run.id)).toMatchObject({ memberName: 'Acolyte Brass' })
+    expect(f.store.pageEvents(f.run.id).events.filter((event) => event.kind === 'shrine_published')).toHaveLength(2)
+  })
+
+  it('bumps the revision once per settled edit of the published file and tells the run changed', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    expect(run().shrineRevision).toBe('1')
+    const [watcher] = f.watchers
+    expect(watcher).toMatchObject({ dir: f.work, closed: false })
+
+    edit(path, '<h1>version two</h1>')
+    watcher!.fire('index.html')
+    f.clock.advance(100)
+    watcher!.fire('index.html')
+    f.clock.advance(299)
+    expect(run().shrineRevision).toBe('1')
+    f.clock.advance(1)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toEqual([f.run.id])
+    expect(f.store.latestShrineEvent(f.run.id)).toMatchObject({ memberName: 'Magos Vettius' })
+
+    // Another file of the folder arms nothing (only the reconcile is pending); an unchanged file tells nothing.
+    watcher!.fire('other.html')
+    expect(f.clock.pending).toBe(1)
+    watcher!.fire('index.html')
+    f.clock.advance(1_000)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toHaveLength(1)
+  })
+})
+
+describe('the Shrine reconcile: an edit whose watch event is lost still bumps (c3)', () => {
+  it('bumps for an edit made before the watch was live: the start reconcile compares the stat publish recorded', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await f.shrines.publish(run(), MAGOS, 'index.html')
+    // The edit lands while the watch is starting; its event never arrives.
+    edit(path, '<h1>edited at once</h1>')
+    f.clock.advance(0)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toEqual([f.run.id])
+  })
+
+  it('bumps for an edit whose watch event never came, at the next reconcile, and tells an evented edit only once', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    edit(path, '<h1>dropped event</h1>')
+    f.clock.advance(SHRINE_RECONCILE_MS - 1)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('1')
+    f.clock.advance(1)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+
+    // The event's debounced check and a reconcile both run after one edit: the second finds it already told.
+    edit(path, '<h1>both paths see this edit</h1>')
+    f.watchers[0]!.fire('index.html')
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('3')
+    expect(f.changed).toHaveLength(2)
+  })
+})
+
+describe('the Shrine reconcile: a deleted or superseded file', () => {
+  it('bumps when the published file is deleted, so the view reloads to show it gone', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    rmSync(path)
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+    expect(f.changed).toEqual([f.run.id])
+    // Still gone at the next reconcile: nothing new to tell.
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('2')
+  })
+
+  it('tells nothing for a change of a file the run no longer records as its Shrine', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await published('index.html')
+    // Recorded elsewhere (not through this service), so this watch is still live but no longer the run's Shrine.
+    f.store.recordShrine(f.run.id, { path: write(join(f.work, 'other.png')), memberName: 'Acolyte Brass' })
+    edit(path, '<h1>late edit</h1>')
+    f.clock.advance(SHRINE_RECONCILE_MS)
+    await f.shrines.settled()
+    expect(run()).toMatchObject({ shrinePath: join(f.work, 'other.png'), shrineRevision: '2' })
+    expect(f.changed).toEqual([])
+  })
+})
+
+describe('the Shrine watch stops (c3)', () => {
+  it('watches only the latest published file: a republish closes the earlier watch', async () => {
+    write(join(f.work, 'a.png'))
+    write(join(f.work, 'b.png'))
+    await f.shrines.publish(run(), MAGOS, 'a.png')
+    await f.shrines.publish(run(), MAGOS, 'b.png')
+    expect(f.watchers.map((watcher) => watcher.closed)).toEqual([true, false])
+    // Only the latest watch's start reconcile is still armed.
+    expect(f.clock.pending).toBe(1)
+  })
+
+  it('stops the watch when the run ends: a later edit changes nothing', async () => {
+    const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+    await f.shrines.publish(run(), MAGOS, 'index.html')
+    expect(f.shrines.watching(f.run.id)).toBe(true)
+    for (const listener of f.listeners) listener({ run: { ...run(), state: 'running' }, members: [], petitions: [] })
+    expect(f.shrines.watching(f.run.id)).toBe(true)
+    for (const listener of f.listeners) listener({ run: { ...run(), state: 'ended' }, members: [], petitions: [] })
+    expect(f.shrines.watching(f.run.id)).toBe(false)
+    expect(f.watchers[0]!.closed).toBe(true)
+    edit(path, '<h1>after the end</h1>')
+    f.watchers[0]!.fire('index.html')
+    // No debounce and no reconcile is left armed: nothing will check the file again.
+    expect(f.clock.pending).toBe(0)
+    f.clock.advance(SHRINE_RECONCILE_MS * 3)
+    await f.shrines.settled()
+    expect(run().shrineRevision).toBe('1')
+  })
+
+  it('stops every watch and hears no more run changes once disposed', async () => {
+    write(join(f.work, 'a.png'))
+    await f.shrines.publish(run(), MAGOS, 'a.png')
+    f.shrines.dispose()
+    expect(f.watchers[0]!.closed).toBe(true)
+    expect(f.clock.pending).toBe(0)
+    expect(f.listeners.size).toBe(0)
+  })
+
+  it('publishes for a run that ended while the file was checked, but leaves no watch behind', async () => {
+    write(join(f.work, 'a.png'))
+    const stale = { ...f.store.transitionRun(f.run.id, { type: 'started' }) }
+    f.store.transitionRun(f.run.id, { type: 'shutdown', reason: 'stopped' })
+    f.store.transitionRun(f.run.id, { type: 'finish' })
+    expect(await f.shrines.publish(stale, MAGOS, 'a.png')).toEqual({ shrinePath: join(f.work, 'a.png'), kind: 'image', revision: '1' })
+    expect(f.shrines.watching(f.run.id)).toBe(false)
+    expect(f.watchers[0]!.closed).toBe(true)
+    expect(f.clock.pending).toBe(0)
+  })
+})
+
+describe('reading the recorded Shrine', () => {
+  it('reads the bytes again under the same checks, and refuses a file grown past 10 MiB or replaced by a link', async () => {
+    const path = write(join(f.work, 'a.png'))
+    expect(await readShrine(f.work, path)).toEqual({ bytes: new Uint8Array(PNG), extension: 'png' })
+    truncateSync(path, SHRINE_MAX_BYTES + 1)
+    expect(await codeOf(readShrine(f.work, path))).toBe('shrine_refused')
+    expect(await codeOf(readShrine(f.work, join(f.outside, 'a.png')))).toBe('shrine_refused')
+    expect(await codeOf(resolveShrine(f.work, join(f.work, '..', 'outside')))).toBe('shrine_refused')
+  })
+
+  it.runIf(process.platform !== 'win32')('refuses a recorded path that has since become a symlink', async () => {
+    const path = write(join(f.work, 'a.png'))
+    const inside = write(join(f.work, 'b.png'))
+    rmSync(path)
+    symlinkSync(inside, path)
+    expect(await codeOf(readShrine(f.work, path))).toBe('shrine_refused')
+  })
+})
+
+describe('the real file watch', () => {
+  it('watches the folder with the real fs.watch, bumps for an edit made right after publish, and closes on dispose', async () => {
+    const changed: string[] = []
+    // The real watcher; the clock stays the fake, so the reconcile that makes the bump certain runs when the test says,
+    // whether or not the OS delivers the edit's event (FSEvents may drop one made before its stream is live).
+    const shrines = createCultShrines({ cults: f.store, clock: f.clock, supervisor: { on: () => () => {}, changed: (runId) => void changed.push(runId) } })
+    try {
+      const path = write(join(f.work, 'live.html'), '<p>one</p>')
+      await shrines.publish(run(), MAGOS, 'live.html')
+      expect(shrines.watching(f.run.id)).toBe(true)
+      edit(path, '<p>two, longer</p>')
+      f.clock.advance(0)
+      await shrines.settled()
+      expect(run().shrineRevision).toBe('2')
+      expect(changed).toEqual([f.run.id])
+    } finally {
+      shrines.dispose()
+    }
+    expect(shrines.watching(f.run.id)).toBe(false)
+    expect(f.clock.pending).toBe(0)
+  })
+})
+
+describe('the Shrine on the system clock', () => {
+  it('runs on the system clock and swallows a failing check when no clock or error handler is given', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const watchers: { close(): void }[] = []
+    const shrines = createCultShrines({
+      cults: { ...f.store, bumpShrine: () => { throw new Error('database is locked') } },
+      supervisor: { on: () => () => {}, changed: (runId) => void f.changed.push(runId) },
+      watch: () => {
+        const watcher = { close: () => {} }
+        watchers.push(watcher)
+        return watcher
+      }
+    })
+    try {
+      const path = write(join(f.work, 'index.html'), '<h1>v1</h1>')
+      await shrines.publish(run(), MAGOS, 'index.html')
+      edit(path, '<h1>edited</h1>')
+      await vi.advanceTimersByTimeAsync(0)
+      await shrines.settled()
+      expect(f.changed).toEqual([])
+      // The failed check left the watch reconciling.
+      expect(shrines.watching(f.run.id)).toBe(true)
+      expect(vi.getTimerCount()).toBe(1)
+      shrines.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      shrines.dispose()
+      vi.useRealTimers()
+    }
+  })
+})

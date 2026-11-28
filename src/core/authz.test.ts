@@ -62,7 +62,8 @@ const ORCHESTRATOR: Capability[] = [
   'kanban.claim',
   'kanban.report',
   'metrics.report',
-  'metrics.report_run'
+  'metrics.report_run',
+  'cult.act'
 ]
 
 const WORKER: Capability[] = [
@@ -75,7 +76,8 @@ const WORKER: Capability[] = [
   'attachment.write',
   'kanban.report',
   'metrics.report',
-  'mail.use'
+  'mail.use',
+  'cult.act'
 ]
 const REVIEWER: Capability[] = ['read', 'chat.name', 'human.ask', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 
@@ -150,7 +152,8 @@ const AGENT_ONLY = [
   'ticket.auto_retry',
   'metrics.report',
   'metrics.report_run',
-  'mail.use'
+  'mail.use',
+  'cult.act'
 ] as const
 
 const READER: Capability[] = ['read']
@@ -271,6 +274,13 @@ describe('mailbox capabilities', () => {
       'reviewer'
     ])
     expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('mail.manage'))).toEqual(['desktop'])
+  })
+
+  it('gives cult.act to the roles a Magos and its acolytes hold, never to the desktop', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('cult.act'))).toEqual([
+      'orchestrator',
+      'worker'
+    ])
   })
 })
 

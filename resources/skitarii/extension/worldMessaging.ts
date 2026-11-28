@@ -80,7 +80,7 @@ export function attachWorldMessaging(pi: MailApi, world: WorldMailClients, timer
   const choices = world.projects.map(route => route.project)
   const routes = world.projects.map(route => {
     const client = projectClient(route.client, route.folder)
-    return { ...route, client, tools: mailTools(client, support.type), watcher: attachMailWatcher(projectApi(pi, route.project), client, timers, route.folder) }
+    return { ...route, client, tools: mailTools(client, support.type), watcher: attachMailWatcher(projectApi(pi, route.project), client, timers, { project: route.folder }) }
   })
   if (routes.length === 0) pi.on('session_start', (_event, ctx) => {
     if (ctx.hasUI && ctx.agent?.kind !== 'sub') ctx.ui.setStatus?.(MAIL_STATUS_KEY, 'Skitarii mail: no project mailboxes in this Forge World')

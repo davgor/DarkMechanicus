@@ -438,3 +438,12 @@ describe('xtermKit title', () => {
     expect(heard).toEqual(['Skitarii · work'])
   })
 })
+
+describe('xtermKit watch-only', () => {
+  it('disables stdin for a watch-only terminal, and leaves it on otherwise', () => {
+    createXtermKit(PARTS).create(host, { theme: THEME, fontFamily: 'Menlo', watchOnly: true })
+    create()
+    expect(terminals[0]?.options.disableStdin).toBe(true)
+    expect(terminals[1]?.options.disableStdin).toBe(false)
+  })
+})

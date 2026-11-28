@@ -213,11 +213,51 @@ export async function getAgentAuthStatus(
   executablePath: string,
   deps: AgentProbeDeps
 ): Promise<AgentAuthStatus> {
+  const run = await runStatusCommand(kind, executablePath, deps)
+  return 'state' in run ? run : interpretStatus(kind, run.outcome)
+}
+
+async function runStatusCommand(
+  kind: BuiltInAgentKind,
+  executablePath: string,
+  deps: AgentProbeDeps
+): Promise<AgentAuthStatus | { outcome: ProcessOutcome }> {
   const plan = planCliLaunch(executablePath, STATUS_ARGS[kind], deps)
   if ('ok' in plan) {
     return unknown(plan.reason)
   }
-  return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS[kind]))
+  return { outcome: await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS[kind]) }
+}
+
+/** OMP's sign-in status, classified exactly as `agents:status` does, and the providers it holds an account for. */
+interface OmpSignIn {
+  status: AgentAuthStatus
+  /** Providers named by `reports` or `accountsWithoutUsage`; empty unless signed in. Nothing else is kept. */
+  providers: readonly string[]
+}
+
+const ompAccountSchema = z.object({ provider: z.string() })
+
+function accountProviders(accounts: readonly unknown[]): string[] {
+  return accounts.flatMap((account) => {
+    const parsed = ompAccountSchema.safeParse(account)
+    return parsed.success ? [parsed.data.provider] : []
+  })
+}
+
+/** Runs `omp usage --json` once and reads which providers are signed in; the output is dropped after. */
+export async function getOmpSignIn(executablePath: string, deps: AgentProbeDeps): Promise<OmpSignIn> {
+  const run = await runStatusCommand('omp', executablePath, deps)
+  if ('state' in run) {
+    return { status: run, providers: [] }
+  }
+  const status = interpretStatus('omp', run.outcome)
+  if (status.state !== 'signed_in' || run.outcome.kind !== 'exited') {
+    return { status, providers: [] }
+  }
+  const usage = ompUsageSchema.parse(parseJsonDocument(run.outcome.output.replace(ANSI_ESCAPE, '')))
+  const providers = accountProviders([...usage.reports, ...usage.accountsWithoutUsage])
+  return { status, providers: [...new Set(providers)] }
 }
 
 /** A connected built-in agent: the only kind whose status and login commands the app knows. */

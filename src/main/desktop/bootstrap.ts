@@ -6,7 +6,11 @@
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
-import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
+import { createControlPipe, type ControlPipe, type NamingDispatcher } from '../naming/controlPipe'
+import { NamingControlError } from '../../shared/agents/chatNaming'
+import { isCultOperation } from '../../shared/cults/cultControl'
+import { createCultDispatcher, planTargetRevision } from '../cults/cultCommands'
+import { announcingDispatcher, createCultHandlers, type CultHandlerDeps, forwardCultEvents, registerCultIpc } from '../cults/cultHandlers'
 import { createNamingDispatcher } from '../naming/namingCommands'
 import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
 import { existsSync, realpathSync } from 'node:fs'
@@ -46,7 +50,7 @@ import { createConversationDeliveries, type ConversationDeliveries } from '../ag
 import { createAgentContextDelivery, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
 import { pasteBoardOnSurface, resumeChatOnSurface } from '../agents/chatSurfaceStart'
 import type { ConversationReads } from '../agents/conversationTarget'
-import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
+import { createAgentMailDesktop, type AgentMailDesktop, type AgentMailDesktopDeps } from '../agents/agentMailDesktop'
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc, sendToWindows } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
@@ -109,6 +113,18 @@ import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createCrossRepoCorrectionHandlers, registerCrossRepoCorrectionIpc } from './crossRepoCorrections'
 import { createFolderAgentDefaults, type FolderAgentDefaults } from './folderAgentDefaults'
+import { createSanctumRegistry, withSanctums, type SanctumRegistry } from '../cults/sanctumRegistry'
+import { createCultStore, type CultStore } from '../cults/cultStore'
+import { createCultPipeline, type CultPipeline } from '../cults/cultPipeline'
+import { createCultControl } from '../cults/cultControl'
+import { createCultLedger, systemLeftovers } from '../cults/cultLedger'
+import { createCultLauncher } from '../cults/cultLauncher'
+import { createPlanForgeCouncil } from '../cults/planForgeCouncil'
+import { createCultSupervisor, type CultSupervisor } from '../cults/cultSupervisor'
+import { createCultWake, type CultWake } from '../cults/cultWake'
+import { createCultShrines } from '../cults/cultShrine'
+import { createShrineLookup, registerShrineProtocol } from '../cults/shrineProtocol'
+import { cheapest, createOmpModelCatalog } from '../cults/ompModels'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import {
@@ -374,6 +390,10 @@ interface ChatProcesses {
   mail: AgentMailDesktop
   suspendChatMail(chat: ChatRecord): Promise<void>
   grants: ChatGrants
+  /** Serves the cult operations of the control pipe once the cult supervisor has started (`startCults`). */
+  setCultDispatcher(dispatch: NamingDispatcher): void
+  /** The standing cult wake the mail monitor offers undelivered mail to, once the cult supervisor has started. */
+  setCultWake(wake: CultWake): void
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
@@ -439,7 +459,9 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
 }
 
 interface ChatProcessOptions {
+  /** The sanctum-aware gates (`withSanctums`): tracked folders, then registered cult sanctums. */
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  sanctums: Pick<SanctumRegistry, 'list'>
   agents: Pick<AgentRegistry, 'get'>
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
@@ -473,6 +495,25 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuit
   }
 }
 
+/** Routes each control pipe operation: naming, then cult operations once the supervisor serves them, then repair. */
+function pipeDispatcher(naming: NamingDispatcher, recovery: () => DesktopToolingRecovery, cults: () => NamingDispatcher | null): NamingDispatcher {
+  return (operation, context) => {
+    if (operation.op === 'name_chat') return naming(operation, context)
+    if (!isCultOperation(operation.op)) return recovery().dispatch(operation, context)
+    const dispatch = cults()
+    if (dispatch === null) throw new NamingControlError('operation_unavailable')
+    return dispatch(operation, context)
+  }
+}
+
+/** Starts the control pipe; `listening` gets it once it listens. A failed start is logged at once and still rejects. */
+function listenControlPipe(grants: ChatGrants, dispatch: NamingDispatcher, listening: (pipe: ControlPipe) => void): Promise<void> {
+  const ready = createControlPipe({ authorize: token => grants.authorizeNaming(token), dispatch }).then(listening)
+  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
+  void ready.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
+  return ready
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -480,7 +521,7 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuit
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, sanctums, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages })
@@ -518,16 +559,15 @@ function createChatProcesses({ folders, agents, workspaces, activity, settings, 
     context: contextDelivery, deliveries, resume: resumeChat,
     onNoticeError: error => logger.error('Tooling repair notice failed:', error),
   })
-  const naming = createNamingDispatcher({ store, push })
-  namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
-    dispatch: (operation, context) => operation.op === 'name_chat' ? naming(operation, context) : recovery.dispatch(operation, context)
-  }).then(pipe => { namingPipe = pipe })
-  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
-  void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
+  let cults: NamingDispatcher | null = null
+  namingReady = listenControlPipe(grants, pipeDispatcher(createNamingDispatcher({ store, push }), () => recovery, () => cults), pipe => { namingPipe = pipe })
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins })
   const chats = endingAgentChats(records, terminals, owners.agentChats)
-  const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
+  let cultWake: CultWake | null = null
+  const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery,
+    cultWake: { offer: async (folder, chat, messages) => { await cultWake?.offer(folder, chat, messages) } } })
   return { chats, quit, store, terminals, agentChats: owners.agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat,
+    setCultDispatcher: dispatch => { cults = dispatch }, setCultWake: wake => { cultWake = wake },
     suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, ...ownerRelease(terminals, owners.agentChats, mailboxes, store) }
 }
 
@@ -1120,6 +1160,8 @@ function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: Folde
  */
 function createChatMail(services: {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  /** The registered sanctums, swept with the tracked folders (`docs/design/cults.md`, section 5). */
+  sanctums: Pick<SanctumRegistry, 'list'>
   store: ChatStore
   mailboxes: ChatMailboxes
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
@@ -1127,6 +1169,7 @@ function createChatMail(services: {
   resumeChat: (chat: ChatRecord) => Promise<string | null>
   boardTransport: BoardContextTransport
   recovery: { poll(folder: string): Promise<void> }
+  cultWake: NonNullable<AgentMailDesktopDeps['cultWake']>
 }): AgentMailDesktop {
   return createAgentMailDesktop({
     registry: services.folders,
@@ -1140,9 +1183,10 @@ function createChatMail(services: {
         (await services.mailboxes.routes(chat, member, background)).map(route => ({ ...chat, endpointId: route.endpointId }))))
       return routes.flat()
     },
-    folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
+    folders: () => [...services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []), ...services.sanctums.list()],
     workspaceFor: (folder, background) => desktopWorkspace(services.folders, services.workspaces, folder, background),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
+    cultWake: services.cultWake,
     board: { poll: async (folder) => {
       await services.contextDelivery.reconcileBoard(folder, services.boardTransport)
       await services.recovery.poll(folder)
@@ -1180,6 +1224,109 @@ function drainingApprovals(chats: DesktopBridge['chats'], approvals: LearningApp
     busy: () => chats.busy() || approvals.busy(),
     dispose: async () => {
       await Promise.all([chats.dispose(), approvals.dispose()])
+    }
+  }
+}
+
+/** What the cult runs are supervised over: the chat processes' records, terminals and grants, the sanctum-aware gates. */
+interface CultServiceDeps {
+  appDb: Db
+  registry: FolderRegistry
+  gates: FolderRegistry
+  sanctums: SanctumRegistry
+  agents: AgentRegistry
+  pool: WorkspacePool
+  processes: Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'grants' | 'setCultDispatcher' | 'setCultWake'>
+  ipc: Pick<IpcMain, 'handle'>
+}
+
+/** The `cults:*` channels over the supervisor, the store and the launcher, and the `cults:event` push of every run change. */
+function serveCults(deps: CultServiceDeps, services: Pick<CultHandlerDeps, 'cults' | 'supervisor' | 'launcher' | 'models' | 'pipeline'>): void {
+  const handlers = createCultHandlers({
+    ...services,
+    folders: deps.registry,
+    epicIn: (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId }),
+    onUnexpectedError: (error) => logger.error('Cult request failed:', error)
+  })
+  registerCultIpc(deps.ipc, handlers)
+  forwardCultEvents(services, () => BrowserWindow.getAllWindows())
+}
+
+/**
+ * The cult supervisor (`docs/design/cults.md`, section 3): runs left active by a crash are marked interrupted at once,
+ * and the processes and upgrades they left ended.
+ */
+function startCults(deps: CultServiceDeps): CultSupervisor {
+  const userData = app.getPath('userData')
+  const cults = createCultStore({ db: deps.appDb })
+  const { chats, store, terminals, grants } = deps.processes
+  const control = createCultControl({ userData, epochOf: (chatId) => terminals.generationOf(chatId) })
+  const models = createOmpModelCatalog({
+    ompPath: () => deps.agents.list().find((agent) => agent.kind === 'omp')?.executablePath ?? null, deps: agentRunDeps()
+  })
+  const council = createPlanForgeCouncil({
+    cults, workspaceFor: (folder) => desktopWorkspace(deps.gates, deps.pool, folder),
+    grantIdsOf: (run, chatId) => store.getChat({ folder: run.workDir, id: chatId })?.grantIds ?? []
+  })
+  const launcher = createCultLauncher({
+    cults, folders: deps.registry, sanctums: deps.sanctums, chats, terminals, control, userData, dmHome: darkMechanicusHome(),
+    workspaceFor: (folder) => desktopWorkspace(deps.gates, deps.pool, folder),
+    closeWorkspace: (folder) => deps.pool.close(folder),
+    cheapestModel: async () => cheapest((await models.list()).options)?.id ?? null,
+    bindTarget: (run) => council.bind(run)
+  })
+  const ledger = createCultLedger({ userData })
+  const supervisor = createCultSupervisor({
+    cults, launcher, terminals, control, ledger, grants, chatStore: store, userData,
+    revokeGrantIn: async (folder, grantId) => {
+      await desktopWorkspace(deps.gates, deps.pool, folder).revokeGrant({ grantId })
+    },
+    folders: deps.registry, leftovers: systemLeftovers(),
+    onError: (error) => logger.error('Cult supervision failed:', error)
+  })
+  void supervisor.reconcileOnStartup().catch((error: unknown) => logger.error('Cult startup recovery failed:', error))
+  deps.processes.setCultWake(createCultWake({
+    userData, supervisor, chats: store, epochOf: (chatId) => terminals.generationOf(chatId),
+    onError: (error) => logger.error('Cult wake failed:', error)
+  }))
+  const shrines = createCultShrines({ cults, supervisor, onError: (error) => logger.error('Cult Shrine watch failed:', error) })
+  registerShrineProtocol(protocol, createShrineLookup((runId) => cults.getRun(runId)))
+  const pipeline = cultPipeline(deps, cults)
+  deps.processes.setCultDispatcher(announcingDispatcher(createCultDispatcher({
+    supervisor, cults, council, shrines, pipeline,
+    models: async () => (await models.list()).options,
+    sendOrder: (order) => desktopWorkspace(deps.gates, deps.pool, order.folder).call('sendCultOrder', order),
+    targetRevision: planTargetRevision(cults, (folder, epicId) => desktopWorkspace(deps.gates, deps.pool, folder).getEpic({ epicId })),
+    folderGrants: (runId, chatId) => ledger.grants().flatMap((grant) =>
+      grant.runId === runId && grant.chatId === chatId && grant.kind === 'folder_access' && grant.tokenFile !== null ? [{ folder: grant.folder, tokenFile: grant.tokenFile }] : []),
+    onError: (error) => logger.error('Cult member conclusion failed:', error)
+  }), supervisor))
+  serveCults(deps, { cults, supervisor, launcher, models, pipeline })
+  // Quitting ends every run (which stops its Shrine watch), then closes what is left.
+  return { ...supervisor, dispose: async () => { await supervisor.dispose(); shrines.dispose() } }
+}
+
+/** The run pipeline: member inboxes read through the human read path in the run's work folder, merged with its events. */
+function cultPipeline(deps: CultServiceDeps, cults: CultStore): CultPipeline {
+  return createCultPipeline({
+    db: deps.appDb, cults,
+    // Only main's own record of a member chat of this run names its mailbox.
+    endpointOf: (run, chatId) => {
+      const chat = deps.processes.store.getChat({ folder: run.workDir, id: chatId })
+      return chat?.cultRunId === run.id ? (chat.endpointId ?? null) : null
+    },
+    readInbox: (run, endpointId, window) => desktopWorkspace(deps.gates, deps.pool, run.workDir).call('cultMailRead', endpointId, window),
+    onError: (error) => logger.error('Cult pipeline read failed:', error)
+  })
+}
+
+/** The quit also ends every cult run first: it is recorded interrupted and its upgrades revoked before the chats end. */
+function endingCults(chats: DesktopBridge['chats'], cults: Pick<CultSupervisor, 'busy' | 'dispose'>): DesktopBridge['chats'] {
+  return {
+    busy: () => chats.busy() || cults.busy(),
+    dispose: async () => {
+      await cults.dispose()
+      await chats.dispose()
     }
   }
 }
@@ -1354,9 +1501,23 @@ function startRestartResume({ registry, pool, store, terminals, agentChats }: {
   })
 }
 
+/** The settings channels over the main store's settings; an unexpected failure is logged. */
+function startSettings(ipc: Pick<IpcMain, 'handle'>, settings: AppSettings): void {
+  registerSettingsIpc(ipc, createSettingsHandlers({
+    settings,
+    onUnexpectedError: (error) => {
+      logger.error('Settings request failed:', error)
+    }
+  }))
+}
+
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
+  // Cult sanctums pass the untracked-folder gates through `gates.resolve`; Folders, reach and forge lists stay registry-only.
+  // The cult launcher (`startCults`) prepares and starts runs over these same sanctums.
+  const sanctums = createSanctumRegistry({ userData: app.getPath('userData') })
+  const gates = withSanctums(registry, sanctums)
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = openDesktopPool()
@@ -1368,8 +1529,8 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const notifier = startNotifications(ipc, registry, pool, settings)
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
   const chatImages = createChatImages({ root: join(app.getPath('userData'), 'agents', 'chat-images') })
-  const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail } = createChatProcesses({
-    folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages,
+  const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail, setCultDispatcher, setCultWake } = createChatProcesses({
+    folders: gates, sanctums, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)
@@ -1381,14 +1542,9 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const approvals = startLearningApprovals(ipc, registry, pool, startGit(forge, ipc, registry, github))
   const releasing: ChatProcesses['releaseFolder'] = (folder, forget, related = []) =>
     releaseFolder(folder, async () => { await approvals.release([folder, ...related]); await forget() }, related)
-  const handlers = bridgeHandlers({ registry, pool, releaseFolder: releasing, endAgent, mail, agents, folderDefaults, forge, installer, logins, skills })
+  const handlers = bridgeHandlers({ registry: gates, pool, releaseFolder: releasing, endAgent, mail, agents, folderDefaults, forge, installer, logins, skills })
   registerDesktopIpc(ipc, handlers)
-  registerSettingsIpc(ipc, createSettingsHandlers({
-    settings,
-    onUnexpectedError: (error) => {
-      logger.error('Settings request failed:', error)
-    }
-  }))
+  startSettings(ipc, settings)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)
@@ -1397,10 +1553,11 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   const ompModels = skitariiModels(agentChats, agents, store)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat, ompModels })
-  startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
+  startChats(ipc, { folders: gates, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat, ompModels })
+  startTerminals(ipc, { folders: gates, agents, store, terminals, logins })
   startAgentChats(ipc, registry, agentChats, { models: ompModels, store, workspaces: pool, chatImages })
   startRestartResume({ registry, pool, store, terminals, agentChats })
+  const cults = startCults({ appDb, registry, gates, sanctums, agents, pool, ipc, processes: { chats, store, terminals, grants, setCultDispatcher, setCultWake } })
   const stores = async (): Promise<void> => { notifier.dispose(); await approvals.dispose(); await forge.stop(); await close() }
-  return { ...stoppingMailFirst(mail, drainingApprovals(quit, approvals), stores), github }
+  return { ...stoppingMailFirst(mail, drainingApprovals(endingCults(quit, cults), approvals), stores), github }
 }

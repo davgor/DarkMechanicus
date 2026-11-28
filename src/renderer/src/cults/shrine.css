@@ -1,0 +1,124 @@
+/* The cult Shrine (ShrinePanel.tsx): sized by its container; compact is the chamber viewscreen's content-only mode. */
+.shrine-panel {
+  position: relative;
+  /* The viewscreen's size varies with the room: compact text and controls scale with it. */
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.shrine-view {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.shrine-panel[data-compact='true'] .shrine-view {
+  border: 0;
+  border-radius: 0;
+}
+
+.shrine-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Untrusted HTML paints its own page; a white canvas keeps a page without a background readable. */
+.shrine-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--shrine-canvas);
+}
+
+.shrine-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.shrine-details dt {
+  color: var(--muted);
+}
+
+.shrine-details dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.shrine-enlarge {
+  align-self: flex-end;
+}
+
+/* The viewscreen is small: Enlarge is a corner tab over the content, faint until the screen is hovered or it has focus. */
+.shrine-panel[data-compact='true'] .shrine-enlarge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  height: clamp(10px, 22cqh, 16px);
+  padding: 0 clamp(2px, 4cqw, 5px);
+  border-radius: 3px;
+  font-size: clamp(6px, 14cqh, 9px);
+  letter-spacing: 0.04em;
+  background: var(--overlay);
+  opacity: 0.7;
+}
+
+.shrine-panel[data-compact='true']:hover .shrine-enlarge,
+.shrine-panel[data-compact='true'] .shrine-enlarge:focus-visible {
+  opacity: 1;
+}
+
+.shrine-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* The viewscreen holds a line or two at most, however small the room makes it. */
+.shrine-panel[data-compact='true'] .shrine-empty {
+  padding: 1px;
+  font-size: clamp(6px, 20cqh, 11px);
+  line-height: 1.1;
+}
+
+.shrine-empty-title {
+  font-family: var(--font-display, inherit);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lens);
+}
+
+/* The Enlarge dialog: wider than the default dialog, the view tall enough to use. */
+.dialog:has(.shrine-enlarged) {
+  width: min(1100px, 100%);
+}
+
+.shrine-enlarged {
+  flex: none;
+  height: min(70vh, 720px);
+}

@@ -14,6 +14,7 @@ import brandIcon1x from '../assets/brand-icon-32.png'
 import brandIcon2x from '../assets/brand-icon-64.png'
 import { Menu } from '../components/Menu'
 import { AgentsSection } from './AgentsSection'
+import { CultsSection } from './CultsSection'
 import { SidebarSection } from './SidebarSection'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
@@ -54,6 +55,10 @@ export interface SidebarProps {
   /** Opens the add-agent pane. */
   onAddAgent(): void
   onSelectAgent(id: AgentId): void
+  /** Opens a cult's page from its CULTS row. */
+  onSelectCult(cultId: string): void
+  /** Opens a cult member's terminal on its cult's page (the Magos's interactive one, an acolyte's watch-only one). */
+  onOpenCultMember(cultId: string, chatId: string): void
   /** A sign-in prompt in the Agents list asked an agent's state itself. */
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onSelectFolder(path: string): void
@@ -166,6 +171,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     <aside className="sidebar" aria-label="Tracked folders">
       <Brand version={props.version} />
       <SidebarAgents {...props} />
+      <CultsSection
+        folders={props.folders}
+        selectedCultId={agentPane?.kind === 'cult' ? agentPane.cultId : null}
+        onSelectCult={props.onSelectCult}
+        onOpenMember={props.onOpenCultMember}
+      />
       <nav className="sidebar-tree" aria-label="Folders and epics">
         <SidebarSection title="Forge Worlds" disclosure={sectionDisclosure(props, 'forge')} action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} onCreateForgeWorld={props.onCreateForgeWorld} />}>
           {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}

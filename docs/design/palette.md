@@ -201,6 +201,26 @@ The Agent surface's frosted panels. `--agent-backdrop` lays the two glows over `
 
 `rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
+### Cult chamber (DM-664)
+
+The cult chamber's run-state theatrics (`cults/chamber/chamber.css`): the sparks Kill now throws, the shade that dims and blacks out the room, and the STASIS plate shown while a run is paused. They are scene lighting, not text on a surface, so section 5 holds no pair for them.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--chamber-spark` (new) | — | `#ffd27a` | Spark fill |
+| `--chamber-spark-glow` (new) | — | `#ff9b2e` | Spark glow |
+| `--chamber-shade` (new) | — | `#000` | Lights-dim and blackout shade |
+| `--chamber-stasis-edge` (new) | — | `#9fc4e0` | STASIS plate border |
+| `--chamber-stasis-ink` (new) | — | `#cfe6f5` | STASIS plate text |
+
+### Cult Shrine (DM-632)
+
+The canvas behind a published HTML Shrine (`cults/shrine.css`): a member's page that sets no background reads as on a browser's white page, as its author saw it. The page paints its own text, so section 5 holds no pair for it.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--shrine-canvas` (new) | — | `#fff` | Canvas behind a sandboxed HTML Shrine |
+
 ## 4. Collision rules
 
 Hue (h) and lightness (L) are OKLCH. ΔE is the OKLab distance: about 0.02 is just noticeable, and above 0.1 is clearly different. Every state is always shown with its text label (the existing rule in `epic/tones.css`), so color is never the only cue.

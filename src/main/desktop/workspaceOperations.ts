@@ -16,11 +16,13 @@ import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
 import { claimedAttemptOf } from '../../core/services/attempts'
-import { assertGrantCapability, assertGrantUsable, revokeGrant } from '../../core/services/grants'
+import { assertGrantCapability, assertGrantUsable, revokeGrant, setGrantAllowSave } from '../../core/services/grants'
+import { appendEvent } from '../../core/services/events'
+import { planTrace } from '../../core/services/planTrace'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
 import { getHumanAgentMailState, readHumanAgentConversation, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, suspendAgentMailEndpoint } from '../../core/services/agentMail'
-import { findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
+import { acceptMessage, findEndpointByChat, getEndpoint, listOpenEndpoints } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { bindChatMailbox, deleteChatMailbox, hasMailbox, provisionAll, renameChatMailbox, type MailboxChat } from '../agents/chatMailboxOperations'
 import {
@@ -102,6 +104,31 @@ function mailboxOperations(ctx: Context) {
   }
 }
 
+function cultOrderOperations(ctx: Context) {
+  return {
+    /**
+     * A cult Magos's `cult_order_all`: one message from its own open mailbox to each recipient's, in one transaction,
+     * through the same acceptance (size limits, quotas, wake) as `send_agent_message`. Each message's client id is
+     * `<orderId>:<n>`, so a retried order replays rather than sending twice. Returns the message ids in recipient order.
+     */
+    sendCultOrder(order: { senderChatId: string; recipientChatIds: readonly string[]; orderId: string; body: string }) {
+      const context = ctx()
+      const open = (chatId: string) => {
+        const row = findEndpointByChat(context, { machineId: context.machineId, chatId })
+        return row?.state === 'open' ? row.id : fail('not_found', 'A cult member has no open mailbox.')
+      }
+      return context.db.tx(() => {
+        const sender = open(order.senderChatId)
+        return order.recipientChatIds.map((chatId, index) =>
+          acceptMessage(context, { senderEndpointId: sender, to: open(chatId), clientMessageId: `${order.orderId}:${index + 1}`, body: order.body }).messageId
+        )
+      })
+    },
+    /** Plan Forge: the target epic's revisions and its draft changes after `afterSeq`, with the grant of each (`planTrace`). */
+    cultPlanTrace: (epicId: string, afterSeq: number | null) => planTrace(ctx(), epicId, afterSeq)
+  }
+}
+
 function deleteOrphanMailboxes(context: Ctx, ids: readonly string[]): void {
   const orphans = new Set(ids)
   let page = listOpenEndpoints(context)
@@ -134,13 +161,26 @@ function mailReadOperations(ctx: Context) {
       const context = ctx()
       return markHumanAgentMailSeen(context, { endpointId: endpoint(context, chat), throughSeq })
     },
+    /**
+     * The cult pipeline (`cultPipeline.ts`): one page of a run member's inbox by the endpoint main's own chat record
+     * gave it, kept after the chat is gone; the human read path, so it neither acknowledges nor marks seen.
+     */
+    cultMailRead: (endpointId: string, window: MailWindow) => readHumanAgentInbox(ctx(), { ...window, endpointId }),
   }
 }
 
 function grantOperations(workspace: Workspace, ctx: Context) {
   return {
     issueChatGrant: (input: Parameters<Workspace['issueGrant']>[0]) => workspace.issueGrant(input),
-    verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | null) {
+    setChatGrantAllowSave(grantId: string, allowSave: boolean) {
+      const context = ctx()
+      return context.db.tx(() => {
+        const grant = setGrantAllowSave(context, { grantId, allowSave })
+        appendEvent(context, { kind: 'grant.allow_save', payload: { grantId: grant.id, allowSave: grant.allowSave } })
+        return grant
+      })
+    },
+    verifyChatGrant(grantId: string, tokenHash: string, capability: 'chat.name' | 'tooling.recover' | 'cult.act' | null) {
       const context = ctx()
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)
@@ -252,7 +292,7 @@ function learningApprovalOperations(workspace: Workspace, ctx: Context) {
 
 function workspaceOperations(workspace: Workspace, home: string) {
   const ctx = () => workspace.ctx()
-  return { ...mailboxOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
+  return { ...mailboxOperations(ctx), ...cultOrderOperations(ctx), ...mailReadOperations(ctx), ...grantOperations(workspace, ctx),
     ...forgeOperations(workspace, ctx, home), ...correctionOperations(workspace, ctx), ...learningApprovalOperations(workspace, ctx) }
 }
 

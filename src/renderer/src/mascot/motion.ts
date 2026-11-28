@@ -15,6 +15,8 @@ export interface MotionSurfaces {
   mascotSize: { width: number; height: number }
   tickets: MotionRect[]
   shakeId?: number
+  /** Opt-in: only roam (wander, run, jump, climb, stumble) and never seek the highest ticket. */
+  freeRoam?: boolean
 }
 
 /** `x` is the sprite center and `y` is the feet line, both in CSS pixels. */
@@ -360,13 +362,12 @@ function routeToGoal(state: MotionState, tickets: MotionRect[], surfaces: Motion
   return candidates[0]?.path ?? []
 }
 
-function groundClimbAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState | null {
+/** Called only for a floor route's first hop that `floorClimbRoute` accepted, so an on-screen side exists. */
+function groundClimbAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState {
   const { half, width, floor } = dimensions(surfaces)
-  const sides = [ticket.x - half, ticket.x + ticket.width + half]
+  const sideX = [ticket.x - half, ticket.x + ticket.width + half]
     .filter((x) => x >= half && x <= width - half)
-    .sort((a, b) => Math.abs(a - state.x) - Math.abs(b - state.x))
-  const sideX = sides[0]
-  if (sideX === undefined) return null
+    .sort((a, b) => Math.abs(a - state.x) - Math.abs(b - state.x))[0]!
   if (Math.abs(state.x - sideX) <= 1) return sideJump(state, ticket)
   return action(state, { kind: Math.abs(state.x - sideX) > width * 0.55 ? 'run' : 'walk',
     x: sideX, y: floor, duration: Math.max(280, Math.abs(state.x - sideX) / 110 * 1000),
@@ -445,6 +446,14 @@ function goalBelow(state: MotionState, context: { support: MotionRect; path: Mot
   return !localGoal?.inProgress || globalGoal.y < localGoal.y ? globalGoal : undefined
 }
 
+/** With `freeRoam` the draw is still taken, so the seeded sequence keeps its shape. */
+function guidedChoice(ready: MotionState, support: MotionRect | undefined, tickets: MotionRect[],
+  surfaces: MotionSurfaces): MotionState | null {
+  const [guideDraw, guideSeed] = random(ready)
+  return !surfaces.freeRoam && guideDraw < 0.88
+    ? guidedAction({ ...ready, randomState: guideSeed }, support, tickets, surfaces) : null
+}
+
 function nextAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
   const { width, height, half } = dimensions(surfaces)
   const tickets = visibleTickets(surfaces)
@@ -457,11 +466,8 @@ function nextAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
     const point = safePoint(ready.x, height, surfaces)
     return action({ ...ready, ...point }, { kind: 'idle', ...point, duration: 700 })
   }
-  const [guideDraw, guideSeed] = random(ready)
-  if (guideDraw < 0.88) {
-    const guided = guidedAction({ ...ready, randomState: guideSeed }, support, tickets, surfaces)
-    if (guided) return guided
-  }
+  const guided = guidedChoice(ready, support, tickets, surfaces)
+  if (guided) return guided
   return chooseAction(ready, choice, { support, tickets, surfaces })
 }
 
@@ -581,8 +587,8 @@ function completedTicketAction(state: MotionState, ticket: MotionRect, surfaces:
   return nextAction(state, surfaces)
 }
 
+/** Only `advancePose` completes actions, and it never runs while falling (`advanceFall` does). */
 function completedAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
-  if (state.falling) return land(state, undefined, surfaces)
   if (state.descending) return startFall(state, surfaces)
   if (state.working) return action(state, { kind: 'idle', x: state.x, y: state.y, duration: 480 })
   const ticket = state.targetId ? cleanTickets(surfaces).find((item) => item.id === state.targetId) : undefined

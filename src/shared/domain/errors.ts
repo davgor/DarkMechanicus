@@ -68,6 +68,27 @@ export const DOMAIN_ERROR_CODES = [
   'receipt_quota_full',
   /** A reply names a message that is not (or no longer) in the replier's own inbox. */
   'reply_unavailable',
+  // Cult commands (`src/shared/cults/cultControl.ts`): refusals the Magos or an acolyte can act on.
+  'cap_reached',
+  'model_unavailable',
+  'tier_reason_required',
+  'run_paused',
+  'run_ending',
+  'name_taken',
+  'folder_not_tracked',
+  'no_acolytes',
+  'slot_unknown',
+  'slot_occupied',
+  'reports_missing',
+  'target_stale',
+  'plan_invalid',
+  'synthesis_missing',
+  'worker_type_name_taken',
+  'worker_type_limit',
+  'worker_type_required',
+  'worker_type_assigned',
+  'worker_type_unknown',
+  'shrine_refused',
   'internal'
 ] as const
 

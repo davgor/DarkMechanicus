@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { eligibleRun, planShards, timingSample } from './ciShardPlan.mjs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { eligibleRun, planShards, readLiveHistory, timingSample } from './ciShardPlan.mjs'
 
 const start = Date.parse('2026-01-01T00:00:00Z')
 const iso = (seconds) => new Date(start + seconds * 1000).toISOString()
@@ -76,6 +76,21 @@ describe('execution-time CI shard planning', () => {
   })
 })
 
+describe('grading floor from the graded diff', () => {
+  it('raises a grading sample to one shard per changed graded file, capped, and grades an empty diff once', () => {
+    const fireguard = sample('fireguard', [job('fireguard-shards (1/1)', 45, gradeStep)])
+    expect(planShards({ fireguard }, 254).suites.fireguard)
+      .toMatchObject({ source: 'history', runId: 15, diffFiles: 254, count: 16, estimatedSecondsPerShard: 3 })
+    expect(planShards({ fireguard }, 3).grading.include).toEqual([1, 2, 3].map((index) => ({ index, count: 3 })))
+    const long = sample('fireguard', [job('fireguard-shards (1/2)', 600, gradeStep),
+      job('fireguard-shards (2/2)', 600, gradeStep)])
+    expect(counts(planShards({ fireguard: long }, 2)).fireguard).toBe(10)
+    expect(counts(planShards({}, 5)).fireguard).toBe(16)
+    expect(planShards({}, 0).suites.fireguard).toEqual({ source: 'bootstrap', diffFiles: 0, count: 1, limit: 16 })
+    expect(planShards({ fireguard: long }, 0).grading.include).toEqual([{ index: 1, count: 1 }])
+  })
+})
+
 describe('CI history provenance', () => {
   it('only admits first-attempt successful runs of the expected workflow and repository', () => {
     const repo = { id: 51, full_name: 'owner/repo' }
@@ -94,5 +109,56 @@ describe('CI history provenance', () => {
     ]) {
       expect(eligibleRun(ineligible, 'pull_request', repo.full_name, 'main')).toBe(false)
     }
+  })
+})
+
+describe('live grading history', () => {
+  const repo = { id: 51, full_name: 'owner/repo' }
+  const env = {
+    GH_TOKEN: 'token', GITHUB_API_URL: 'https://api.test', GITHUB_REPOSITORY: repo.full_name,
+    CI_HISTORY_DEFAULT_BRANCH: 'main'
+  }
+  const prRun = (id, branch) => ({
+    id, run_attempt: 1, status: 'completed', conclusion: 'success', event: 'pull_request',
+    path: '.github/workflows/pr-checks.yml', head_branch: branch, repository: repo, head_repository: repo,
+    pull_requests: [{ base: { ref: 'main', repo } }]
+  })
+  // A small grade of another branch comes first, as the latest successful PR run of the repository.
+  const jobsByRun = {
+    7: [job('fireguard-shards (1/1)', 45, gradeStep)],
+    8: [job('fireguard-shards (1/1)', 9000, gradeStep)]
+  }
+
+  function stubActions(requests) {
+    vi.stubGlobal('fetch', async (url) => {
+      requests.push(url)
+      const run = /runs\/(\d+)\/attempts\/1\/jobs/.exec(url)?.[1]
+      const body = run
+        ? { jobs: jobsByRun[run], total_count: jobsByRun[run].length }
+        : { workflow_runs: url.includes('event=pull_request') ? [prRun(7, 'other'), prRun(8, 'topic')] : [] }
+      return new Response(JSON.stringify(body))
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sizes grading only from earlier grades of the same pull request branch', async () => {
+    const requests = []
+    stubActions(requests)
+    const history = await readLiveHistory({ ...env, CI_HISTORY_PR_BRANCH: 'topic' })
+    expect(history.fireguard).toEqual({ runId: 8, seconds: [9000] })
+    expect(counts(planShards(history)).fireguard).toBe(16)
+    expect(requests.find((url) => url.includes('event=pull_request'))).toContain('&branch=topic')
+    expect(requests.find((url) => url.includes('event=push'))).toContain('&branch=main')
+    expect(requests.some((url) => url.includes('runs/7/'))).toBe(false)
+  })
+
+  it('bootstraps grading when the run has no pull request branch of this repository', async () => {
+    const requests = []
+    stubActions(requests)
+    expect(await readLiveHistory(env)).toEqual({})
+    expect(requests.some((url) => url.includes('event=pull_request'))).toBe(false)
   })
 })

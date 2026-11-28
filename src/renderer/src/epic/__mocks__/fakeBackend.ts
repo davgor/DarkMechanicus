@@ -55,6 +55,7 @@ import { FakeChats } from '../../__mocks__/fakeChats'
 import { idleCrossRepoCorrections } from '../../__mocks__/idleCrossRepoCorrections'
 import { idleSourceCheckout } from '../../__mocks__/idleSourceCheckout'
 import { idleTerminals } from '../../__mocks__/idleTerminals'
+import { idleCults } from '../../__mocks__/idleCults'
 import type { Runner } from '../runner'
 import {
   checkpointView,
@@ -158,6 +159,7 @@ export class FakeBackend implements DmApi {
   async pairTelegram() { return 'pair-code' }
   /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
   chats: ChatsApi
+  cults = idleCults()
   terminals = idleTerminals()
   agentChat = new FakeAgentChat()
   sourceCheckout = idleSourceCheckout()

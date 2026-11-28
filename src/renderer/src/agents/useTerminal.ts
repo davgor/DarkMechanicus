@@ -86,6 +86,11 @@ interface ShowContext {
   onActivity?(): void
   /** Called with the raw title the CLI sets over OSC 0 or 2. */
   onTitle?(title: string): void
+  /**
+   * Watch only (`docs/design/cults.md` section 6): output is shown, but nothing typed or pasted is subscribed to or
+   * sent, the emulator takes no input or focus, and the PTY is never resized (the grid stays at the PTY's start size).
+   */
+  watchOnly?: boolean
 }
 
 /** Fits the view to its host, and resizes the PTY when the grid's size changed since the last time. */
@@ -100,14 +105,43 @@ function fitter(view: TerminalView, terminal: TerminalHandle): () => void {
   }
 }
 
-/** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
-export function showTerminal({ element, terminal, snapshot, kit, scheduler, theme, onExit, onActivity, onTitle }: ShowContext): Shown {
-  const read = rootTokens(element.ownerDocument)
-  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
-  const fit = fitter(view, terminal)
+/** Sends what the person types or pastes to the PTY, in chunks main accepts; returns the unsubscribe function. */
+function forwardInput(view: TerminalView, terminal: TerminalHandle): () => void {
+  return view.onInput((data) => {
+    for (const chunk of inputChunks(data)) {
+      terminal.write(chunk)
+    }
+  })
+}
+
+/** Fits the grid now and again each time the host's size settles; returns the function that stops it. */
+function keepFitted(context: ShowContext, view: TerminalView): () => void {
+  const fit = fitter(view, context.terminal)
   // The PTY takes the pane's size before the snapshot is painted: a chat shown again in the same window gets
   // the screen at exactly the size it was serialized at, and a new size makes the CLI redraw after the snapshot.
   fit()
+  let cancelFit = (): void => {}
+  const stopWatching = context.kit.observeSize(context.element, () => {
+    cancelFit()
+    cancelFit = context.scheduler.after(RESIZE_SETTLE_MS, fit)
+  })
+  return () => {
+    stopWatching()
+    cancelFit()
+  }
+}
+
+const NOTHING = (): void => {}
+
+/**
+ * Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of
+ * it. A watch-only terminal is only fed output: it neither fits nor resizes, takes no input and is not focused.
+ */
+export function showTerminal(context: ShowContext): Shown {
+  const { element, terminal, snapshot, kit, theme, onExit, onActivity, onTitle, watchOnly = false } = context
+  const read = rootTokens(element.ownerDocument)
+  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN), ...(watchOnly ? { watchOnly: true } : {}) })
+  const stopFitting = watchOnly ? NOTHING : keepFitted(context, view)
   if (snapshot !== '') {
     view.write(snapshot)
   }
@@ -117,26 +151,16 @@ export function showTerminal({ element, terminal, snapshot, kit, scheduler, them
     onActivity?.()
   })
   const stopTitle = view.onTitleChange((title) => onTitle?.(title))
-  const stopInput = view.onInput((data) => {
-    for (const chunk of inputChunks(data)) {
-      terminal.write(chunk)
-    }
-  })
+  const stopInput = watchOnly ? NOTHING : forwardInput(view, terminal)
   const stopExit = terminal.onExit((exit) => {
     stopInput()
     onExit(exit)
   })
-  let cancelFit = (): void => {}
-  const stopWatching = kit.observeSize(element, () => {
-    cancelFit()
-    cancelFit = scheduler.after(RESIZE_SETTLE_MS, fit)
-  })
-  view.focus()
+  if (!watchOnly) view.focus()
   return {
     view,
     hide: () => {
-      stopWatching()
-      cancelFit()
+      stopFitting()
       stopExit()
       stopOutput()
       stopTitle()
@@ -168,6 +192,8 @@ interface UseTerminalOptions {
   agent: string
   kit: TerminalKit
   scheduler: Scheduler
+  /** Shows the terminal watch only (`showTerminal`): no input, focus or resize. */
+  watchOnly?: boolean
 }
 
 export interface TerminalModel {
@@ -256,7 +282,7 @@ function useOutputActivity(
   return { working, title, noteActivity, noteTitle, resetActivity }
 }
 
-export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTerminalOptions): TerminalModel {
+export function useTerminal({ folder, chatId, agent, kit, scheduler, watchOnly = false }: UseTerminalOptions): TerminalModel {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<TerminalView | null>(null)
   const live = useContext(LiveTerminalsContext)
@@ -286,7 +312,7 @@ export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTermin
           return
         }
         const { theme, background: frame } = paneTheme(element, agent, omp)
-        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, onExit: (exit) => setPhase(exitPhase(exit)), onActivity: noteActivity, onTitle: noteTitle })
+        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, watchOnly, onExit: (exit) => setPhase(exitPhase(exit)), onActivity: noteActivity, onTitle: noteTitle })
         view.current = shown.view
         setBackground(frame)
         setPhase(RUNNING)
@@ -302,7 +328,7 @@ export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTermin
       view.current = null
       owned?.close()
     }
-  }, [folder, chatId, agent, kit, scheduler, live, start, newSession, noteActivity, noteTitle, resetActivity])
-  const focus = useCallback(() => view.current?.focus(), [])
+  }, [folder, chatId, agent, kit, scheduler, watchOnly, live, start, newSession, noteActivity, noteTitle, resetActivity])
+  const focus = useCallback(() => (watchOnly ? undefined : view.current?.focus()), [watchOnly])
   return { host, phase, background, working, title, focus, startAgain }
 }

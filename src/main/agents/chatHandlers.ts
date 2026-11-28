@@ -242,9 +242,15 @@ function chatRequest<T extends { folder: string | null; chatId: string }>(deps: 
   return { ref: { folder: request.folder === null ? null : chatFolder(deps, request.folder), id: request.chatId }, request }
 }
 
+/** A folder's chats without its cult members (`cultRunId`), which only the cult views show. */
+async function folderChats(deps: Pick<ChatHandlerDeps, 'chats'>, folder: string | null): Promise<ChatRecord[]> {
+  return (await deps.chats.listChats(folder)).filter(chat => chat.cultRunId === undefined)
+}
+
 /**
- * Every chat that is not deleted: the chats of each tracked folder (a folder swapped for a symlink to another
- * directory is left out, as listing it alone is refused), then the project-less ones, most recently updated first.
+ * Every chat that is not deleted and not a cult member: the chats of each tracked folder (a folder swapped for a
+ * symlink to another directory is left out, as listing it alone is refused), then the project-less ones, most recently
+ * updated first.
  */
 async function listAll(deps: ChatHandlerDeps): Promise<ChatRecord[]> {
   const folders = deps.registry.list().flatMap(({ path }) => {
@@ -257,7 +263,7 @@ async function listAll(deps: ChatHandlerDeps): Promise<ChatRecord[]> {
       throw error
     }
   })
-  return (await Promise.all([...folders, null].map(folder => deps.chats.listChats(folder)))).flat().sort(byRecency)
+  return (await Promise.all([...folders, null].map(folder => folderChats(deps, folder)))).flat().sort(byRecency)
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
@@ -698,7 +704,7 @@ export function createChatHandlers(options: ChatHandlerOptions): ChatHandlers {
   const deps: ChatHandlerDeps = { ...options, conversation: options.conversation ?? unavailableConversation() }
   const { chats } = deps
   return {
-    list: (folder) => answer(deps, () => chats.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    list: (folder) => answer(deps, () => folderChats(deps, chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     listAll: () => answer(deps, () => listAll(deps)),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),

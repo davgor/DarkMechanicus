@@ -104,20 +104,36 @@ export function timingSample(suite, runId, jobs) {
   return seconds ? { runId, seconds } : undefined
 }
 
-export function planShards(history = {}) {
-  const suites = Object.fromEntries(SUITES.map((suite) => {
-    const sample = history[suite]
-    if (!sample) {
-      const count = suite === 'fireguard' ? shardCount(GRADING_BOOTSTRAP_SECONDS) : BOOTSTRAP_COUNT
-      return [suite, { source: 'bootstrap', count, limit: MAX_SHARDS }]
-    }
-    const totalSeconds = sample.seconds.reduce((sum, seconds) => sum + seconds, 0)
-    const count = shardCount(totalSeconds)
-    return [suite, {
-      source: 'history', ...sample, totalSeconds, count, limit: MAX_SHARDS,
-      estimatedSecondsPerShard: Math.round(totalSeconds / count)
-    }]
-  }))
+function sized(detail, count) {
+  const result = { ...detail, count, limit: MAX_SHARDS }
+  if (detail.totalSeconds !== undefined) result.estimatedSecondsPerShard = Math.round(detail.totalSeconds / count)
+  return result
+}
+
+function planSuite(suite, sample) {
+  if (!sample) {
+    const count = suite === 'fireguard' ? shardCount(GRADING_BOOTSTRAP_SECONDS) : BOOTSTRAP_COUNT
+    return sized({ source: 'bootstrap' }, count)
+  }
+  const totalSeconds = sample.seconds.reduce((sum, seconds) => sum + seconds, 0)
+  return sized({ source: 'history', ...sample, totalSeconds }, shardCount(totalSeconds))
+}
+
+/**
+ * A grading sample timed an earlier, possibly much smaller diff of the branch. At least one shard per
+ * changed graded file (up to the cap) keeps a grown diff off a few serial shards. With no changed
+ * graded file Fireguard grades nothing, so one shard emits its report.
+ */
+function floorGrading(detail, diffFiles) {
+  if (diffFiles === undefined) return detail
+  const count = diffFiles === 0 ? 1 : Math.max(detail.count, Math.min(MAX_SHARDS, diffFiles))
+  return sized({ ...detail, diffFiles }, count)
+}
+
+/** `diffFiles`: files the graded diff adds or changes under Fireguard's roots, when known. */
+export function planShards(history = {}, diffFiles = undefined) {
+  const suites = Object.fromEntries(SUITES.map((suite) => [suite, planSuite(suite, history[suite])]))
+  suites.fireguard = floorGrading(suites.fireguard, diffFiles)
   const positions = (count) => Array.from({ length: count }, (_, i) => ({ index: i + 1, count }))
   return {
     targetSeconds: TARGET_SECONDS,
@@ -145,9 +161,10 @@ async function apiJson(env, endpoint) {
   return JSON.parse(Buffer.concat(chunks, size).toString('utf8'))
 }
 
+/** The latest successful runs of `event` from `branch`; the caller rechecks each run. */
 async function listRuns(env, event, branch) {
-  const branchQuery = event === 'push' ? `&branch=${encodeURIComponent(branch)}` : ''
-  const index = await apiJson(env, `workflows/${WORKFLOW}/runs?event=${event}&status=success&per_page=${HISTORY_RUNS}${branchQuery}`)
+  const query = `event=${event}&status=success&per_page=${HISTORY_RUNS}&branch=${encodeURIComponent(branch)}`
+  const index = await apiJson(env, `workflows/${WORKFLOW}/runs?${query}`)
   const runs = index?.workflow_runs
   return Array.isArray(runs) && runs.length <= HISTORY_RUNS ? runs : []
 }
@@ -157,12 +174,12 @@ async function listJobs(env, id) {
   return Array.isArray(response?.jobs) && response.jobs.length === response.total_count ? response.jobs : []
 }
 
-async function findHistory(env, event, suites) {
+async function findHistory(env, event, suites, branch) {
   const history = {}
-  const branch = env.CI_HISTORY_DEFAULT_BRANCH
+  const { GITHUB_REPOSITORY: repository, CI_HISTORY_DEFAULT_BRANCH: defaultBranch } = env
   try {
     for (const run of await listRuns(env, event, branch)) {
-      if (!eligibleRun(run, event, env.GITHUB_REPOSITORY, branch)) continue
+      if (run.head_branch !== branch || !eligibleRun(run, event, repository, defaultBranch)) continue
       const jobs = await listJobs(env, run.id)
       for (const suite of suites) history[suite] ??= timingSample(suite, run.id, jobs)
       if (suites.every((suite) => history[suite])) break
@@ -173,12 +190,16 @@ async function findHistory(env, event, suites) {
   return history
 }
 
-async function readLiveHistory(env) {
+/**
+ * Unit samples come from default-branch pushes. Grading time follows a pull request's own diff, so
+ * only earlier grades of the same pull request branch predict it; without one, grading bootstraps.
+ */
+export async function readLiveHistory(env) {
   const keys = ['GH_TOKEN', 'GITHUB_API_URL', 'GITHUB_REPOSITORY', 'CI_HISTORY_DEFAULT_BRANCH']
   if (!keys.every((key) => env[key])) return {}
   const [unit, grading] = await Promise.all([
-    findHistory(env, 'push', Object.keys(UNIT_CONFIGS)),
-    findHistory(env, 'pull_request', ['fireguard'])
+    findHistory(env, 'push', Object.keys(UNIT_CONFIGS), env.CI_HISTORY_DEFAULT_BRANCH),
+    env.CI_HISTORY_PR_BRANCH ? findHistory(env, 'pull_request', ['fireguard'], env.CI_HISTORY_PR_BRANCH) : {}
   ])
   return { ...unit, ...grading }
 }
@@ -203,12 +224,24 @@ function readHistory([flag, path, ...extra], env) {
   return readFixture(path)
 }
 
+/** CI_GRADED_DIFF_FILES, the files the graded diff changes, or undefined when absent or invalid. */
+function gradedDiffFiles(env) {
+  const value = env.CI_GRADED_DIFF_FILES
+  return /^\d{1,9}$/.test(value ?? '') ? Number(value) : undefined
+}
+
+function describeSuite(detail) {
+  const source = detail.source === 'history'
+    ? `run ${detail.runId}: ${detail.seconds.join(' + ')}s`
+    : 'bootstrap (no complete timing sample)'
+  return detail.diffFiles === undefined ? source : `${source}; graded diff: ${detail.diffFiles} files`
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const plan = planShards(await readHistory(process.argv.slice(2), process.env))
+  const plan = planShards(await readHistory(process.argv.slice(2), process.env), gradedDiffFiles(process.env))
   console.error(`CI shard target: ${plan.targetSeconds}s execution, cap: ${MAX_SHARDS} per suite`)
   for (const [suite, detail] of Object.entries(plan.suites)) {
-    const source = detail.source === 'history' ? `run ${detail.runId}: ${detail.seconds.join(' + ')}s` : 'bootstrap (no complete timing sample)'
-    console.error(`  ${suite}: ${detail.count}/${detail.limit} shards (${source})`)
+    console.error(`  ${suite}: ${detail.count}/${detail.limit} shards (${describeSuite(detail)})`)
   }
   const { GITHUB_OUTPUT } = process.env
   if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, [

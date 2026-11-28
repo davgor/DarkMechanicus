@@ -61,6 +61,14 @@ export interface WorldCheckout {
   inspected: Set<string>
 }
 
+/**
+ * Passed on each command, never written to a config: git's automatic maintenance after a commit, fetch or push
+ * (packing loose objects, repacking) finishes before the command returns. Detached, it went on in the background and
+ * changed `.git/objects` between the two reads of a checkout's metadata that provisioning compares
+ * (`forgeProvisioningWork.ts` `readOrigin`), which failed the creation as "metadata changed" on a loaded machine.
+ */
+export const FORGE_GIT_MAINTENANCE = ['-c', 'maintenance.autoDetach=false', '-c', 'gc.autoDetach=false'] as const
+
 export class ForgeGit {
   /** `onRenameRetry` is told of each busy directions rename that is asked again (the main process logs it). */
   constructor(private readonly session: CredentialSession, private readonly runner: GitRunner = createGitRunner(), private readonly onRenameRetry?: RenameRetryNote) {}
@@ -68,7 +76,7 @@ export class ForgeGit {
   run(root: string, args: string[], url?: string, options: { acceptExitCodes?: number[]; stdin?: string; beforeStart?: () => void } = {}) {
     const credentials = url ? credentialArgs(url, this.session) : null
     return this.runner.run({ cwd: root, kind: url ? 'network' : 'write', args: [
-      '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always',
+      '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', ...FORGE_GIT_MAINTENANCE,
       ...(credentials?.args ?? []), ...args
     ], stdin: options.stdin, env: credentials?.env, redact: credentials?.secrets, acceptExitCodes: options.acceptExitCodes, beforeStart: options.beforeStart })
   }

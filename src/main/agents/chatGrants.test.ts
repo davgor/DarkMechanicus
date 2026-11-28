@@ -155,6 +155,34 @@ describe('chat grants: revoked through the workspace they were issued in', () =>
   })
 })
 
+describe('chat grants: Allow save flipped on a live grant', () => {
+  it('turns Allow save on and back off in the workspace the grant was issued in', async () => {
+    const state = await rig()
+    try {
+      const { grantId } = await state.grants.issueChatCli(repo, { role: 'orchestrator', allowSave: false, label: 'Cult' })
+      const allowSaveOf = async () => (await state.pool.get(repo).listGrants()).find(grant => grant.id === grantId)?.allowSave
+      await state.grants.setChatGrantAllowSave(grantId, true)
+      expect(await allowSaveOf()).toBe(true)
+      await state.grants.setChatGrantAllowSave(grantId, false)
+      expect(await allowSaveOf()).toBe(false)
+    } finally {
+      await state.pool.closeAll()
+    }
+  })
+
+  it('refuses a revoked grant and one this app session never issued', async () => {
+    const state = await rig()
+    try {
+      const grantId = await liveChat(state)
+      await state.pool.get(repo).revokeGrant({ grantId })
+      await expect(state.grants.setChatGrantAllowSave(grantId, true)).rejects.toMatchObject({ code: 'invalid_state' })
+      await expect(state.grants.setChatGrantAllowSave('gr_00000000000000000000000001', true)).rejects.toMatchObject({ code: 'not_found' })
+    } finally {
+      await state.pool.closeAll()
+    }
+  })
+})
+
 describe('chat grants: a workspace that cannot be reached', () => {
   it('logs one line naming the grant and its expiry, and the revoke does not throw', async () => {
     const state = await rig()
