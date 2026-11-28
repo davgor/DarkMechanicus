@@ -1,0 +1,609 @@
+{
+  "startedAt": "2026-11-28T18:41:52.814Z",
+  "modes": [
+    {
+      "mode": "top",
+      "fixtureBounds": {
+        "x": 711,
+        "y": 0,
+        "width": 1140,
+        "height": 510
+      },
+      "maximized": false,
+      "fullScreen": false,
+      "windows": {
+        "windows": [
+          {
+            "pid": 6220,
+            "hwnd": 222102980,
+            "y": 0,
+            "noActivate": true,
+            "width": 2561,
+            "transparent": true,
+            "title": "DM-1042 overlay",
+            "toolWindow": false,
+            "z": 2,
+            "x": 0,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 1601,
+            "layered": true
+          },
+          {
+            "pid": 23156,
+            "hwnd": 32572654,
+            "y": 0,
+            "noActivate": false,
+            "width": 1140,
+            "transparent": false,
+            "title": "DM-1042 fixture top",
+            "toolWindow": false,
+            "z": 3,
+            "x": 711,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 510,
+            "layered": false
+          }
+        ],
+        "foreground": {
+          "hwnd": 32572654,
+          "listed": true,
+          "pid": 23156
+        },
+        "visibleWindows": 14,
+        "othersAboveFirstListed": [
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 0,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 1,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "overlay": {
+        "list": true,
+        "windows": [
+          {
+            "hwnd": 222102980,
+            "displayId": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1708,
+              "height": 1068
+            },
+            "physical": {
+              "x": 0,
+              "y": 0,
+              "width": 2562,
+              "height": 1602
+            },
+            "alwaysOnTop": true,
+            "focusable": false,
+            "focused": false,
+            "visible": true,
+            "contentProtection": false
+          }
+        ],
+        "displays": [
+          {
+            "id": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1707,
+              "height": 1067
+            },
+            "scaleFactor": 1.5,
+            "primary": true
+          }
+        ],
+        "reasserts": 9,
+        "qpcNs": "705691921475800"
+      },
+      "gdi": {
+        "captureMs": 42.5,
+        "result": "ok",
+        "nonBlack": 3076,
+        "redPoints": 14,
+        "points": 14,
+        "crop": {
+          "width": 1120,
+          "height": 499,
+          "sourceWidth": 2560,
+          "x": 721,
+          "sourceHeight": 1600,
+          "y": 0
+        }
+      },
+      "click": {
+        "point": {
+          "x": 875,
+          "y": 192
+        },
+        "sent": 2,
+        "clicksAfter": 1
+      },
+      "foregroundAfterClick": {
+        "hwnd": 32572654,
+        "listed": true,
+        "pid": 23156
+      }
+    },
+    {
+      "mode": "maximized",
+      "fixtureBounds": {
+        "x": -11,
+        "y": -11,
+        "width": 2584,
+        "height": 1552
+      },
+      "maximized": true,
+      "fullScreen": false,
+      "windows": {
+        "windows": [
+          {
+            "pid": 18608,
+            "hwnd": 29951560,
+            "y": 0,
+            "noActivate": true,
+            "width": 2561,
+            "transparent": true,
+            "title": "DM-1042 overlay",
+            "toolWindow": false,
+            "z": 2,
+            "x": 0,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 1601,
+            "layered": true
+          },
+          {
+            "pid": 15228,
+            "hwnd": 1575683452,
+            "y": -11,
+            "noActivate": false,
+            "width": 2582,
+            "transparent": false,
+            "title": "DM-1042 fixture maximized",
+            "toolWindow": false,
+            "z": 3,
+            "x": -11,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 1550,
+            "layered": false
+          }
+        ],
+        "foreground": {
+          "hwnd": 1575683452,
+          "listed": true,
+          "pid": 15228
+        },
+        "visibleWindows": 14,
+        "othersAboveFirstListed": [
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 0,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 1,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "overlay": {
+        "list": true,
+        "windows": [
+          {
+            "hwnd": 29951560,
+            "displayId": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1708,
+              "height": 1068
+            },
+            "physical": {
+              "x": 0,
+              "y": 0,
+              "width": 2562,
+              "height": 1602
+            },
+            "alwaysOnTop": true,
+            "focusable": false,
+            "focused": false,
+            "visible": true,
+            "contentProtection": false
+          }
+        ],
+        "displays": [
+          {
+            "id": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1707,
+              "height": 1067
+            },
+            "scaleFactor": 1.5,
+            "primary": true
+          }
+        ],
+        "reasserts": 9,
+        "qpcNs": "705714073229200"
+      },
+      "gdi": {
+        "captureMs": 52.5,
+        "result": "ok",
+        "nonBlack": 3080,
+        "redPoints": 14,
+        "points": 14,
+        "crop": {
+          "width": 2560,
+          "height": 1530,
+          "sourceWidth": 2560,
+          "x": 0,
+          "sourceHeight": 1600,
+          "y": 0
+        }
+      },
+      "click": {
+        "point": {
+          "x": 153,
+          "y": 182
+        },
+        "sent": 2,
+        "clicksAfter": 1
+      },
+      "foregroundAfterClick": {
+        "hwnd": 1575683452,
+        "listed": true,
+        "pid": 15228
+      }
+    },
+    {
+      "mode": "fullscreen",
+      "fixtureBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2561,
+        "height": 1601
+      },
+      "maximized": false,
+      "fullScreen": true,
+      "windows": {
+        "windows": [
+          {
+            "pid": 13560,
+            "hwnd": 53281574,
+            "y": 0,
+            "noActivate": true,
+            "width": 2561,
+            "transparent": true,
+            "title": "DM-1042 overlay",
+            "toolWindow": false,
+            "z": 2,
+            "x": 0,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 1601,
+            "layered": true
+          },
+          {
+            "pid": 13416,
+            "hwnd": 1092485470,
+            "y": 0,
+            "noActivate": false,
+            "width": 2560,
+            "transparent": false,
+            "title": "DM-1042 fixture fullscreen",
+            "toolWindow": false,
+            "z": 3,
+            "x": 0,
+            "displayAffinity": "0x0",
+            "topmost": true,
+            "height": 1600,
+            "layered": false
+          }
+        ],
+        "foreground": {
+          "hwnd": 1092485470,
+          "listed": true,
+          "pid": 13416
+        },
+        "visibleWindows": 14,
+        "othersAboveFirstListed": [
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 0,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "topmost": true,
+            "class": "ThumbnailDeviceHelperWnd",
+            "height": 1,
+            "z": 1,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "overlay": {
+        "list": true,
+        "windows": [
+          {
+            "hwnd": 53281574,
+            "displayId": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1708,
+              "height": 1068
+            },
+            "physical": {
+              "x": 0,
+              "y": 0,
+              "width": 2562,
+              "height": 1602
+            },
+            "alwaysOnTop": true,
+            "focusable": false,
+            "focused": false,
+            "visible": true,
+            "contentProtection": false
+          }
+        ],
+        "displays": [
+          {
+            "id": 3203569896,
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 1707,
+              "height": 1067
+            },
+            "scaleFactor": 1.5,
+            "primary": true
+          }
+        ],
+        "reasserts": 9,
+        "qpcNs": "705723056415400"
+      },
+      "gdi": {
+        "captureMs": 47.9,
+        "result": "ok",
+        "nonBlack": 3080,
+        "redPoints": 14,
+        "points": 14,
+        "crop": {
+          "width": 2560,
+          "height": 1600,
+          "sourceWidth": 2560,
+          "x": 0,
+          "sourceHeight": 1600,
+          "y": 0
+        }
+      },
+      "click": {
+        "point": {
+          "x": 153,
+          "y": 147
+        },
+        "sent": 2,
+        "clicksAfter": 1
+      },
+      "foregroundAfterClick": {
+        "hwnd": 1092485470,
+        "listed": true,
+        "pid": 13416
+      }
+    }
+  ],
+  "contentProtection": {
+    "unprotected": {
+      "desktopCapturer": {
+        "ms": 844.4156,
+        "redPoints": 14,
+        "points": 14
+      },
+      "gdi": {
+        "redPoints": 14,
+        "points": 14,
+        "captureMs": 42.9
+      },
+      "displayAffinity": [
+        "0x0"
+      ],
+      "overlayWindowsListed": 1
+    },
+    "protected": {
+      "desktopCapturer": {
+        "ms": 780.2345,
+        "redPoints": 0,
+        "points": 14
+      },
+      "gdi": {
+        "redPoints": 0,
+        "points": 14,
+        "captureMs": 55.4
+      },
+      "displayAffinity": [
+        "0x11"
+      ],
+      "overlayWindowsListed": 1
+    }
+  },
+  "sendInputEscape": {
+    "hookLine": {
+      "type": "key",
+      "vk": 27,
+      "down": true,
+      "injected": true,
+      "lowerIl": false,
+      "own": false,
+      "kind": 0,
+      "eventTime": 705703703,
+      "tick": 705703703,
+      "lagMs": 0,
+      "qpcNs": 705704174473300
+    },
+    "injectToCallbackMs": 4.1876,
+    "killFired": false,
+    "fixtureKeys": [
+      {
+        "key": "Escape",
+        "trusted": true
+      }
+    ],
+    "ignored": [
+      {
+        "injected": true,
+        "own": false,
+        "kind": 0,
+        "lagMs": 0,
+        "qpcNs": 705704174473300,
+        "callbackToParentMs": 0.3641
+      }
+    ]
+  },
+  "kills": {
+    "triggered": {
+      "reason": "simulated-physical-esc",
+      "triggerNs": "705728821315500",
+      "startNs": "705728821319600",
+      "overlayClosedNs": "705728828265900",
+      "overlayExitNs": "705728896373100",
+      "overlayClosedMs": 6.9463,
+      "triggerToOverlayClosedMs": 6.9504,
+      "triggerToOverlayExitMs": 75.0576,
+      "treeEndedMs": 110.8412,
+      "taskkillExit": 0,
+      "treeEndedNs": "705728932160800",
+      "agentKeysBefore": 127,
+      "agentKeysAfterTreeEnded": 0,
+      "lastAgentKeyBeforeEndMs": 10.4718,
+      "agentKeysBetweenKillStartAndTreeEnded": 6,
+      "watchedAfterMs": 1000,
+      "fromTriggerActionMs": 7.0071,
+      "treePids": [
+        17684,
+        2200,
+        22172
+      ],
+      "treePidsAliveAfter": [],
+      "overlayWindowsAfter": 0
+    },
+    "hookHelperKilled": {
+      "reason": "hook-exited",
+      "triggerNs": "705735899151700",
+      "startNs": "705735899175700",
+      "overlayClosedNs": "705735906094800",
+      "overlayExitNs": "705735983629800",
+      "overlayClosedMs": 6.9191,
+      "triggerToOverlayClosedMs": 6.9431,
+      "triggerToOverlayExitMs": 84.4781,
+      "treeEndedMs": 111.146,
+      "taskkillExit": 0,
+      "treeEndedNs": "705736010321700",
+      "agentKeysBefore": 123,
+      "agentKeysAfterTreeEnded": 0,
+      "lastAgentKeyBeforeEndMs": 122.8368,
+      "agentKeysBetweenKillStartAndTreeEnded": 0,
+      "watchedAfterMs": 1000,
+      "fromTriggerActionMs": 81.3812,
+      "treePids": [
+        19196,
+        21664,
+        20024
+      ],
+      "treePidsAliveAfter": [],
+      "overlayWindowsAfter": 0
+    },
+    "heartbeatStopped": {
+      "reason": "heartbeat-lost",
+      "triggerNs": "705740393398700",
+      "startNs": "705741492556200",
+      "overlayClosedNs": "705741501642800",
+      "overlayExitNs": "705741561772400",
+      "overlayClosedMs": 9.0866,
+      "triggerToOverlayClosedMs": 1108.2441,
+      "triggerToOverlayExitMs": 1168.3737,
+      "treeEndedMs": 112.3253,
+      "taskkillExit": 0,
+      "treeEndedNs": "705741604881500",
+      "agentKeysBefore": 178,
+      "agentKeysAfterTreeEnded": 0,
+      "lastAgentKeyBeforeEndMs": 12.805,
+      "agentKeysBetweenKillStartAndTreeEnded": 7,
+      "watchedAfterMs": 1000,
+      "fromTriggerActionMs": 985.7604,
+      "treePids": [
+        22952,
+        164,
+        736
+      ],
+      "treePidsAliveAfter": [],
+      "overlayWindowsAfter": 0
+    }
+  },
+  "parentExit": {
+    "jobBound": {
+      "stubPid": 14056,
+      "hookPid": 10404,
+      "overlayPid": 9440,
+      "aliveBefore": {
+        "hookPid": true,
+        "overlayPid": true
+      },
+      "goneAfterMs": {
+        "hookPid": 5.6474,
+        "overlayPid": 5.6668
+      }
+    },
+    "ownWatch": {
+      "parentPid": 18688,
+      "hookPid": 10492,
+      "overlayPid": 6216,
+      "aliveBefore": {
+        "hookPid": true,
+        "overlayPid": true
+      },
+      "goneAfterMs": {
+        "overlayPid": 296.6822,
+        "hookPid": 2267.0663
+      },
+      "hookExitReason": "parent-exited",
+      "hookExitLineAfterMs": 4.6288
+    }
+  },
+  "endedAt": "2026-11-28T18:42:58.989Z"
+}

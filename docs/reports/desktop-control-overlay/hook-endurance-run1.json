@@ -1,0 +1,61 @@
+{
+  "startedAt": "2026-11-28T18:17:05.168Z",
+  "helper": {
+    "type": "ready",
+    "pid": 428,
+    "hook": true,
+    "error": 0,
+    "session": 2,
+    "qpcHz": 10000000,
+    "qpcNs": 704198224195100
+  },
+  "cpus": 16,
+  "lowLevelHooksTimeoutRegistry": "not set (Windows default applies)",
+  "limits": {
+    "heartbeatMs": 1000,
+    "pingMs": 2500
+  },
+  "loadStartedAt": "2026-11-28T18:27:05.186Z",
+  "loadStoppedAt": "2026-11-28T18:29:05.241Z",
+  "phases": [
+    {
+      "phase": "idle",
+      "durationMs": 600009.0153,
+      "heartbeats": 2371,
+      "maxHeartbeatGapMs": 279.2251,
+      "pingsSent": 594,
+      "pingsSeen": 594,
+      "pingsMissed": 0,
+      "maxPingGapMs": 1029.9736,
+      "pingLatencyMs": {
+        "p50": 0.1387,
+        "p99": 1.1772,
+        "max": 1.5995
+      },
+      "wouldKill": false
+    },
+    {
+      "phase": "cpu-load",
+      "durationMs": 120015.2381,
+      "heartbeats": 473,
+      "maxHeartbeatGapMs": 280.3454,
+      "pingsSent": 119,
+      "pingsSeen": 119,
+      "pingsMissed": 0,
+      "maxPingGapMs": 1016.2015,
+      "pingLatencyMs": {
+        "p50": 0.1052,
+        "p99": 0.1947,
+        "max": 0.2177
+      },
+      "wouldKill": false
+    }
+  ],
+  "finalEscape": {
+    "injected": true,
+    "own": true,
+    "injectToCallbackMs": 4.5043
+  },
+  "helperAliveAtEnd": true,
+  "endedAt": "2026-11-28T18:29:05.715Z"
+}

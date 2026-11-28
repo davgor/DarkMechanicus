@@ -13,6 +13,7 @@ const { writeFileSync } = require('node:fs')
 const arg = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3)
 const STATE = arg('state')
 const TITLE = arg('title') ?? 'DM-1041 fixture'
+const MODE = arg('mode') ?? 'normal'
 const state = { title: TITLE, ready: false, clicks: 0, text: '', keys: [], bounds: null, hwnd: null, pid: process.pid }
 
 app.setPath('userData', arg('profile'))
@@ -55,6 +56,31 @@ function recordBounds(win) {
   }
   const handle = win.getNativeWindowHandle()
   state.hwnd = handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0)
+  state.mode = MODE
+  state.maximized = win.isMaximized()
+  state.fullScreen = win.isFullScreen()
+}
+
+/** The "Probe button" centre in physical screen pixels, so a probe can click it through the DM-1042 overlay. */
+async function recordButton(win) {
+  const rect = await win.webContents.executeJavaScript('(() => { const r = document.getElementById("probe-button").getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height } })()')
+  const content = win.getContentBounds()
+  state.buttonPhysical = screen.dipToScreenPoint({ x: Math.round(content.x + rect.x + rect.width / 2), y: Math.round(content.y + rect.y + rect.height / 2) })
+}
+
+/** DM-1042 window states: `normal` (centred, the DM-1041 default), `top` (top-centre, touching the screen's top edge), `maximized`, `fullscreen` (borderless). */
+async function applyMode(win) {
+  if (MODE === 'top') {
+    const area = screen.getPrimaryDisplay().bounds
+    win.setBounds({ x: Math.round(area.x + (area.width - 760) / 2), y: area.y, width: 760, height: 340 })
+  } else if (MODE === 'maximized') {
+    win.maximize()
+  } else if (MODE === 'fullscreen') {
+    win.setFullScreen(true)
+  } else {
+    win.center()
+  }
+  await new Promise((done) => setTimeout(done, 600))
 }
 
 function raise(win) {
@@ -80,9 +106,11 @@ app.whenReady().then(async () => {
   win.on('page-title-updated', (event) => event.preventDefault())
   win.on('move', () => { recordBounds(win); publish() })
   await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}`)
-  win.center()
+  raise(win)
+  await applyMode(win)
   raise(win)
   recordBounds(win)
+  await recordButton(win)
   state.ready = true
   publish()
   // Re-assert the stacking a few times: the person's own always-on-top window must not cover the fixture (DM-851).

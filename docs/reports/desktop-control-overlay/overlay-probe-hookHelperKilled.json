@@ -1,0 +1,43 @@
+{
+  "startedAt": "2026-11-28T19:07:24.164Z",
+  "endedAt": "2026-11-28T19:07:34.647Z",
+  "kill": {
+    "reason": "hook-exited",
+    "triggerNs": "707225765204600",
+    "startNs": "707225765329200",
+    "overlayClosedNs": "707225773262800",
+    "overlayExitNs": "707225853187900",
+    "overlayClosedMs": 7.9336,
+    "triggerToOverlayClosedMs": 8.0582,
+    "triggerToOverlayExitMs": 87.9833,
+    "treeEndedMs": 117.2661,
+    "taskkillExit": 0,
+    "treeEndedNs": "707225882595300",
+    "agentKeysBefore": 0,
+    "agentKeysAfterTreeEnded": 0,
+    "lastAgentKeyBeforeEndMs": null,
+    "agentKeysBetweenKillStartAndTreeEnded": 0,
+    "watchedAfterMs": 1000,
+    "standInInjects": false,
+    "fixtureInFrontAtStart": {
+      "hwnd": 1576469884,
+      "listed": true,
+      "pid": 7176
+    },
+    "foregroundJustBeforeTrigger": {
+      "hwnd": 1576469884,
+      "listed": true,
+      "pid": 7176
+    },
+    "fromTriggerActionMs": 92.2417,
+    "treePids": [
+      22588,
+      21168,
+      18868,
+      7080
+    ],
+    "treePidsAliveAfter": [],
+    "overlayWindowsAfter": 0,
+    "fixtureKeysReceived": []
+  }
+}

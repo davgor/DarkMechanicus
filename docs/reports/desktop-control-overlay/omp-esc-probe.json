@@ -1,0 +1,157 @@
+{
+  "startedAt": "2026-11-28T18:38:13.296Z",
+  "argv": [
+    "omp",
+    "--mode",
+    "rpc-ui",
+    "--cwd",
+    "<probe-root>",
+    "--append-system-prompt",
+    "<probe-root>\\instructions.md",
+    "--config",
+    "<probe-root>\\config.yml",
+    "--session-dir",
+    "<probe-root>\\sessions",
+    "--max-time",
+    "8m",
+    "--max-cost",
+    "2"
+  ],
+  "computerStatus": "Computer use: enabled · prelude: active · configured: display=all, maxWidth=3840, maxHeight=2400, backgroundFallback=takeover",
+  "protectOnAt": "2026-11-28T18:38:19.873Z",
+  "promptResult": {
+    "status": "completed",
+    "sessionSettled": true,
+    "error": null
+  },
+  "fixtureAfter": [
+    {
+      "key": "Escape",
+      "trusted": true,
+      "at": 1795891103968
+    }
+  ],
+  "escapesSeenByHook": [
+    {
+      "injected": true,
+      "own": false,
+      "kind": 0,
+      "lagMs": 0
+    }
+  ],
+  "killFiredBeforeOurKill": false,
+  "ompScreenshots": [
+    {
+      "name": "omp-computer-15e02a322e85d9bb.png",
+      "width": 1280,
+      "height": 800,
+      "redPoints": 14,
+      "points": 14,
+      "protectedWhenTaken": false
+    },
+    {
+      "name": "omp-computer-15e02a363145d9bc.png",
+      "width": 1280,
+      "height": 800,
+      "redPoints": 0,
+      "points": 14,
+      "protectedWhenTaken": true
+    }
+  ],
+  "ompPidAliveBeforeKill": true,
+  "ompExit": 1,
+  "kill": {
+    "reason": "simulated-physical-esc",
+    "triggerNs": "705480957028800",
+    "startNs": "705480957121000",
+    "overlayClosedNs": "705480964213000",
+    "overlayExitNs": "705481034315600",
+    "overlayClosedMs": 7.092,
+    "triggerToOverlayClosedMs": 7.1842,
+    "triggerToOverlayExitMs": 77.2868,
+    "treeEndedMs": 134.7799,
+    "taskkillExit": 0,
+    "treeEndedNs": "705481091900900",
+    "agentKeysBefore": 0,
+    "agentKeysAfterTreeEnded": 0,
+    "lastAgentKeyBeforeEndMs": null,
+    "agentKeysBetweenKillStartAndTreeEnded": 0,
+    "watchedAfterMs": 1000,
+    "ompPidAliveAfter": false
+  },
+  "removedOmpScreenshots": [
+    "omp-computer-15e02a322e85d9bb.png",
+    "omp-computer-15e02a363145d9bc.png"
+  ],
+  "summary": {
+    "frameTypes": {
+      "out:ready": 1,
+      "in:negotiate_protocol": 1,
+      "in:set_event_filter": 1,
+      "in:prompt": 2,
+      "out:extension_ui_request": 2,
+      "out:advisor_cost_changed": 1,
+      "out:available_commands_update": 1,
+      "out:response": 4,
+      "out:command_output": 1,
+      "out:agent_start": 1,
+      "out:turn_start": 2,
+      "out:message_start": 4,
+      "out:message_end": 4,
+      "out:message_update": 104,
+      "out:tool_execution_start": 1,
+      "out:tool_execution_update": 5,
+      "out:tool_execution_end": 1,
+      "out:turn_end": 2,
+      "out:agent_end": 1,
+      "out:prompt_result": 1,
+      "out:session_settled": 1
+    },
+    "toolNames": [
+      "eval"
+    ],
+    "calls": [
+      {
+        "at": "2026-11-28T18:38:19.637Z",
+        "phase": "start",
+        "tool": "eval",
+        "id": "toolu_01GY4M7sgx4vLKiU3w1zs1Tv",
+        "args": {
+          "language": "js",
+          "code": "await computer.display(\"all\");\nconst t0 = Date.now();\nconst a = await computer.screenshot({ silent: true });\nawait new Promise((r) => setTimeout(r, 4000));\nconst b = await computer.screenshot({ silent: true });\nconst win = await computer.window({ title: \"DM-1042 fixture OMP\" });\nconst t1 = Date.now();\nawait win.press(\"escape\");\nconst t2 = Date.now();\nprint(\"PROBE_RESULT \" + JSON.stringify({ a: { w: a.width, h: a.height }, b: { w: b.width, h: b.height }, pressMs: t2 - t1, totalMs: t2 - t0 }));",
+          "title": "DM-1042 probe"
+        }
+      },
+      {
+        "at": "2026-11-28T18:38:24.012Z",
+        "phase": "end",
+        "tool": "eval",
+        "id": "toolu_01GY4M7sgx4vLKiU3w1zs1Tv",
+        "isError": false,
+        "images": 0,
+        "text": "press ran in takeover because window 1575224700 (Chrome_WidgetWin_1) drops background keystroke events: Chromium requires input originating from the system input queue; the input was delivered, and focus was not confirmed afterwards\nPROBE_RESULT {\"a\":{\"w\":1280,\"h\":800},\"b\":{\"w\":1280,\"h\":800},\"pressMs\":51,\"totalMs\":4280}"
+      }
+    ],
+    "commandOutput": [
+      {
+        "type": "command_output",
+        "text": "Computer use: enabled · prelude: active · configured: display=all, maxWidth=3840, maxHeight=2400, backgroundFallback=takeover"
+      }
+    ],
+    "configUpdates": [],
+    "pixelCalls": [],
+    "probeResult": {
+      "a": {
+        "w": 1280,
+        "h": 800
+      },
+      "b": {
+        "w": 1280,
+        "h": 800
+      },
+      "pressMs": 51,
+      "totalMs": 4280
+    }
+  },
+  "endedAt": "2026-11-28T18:38:29.419Z"
+}
