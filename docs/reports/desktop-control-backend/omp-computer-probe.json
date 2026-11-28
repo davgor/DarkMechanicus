@@ -1,0 +1,300 @@
+{
+  "frames": 410,
+  "uiAnswered": [],
+  "startedAt": "2026-11-28T17:49:35.832Z",
+  "endedAt": "2026-11-28T17:49:58.901Z",
+  "fixtureBefore": {
+    "title": "DM-1041 fixture A",
+    "ready": true,
+    "clicks": 0,
+    "text": "",
+    "keys": [],
+    "bounds": {
+      "dip": {
+        "x": 573,
+        "y": 339,
+        "width": 562,
+        "height": 342
+      },
+      "physical": {
+        "x": 860,
+        "y": 509,
+        "width": 844,
+        "height": 514
+      },
+      "contentPhysical": {
+        "x": 872,
+        "y": 554,
+        "width": 821,
+        "height": 457
+      },
+      "scaleFactor": 1.5
+    },
+    "hwnd": 865469826,
+    "pid": 21712
+  },
+  "argv": [
+    "omp",
+    "--mode",
+    "rpc-ui",
+    "--cwd",
+    "<probe-root>",
+    "--append-system-prompt",
+    "<probe-root>\\instructions.md",
+    "--config",
+    "<probe-root>\\config.yml",
+    "--session-dir",
+    "<probe-root>\\sessions",
+    "--max-time",
+    "12m",
+    "--max-cost",
+    "4"
+  ],
+  "promptResult": {
+    "status": "completed",
+    "sessionSettled": true,
+    "error": null
+  },
+  "exitCode": 0,
+  "fixtureAfter": {
+    "title": "DM-1041 fixture A",
+    "ready": true,
+    "clicks": 2,
+    "text": "hello",
+    "keys": [
+      {
+        "key": "h",
+        "trusted": true,
+        "at": 1795888187211
+      },
+      {
+        "key": "e",
+        "trusted": true,
+        "at": 1795888187212
+      },
+      {
+        "key": "l",
+        "trusted": true,
+        "at": 1795888187213
+      },
+      {
+        "key": "l",
+        "trusted": true,
+        "at": 1795888187213
+      },
+      {
+        "key": "o",
+        "trusted": true,
+        "at": 1795888187213
+      },
+      {
+        "key": "Unidentified",
+        "trusted": true,
+        "at": 1795888187214
+      },
+      {
+        "key": "Escape",
+        "trusted": true,
+        "at": 1795888187484
+      }
+    ],
+    "bounds": {
+      "dip": {
+        "x": 573,
+        "y": 339,
+        "width": 562,
+        "height": 342
+      },
+      "physical": {
+        "x": 860,
+        "y": 509,
+        "width": 844,
+        "height": 514
+      },
+      "contentPhysical": {
+        "x": 872,
+        "y": 554,
+        "width": 821,
+        "height": 457
+      },
+      "scaleFactor": 1.5
+    },
+    "hwnd": 865469826,
+    "pid": 21712
+  },
+  "evidence": {
+    "capture": {
+      "result": "ok",
+      "totalMs": 185,
+      "virtual": {
+        "y": 0,
+        "width": 2560,
+        "height": 1600,
+        "x": 0
+      },
+      "nonBlack": 3056,
+      "monitors": [
+        {
+          "device": "\\\\.\\DISPLAY65",
+          "width": 2560,
+          "y": 0,
+          "height": 1600,
+          "x": 0,
+          "primary": true
+        }
+      ],
+      "session": 2,
+      "captureMs": 77.2
+    },
+    "crop": {
+      "width": 824,
+      "path": "<HOME>\\dmwork\\dm1041-probe\\out\\a2\\a-fixture-after.png",
+      "height": 503,
+      "sourceWidth": 2560,
+      "x": 870,
+      "sourceHeight": 1600,
+      "y": 509
+    }
+  },
+  "removedOmpScreenshots": [
+    {
+      "name": "omp-computer-15e01f1581b51f3a.png",
+      "size": 388079
+    },
+    {
+      "name": "omp-computer-15e01f15e9751f3b.png",
+      "size": 39366
+    }
+  ],
+  "summary": {
+    "frameTypes": {
+      "out:ready": 1,
+      "in:negotiate_protocol": 1,
+      "in:set_ask_dialog": 1,
+      "in:set_subagent_subscription": 1,
+      "in:set_event_filter": 1,
+      "in:get_state": 1,
+      "in:prompt": 2,
+      "out:extension_ui_request": 3,
+      "out:advisor_cost_changed": 1,
+      "out:response": 7,
+      "out:available_commands_update": 1,
+      "out:command_output": 1,
+      "out:agent_start": 1,
+      "out:turn_start": 2,
+      "out:message_start": 4,
+      "out:message_end": 4,
+      "out:message_update": 368,
+      "out:tool_execution_start": 1,
+      "out:tool_execution_update": 10,
+      "out:tool_execution_end": 1,
+      "out:turn_end": 2,
+      "out:agent_end": 1,
+      "out:prompt_result": 1,
+      "out:session_settled": 1
+    },
+    "toolNames": [
+      "eval"
+    ],
+    "calls": [
+      {
+        "at": "2026-11-28T17:49:46.547Z",
+        "phase": "start",
+        "tool": "eval",
+        "id": "toolu_01LTJ9Qb2kj3ch5WTC6xN317",
+        "args": {
+          "language": "js",
+          "title": "DM-1041 probe",
+          "code": "const stepMs = {}; const R = {};\nconst t = async (k, f) => { const s = Date.now(); try { return await f(); } catch (e) { print(`${k} ERROR: ${e?.name}: ${e?.message}`); R[k+\"Error\"] = String(e?.message ?? e); } finally { stepMs[k] = Date.now() - s; } };\nawait t(\"s1\", async () => { print(JSON.stringify(await computer.capabilities())); print(JSON.stringify(await computer.displays())); });\nawait t(\"s2\", async () => { await computer.display(\"all\"); const shot = await computer.screenshot({ silent: true }); print(shot.width, shot.height, shot.path); });\nconst win = await t(\"s3\", async () => { const w = await computer.window({ title: \"DM-1041 fixture A\" }); print(w.id, JSON.stringify(w.bounds), w.focused); return w; });\nlet nodeCount, buttonFound, inputFound, btn, clickPoint, screenshotSize;\nawait t(\"s4\", async () => { const tree = await win.ax(); nodeCount = tree.split(\"\\n\").filter(l => l.includes(\"[ref=\")).length; buttonFound = /button \"Probe button\"/i.test(tree); inputFound = tree.split(\"\\n\").some(l => l.includes('\"Probe input\"')); print(nodeCount, buttonFound, inputFound); });\nawait t(\"s5\", async () => { [btn] = await win.find({ role: \"button\", title: \"Probe button\" }); await btn.press(); });\nawait t(\"s6\", async () => { const [field] = await win.find({ title: \"Probe input\" }); await field.type(\"hello\"); });\nawait t(\"s7\", async () => {\n  const shot = await win.screenshot({ silent: true }); screenshotSize = { width: shot.width, height: shot.height };\n  const b = await btn.bounds(); const wb = win.bounds;\n  const sx = shot.width / wb.width, sy = shot.height / wb.height;\n  const x = Math.round((b.x + b.width / 2 - wb.x) * sx), y = Math.round((b.y + b.height / 2 - wb.y) * sy);\n  const inside = x >= 0 && y >= 0 && x < shot.width && y < shot.height;\n  clickPoint = { x, y, inside, btnBounds: b, scale: [sx, sy] };\n  if (!inside) throw new Error(\"click point outside screenshot\");\n  await win.click(x, y);\n});\nawait t(\"s8\", async () => { await win.press(\"escape\"); });\nprint(\"PROBE_RESULT \" + JSON.stringify({ stepMs, nodeCount, buttonFound, inputFound, clickPoint, windowBounds: win?.bounds, screenshotSize }));"
+        }
+      },
+      {
+        "at": "2026-11-28T17:49:47.520Z",
+        "phase": "end",
+        "tool": "eval",
+        "id": "toolu_01LTJ9Qb2kj3ch5WTC6xN317",
+        "isError": false,
+        "images": 0,
+        "text": "{\n  \"backend\": \"win32\",\n  \"capture\": true,\n  \"input\": true,\n  \"ax\": true,\n  \"backgroundWindowInput\": true,\n  \"takeover\": true,\n  \"applications\": true,\n  \"menus\": true,\n  \"heldInput\": true,\n  \"spaces\": false,\n  \"globalEscape\": true,\n  \"secureInput\": false,\n  \"capturePermission\": \"granted\",\n  \"inputPermission\": \"granted\",\n  \"axPermission\": \"granted\",\n  \"displayCount\": 1,\n  \"screenLocked\": false,\n  \"displayAsleep\": false,\n  \"displayServer\": \"win32\"\n}\n{\"backend\":\"win32\",\"capture\":true,\"input\":true,\"ax\":true,\"backgroundWindowInput\":true,\"takeover\":true,\"applications\":true,\"menus\":true,\"heldInput\":true,\"spaces\":false,\"globalEscape\":true,\"secureInput\":false,\"capturePermission\":\"granted\",\"inputPermission\":\"granted\",\"axPermission\":\"granted\",\"displayCount\":1,\"screenLocked\":false,\"displayAsleep\":false,\"displayServer\":\"win32\"}\n[{\"id\":\"65537\",\"name\":\"Unknown Monitor 65537\",\"x\":0,\"y\":0,\"width\":2560,\"height\":1600,\"scale\":1.5,\"pixelX\":0,\"pixelY\":0,\"pixelWidth\":2560,\"pixelHeight\":1600,\"isPrimary\":true}]\n1280 800 <HOME>\\AppData\\Local\\Temp\\omp-computer-15e01f1581b51f3a.png\n865469826 {\"x\":869,\"y\":509,\"width\":824,\"height\":503} true\n23 true true\ntype ran in takeover because this element of window 865469826 is drawn without a control window of its own, so background keys cannot address it, and focusing it would bring the window to the front; the input was delivered, and focus was not confirmed afterwards\nclick ran in takeover because window 865469826 (Chrome_WidgetWin_1) drops background mouse_click events: Chromium requires input originating from the system input queue; the input was delivered, and focus was not confirmed afterwards\npress ran in takeover because window 865469826 (Chrome_WidgetWin_1) drops background keystroke events: Chromium requires input originating from the system input queue; the input was delivered, and focus was not confirmed afterwards\nPROBE_RESULT {\"stepMs\":{\"s1\":42,\"s2\":202,\"s3\":9,\"s4\":110,\"s5\":91,\"s6\":156,\"s7\":219,\"s8\":52},\"nodeCount\":23,\"buttonFound\":true,\"inputFound\":true,\"clickPoint\":{\"x\":154,\"y\":192,\"inside\":true,\"btnBounds\":{\"x\":908,\"y\":667,\"width\":233,\"height\":68},\"scale\":[0.9890776699029126,1]},\"windowBounds\":{\"x\":869,\"y\":509,\"width\":824,\"height\":503},\"screenshotSize\":{\"width\":815,\"height\":503}}"
+      }
+    ],
+    "commandOutput": [
+      {
+        "type": "command_output",
+        "text": "Computer use: enabled · prelude: active · configured: display=all, maxWidth=3840, maxHeight=2400, backgroundFallback=takeover"
+      }
+    ],
+    "configUpdates": [],
+    "pixelCalls": [
+      {
+        "receiver": "win",
+        "method": "click",
+        "x": "x",
+        "y": "y"
+      }
+    ],
+    "probeResult": {
+      "stepMs": {
+        "s1": 42,
+        "s2": 202,
+        "s3": 9,
+        "s4": 110,
+        "s5": 91,
+        "s6": 156,
+        "s7": 219,
+        "s8": 52
+      },
+      "nodeCount": 23,
+      "buttonFound": true,
+      "inputFound": true,
+      "clickPoint": {
+        "x": 154,
+        "y": 192,
+        "inside": true,
+        "btnBounds": {
+          "x": 908,
+          "y": 667,
+          "width": 233,
+          "height": 68
+        },
+        "scale": [
+          0.9890776699029126,
+          1
+        ]
+      },
+      "windowBounds": {
+        "x": 869,
+        "y": 509,
+        "width": 824,
+        "height": 503
+      },
+      "screenshotSize": {
+        "width": 815,
+        "height": 503
+      }
+    }
+  },
+  "coordinates": {
+    "checked": true,
+    "insideScreenshot": true,
+    "desktopPoint": {
+      "x": 1023,
+      "y": 701
+    },
+    "fixturePhysical": {
+      "x": 860,
+      "y": 509,
+      "width": 844,
+      "height": 514
+    },
+    "insideFixture": true,
+    "pixelCalls": [
+      {
+        "receiver": "win",
+        "method": "click",
+        "x": "x",
+        "y": "y"
+      }
+    ]
+  }
+}
