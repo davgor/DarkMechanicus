@@ -5,6 +5,10 @@ it without going back to the code. It applies only on **GO** at the Sprint 5 che
 `desktop-control-s6-proposal.md`, for continuity, but Sprint 6 is now Antics (revision 17). Below, the sprint is called
 **the desktop-control build sprint** throughout.
 
+**On NO-GO**, this proposal is not saved. The Magos redrafts s12 into an honest NO-GO criterion, and that revision is
+saved and adopted before the final sprint's checkpoint (plan rationale B1). s12 is never reported met to pass the
+gate.
+
 The design it builds is [`docs/design/desktop-control.md`](../design/desktop-control.md), cited here as **D §n**. The
 probe reports are cited as **B:n** (`docs/reports/desktop-control-backend.md`) and **O:n**
 (`docs/reports/desktop-control-overlay.md`).
@@ -25,6 +29,12 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
 3. Reword Antics' entry criteria `n1` and `n3`, its exit criterion `x1` and its acceptance criterion `c1` from
    "Sprint 5" to "the previous sprint".
 4. Keep Codex's `n1` as it is: it already reads "the immediately previous sprint".
+5. `dc-owner` c3 cannot test the Techmarine boot resume yet, because `s6-repair-resume` lands later, in Antics. Add
+   this testCase to `s6-repair-resume`:
+
+   | startingCondition | action | expectedResult | verificationMethod |
+   | --- | --- | --- | --- |
+   | An open incident whose Techmarine chat held desktop control before the app restarted | Run the boot resume | The chat resumes its same session; its `config.yml` has no `computer:` block; no desktop-control owner exists; the toggle is Off | `repairResume` test of `s6-repair-resume`, reading the written overlay |
 
 **After Antics.** The order becomes S5 → Antics → desktop-control build → Codex.
 
@@ -33,29 +43,32 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
 
 **Final or not.** Codex (S7) follows in both orders, so this sprint is **not** the final sprint as saved.
 
-- Its acceptance criterion `c14` still carries the closeout, so the text stays correct if the plan later changes.
-- **If the sprint is final**, its report's `epicOutcome` reports every success criterion s7–s16 with evidence:
-  - s12 met by this sprint's evidence;
-  - s15 per the adopted wording, or reported unmet if Codex never ran.
-
-  No criterion is reported met without evidence.
+- Its acceptance criterion `c16` still carries the closeout, so the text stays correct if the plan later changes.
+- **If the sprint is final**, its report's `epicOutcome` reports every success criterion s7–s16 as met, each with
+  evidence, and s12 met by this sprint's evidence. A criterion that cannot be met as worded, for example s15 if Codex
+  never ran or its terminal toggle cannot keep the thread, is **amended by a saved and adopted revision before the
+  checkpoint** (plan rationale, revision-19 rule B1 and the s15/x4 rule 11). It is never reported unmet, and never
+  reported met without evidence, because `outcomeGate` (`src/core/services/checkpoints.ts:349`) refuses the final
+  checkpoint while any criterion is unmet.
 - **If it is not final**, the report states that a later sprint follows and carries no `epicOutcome`.
 
 ## Sprint fields
 
-**Goal** (1,261 characters):
+**Goal** (1,410 characters):
 
 > Desktop-control build sprint. A Skitarii (OMP) GUI chat gets Codex-level total control of the whole Windows desktop
 > through OMP's built-in computer use, enabled per chat in DM's per-chat --config overlay after one native confirmation
 > (no Windows Hello, no per-action approval) and never in the person's global OMP config. While control is active, a
 > light red border with "A Skitarii agent is controlling the desktop" covers every display, the chat header shows a
-> badge and Stop, the agent tree row shows a lock, and DM's own human-only controls (checkpoint, Kanban review and
-> delete, retry grants, browser site Allow, loosening confirmations, the enable itself) are locked in main. A physical
-> ESC ends control instantly (overlay within 10 ms, computer-use tree within 150 ms) while the agent's injected ESC
-> reaches the app; every other stop path and every fail-closed path (hook helper death, lost heartbeat or ping, crash)
-> ends it within its stated bound. Exactly one chat controls the desktop, control never survives a relaunch or
-> restart, the Magos arbiter never decides desktop prompts, and desktop screenshots show inline. Everything is proven
-> unattended with a fake computer-use persona and a fixture window; the person presses ESC once at the checkpoint.
+> badge and Stop, the agent tree row shows a lock, and in every DM window on the desktop the person's human-only
+> controls (checkpoint, Kanban review and delete, retry grants, run and planner starts, Restart now, browser site
+> Allow, loosening confirmations, the enable itself) are locked in main. A physical ESC ends control instantly
+> (overlay within 10 ms, computer-use tree within 150 ms) while the agent's injected ESC reaches the app; every other
+> stop path and every fail-closed path (hook helper death, lost heartbeat or ping, a hidden overlay, crash) ends it
+> within its stated bound. Exactly one chat per desktop controls it, across every DM instance; control never survives
+> a relaunch or restart; the Magos arbiter never decides desktop prompts; desktop screenshots show inline. Everything
+> is proven unattended with a fake computer-use persona, a fixture window and a bounded real-omp live smoke; the
+> person presses ESC once at the checkpoint.
 
 **Entry criteria:**
 
@@ -101,34 +114,40 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
   - confirmed by `/computer status` and `get_state`.
 
   Claude, terminal-surface and non-Windows chats are refused. A second chat's enable is refused while one owns
-  control. Every other launch, including restart resume, the Techmarine boot resume and lazy resume, comes back Off.
-- **x4.** The overlay is one transparent, click-through, non-focusable, content-protected, screen-saver-level window
-  per display, created in main. `src/main/windows.test.ts` was updated deliberately to allow exactly `index.ts` and the
-  overlay module.
+  control, in the same DM instance or in any other instance on the desktop (machine-wide owner, D §4). Every other
+  launch, including restart resume, the Techmarine boot resume and lazy resume, comes back Off.
+- **x4.** The overlay is one transparent, click-through, non-focusable, screen-saver-level window per display, created
+  in main, with content protection as the person chose at GO. It fails closed (`overlay-lost`) when hidden, minimized,
+  moved or destroyed. `src/main/windows.test.ts` was updated deliberately to allow exactly `index.ts` and the overlay
+  module.
 - **x5.** The ESC hook helper:
   - kills on a physical Escape key-down only;
   - passes injected Escapes through;
   - fails closed on its own death, a heartbeat gap over 1000 ms or a ping gap over 2500 ms;
   - stops its ping thread before unhooking.
 - **x6.** Every kill path (physical ESC, header Stop, chat stop and delete, untrack, agent removal, quit, OMP exit,
-  hook death, heartbeat and ping loss) runs one kill. The overlay is removed within 10 ms and the tree has ended
-  within 150 ms of the kill decision (measured on the product's route), with no injected key after. The lock is lifted
-  only after the tree has exited. A DM crash, which has no kill decision, leaves no OMP pid, hook helper or overlay
-  window after 1 s.
-- **x7.** While control is active, main refuses every locked control:
-  - every `HUMAN_ONLY_CAPABILITIES` command;
-  - the locked channels;
-  - the approving or loosening native confirmations.
+  hook death, heartbeat and ping loss, overlay lost) runs one kill. The overlay is removed within 10 ms and the tree
+  has ended within 150 ms of the kill decision, with no injected key after. The 150 ms is gated with **real omp** by
+  the live smoke. The lock is lifted only after the tree has exited. A DM crash, which has no kill decision, leaves no
+  OMP pid, hook helper or overlay window after 1 s, checked with the fake persona and once with real omp.
+- **x7.** While control is active in any DM instance on the desktop, main refuses in every instance:
+  - every `HUMAN_ONLY_CAPABILITIES` command through `runCommand`;
+  - the locked channels, including `chats:startOrchestrator`, `chats:startPlanner`, a saving `chats:create` and
+    `autoUpdate:quitAndInstall`;
+  - the approving or loosening native confirmations;
+  - per the person's GO-time choices, approving answers and text in the person's voice sent to any chat other than
+    the owner.
 
-  Refusals return `desktop_control_active`. The renderer mirrors the lock, and Stop stays available.
+  Refusals return `desktop_control_active`. The renderer mirrors the lock, and Stop stays available. A channel
+  inventory test classifies every registered IPC channel as locked or open.
 - **x8.** The Magos arbiter never decides a prompt of the controlling chat or any computer-use prompt: a registered
   `never_arbitrate` predicate.
 - **x9.** The header toggle, badge and Stop, the tree-row lock and the `desktop_control` notification for a
   fail-closed end ship. Desktop screenshots show inline through the S3 chat-image path, and no `omp-computer-*.png` is
   left after control ends.
 - **x10.** The built-app `desktop-*` e2e steps pass with zero retries. The capture states at 1024×768 and 1440×900
-  are attached and inspected. The live smoke with real omp on the fixture passes. The full Definition of Done passes
-  at acceptance.
+  are attached and inspected. The real-omp live smoke passes: fixture driven, tree ended ≤ 150 ms after Stop, and the
+  crash check. The full Definition of Done passes at acceptance.
 - **x11.** Before the human checkpoint, the Magos delivers the combined increment to main by protected pull request:
   squash, required checks, no bypass and no rerun-to-green. It owns CI Checks → Deploy publication and records the
   packaged Windows journey from `deploymentVerification`. This saved-plan text explicitly authorizes that
@@ -136,28 +155,29 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
   controls any live-host Restart now.
 - **x12.** The final-sprint closeout follows the Placement section above.
 
-**`deploymentVerification`** (1,884 characters):
+**`deploymentVerification`** (1,992 characters):
 
 > Deliverable: on Windows the person turns on Desktop control for a Skitarii GUI chat, sees the red border with the
 > note on every display and the header badge, and a physical ESC ends control at once.
 > Before checkpoint, finish PR/CI/Deploy rollout and identify the published Windows package containing this sprint
-> (a Deploy skip is a failure here: this sprint changes src/). Open it with an isolated profile and folder and the
-> seeded fake omp computer-use persona (the e2e --exe mode) plus the desktop fixture window, recording exe and
-> profile provenance and the runtime header version. No personal data or credentials in the proof.
+> (a Deploy skip is a failure: this sprint changes src/). Open it with an isolated profile and folder, the seeded fake
+> omp computer-use persona (e2e --exe mode) and the desktop fixture, recording exe and profile provenance and the
+> runtime header version. No personal data or credentials in the proof.
 > Journey (fake omp, isolated profile):
-> - The header shows Desktop control Off; enabling shows one native confirmation; after it the overlay windows are
-> listed topmost with affinity 0x11 on every display, the badge and tree lock show.
-> - The agent drives the fixture (click, text, injected Escape); the fixture logs Escape and control stays on.
-> - Checkpoint Approve, Kanban Delete and site Allow are refused with desktop_control_active.
-> - Stop ends control: overlay gone, tree ended, lock lifted; a relaunch comes back Off.
-> Agent live smoke before the checkpoint (real omp, ≤ 5 min, ≤ $0.50): enable control on a fixture-only chat; the
-> fixture reads back clicks, text and Escape; Stop ends it; no omp-computer-*.png remains; the global OMP config hash
-> is unchanged.
-> Person's single step at checkpoint, in the installed app with the isolated profile and the fake persona: turn on
-> Desktop control for the fixture chat; confirm the light red border and note are visible on every display (this
-> also settles whether a content-protected border shows through RDP); press Esc on the physical keyboard. Expected:
-> the border disappears at once and the header shows Desktop control ended (physical-esc) with its overlay and tree
-> times in ms, which the report records.
+> - Header shows Desktop control Off; enabling shows one native confirmation; the overlay windows are then listed
+> topmost on every display (affinity as chosen at GO); badge and tree lock show.
+> - The agent drives the fixture (click, text, injected Escape); the fixture logs Escape; control stays on.
+> - Checkpoint Approve, Start run, Kanban Delete and site Allow are refused with desktop_control_active, in this
+> instance and in a second isolated instance.
+> - Stop ends control: overlay gone, tree ended, lock lifted in both instances; a relaunch comes back Off.
+> Agent live smoke (real omp, ≤ 5 min, ≤ $0.50): enable on a fixture-only chat; fixture reads
+> back clicks, text and Escape; Stop ends it with the OMP tree exited ≤ 150 ms after the kill decision; one crash
+> check (taskkill /F of DM main) leaves no OMP pid, helper or overlay after 1 s; no omp-computer-*.png remains;
+> global OMP config hash unchanged.
+> Person's single step at checkpoint, installed app, isolated profile, fake persona: turn on Desktop control for the
+> fixture chat; confirm the border and note show on every display (if protection was chosen at GO, this settles RDP
+> visibility); press Esc on the physical keyboard. Expected: the border disappears at once and the header shows
+> Desktop control ended (physical-esc) with its overlay and tree times in ms, recorded in the report.
 
 **Checkpoint mode:** `human`.
 
@@ -172,15 +192,18 @@ Edges, written as **depends on**:
 
 | Ticket | Depends on |
 | --- | --- |
-| `dc-live-facts`, `dc-overlay`, `dc-hook` | `dc-delivery` |
+| `dc-live-facts`, `dc-overlay`, `dc-hook`, `dc-fake-persona` | `dc-delivery` |
 | `dc-launch` | `dc-live-facts` |
-| `dc-owner` | `dc-launch` |
+| `dc-machine-owner` | `dc-hook` |
+| `dc-owner` | `dc-launch`, `dc-machine-owner` |
 | `dc-kill` | `dc-owner`, `dc-overlay`, `dc-hook` |
 | `dc-lock-main`, `dc-never-arbitrate`, `dc-ui` | `dc-owner` |
-| `dc-lock-ui` | `dc-lock-main` |
+| `dc-voice-lock` | `dc-lock-main` |
+| `dc-lock-ui` | `dc-lock-main`, `dc-voice-lock` |
 | `dc-screens` | `dc-live-facts`, `dc-kill` |
-| `dc-e2e` | `dc-kill`, `dc-lock-ui`, `dc-never-arbitrate`, `dc-ui`, `dc-screens` |
-| `dc-docs` | `dc-e2e` |
+| `dc-e2e-steps` | `dc-fake-persona`, `dc-kill`, `dc-machine-owner`, `dc-lock-ui`, `dc-never-arbitrate`, `dc-ui`, `dc-screens` |
+| `dc-live-smoke` | `dc-e2e-steps` |
+| `dc-docs` | `dc-live-smoke` |
 | `dc-acceptance` | every ticket |
 
 Every implementation ticket's body ends with the epic's standard tail: Context, Execution host (Windows-first,
@@ -302,8 +325,10 @@ same rules from the Sprint 5 tickets hold everywhere:
   - **The enable channel.** `agentChat:setDesktopControl {folder, chatId, on}` is added to `AGENT_CHAT_CHANNELS`
     (`src/shared/agents/agentChat.ts:13`), registered in `src/main/agentChat/agentChatIpc.ts` beside `:240-251` through
     the guard, and exposed in `src/preload/index.ts`.
-  - **Enable checks** (D §3.1, §3.3): an OMP GUI chat on the GUI surface, on Windows, with no other owner. Then one
-    native confirmation (Cancel default, no Hello) built like `confirmYolo` (`src/main/desktop/bootstrap.ts:233-238`).
+  - **Enable checks** (D §3.1, §3.3): an OMP GUI chat on the GUI surface, on Windows, with no owner in this or any
+    other DM instance (`dc-machine-owner`). Then one native confirmation (Cancel default, no Hello) built like
+    `confirmYolo` (`src/main/desktop/bootstrap.ts:233-238`). Enable acquires the machine-wide owner before the
+    relaunch, and loses the race cleanly if another instance acquired it first.
   - **The relaunch.** The chat's live process is force-stopped, and the chat relaunches on its same session through
     `startFiles` with `computer` (`dc-launch`). After `ready`, main requires `/computer status` → `Computer use:
     enabled` and the `get_state` marker (B:134-141). If either is missing, it ends control with
@@ -325,7 +350,7 @@ same rules from the Sprint 5 tickets hold everywhere:
   - c1: An enable for an OMP GUI chat shows exactly one native confirmation. On confirm, it relaunches the same
     session with the computer overlay and reaches `active` only after both signatures. Cancel changes nothing.
   - c2: These enables are refused before any dialog: a Claude chat, a terminal-surface chat, a non-Windows platform,
-    and a second chat while one owns control.
+    a second chat while one owns control, and any chat while **another DM instance** owns control.
   - c3: Every later launch writes the default overlay and reports Off: a relaunch after control ended, a restart
     resume (`restartResume.ts`), a lazy resume on send, and, when `s6-repair-resume` has landed, a Techmarine boot
     resume.
@@ -339,7 +364,47 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Chat A owns control | Enable for chat B | Refused with `conflict` before any dialog; A is unchanged | `desktopControl.test.ts` |
   | Fake omp answers `Computer use: disabled` after `ready` | Enable and confirm | Control ends with `status-unconfirmed`; owner cleared | `desktopControl.test.ts` |
   | A Magos that held control, then a restart marker written for it | Run the restart resume | It relaunches with no computer block; the toggle is Off | `restartResume.test.ts` |
-- **Dependencies.** `dc-launch`.
+  | Two `desktopControl` instances with separate `userData` and one shared owner directory; instance A owns control | Enable a chat in instance B | Refused with `conflict` before any dialog; B's owner state names A's chat; A is unchanged | `desktopControl.test.ts` (two instances over the `dc-machine-owner` seam) |
+- **Dependencies.** `dc-launch`, `dc-machine-owner`.
+
+### dc-machine-owner: One owner per desktop across every Dark Mechanicus instance
+
+- **Size** medium · **Reasoning** high
+- **Outcome.** D §4. `src/main/desktopControl/machineOwner.ts` **(new)** provides `acquire(owner)`, `release()`,
+  `current()` and `onChange`. It has two parts:
+  - **Authority.** This ticket extends the `dc-hook` helper so that it creates and holds the session-scoped named
+    mutex `Local\DarkMechanicus.DesktopControl` and reports `mutex: owned | already-owned` on its first line. Windows
+    releases the mutex when the helper dies.
+  - **Visibility.** After the mutex is owned, the owner writes `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json`
+    with `{pid, processStartTime, userData, folder, chatId, since}` through `writePrivateFile`
+    (`src/main/terminals/privateFile.ts`). It deletes the file on release.
+
+  Every instance watches the file (`fs.watch` plus a 500 ms poll). `current()` reports another instance's owner when
+  the file names a live pid whose start time matches. An unreadable file reads as locked. A dead owner's file is
+  removed by the next reader and at startup. `desktopControl.locked()` (`dc-owner`) is true when this instance owns
+  control or `current()` names another live owner, and every instance pushes the change to its renderer.
+- **Source locations.** `src/main/terminals/privateFile.ts`, `src/main/index.ts` (`:145`, `requestSingleInstanceLock`,
+  which is per profile only), `scripts/e2e-agent-chat.mjs` (`:622`, isolated `--user-data-dir`),
+  `scripts/spike/desktop/esc-hook.ps1`.
+- **Tests.** `src/main/desktopControl/machineOwner.test.ts` **(new)**: a temp owner directory, an injected pid and
+  start-time probe, and fake timers. `src/main/desktopControl/machineOwner.real.test.ts` **(new)**: Windows-only, two
+  real helpers.
+- **Acceptance criteria.**
+  - c1: With two `machineOwner` instances over one directory, A's `acquire` makes B's `current()` name A within
+    600 ms. A's `release` clears it within 600 ms. B's `acquire` while A owns is refused.
+  - c2: A file naming a dead pid, or a live pid with a different start time, is stale: it does not lock, and it is
+    removed. An unparsable file locks (fail closed).
+  - c3: On the host, a second real helper reports `already-owned` while the first holds the mutex. After the first
+    is killed with `taskkill /F`, a new helper reports `owned`.
+- **testCases.**
+
+  | startingCondition | action | expectedResult | verificationMethod |
+  | --- | --- | --- | --- |
+  | Instances A and B share an owner directory; no owner | A acquires for chat X | B's `current()` names X and B's `locked()` is true within 600 ms | `machineOwner.test.ts` |
+  | `owner.json` names pid 4242, whose process is gone | B reads the owner | Not locked; the file is removed | `machineOwner.test.ts` |
+  | `owner.json` contains `{not json` | B reads the owner | Locked (fail closed) | `machineOwner.test.ts` |
+  | Real helper 1 holds the mutex | Start real helper 2; then `taskkill /F` helper 1 and start helper 3 | Helper 2 reports `already-owned`; helper 3 reports `owned` | `machineOwner.real.test.ts` |
+- **Dependencies.** `dc-hook`.
 
 ### dc-overlay: Draw the border and note on every display from main
 
@@ -348,14 +413,18 @@ same rules from the Sprint 5 tickets hold everywhere:
   `screen.getAllDisplays()` entry. It uses exactly the probed options (O:69-80; `scripts/spike/desktop/overlay/overlay.electron.cjs:69-75`):
   - `transparent`, `frame: false`, `focusable: false`, `skipTaskbar`, not resizable, movable or fullscreenable,
     `hasShadow: false`;
-  - `setIgnoreMouseEvents(true)`, `setAlwaysOnTop(true, 'screen-saver')`, `setContentProtection(true)`, and
-    `showInactive()`.
+  - `setIgnoreMouseEvents(true)`, `setAlwaysOnTop(true, 'screen-saver')`, `setContentProtection(OVERLAY_CONTENT_PROTECTION)`,
+    and `showInactive()`. `OVERLAY_CONTENT_PROTECTION` is one exported constant, set to the person's GO-time choice
+    (recommended `false`, D §5.1). It is the named fallback if a protected border turns out invisible over RDP.
 
   It re-asserts `screen-saver` plus `moveTop()` every 500 ms (`:155`), rebuilds on display add, remove and
   metrics-change (`:158`), and `close()` destroys every window synchronously.
+  - **Fails closed when lost** (D §5.1). On each tick, after any rebuild, a window that is destroyed, not
+    `isVisible()`, minimized, or whose `getBounds()` no longer covers its display's bounds calls `onLost()`. The kill
+    ticket wires that to `overlay-lost`.
   - **Page.** A static, script-free page under a strict CSP draws the 4 px `rgba(255,64,64,0.85)` border and the
     top-centre note in the person's exact words, "A Skitarii agent is controlling the desktop" (O:74-75). The spike's
-    "— press Esc to stop" suffix (O:75) is added only if the person approves it (open question 1 below).
+    "— press Esc to stop" suffix (O:75) is added only if the person chooses it at GO (GO-time choice 1 below).
   - **`windows.test.ts`.** `src/main/windows.test.ts:17-23` is updated **deliberately**: the allowed set becomes
     `index.ts` and `desktopControl/overlayWindows.ts`, with exactly one `new BrowserWindow` each. A new assertion pins
     the overlay's options.
@@ -365,18 +434,21 @@ same rules from the Sprint 5 tickets hold everywhere:
   window factory and an injected timer.
 - **Acceptance criteria.**
   - c1: Two fake displays give two windows, each at its display's bounds with the pinned options and content
-    protection on. A `display-added` event gives a third. `close()` leaves zero.
-  - c2: `windows.test.ts` passes, with the allowed set extended by exactly the overlay module and the overlay options
-    asserted.
-  - c3: On the host, the built app's overlay window is listed topmost above a fixture with affinity `0x11` (the
-    `windows.ps1` window list). The e2e step in `dc-e2e` covers this.
+    protection equal to `OVERLAY_CONTENT_PROTECTION`. A `display-added` event gives a third. `close()` leaves zero.
+  - c2: `windows.test.ts` passes, with the allowed set extended by exactly the overlay module, and the overlay options
+    and the protection constant asserted.
+  - c3: A window made invisible, minimized, moved off its display's bounds or destroyed calls `onLost` on the next
+    tick. A display rebuild does not.
+  - c4: On the host, the built app's overlay window is listed topmost above a fixture, with the chosen affinity (the
+    `windows.ps1` window list). The `desktop-enable` and `desktop-overlay-lost` steps in `dc-e2e-steps` cover this.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
-  | Fake `screen` with displays 1 and 2 | `open()` | Two windows at their bounds; click-through, non-focusable, `screen-saver`, protected | `overlayWindows.test.ts` |
+  | Fake `screen` with displays 1 and 2 | `open()` | Two windows at their bounds; click-through, non-focusable, `screen-saver`, protection = `OVERLAY_CONTENT_PROTECTION` | `overlayWindows.test.ts` |
   | Overlay open; the timer advances 500 ms | Tick | `setAlwaysOnTop('screen-saver')` and `moveTop()` on each window; never `focus()` | `overlayWindows.test.ts` |
   | Main sources at HEAD | Scan for `new BrowserWindow` | Exactly `index.ts` and `desktopControl/overlayWindows.ts`, one each | `windows.test.ts` |
+  | Overlay open on two fake displays | Make window 2 `isVisible() === false`; tick | `onLost` called once | `overlayWindows.test.ts` |
 - **Dependencies.** `dc-delivery`.
 
 ### dc-hook: Ship the physical-ESC hook helper with fail-closed liveness
@@ -428,11 +500,13 @@ same rules from the Sprint 5 tickets hold everywhere:
      - collecting the root's descendants, then `TerminateProcess` of the known root at once before the tree kill
        (O:204).
   3. keep the hook listening for 1 s;
-  4. on exit, clear the owner, lift the lock, stop the helper and push the state. The end record carries `reason` and
-     the measured kill-decision → overlay-closed and kill-decision → tree-exited times in ms.
+  4. on exit, clear the owner, delete the machine-wide owner record (`dc-machine-owner`), lift the lock, stop the
+     helper (which releases the mutex) and push the state. The end record carries `reason` and the measured
+     kill-decision → overlay-closed and kill-decision → tree-exited times in ms.
 
   It is wired to every path:
   - physical ESC and the watchdog (`dc-hook`);
+  - the overlay's `onLost` (`dc-overlay`), as `overlay-lost`;
   - header Stop (a `setDesktopControl {on:false}` call);
   - `stop` and `deleteChat` (`agentChatSessions.ts:1138-1156`);
   - `releaseFolder` (`:1163-1172`) and `endAgent` (`:1173-1175`);
@@ -440,20 +514,21 @@ same rules from the Sprint 5 tickets hold everywhere:
   - the owner process's own exit.
 
   On a DM crash, the overlay dies with the process. The helper's parent watch and the owned job's
-  `KILL_ON_JOB_CLOSE` (`windowsAgentJob.ts:137`) end the rest (O:184-185); `dc-e2e`'s `desktop-crash` proves it. The
-  overlay and hook are started before the computer-capable process launches.
+  `KILL_ON_JOB_CLOSE` (`windowsAgentJob.ts:137`) end the rest (O:184-185). `dc-e2e-steps`' `desktop-crash` proves it
+  with the fake persona, and `dc-live-smoke` proves it once with real omp. The overlay and hook are started before the
+  computer-capable process launches.
 - **Source locations.** `src/main/agentChat/agentChatSessions.ts`, `src/main/agentChat/agentProcess.ts`,
   `src/main/agents/processTree.ts` (`:247`), `src/main/quitDisposal.ts`, `src/main/agentChat/agentChatWiring.ts`,
   `src/main/desktop/handlers.ts` (`untrackFolder` `:190`).
 - **Tests.** `src/main/desktopControl/desktopControl.test.ts`, `src/main/agentChat/agentChatSessions.test.ts`,
   `src/main/quitDisposal.test.ts`, `src/main/agentChat/agentChatWiring.test.ts`.
 - **Acceptance criteria.**
-  - c1: Each of the 12 reasons calls one kill. In every case the overlay `close` is called before or with the force
+  - c1: Each of the 13 reasons calls one kill. In every case the overlay `close` is called before or with the force
     stop, and never after an `interrupt`.
-  - c2: The owner, the lock and the hook are released only after the process `exit`. An approval command sent
-    between the kill and the exit is still refused.
-  - c3: With fake timers, the kill is never delayed by the 5 s bounded shutdown. The host timings are asserted in
-    `dc-e2e` (overlay ≤ 10 ms, tree ≤ 150 ms).
+  - c2: The owner, the owner record, the lock and the hook are released only after the process `exit`. An approval
+    command sent between the kill and the exit is still refused, in this instance and in another instance.
+  - c3: With fake timers, the kill is never delayed by the 5 s bounded shutdown. The host timings are asserted by
+    `dc-e2e-steps` (overlay ≤ 10 ms, tree ≤ 150 ms, fake persona) and by `dc-live-smoke` (tree ≤ 150 ms, real omp).
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
@@ -461,17 +536,26 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Chat A owns control; a fake process that exits 120 ms after a force stop | Fire each reason in turn | Overlay closed, force stop issued, owner cleared only after exit; `reason` recorded | `desktopControl.test.ts` |
   | Chat A owns control | Untrack A's folder | The kill runs before `forget`; the untrack completes | `agentChatSessions.test.ts` |
   | Control active | `before-quit` | The kill runs first; quit completes inside 5 s | `quitDisposal.test.ts` |
+  | Control active; the overlay reports `onLost` | Tick | Control ends with `overlay-lost`; one fail-closed notification | `desktopControl.test.ts` |
 - **Dependencies.** `dc-owner`, `dc-overlay`, `dc-hook`.
 
 ### dc-lock-main: Lock DM's human-only controls in main while desktop control is active
 
 - **Size** medium · **Reasoning** high
-- **Outcome.** `desktopControl.locked()` is enforced at three choke points (D §5.6):
+- **Outcome.** `desktopControl.locked()` is enforced at three choke points (D §5.6). It is true in **every** DM
+  instance on the desktop while any instance owns control (`dc-machine-owner`).
   1. **The sender guard.** `guardIpc` (`src/main/ipcGuard.ts:64-75`) gains `locked(channel, args)`, and a locked call
      returns `{ ok: false, error: { code: 'desktop_control_active' } }` without running the handler. The locked
      channels are:
      - `dm:approveLearningCard` (`src/main/desktop/learningApprovalIpc.ts:30`);
      - `chats:kickBackKanbanCard` and `chats:startKanbanCard` (`src/main/agents/chatIpc.ts:18-19`);
+     - `chats:startOrchestrator` (`chatIpc.ts:15`), which queues a run (`src/main/agents/orchestratorStart.ts:93`) and
+       issues an `allowSave: true` grant (`:112`);
+     - `chats:startPlanner` (`chatIpc.ts:17`), which issues an `allowSave: true` planner grant
+       (`src/main/agents/plannerStart.ts:92`);
+     - `chats:create` (`chatIpc.ts:14`) when the request creates a saving orchestrator
+       (`src/main/agents/chatHandlers.ts:375`);
+     - `autoUpdate:quitAndInstall` (`src/main/autoUpdate.ts:192`);
      - `browser:decideOrigin` when the decision is not `deny` (`src/main/browser/browserIpc.ts:261`;
        `src/shared/browser/browserApi.ts:29-31`);
      - `browser:setEnabled` when enabling (`browserIpc.ts:267`);
@@ -479,19 +563,26 @@ same rules from the Sprint 5 tickets hold everywhere:
   2. **Human-only commands.** `runCommand` (`src/main/desktop/handlers.ts:150-163`) refuses any command whose
      `COMMAND_CAPABILITIES` entry (`src/core/commands/capabilities.ts:25`) is in `HUMAN_ONLY_CAPABILITIES`
      (`src/core/authz.ts:95-131`). This covers checkpoint approve, approve-and-advance and redraft approval, the
-     delivery waiver, retry grants, Kanban approve, kick-back, delete and play, grants, deletes and the rest.
+     delivery waiver, retry grants, Kanban approve, kick-back, delete and play, grants, deletes and the rest, **but
+     only through `runCommand`**. The channels in rule 1 use such authority without `runCommand`.
   3. **Native confirmations.** `confirmInstall`, `confirmYolo`, `confirmCustomAgent` and `confirmNotificationSettings`
      (`src/main/desktop/bootstrap.ts:226-290`), and the desktop-control enable, return "not confirmed" without showing
      a dialog.
 
-  `desktop_control_active` joins `DOMAIN_ERROR_CODES` (`src/shared/domain/errors.ts:5`). Stop, chat stop, reading,
-  sending and browser Deny stay available. **Optional criterion c4**, the orchestrator's open question in D §5.6, is
-  saved only if the person agrees at the checkpoint.
+  **Channel inventory.** A new test lists every channel registered through `guardIpc` by scanning `src/main` for
+  `.handle(` registrations, the same way `windows.test.ts` scans for windows. It requires each channel to be
+  classified in `LOCK_CLASSIFICATION` as `locked`, `locked-when` (with a predicate), `voice` (`dc-voice-lock`) or
+  `open`. A new channel fails the test until someone classifies it.
+
+  `desktop_control_active` joins `DOMAIN_ERROR_CODES` (`src/shared/domain/errors.ts:5`). Stop, chat stop, reading
+  and browser Deny stay available. Criterion c4 implements GO-time choice 2 (recommended: lock).
 - **Source locations.** `src/main/ipcGuard.ts`, `src/main/desktop/handlers.ts`, `src/main/desktop/bootstrap.ts`,
   `src/shared/domain/errors.ts`, `src/core/authz.ts`, `src/core/commands/capabilities.ts`,
-  `src/main/agentChat/agentChatIpc.ts` (`:244`, for c4).
+  `src/main/agentChat/agentChatIpc.ts` (`:244`, for c4), `src/main/agents/chatIpc.ts`, `src/main/agents/orchestratorStart.ts`,
+  `src/main/agents/plannerStart.ts`, `src/main/agents/chatHandlers.ts`, `src/main/autoUpdate.ts`.
 - **Tests.** `src/main/ipcGuard.test.ts`, `src/main/desktop/handlers.test.ts`, `src/main/desktop/bootstrap.test.ts`,
-  `src/main/desktop/settingsIpc.test.ts`, `src/main/desktop/yoloHandlers.test.ts`, `src/main/browser/browserIpc.test.ts`.
+  `src/main/desktop/settingsIpc.test.ts`, `src/main/desktop/yoloHandlers.test.ts`, `src/main/browser/browserIpc.test.ts`,
+  `src/main/agents/chatIpc.test.ts`, `src/main/desktopControl/lockClassification.test.ts` **(new)**.
 - **Acceptance criteria.**
   - c1: While locked, every desktop command whose capability is human-only is refused with `desktop_control_active`,
     and its service is never called. The test iterates `COMMAND_CAPABILITIES`, so a new human-only command is covered
@@ -499,9 +590,11 @@ same rules from the Sprint 5 tickets hold everywhere:
   - c2: While locked, each locked channel is refused before its handler: site Allow refused, Deny allowed, enabling the
     browser refused. Each listed native confirmation returns false without opening a dialog. When unlocked, all behave
     as before.
-  - c3: The lock is lifted only after the owner's process has exited (`dc-kill` c2), and Stop is never locked.
-  - c4 (optional, person's decision): `agentChat:answer` with an approving answer is refused while locked; Deny and
-    question answers are allowed.
+  - c3: The lock is lifted only after the owner's process has exited (`dc-kill` c2), and Stop is never locked. While
+    another DM instance owns control, this instance refuses the same calls.
+  - c4 (GO-time choice 2, recommended): `agentChat:answer` with an approving answer is refused while locked in every
+    chat, including the owner's own. Deny is allowed.
+  - c5: The channel inventory test classifies every registered channel, and fails for an unclassified one.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
@@ -509,8 +602,48 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Desktop control active | `dm:command` `approveAndAdvance`, `grantRetry`, `deleteKanbanCard` | Each `{ok:false, code:'desktop_control_active'}`; the workspace is never called | `handlers.test.ts` |
   | Desktop control active | `browser:decideOrigin` `once`, then `deny` | The first refused by the guard; the second reaches the handler | `ipcGuard.test.ts`, `browserIpc.test.ts` |
   | Desktop control active | A loosening `settings:setNotifications` | `confirmNotificationSettings` returns false without a dialog; the change is not saved | `bootstrap.test.ts`, `settingsIpc.test.ts` |
+  | Desktop control active | `chats:startOrchestrator`, `chats:startPlanner`, `chats:create` for a saving orchestrator, `autoUpdate:quitAndInstall` | Each refused with `desktop_control_active`; no run queued, no grant issued, no `quitAndInstall` called | `chatIpc.test.ts`, `ipcGuard.test.ts` |
+  | Instance B (separate `userData`); instance A owns control through the shared owner directory | B receives `approveAndAdvance` and `chats:startOrchestrator` | Both refused in B with `desktop_control_active` | `handlers.test.ts`, `ipcGuard.test.ts` over the `dc-machine-owner` seam |
+  | A test-only channel registered through `guardIpc` and absent from `LOCK_CLASSIFICATION` | Run the inventory test | Fails, naming the channel | `lockClassification.test.ts` |
   | Control ended (owner exited) | `approveAndAdvance` | Runs normally | `handlers.test.ts` |
 - **Dependencies.** `dc-owner`.
+
+### dc-voice-lock: Refuse text in the person's voice to other chats while control is on
+
+- **Size** small · **Reasoning** medium
+- **Outcome.** This is D §5.6 rule 4, GO-time choice 3: refuse is recommended, and the alternative is tagging. While
+  `locked()` is true in any instance, main refuses every write that delivers words to agents as the person's own,
+  unless it targets the owner chat:
+  - `agentChat:send` (`src/main/agentChat/agentChatIpc.ts:241`);
+  - question answers on `agentChat:answer` (`:244`);
+  - `chats:sendConversationMessage` (`src/main/agents/chatIpc.ts:20`) and the first prompt of `chats:create` (`:14`);
+  - terminal and sign-in input frames on the `terminals:port` `MessagePort` (`src/main/terminals/terminalHandlers.ts:165-166`, `:251`).
+    These do not pass through `guardIpc`, so the check sits in the frame handler;
+  - `dm:command` `addComment`, `createKanbanCard` and `updateKanbanCard` (`src/core/commands/capabilities.ts:165-168`),
+    `updatePlanDraft` and `savePlan`.
+
+  **Why refuse.** DM's split between agent-authored and person text is an advisory data note
+  (`resources/skitarii/extension/contextDelivery.ts:5`). A tag would ride in the person's own slot and rely on every
+  model honouring it, while a refusal is enforced in main. If the person chooses tagging instead, the same channel
+  list prefixes each write with `[Sent while a Skitarii agent controlled the desktop; may be agent-authored]`, and
+  the criteria change accordingly.
+- **Source locations.** `src/main/agentChat/agentChatIpc.ts`, `src/main/agents/chatIpc.ts`,
+  `src/main/terminals/terminalHandlers.ts`, `src/main/desktop/handlers.ts`, `resources/skitarii/extension/contextDelivery.ts`.
+- **Tests.** `src/main/agentChat/agentChatIpc.test.ts`, `src/main/agents/chatIpc.test.ts`,
+  `src/main/desktop/handlers.test.ts`, `src/main/terminals/terminalHandlers.test.ts`.
+- **Acceptance criteria.**
+  - c1: While locked, a send, answer or conversation message to any chat other than the owner is refused with
+    `desktop_control_active`. One to the owner chat is delivered.
+  - c2: While locked, terminal and sign-in `input` frames are dropped, and `addComment`, `createKanbanCard`,
+    `updateKanbanCard`, `updatePlanDraft` and `savePlan` are refused. When unlocked, all behave as before.
+- **testCases.**
+
+  | startingCondition | action | expectedResult | verificationMethod |
+  | --- | --- | --- | --- |
+  | Chat A owns control; chat M is the Magos | `agentChat:send` to M, then to A | M refused with `desktop_control_active`; A delivered | `agentChatIpc.test.ts` |
+  | Control active; a terminal-surface chat attached | Post an `input` frame | Not written to the PTY | `terminalHandlers.test.ts` |
+  | Control active in another instance | `dm:command` `addComment` | Refused; no comment stored | `handlers.test.ts` |
+- **Dependencies.** `dc-lock-main`.
 
 ### dc-lock-ui: Show the lock on every human-only control in the window
 
@@ -520,18 +653,23 @@ same rules from the Sprint 5 tickets hold everywhere:
   - `CheckpointScreen.tsx` `GateActions` (`:403-416`) and `EpicWorkspace.tsx` (`:136`);
   - `KanbanCardPanel.tsx` (`:246`, `:250`, `:304`), `DeleteCardControl.tsx` (`:39`) and `StartCardDialog.tsx` (`:40`);
   - `OriginPromptCard.tsx` Allow (`:72`; Deny stays enabled);
-  - `NotificationSettings.tsx` (`:100`, loosening only) and `GrantsCard.tsx` YOLO (`:151`).
+  - `NotificationSettings.tsx` (`:100`, loosening only) and `GrantsCard.tsx` YOLO (`:151`);
+  - the Start run and Start planner role cards, and the update banner's Restart now;
+  - per the GO-time choices, the docked approval card's Allow, and the composer of every chat other than the owner
+    (`ChatComposer`).
 
-  A `desktop_control_active` refusal from main shows the same note, for the case where the push arrived late.
-  Presentation only: main enforces (`dc-lock-main`).
+  When the owner is in another DM instance, the note reads "Locked while desktop control is on in another Dark
+  Mechanicus window". A `desktop_control_active` refusal from main shows the same note, for the case where the push
+  arrived late. Presentation only: main enforces (`dc-lock-main`, `dc-voice-lock`).
 - **Source locations.** `src/renderer/src/checkpoint/CheckpointScreen.tsx`, `src/renderer/src/epic/EpicWorkspace.tsx`,
   `src/renderer/src/kanban/KanbanCardPanel.tsx`, `src/renderer/src/kanban/DeleteCardControl.tsx`,
   `src/renderer/src/kanban/StartCardDialog.tsx`, `src/renderer/src/browser/OriginPromptCard.tsx`,
   `src/renderer/src/settings/NotificationSettings.tsx`, `src/renderer/src/home/GrantsCard.tsx`,
-  `scripts/capture-agent-chat.mjs` (`STATES` `:22-39`).
+  `src/renderer/src/agentChat/ChatComposer.tsx`, `scripts/capture-agent-chat.mjs` (`STATES` `:22-39`).
 - **Tests.** `src/renderer/src/checkpoint/CheckpointScreen.test.tsx`, `src/renderer/src/kanban/KanbanCardPanel.test.tsx`,
   `src/renderer/src/browser/OriginPromptCard.test.tsx`, `src/renderer/src/settings/NotificationSettings.test.tsx`,
-  `src/renderer/src/home/GrantsCard.test.tsx`, `scripts/capture-agent-chat.test.mjs`.
+  `src/renderer/src/home/GrantsCard.test.tsx`, `src/renderer/src/agentChat/ChatComposer.test.tsx`,
+  `scripts/capture-agent-chat.test.mjs`.
 - **Acceptance criteria.**
   - c1: With the state active, each listed control is disabled with the note, and Deny and Stop stay enabled. With the
     state off, all are enabled.
@@ -544,7 +682,7 @@ same rules from the Sprint 5 tickets hold everywhere:
   | A gate with Approve enabled; desktop control pushed active | Render `CheckpointScreen` | Approve and the retry buttons disabled; the note shown | `CheckpointScreen.test.tsx` |
   | An origin prompt; control active | Render `OriginPromptCard` | Allow once and Always disabled; Deny enabled | `OriginPromptCard.test.tsx` |
   | Capture harness | Run the three new states at both sizes | PNGs show the disabled controls and the note | The reviewer opens the attached PNGs |
-- **Dependencies.** `dc-lock-main`.
+- **Dependencies.** `dc-lock-main`, `dc-voice-lock`.
 
 ### dc-never-arbitrate: Register the desktop never_arbitrate predicate
 
@@ -624,25 +762,32 @@ same rules from the Sprint 5 tickets hold everywhere:
   - **Fallback.** If `dc-live-facts` disproved the `TEMP` route, main instead collects `%TEMP%\omp-computer-*.png`
     created within the owner's session window.
   - **Cleanup.** When control ends, the folder is deleted (B:175-177).
+  - **Startup sweep** (D §5.7 step 4). At every start, before any chat launches, main deletes every
+    `<userData>/agents/omp/*/computer/` folder of its own profile, so a crash never leaves screenshots of the person's
+    screen behind.
 - **Source locations.** `src/main/agentChat/chatImages.ts`, `src/main/agentChat/toolResultImages.ts`,
-  `src/main/agentChat/agentChatSessions.ts` (`storeToolImages`, near `:683`), `src/main/desktopControl/desktopControl.ts`.
+  `src/main/agentChat/agentChatSessions.ts` (`storeToolImages`, near `:683`), `src/main/desktopControl/desktopControl.ts`,
+  `src/main/agentChat/agentChatWiring.ts` (`sweepArbiterRoot`, `:82-94`, the existing startup-sweep pattern).
 - **Tests.** `src/main/desktopControl/desktopScreens.test.ts` **(new)**, `src/main/agentChat/chatImages.test.ts`.
 - **Acceptance criteria.**
   - c1: A PNG written into the owner's folder during an `eval` turn becomes that item's tool image (by id only), and
     a non-image or oversize file is dropped by the intake.
   - c2: After every kill reason, the folder and its PNGs are gone, and no `omp-computer-*.png` from the session
     remains in the real `%TEMP%`.
+  - c3: A start after a simulated crash, with leftover `computer/` folders holding PNGs, removes them all before any
+    chat launches.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
   | Owner active; a running `eval` item | Write `omp-computer-1.png` into the folder | One tool image on that item; the transcript holds its id only | `desktopScreens.test.ts` |
   | Owner active with two PNGs in the folder | End control (`stop`) | Folder deleted | `desktopScreens.test.ts` |
+  | Two chats' `computer/` folders with PNGs left by a crash | Run the startup sweep | Both folders gone; other chat files untouched | `desktopScreens.test.ts` |
 - **Dependencies.** `dc-live-facts`, `dc-kill`.
 
-### dc-e2e: Prove desktop control end to end with a fake computer-use persona and a fixture window
+### dc-fake-persona: A fake computer-use persona and a promoted fixture window
 
-- **Size** large · **Reasoning** high
+- **Size** medium · **Reasoning** medium
 - **Outcome.**
   - **Fake persona.** `src/main/agentChat/__fixtures__/fakeAgentCli.mjs` gains an OMP computer-use persona, beside
     `FAKE_AGENT_PERSONA` (`:26-29`), built from `docs/reports/desktop-control-backend/omp-computer-use.rpc.redacted.jsonl`
@@ -652,67 +797,114 @@ same rules from the Sprint 5 tickets hold everywhere:
     - drives the fixture through `SendInput` (click, "hello" and an **injected** Escape, after a foreground check);
     - writes one `omp-computer-1.png` into its `TEMP`.
   - **Fixture.** `scripts/spike/desktop/fixture.electron.cjs` is promoted to `scripts/desktop-fixture.electron.cjs`
-    **(new)**.
-  - **Steps.** `scripts/e2e-agent-chat.mjs` gains steps beside `STEPS` (`:3822-3874`), each with its own deadline,
-    zero retries, and only fixture windows it launched:
-    - `desktop-enable`, `desktop-drive` and `desktop-injected-esc`;
-    - `desktop-lock`, `desktop-stop` and `desktop-failclosed`;
-    - `desktop-single-owner`, `desktop-untrack`, `desktop-quit` and `desktop-crash`;
-    - `desktop-restart-off`.
+    **(new)**. It writes its state file as before (B:33-38).
+- **Source locations.** `src/main/agentChat/__fixtures__/fakeAgentCli.mjs`, `src/main/agentChat/fakeAgentCli.test.ts`,
+  `scripts/spike/desktop/fixture.electron.cjs`, `scripts/spike/desktop/inject.ps1`, `scripts/spike/desktop/foreground.ps1`,
+  `docs/reports/desktop-control-backend/omp-computer-use.rpc.redacted.jsonl`.
+- **Tests.** `src/main/agentChat/fakeAgentCli.test.ts`.
+- **Acceptance criteria.**
+  - c1: With `computer.enabled: true` in its `--config`, the persona answers `/computer status` with `Computer use:
+    enabled …` and the `get_state` marker. Without it, it answers `disabled`, and the marker is absent.
+  - c2: Its scripted turn emits the fixture's `eval` frame sequence and writes `omp-computer-1.png` into its `TEMP`.
+    Its input runs only after a foreground check that names the fixture.
+- **testCases.**
 
-    The steps measure the overlay-gone and tree-ended times, from the window list and the pid.
-  - **Live smoke.** `scripts/desktop-live-smoke.mjs` **(new)**: real omp, at most 5 minutes and $0.50, run once at
-    acceptance.
-- **Source locations.** `scripts/e2e-agent-chat.mjs`, `scripts/e2e-agent-chat.test.mjs`,
-  `src/main/agentChat/__fixtures__/fakeAgentCli.mjs`, `src/main/agentChat/fakeAgentCli.test.ts`,
-  `scripts/spike/desktop/fixture.electron.cjs`, `scripts/spike/desktop/inject.ps1`, `scripts/spike/desktop/windows.ps1`,
-  `scripts/spike/desktop/foreground.ps1`, `docs/reports/desktop-control-backend/omp-computer-use.rpc.redacted.jsonl`.
-- **Tests.** `src/main/agentChat/fakeAgentCli.test.ts`, `scripts/e2e-agent-chat.test.mjs`. The steps run against the
-  built app on the host.
+  | startingCondition | action | expectedResult | verificationMethod |
+  | --- | --- | --- | --- |
+  | Fake omp launched with an overlay containing the computer block | Send `/computer status` and `get_state` | `Computer use: enabled …`; the system prompt carries the prelude marker | `fakeAgentCli.test.ts` |
+  | Fake omp launched with the default overlay | Same | `Computer use: disabled …`; no marker | `fakeAgentCli.test.ts` |
+  | Computer persona, `TEMP` set to a temp folder | Run the scripted turn without a fixture in front | No input is sent; the turn reports the foreground mismatch; one PNG in `TEMP` | `fakeAgentCli.test.ts` |
+- **Dependencies.** `dc-delivery`.
+
+### dc-e2e-steps: Prove desktop control end to end in the built app
+
+- **Size** medium · **Reasoning** high
+- **Outcome.** `scripts/e2e-agent-chat.mjs` gains steps beside `STEPS` (`:3822-3874`). Each has its own deadline and
+  zero retries, and touches only fixture windows it launched:
+  - `desktop-enable`, `desktop-drive` and `desktop-injected-esc`;
+  - `desktop-lock` and `desktop-stop`;
+  - `desktop-failclosed` and `desktop-overlay-lost`;
+  - `desktop-single-owner`, which uses a **second isolated instance**: its enable and its checkpoint Approve and
+    Start run are refused while the first instance owns control;
+  - `desktop-untrack`, `desktop-quit` and `desktop-crash`;
+  - `desktop-restart-off`.
+
+  The steps measure the overlay-gone and tree-ended times, from the window list and the pid.
+- **Source locations.** `scripts/e2e-agent-chat.mjs` (`:622` isolated `--user-data-dir`), `scripts/e2e-agent-chat.test.mjs`,
+  `scripts/spike/desktop/windows.ps1`.
+- **Tests.** `scripts/e2e-agent-chat.test.mjs`. The steps run against the built app on the host.
 - **Acceptance criteria.**
   - c1: `desktop-enable` through `desktop-stop`, run against the built app with zero retries, show all of these:
-    - the overlay topmost with affinity `0x11`;
+    - the overlay topmost, with the chosen affinity;
     - the fixture reading back clicks, "hello" and `Escape` (`isTrusted: true`), with control still on after the
       injected ESC;
     - locked controls refused with `desktop_control_active`;
     - Stop giving overlay gone ≤ 10 ms and tree ended ≤ 150 ms after the kill decision, with 0 injected keys after.
-  - c2: `desktop-failclosed`, `desktop-untrack`, `desktop-quit` and `desktop-crash` each end control within its bound
-    from D §6.2 (`taskkill /F` of DM main leaves no OMP pid, helper or overlay after 1 s). `desktop-single-owner` and
-    `desktop-restart-off` pass.
-  - c3: The live smoke with real omp drives the fixture and is ended by Stop. No `omp-computer-*.png` remains, and
-    the global OMP config hash is unchanged.
+  - c2: `desktop-failclosed`, `desktop-overlay-lost`, `desktop-untrack`, `desktop-quit` and `desktop-crash` each end
+    control within its bound from D §6.2 (`taskkill /F` of DM main leaves no OMP pid, helper or overlay after 1 s).
+    `desktop-single-owner` (two instances) and `desktop-restart-off` pass.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
   | Built app, isolated profile, fake computer persona, fixture launched | Run `desktop-enable desktop-drive desktop-injected-esc desktop-stop` | Each step `ok`; timings within bound; 0 keys after the tree ended | The e2e JSON verdict plus the window-list and fixture-state records |
+  | Instance A owns control; instance B (second isolated profile) running | Run `desktop-single-owner` | B's enable refused with `conflict`; B's `approveAndAdvance` and Start run refused with `desktop_control_active` | The e2e JSON verdict |
+  | Control active | Hide one overlay window from outside (`desktop-overlay-lost`) | Control ends with `overlay-lost` within 500 ms plus the kill | The e2e JSON verdict |
   | Control active in the built app | `taskkill /F` the DM main pid (`desktop-crash`) | Within 1 s: no OMP pid, no helper, no overlay window | The e2e JSON verdict |
-  | Real omp signed in | Run `desktop-live-smoke.mjs` | Fixture `clicks≥1 text="hello"`, Stop ends control, `%TEMP%` clean, config hash unchanged | The smoke record attached to the acceptance |
-- **Dependencies.** `dc-kill`, `dc-lock-ui`, `dc-never-arbitrate`, `dc-ui`, `dc-screens`.
+- **Dependencies.** `dc-fake-persona`, `dc-kill`, `dc-machine-owner`, `dc-lock-ui`, `dc-never-arbitrate`, `dc-ui`, `dc-screens`.
+
+### dc-live-smoke: Gate the kill bounds with real omp, bounded
+
+- **Size** small · **Reasoning** high
+- **Outcome.** `scripts/desktop-live-smoke.mjs` **(new)** runs once at acceptance with real omp, within 5 minutes and
+  $0.50, in an isolated built instance:
+  - It enables control on a fixture-only chat and lets the agent drive the fixture.
+  - It presses Stop and asserts the real OMP tree has exited **≤ 150 ms** after the kill decision (the end record of
+    `dc-kill`), with no key reaching the fixture after.
+  - It enables again, then runs one **crash check**: `taskkill /F` of DM main leaves no OMP pid, helper or overlay
+    window after 1 s.
+  - At the end, no `omp-computer-*.png` remains, and the global `~/.omp/agent/config.yml` hash is unchanged.
+
+  The person's own DM stays locked for the length of the smoke (D §4); the record notes it.
+- **Source locations.** `scripts/spike/desktop/omp-computer-probe.mjs`, `scripts/spike/desktop/omp-transcript.mjs`,
+  `scripts/spike/desktop/windows.ps1`, `scripts/e2e-agent-chat.mjs` (launch helpers).
+- **Tests.** The smoke itself, plus `scripts/e2e-agent-chat.test.mjs` for any shared helper it moves there.
+- **Acceptance criteria.**
+  - c1: The record shows the fixture driven (`clicks≥1 text="hello"`), and Stop with tree-exited ≤ 150 ms and 0 keys
+    after.
+  - c2: The record shows the crash check passing within 1 s, `%TEMP%` clean, and the config hash unchanged. A
+    failure fails the ticket. It is never rerun to green.
+- **testCases.**
+
+  | startingCondition | action | expectedResult | verificationMethod |
+  | --- | --- | --- | --- |
+  | Real omp signed in; built app; fixture launched | Run `desktop-live-smoke.mjs` (drive, then Stop) | Fixture `clicks≥1 text="hello"`; tree exited ≤ 150 ms after the kill decision; 0 keys after | The smoke JSON record attached to the acceptance |
+  | Control re-enabled with real omp | `taskkill /F` of DM main | No OMP pid, helper or overlay after 1 s; `%TEMP%` clean; config hash unchanged | The smoke JSON record |
+- **Dependencies.** `dc-e2e-steps`.
 
 ### dc-docs: Document desktop control as built
 
 - **Size** small · **Reasoning** medium
 - **Outcome.**
   - `docs/design/desktop-control.md` is updated to as-built: each UNPROVEN item of its §10 is marked proven, with the
-    ticket and evidence, or still UNPROVEN.
+    ticket and evidence, or still UNPROVEN. The GO-time choices are recorded.
   - A decision record, `docs/decisions/0010-desktop-control.md` **(new)**, sits next to `0009-agent-browser.md`.
   - The user guide's agents runbook (`docs/runbooks/agents.md`) gains a "Desktop control" section: what it does, the
-    border, ESC and Stop, the lock, the limits of D §7, and the risk the person accepted.
-  - `docs/architecture.md` names the desktop-control module and the lock.
+    border, ESC and Stop, the lock (across every DM window), the limits of D §7, and the risk the person accepted.
+  - `docs/architecture.md` names the desktop-control module, the machine-wide owner and the lock.
 - **Source locations.** `docs/design/desktop-control.md`, `docs/decisions/0009-agent-browser.md`,
   `docs/runbooks/agents.md`, `docs/architecture.md`.
 - **Tests.** `npx vitest run src/core/space/rubric.docs.test.ts`, which reads `docs/architecture.md`.
 - **Acceptance criteria.**
   - c1: The design's §10 list has a verdict for every item, each with its evidence.
   - c2: The runbook section states the per-chat enable, the border and note, physical ESC and Stop, the human-only
-    lock, and the elevated-window, fullscreen and secure-desktop limits.
+    lock across instances, and the elevated-window, fullscreen and secure-desktop limits.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
   | All implementation tickets accepted | Update the docs | Every UNPROVEN item has a verdict; the runbook section exists | The reviewer reads the docs against the evidence; `rubric.docs.test.ts` passes |
-- **Dependencies.** `dc-e2e`.
+- **Dependencies.** `dc-live-smoke`.
 
 ### dc-acceptance: Desktop-control build sprint acceptance
 
@@ -734,17 +926,21 @@ same rules from the Sprint 5 tickets hold everywhere:
   | c1 | `dc-delivery` | The delivery-check evidence names the previous sprint's merge on `origin/main`, its release or recorded Deploy skip (no-release case: no restart expected), the installed app version and the resumed Magos |
   | c2 | `dc-live-facts` | `docs/reports/desktop-control-live-facts.md` gives verdicts on the `TEMP` route, resume-with-default-overlay and kill timing within 30 min and $1, with the global config unchanged |
   | c3 | `dc-launch` | `npx vitest run src/main/terminals/ompSession.test.ts src/main/agentChat/agentChatLaunch.test.ts src/main/agentChat/desktopOverlayCallers.test.ts` passes |
-  | c4 | `dc-owner` | `npx vitest run src/main/desktopControl/desktopControl.test.ts src/main/agentChat/restartResume.test.ts` passes; the e2e `desktop-single-owner` and `desktop-restart-off` steps pass |
-  | c5 | `dc-overlay` | `npx vitest run src/main/windows.test.ts src/main/desktopControl/overlayWindows.test.ts` passes, with `windows.test.ts` updated deliberately; `desktop-enable` shows the overlay topmost with affinity `0x11` |
-  | c6 | `dc-hook` | `npx vitest run src/main/desktopControl/escDecision.test.ts src/main/desktopControl/escHook.test.ts src/main/desktopControl/escHook.real.test.ts` passes on the host |
-  | c7 | `dc-kill` | Every kill reason is unit-tested, and the e2e timings show overlay ≤ 10 ms and tree ≤ 150 ms with 0 keys after |
-  | c8 | `dc-lock-main` | `npx vitest run src/main/ipcGuard.test.ts src/main/desktop/handlers.test.ts src/main/desktop/bootstrap.test.ts` passes, including the `COMMAND_CAPABILITIES` sweep; `desktop-lock` shows the refusals in the built app |
-  | c9 | `dc-lock-ui` | The locked-control capture states are attached and inspected, and the renderer tests pass |
-  | c10 | `dc-never-arbitrate` | `npx vitest run src/main/magos/arbitrationRules.test.ts src/main/agentChat/agentChatWiring.test.ts` passes with the desktop predicate cases |
-  | c11 | `dc-ui` | The header and tree capture states are attached and inspected; the notification tests pass |
-  | c12 | `dc-screens` | `desktopScreens.test.ts` passes; the live smoke leaves no `omp-computer-*.png` |
-  | c13 | `dc-e2e` | All `desktop-*` e2e steps pass with zero retries, and the live smoke passes; verdicts attached |
-  | c14 | `dc-docs` | The as-built docs are merged. If this sprint is the final sprint, the report's `epicOutcome` reports s7–s16 with evidence, s12 met by this sprint; otherwise the report states that a later sprint follows and carries no `epicOutcome` |
+  | c4 | `dc-owner` | `npx vitest run src/main/desktopControl/desktopControl.test.ts src/main/agentChat/restartResume.test.ts` passes, including the second-instance refusal; the e2e `desktop-restart-off` step passes |
+  | c5 | `dc-machine-owner` | `npx vitest run src/main/desktopControl/machineOwner.test.ts src/main/desktopControl/machineOwner.real.test.ts` passes on the host; `desktop-single-owner` passes with two instances |
+  | c6 | `dc-overlay` | `npx vitest run src/main/windows.test.ts src/main/desktopControl/overlayWindows.test.ts` passes, with `windows.test.ts` updated deliberately; `desktop-enable` shows the overlay topmost with the chosen affinity |
+  | c7 | `dc-hook` | `npx vitest run src/main/desktopControl/escDecision.test.ts src/main/desktopControl/escHook.test.ts src/main/desktopControl/escHook.real.test.ts` passes on the host |
+  | c8 | `dc-kill` | Every kill reason, `overlay-lost` included, is unit-tested; the e2e timings show overlay ≤ 10 ms and tree ≤ 150 ms with 0 keys after |
+  | c9 | `dc-lock-main` | `npx vitest run src/main/ipcGuard.test.ts src/main/desktop/handlers.test.ts src/main/desktop/bootstrap.test.ts src/main/agents/chatIpc.test.ts src/main/desktopControl/lockClassification.test.ts` passes, including the `COMMAND_CAPABILITIES` sweep, the direct-in-main channels and the second-instance case; `desktop-lock` shows the refusals in the built app |
+  | c10 | `dc-voice-lock` | `npx vitest run src/main/agentChat/agentChatIpc.test.ts src/main/terminals/terminalHandlers.test.ts` passes with the person's-voice cases, as chosen at GO |
+  | c11 | `dc-lock-ui` | The locked-control capture states are attached and inspected, and the renderer tests pass |
+  | c12 | `dc-never-arbitrate` | `npx vitest run src/main/magos/arbitrationRules.test.ts src/main/agentChat/agentChatWiring.test.ts` passes with the desktop predicate cases |
+  | c13 | `dc-ui` | The header and tree capture states are attached and inspected; the notification tests pass |
+  | c14 | `dc-screens` | `desktopScreens.test.ts` passes, including the startup sweep; the live smoke leaves no `omp-computer-*.png` |
+  | c15 | `dc-fake-persona` | `npx vitest run src/main/agentChat/fakeAgentCli.test.ts` passes with the computer persona cases |
+  | c16 | `dc-e2e-steps` | All `desktop-*` e2e steps pass with zero retries; verdicts attached |
+  | c17 | `dc-live-smoke` | The real-omp smoke record shows tree exited ≤ 150 ms after Stop, the crash check within 1 s, `%TEMP%` clean and the config hash unchanged |
+  | c18 | `dc-docs` | The as-built docs are merged. If this sprint is the final sprint, the report's `epicOutcome` reports s7–s16 as met with evidence (s12 by this sprint), any criterion that cannot be met as worded having been amended by a saved and adopted revision before the checkpoint; otherwise the report states that a later sprint follows and carries no `epicOutcome` |
 
 ## How each UNPROVEN item is settled
 
@@ -752,13 +948,15 @@ same rules from the Sprint 5 tickets hold everywhere:
 | --- | --- |
 | The physical ESC press and its callback-to-overlay time (O:256-257, B:234-235) | The person's single checkpoint step (`deploymentVerification`). The ended line shows `physical-esc` with the overlay and tree times. The DM side is also asserted by `escHook.real.test.ts` (injected) and the `dc-hook` decision tests |
 | OMP's own physical-Esc stop and DM's kill firing together (O:216-218) | **Retired by decision.** DM's kill does not depend on OMP's stop (D §6.2), so the product never relies on the two firing together. The person's step runs on the fake persona, so OMP's stop is not present there. `dc-docs` records it as a known limit, not a guarantee |
-| The tree-ended bound (≤ 150 ms) for the product's job-supervised kill route (D §6.2) | `dc-live-facts` fact 3, then `dc-e2e` `desktop-stop` timings |
-| RDP visibility of the content-protected overlay (O:128-129, O:265) | The same checkpoint step, on the product's protected overlay |
+| The tree-ended bound (≤ 150 ms) for the product's job-supervised kill route (D §6.2) | Timed by `dc-live-facts` fact 3; **gated with real omp** by `dc-live-smoke` c1 (Stop) and with the fake persona by `dc-e2e-steps` `desktop-stop` |
+| DM crash → OMP tree ended for real omp (O:184-185 [INFERENCE]) | **Gated with real omp** by `dc-live-smoke` c2 (one crash check); with the fake persona by `dc-e2e-steps` `desktop-crash` |
+| RDP visibility of the content-protected overlay (O:128-129, O:265) | Matters only if the person chooses protection on (GO-time choice 4). The S5 step runs **unprotected** (O:129). If they choose on, the build sprint's single checkpoint step runs on the protected overlay; the fallback is `OVERLAY_CONTENT_PROTECTION = false` (`dc-overlay`) |
+| Machine-wide ownership across DM instances (D §4) | `dc-machine-owner` c1-c3 and `dc-e2e-steps` `desktop-single-owner` |
+| The overlay-lost check (D §5.1) | `dc-overlay` c3, `dc-kill`, and `dc-e2e-steps` `desktop-overlay-lost` |
 | OMP honours `TEMP` for `omp-computer-*.png` (D §5.7) | `dc-live-facts` fact 1; the fallback is in `dc-screens` |
-| A resumed session with the default overlay is disabled (D §3.4) | `dc-live-facts` fact 2; `dc-owner` c3 pins the invariant |
-| Inline desktop screenshots (B:56) | `dc-screens` c1 and `dc-e2e` |
-| DM crash → OMP tree ended for real omp (O:184-185 [INFERENCE]) | `dc-e2e` `desktop-crash` |
-| The Stop IPC hop | `dc-e2e` `desktop-stop` timings |
+| A resumed session with the default overlay is disabled (D §3.4) | `dc-live-facts` fact 2; `dc-owner` c3 pins the invariant; before Antics, the added `s6-repair-resume` testCase (Placement) |
+| Inline desktop screenshots (B:56) | `dc-screens` c1 and `dc-e2e-steps` |
+| The Stop IPC hop | `dc-e2e-steps` `desktop-stop` timings |
 | Ping-loss detection (O:151) | `dc-hook` c2 (injected clock) |
 | Held control (`tools.approval: computer.control`) needed? (B:122-124, B:237-238) | Retired by decision: per-call takeover covered every action (B:124). `dc-launch` c1 pins that no `tools.approval` is written, and the live smoke shows the drive works without it |
 | The extra `Unidentified` keydown (B:89-90) | Stays a known oddity. `desktop-drive` asserts the text is unchanged |
@@ -767,11 +965,24 @@ same rules from the Sprint 5 tickets hold everywhere:
 | The piped-stdin oddity (O:266) | Moot: the overlay is in-process (D §5.1) |
 | agent-desktop on non-Chromium apps (B:207-208, B:239-240) | Moot: agent-desktop is not used |
 
-## Open questions for the person (raised at the S5 checkpoint)
+## GO-time choices for the person (at the S5 checkpoint)
 
-1. **The note's hint.** The person's note is "A Skitarii agent is controlling the desktop". The spike added "— press
-   Esc to stop" (O:75). Keep the hint? Without approval, `dc-overlay` uses the exact note.
-2. **Docked approval Allow.** The person's lock list does not name the docked approval card's Allow on a chat's own
-   pending tool prompt (`agentChat:answer`, `src/main/agentChat/agentChatIpc.ts:244`). An agent with control could
-   click Allow on another chat's prompt. The recommendation is to lock approving answers while control is active
-   (`dc-lock-main` optional c4). The redraft saves c4 only if the person agrees.
+On GO, the person answers these four, and the redraft saves the answers into the tickets named. Each has a
+recommendation.
+
+1. **The note's hint.** The note is the person's exact words, "A Skitarii agent is controlling the desktop". Add
+   "— press Esc to stop" (the spike's text, O:75)? *Recommendation: the person's choice; without a yes, `dc-overlay`
+   uses the exact words.*
+2. **Lock approval Allow.** Lock the docked approval card's Allow (`agentChat:answer`,
+   `src/main/agentChat/agentChatIpc.ts:244`) in every chat, including the controlling chat's own, while control is
+   on? Deny stays available. *Recommendation: yes* (`dc-lock-main` c4). Otherwise the agent could approve its own or
+   another chat's tool prompt.
+3. **Text typed into other chats while control is on.** Refuse it, or tag it as possibly agent-authored? This covers
+   composer turns, question answers, comments, card text, plan edits and terminal keys into any chat other than the
+   controlling one. *Recommendation: refuse* (`dc-voice-lock`). A tag rides in the person's own slot and depends on
+   every model honouring it (`resources/skitarii/extension/contextDelivery.ts:5`); a refusal is enforced in main.
+4. **Content protection.** Ship the border protected (hidden from the agent's screenshots, but RDP visibility
+   UNPROVEN) or unprotected (proven visible at the S5 step, which runs unprotected, O:129)? *Recommendation:
+   unprotected* (D §5.1). The border is the person's only signal that control is on. If they choose protected, the
+   build sprint's checkpoint step settles visibility, and the fallback is `OVERLAY_CONTENT_PROTECTION = false`. No
+   `esc-probe` change is needed in S5 either way (DM-1042 is accepted).
