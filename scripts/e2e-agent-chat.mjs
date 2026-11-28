@@ -11,6 +11,7 @@
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps browser-drive,browser-skitarii,browser-shot,browser-guard,browser-signin,quit
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps browser-origin,browser-stop,browser-take,quit
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
  * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
@@ -45,9 +46,12 @@
  * `browser-drive` has a Claude chat's fake drive the Browser tab through its instructions' `dm` line, `browser-skitarii`
  * the same from a Skitarii (omp-kind) chat (the omp fake is connected too, and the folder's default switched to it for
  * that chat), `browser-shot` checks the screenshot attachment and the camera, `browser-guard` the file:, popup and
- * download guards and a site the person allows once, and `browser-signin` the Private tab. They run on the claude
- * default (`--agent omp` is refused). Each also saves `e2e-<step>-view.png` from the view's own DevTools target, which
- * the renderer capture never contains.
+ * download guards and a site the person allows once, and `browser-signin` the Private tab. `browser-origin` has a new
+ * chat's agent ask for `b`: Deny keeps the view on `a`, Allow once loads `b` without listing it in Sites, and Always
+ * allow in a second new chat lists it in Sites and the site file. `browser-stop` stops a `[browser-loop]` from the
+ * panel and hands back, and `browser-take` takes control of one, types into the page through the view's own target
+ * and hands back; each opens its own chat. They run on the claude default (`--agent omp` is refused). Each also saves
+ * `e2e-<step>-view.png` from the view's own DevTools target, which the renderer capture never contains.
  *
  * Without `--steps` every step but the polish, image, coord, model and browser ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
@@ -807,6 +811,14 @@ function installHelpers(_h) {
     rect(element) {
       const { left, top, right, bottom, width, height } = element.getBoundingClientRect()
       return { left, top, right, bottom, width, height }
+    },
+    /** The newest Bash card in `root` whose summary starts with `prefix`, in pill state `state`; opens folded work while there is none. */
+    toolCard(root, prefix, state) {
+      const cards = root ? [...root.querySelectorAll('.chat-transcript li.chat-tool[aria-label="Tool call: Bash"]')] : []
+      const card = cards.findLast((entry) => (entry.querySelector('.chat-tool-summary')?.textContent ?? '').startsWith(prefix) &&
+        entry.querySelector('[data-state]')?.getAttribute('data-state') === state)
+      if (!card) [...(root?.querySelectorAll('.chat-work-toggle[aria-expanded="false"]') ?? [])].at(-1)?.click()
+      return card ?? null
     },
     /** The GUI chat's section, found by its composer; null while it is not shown. */
     chatSection(chatId) {
@@ -2897,16 +2909,25 @@ export function siteFile(userData, canonicalPath, origins, platform = process.pl
   }
 }
 
+/** The DevTools page targets of in-app browser views: never the app's own page. */
+const browserViews = (targets) => targets.filter((target) => target.type === 'page' && !target.url.includes('/renderer/index.html'))
+
 /**
  * The DevTools page target of an in-app browser view: the one listed with `id`, else the one whose URL is `url`
- * exactly, never the app's own page. Null while there is none; several with the URL throw, as the harness could not
- * tell which view it drives.
+ * exactly. Null while there is none; several with the URL throw, as the harness could not tell which view it drives.
  */
 export function viewTarget(targets, { url, id }) {
-  const views = targets.filter((target) => target.type === 'page' && !target.url.includes('/renderer/index.html'))
-  const matches = views.filter((target) => (id === undefined ? target.url === url : target.id === id))
+  const matches = browserViews(targets).filter((target) => (id === undefined ? target.url === url : target.id === id))
   if (matches.length > 1) throw new Error(`${matches.length} browser views show ${url}: ${matches.map((target) => target.id).join(', ')}.`)
   return matches[0] ?? null
+}
+
+/** The one browser view (as `viewTarget` finds them) `after` lists that `before` did not; null while none, several throw. */
+export function addedView(before, after) {
+  const known = new Set(before.map((target) => target.id))
+  const added = browserViews(after).filter((target) => !known.has(target.id))
+  if (added.length > 1) throw new Error(`${added.length} browser views appeared: ${added.map((target) => `${target.id} ${target.url}`).join(', ')}.`)
+  return added[0] ?? null
 }
 
 /**
@@ -2950,6 +2971,7 @@ async function setupBrowser(session) {
   const site = siteFile(session.userData, realpathSync.native(session.folder), [servers.a.origin])
   mkdirSync(dirname(site.path), { recursive: true })
   writeFileSync(site.path, site.text)
+  session.browser.sitePath = site.path
   session.browser.shotsBefore = shotDirectories()
   return { browser: { a: servers.a.origin, b: servers.b.origin, siteFile: site.path, allowed: [servers.a.origin], downloadName: servers.downloadName } }
 }
@@ -3371,6 +3393,311 @@ async function browserSignin(session, signal) {
   }
 }
 
+/** The first prompts of the chats browser-origin (two), browser-stop and browser-take open. */
+const ORIGIN_CHAT_PROMPT = 'hello origin'
+const ALWAYS_CHAT_PROMPT = 'hello always allow'
+const STOP_CHAT_PROMPT = 'hello stop'
+const TAKE_CHAT_PROMPT = 'hello take control'
+/** The Browser panel's Stop agent and Take control / Hand back buttons. */
+const BROWSER_ACTIONS = 'section.bp .bp-actions'
+/** Stop agent shows its stopped tool card and the Stopped badge within this long. */
+const STOP_SHOWN_MS = 2_000
+const ORIGIN_DECISIONS = ['Allow once', 'Always allow', 'Deny']
+
+const originCardSelector = (origin) => `section.agent-prompt.origin-prompt[aria-label="${origin}"]`
+
+/** The shown chat's site card for `origin`: its heading and buttons; ok once it shows. */
+function originCard(_h, selector) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  return { ok: true, heading: card.querySelector('h3')?.textContent.trim() ?? null, buttons: [...card.querySelectorAll('button')].map((button) => button.textContent.trim()) }
+}
+
+/** No site card matches `selector`. */
+function originCardGone(_h, selector) {
+  return { ok: document.querySelector(selector) === null }
+}
+
+/**
+ * Opens the Browser panel's Sites popover; ok once it lists the always-allowed origins (site `a` always is, so a loaded
+ * list is never empty here; a load error stays not ok and shows in the popover's text).
+ */
+function sitesListed(_h) {
+  const trigger = document.querySelector('section.bp button.bp-sites-trigger')
+  if (trigger?.getAttribute('aria-expanded') !== 'true') {
+    trigger?.click()
+    return { ok: false, opened: false }
+  }
+  // The popover renders with the trigger's expanded state.
+  const popover = document.querySelector('section.bp div.bp-sites-popover[role="dialog"]')
+  const sites = [...popover.querySelectorAll('ul.bp-sites-list .bp-sites-origin')].map((origin) => origin.textContent)
+  return { ok: sites.length > 0, sites, text: popover.textContent }
+}
+
+/** Closes the Sites popover; ok once it is gone. */
+function sitesClosed(_h) {
+  const trigger = document.querySelector('section.bp button.bp-sites-trigger')
+  if (trigger?.getAttribute('aria-expanded') === 'true') trigger.click()
+  return { ok: document.querySelector('section.bp div.bp-sites-popover') === null }
+}
+
+/** The chat's newest `dm call browser_read` Bash card in pill state `state`; ok once it shows (folded work is opened). */
+function readCard(h, chatId, state) {
+  return { ok: h.toolCard(h.chatSection(chatId), 'dm call browser_read ', state) !== null }
+}
+
+/** Opens the chat's newest `dm call browser_read` card in pill state `state`; ok once its result is the CLI's refusal `code`. */
+function readCardCode(h, chatId, state, code) {
+  const card = h.toolCard(h.chatSection(chatId), 'dm call browser_read ', state)
+  const head = card?.querySelector('button.chat-tool-head')
+  if (head?.getAttribute('aria-expanded') !== 'true') {
+    head?.click()
+    return { ok: false, opened: false }
+  }
+  const result = card.querySelector('.chat-tool-result').textContent
+  let shown = null
+  try {
+    shown = JSON.parse(result).error?.code ?? null
+  } catch {
+    // Not the CLI's JSON: no code shows.
+  }
+  return { ok: shown === code, code: shown, result }
+}
+
+/** Reads in order, every one but the last succeeded, and the last was refused. */
+const refusedLast = (reads) => reads.length > 1 && reads.every((call) => call.op === 'browser_read') &&
+  reads.slice(0, -1).every((call) => call.reply?.ok === true) && reads.at(-1).reply?.ok === false
+
+/** Each call as `[op, ok, error code]`, for a refusal's message. */
+const callsShown = (calls) => JSON.stringify(calls.map((call) => [call.op, call.reply?.ok ?? null, call.reply?.error?.code ?? null]))
+
+/**
+ * A `[browser-loop]` turn's calls (`browserToolCalls`): a navigate, reads, and the last read refused. Answers how many
+ * reads succeeded and the refusal's code; throws on any other shape.
+ */
+export function loopEnd(calls) {
+  const [navigate, ...reads] = calls
+  if (navigate?.op !== 'browser_navigate' || navigate.reply?.ok !== true || !refusedLast(reads)) {
+    throw new Error(`The loop's calls were ${callsShown(calls)}, not a navigate, reads and one refused read.`)
+  }
+  return { reads: reads.length - 1, code: reads.at(-1).reply.error?.code ?? null }
+}
+
+/** Throws unless a browser_status reply (`data`) shows owner `owner` and, with `url`, the agent tab at `url`. */
+export function assertStatus(data, { owner, url }) {
+  if (data?.owner !== owner) throw new Error(`browser_status shows owner ${data?.owner}, not ${owner}.`)
+  if (url !== undefined && data.tab?.url !== url) throw new Error(`browser_status shows the agent tab at ${data.tab?.url}, not ${url}.`)
+}
+
+/** Sends `[browser-status]` in the chat and answers its browser_status reply's data. */
+async function statusTurn(session, signal, chatId) {
+  const text = '[browser-status]'
+  const turn = await browserTurn(session, signal, chatId, text)
+  assertReply(text, turn, 'browser done')
+  assertCalls(text, turn.calls, [['browser_status', true]])
+  return turn.calls[0].reply.data
+}
+
+/** The view `targetId` and the chat's agent tab state both show `url`. */
+async function viewShows(session, signal, { chatId, targetId, url }) {
+  const { state } = await until(session, signal, browserState, session.folderPath, chatId)
+  const target = viewTarget(await listTargets(session, signal), { id: targetId })?.url ?? null
+  if (state.tab.url !== url || target !== url) throw new Error(`The view left ${url}: its state shows ${state.tab.url}, its target ${target}.`)
+  return { state: state.tab.url, target }
+}
+
+/** Waits until the DevTools target of view `targetId` shows `url`. */
+function viewReaches(session, signal, targetId, url) {
+  return waitFor(async () => viewTarget(await listTargets(session, signal), { id: targetId })?.url === url, signal)
+}
+
+/**
+ * Sends `text` (`[browser-origin url=<b>/]`): its navigate answers `origin_blocked`, and the chat's site card shows,
+ * headed by the chat's name asking for `origin`, with Allow once, Always allow and Deny.
+ */
+async function askOrigin(session, signal, { chatId, text, origin }) {
+  const turn = await browserTurn(session, signal, chatId, text)
+  assertCalls(text, turn.calls, [['browser_navigate', false]])
+  const { error } = turn.calls[0].reply
+  if (error?.code !== 'origin_blocked') throw new Error(`${text}: the navigate answered ${JSON.stringify(turn.calls[0].reply)}, not origin_blocked.`)
+  assertReply(text, turn, `browser failed: browser_navigate origin_blocked: ${error.message}`)
+  const card = await until(session, signal, originCard, originCardSelector(origin))
+  const heading = `${FAKE_CHAT_TITLE} wants to open ${origin}`
+  if (card.heading !== heading || JSON.stringify(card.buttons) !== JSON.stringify(ORIGIN_DECISIONS)) {
+    throw new Error(`The site card reads ${JSON.stringify(card.heading)} with ${JSON.stringify(card.buttons)}, not ${JSON.stringify(heading)} with ${JSON.stringify(ORIGIN_DECISIONS)}.`)
+  }
+  return { code: error.code, reply: turn.reply, heading: card.heading, buttons: card.buttons }
+}
+
+/** Clicks `decision` on the site card for `origin`; ok once the card is gone. */
+async function decideCard(session, signal, origin, decision) {
+  await until(session, signal, clickButton, originCardSelector(origin), decision)
+  await until(session, signal, originCardGone, originCardSelector(origin))
+}
+
+/** Opens the Sites popover, reads its list and closes it again; throws unless it lists `listed` and not `unlisted`. */
+async function checkSites(session, signal, { listed, unlisted = [] }, screenshotName) {
+  const { sites } = await until(session, signal, sitesListed)
+  if (!listed.every((origin) => sites.includes(origin)) || unlisted.some((origin) => sites.includes(origin))) {
+    throw new Error(`Sites lists ${JSON.stringify(sites)}: not ${JSON.stringify(listed)} without ${JSON.stringify(unlisted)}.`)
+  }
+  const screenshot = screenshotName === undefined ? undefined : await capture(session, screenshotName, WINDOW)
+  await until(session, signal, sitesClosed)
+  return { sites, screenshot }
+}
+
+/**
+ * Browser 6: a new chat's agent opens `<a>/` (always allowed), then asks for `<b>/`: Deny keeps the view on `<a>/`;
+ * asked again, Allow once loads `<b>/` and the next `[browser-origin]` shows it, while Sites does not list `b`. Allow
+ * once allowed `b` in that chat's tab only, so a second new chat asks again: Always allow loads `<b>/` there and lists
+ * `b` in Sites and the folder's site file.
+ */
+async function browserOrigin(session, signal) {
+  const { servers, sitePath } = session.browser
+  const home = `${servers.a.origin}/`
+  const other = `${servers.b.origin}/`
+  const ask = `[browser-origin url=${other}]`
+  const before = await listTargets(session, signal)
+  const chat = await openBrowserChat(session, signal, ORIGIN_CHAT_PROMPT)
+  const homeText = `[browser-origin url=${home}]`
+  const opened = await browserTurn(session, signal, chat.id, homeText)
+  assertReply(homeText, opened, 'browser done')
+  assertCalls(homeText, opened.calls, [['browser_navigate', true], ['browser_status', true]])
+  const target = await waitFor(async () => addedView(before, await listTargets(session, signal)), signal)
+  await viewReaches(session, signal, target.id, home)
+  const denyCard = await askOrigin(session, signal, { chatId: chat.id, text: ask, origin: servers.b.origin })
+  const cardScreenshot = await capture(session, 'e2e-browser-origin-card.png', WINDOW)
+  await decideCard(session, signal, servers.b.origin, 'Deny')
+  const deniedAt = await viewShows(session, signal, { chatId: chat.id, targetId: target.id, url: home })
+  const deniedView = await snapView(session, signal, { match: { id: target.id }, loaded: home, name: 'e2e-browser-origin-deny-view.png' })
+  const onceCard = await askOrigin(session, signal, { chatId: chat.id, text: ask, origin: servers.b.origin })
+  const stillAt = await viewShows(session, signal, { chatId: chat.id, targetId: target.id, url: home })
+  await decideCard(session, signal, servers.b.origin, 'Allow once')
+  await viewReaches(session, signal, target.id, other)
+  const loaded = await browserTurn(session, signal, chat.id, ask)
+  assertReply(ask, loaded, 'browser done')
+  assertCalls(ask, loaded.calls, [['browser_navigate', true], ['browser_status', true]])
+  assertStatus(loaded.calls[1].reply.data, { owner: 'agent', url: other })
+  const onceSites = await checkSites(session, signal, { listed: [servers.a.origin], unlisted: [servers.b.origin] })
+  const freshBefore = await listTargets(session, signal)
+  const fresh = await openBrowserChat(session, signal, ALWAYS_CHAT_PROMPT)
+  const alwaysCard = await askOrigin(session, signal, { chatId: fresh.id, text: ask, origin: servers.b.origin })
+  const freshTarget = await waitFor(async () => addedView(freshBefore, await listTargets(session, signal)), signal)
+  await decideCard(session, signal, servers.b.origin, 'Always allow')
+  await viewReaches(session, signal, freshTarget.id, other)
+  const alwaysSites = await checkSites(session, signal, { listed: [servers.a.origin, servers.b.origin] }, 'e2e-browser-origin.png')
+  const file = JSON.parse(readFileSync(sitePath, 'utf8'))
+  if (!file.origins?.includes(servers.b.origin)) throw new Error(`The site file ${sitePath} holds ${JSON.stringify(file)}, not ${servers.b.origin}.`)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: freshTarget.id }, loaded: other, name: 'e2e-browser-origin-view.png' })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id }, deny: { ...denyCard, viewAfter: deniedAt, viewScreenshot: deniedView.viewScreenshot, cardScreenshot },
+    allowOnce: { ...onceCard, viewBefore: stillAt, status: loaded.calls[1].reply.data, sites: onceSites.sites },
+    alwaysAllow: { chat: { id: fresh.id, agent: fresh.agent }, target: { id: freshTarget.id }, ...alwaysCard, sites: alwaysSites.sites, siteFile: { path: sitePath, ...file } },
+    viewScreenshot, screenshot: alwaysSites.screenshot
+  }
+}
+
+/**
+ * Starts `[browser-loop url=<url>]` in a new chat (`prompt`) and waits for its first read card, Done. Answers the
+ * chat, the loop's text and its view's DevTools target.
+ */
+async function startLoop(session, signal, prompt, url) {
+  const before = await listTargets(session, signal)
+  const chat = await openBrowserChat(session, signal, prompt)
+  const text = `[browser-loop url=${url}]`
+  await until(session, signal, composeAndSend, chat.id, text)
+  await until(session, signal, readCard, chat.id, 'accepted')
+  const target = await waitFor(async () => addedView(before, await listTargets(session, signal)), signal)
+  return { chat, text, target }
+}
+
+/** Waits for the loop turn `text` to end and checks how it ended: refused with `code`, as its reply says. */
+async function loopEnded(session, signal, { chatId, text, code }) {
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnTools, session.folderPath, chatId, text)
+  const end = loopEnd(browserToolCalls(turn.tools))
+  if (end.code !== code) throw new Error(`The loop ended with ${end.code}, not ${code}.`)
+  assertReply(text, turn, `browser loop stopped: browser_read ${code}\nbrowser done`)
+  return { ...end, reply: turn.reply }
+}
+
+/**
+ * Browser 7: Stop agent during a `[browser-loop]` on `<a>/slow`: within STOP_SHOWN_MS a read card shows `stopped` and
+ * the badge reads Stopped, and `[browser-status]` shows owner `stopped`; after Hand back it shows `none`.
+ */
+async function browserStop(session, signal) {
+  const slow = `${session.browser.servers.a.origin}/slow`
+  const { chat, text, target } = await startLoop(session, signal, STOP_CHAT_PROMPT, slow)
+  const clicked = performance.now()
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Stop agent')
+  const card = await until(session, signal, readCardCode, chat.id, 'failed', 'stopped')
+  const cardMs = elapsed(clicked)
+  const badge = await until(session, signal, badgeIs, 'Stopped')
+  const badgeMs = elapsed(clicked)
+  if (cardMs > STOP_SHOWN_MS || badgeMs > STOP_SHOWN_MS) {
+    throw new Error(`Stop agent showed the stopped card after ${cardMs} ms and the Stopped badge after ${badgeMs} ms, past ${STOP_SHOWN_MS} ms.`)
+  }
+  const loop = await loopEnded(session, signal, { chatId: chat.id, text, code: 'stopped' })
+  const screenshot = await capture(session, 'e2e-browser-stop.png', WINDOW)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: target.id }, loaded: slow, name: 'e2e-browser-stop-view.png' })
+  const stopped = await statusTurn(session, signal, chat.id)
+  assertStatus(stopped, { owner: 'stopped' })
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Hand back')
+  const idle = await until(session, signal, badgeIs, 'Idle')
+  const handedBack = await statusTurn(session, signal, chat.id)
+  assertStatus(handedBack, { owner: 'none' })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id, url: slow }, loop, card: { code: card.code, result: card.result },
+    cardMs, badgeMs, boundMs: STOP_SHOWN_MS, badge: badge.badge, ownerStopped: stopped.owner, badgeAfterHandBack: idle.badge,
+    ownerAfterHandBack: handedBack.owner, viewScreenshot, screenshot
+  }
+}
+
+/** Clicks the view's Name box and types `text` with CDP Input events on the view's own target; answers the page once `#echo` reads it. */
+async function typeInView(view, signal, text) {
+  const box = await evaluateOn(view, `(() => { const input = document.querySelector('#name'); input.scrollIntoView({ block: 'center' });
+    const { left, top, width, height } = input.getBoundingClientRect(); return { x: left + width / 2, y: top + height / 2 } })()`)
+  for (const type of ['mousePressed', 'mouseReleased']) await view.call('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 })
+  for (const key of text) {
+    await view.call('Input.dispatchKeyEvent', { type: 'keyDown', key, text: key })
+    await view.call('Input.dispatchKeyEvent', { type: 'keyUp', key })
+  }
+  return waitFor(async () => {
+    const state = await evaluateOn(view, FIXTURE_STATE)
+    return state.echo === text && state
+  }, signal)
+}
+
+/**
+ * Browser 8: Take control during a `[browser-loop]` on `<a>/` ends the loop with `paused_by_person`; the person types
+ * `Ada` into the page through the view's own target and `#echo` reads it; after Hand back, `[browser-status]` shows
+ * owner `agent`.
+ */
+async function browserTake(session, signal) {
+  const home = `${session.browser.servers.a.origin}/`
+  const { chat, text, target } = await startLoop(session, signal, TAKE_CHAT_PROMPT, home)
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Take control')
+  const badge = await until(session, signal, badgeIs, 'You have control')
+  const loop = await loopEnded(session, signal, { chatId: chat.id, text, code: 'paused_by_person' })
+  const { view } = await connectView(session, signal, { id: target.id }, home)
+  let typed, viewScreenshot
+  try {
+    typed = await typeInView(view, signal, BROWSER_TYPED)
+    viewScreenshot = await captureView(session, view, 'e2e-browser-take-view.png')
+  } finally {
+    view.socket.close()
+  }
+  const screenshot = await capture(session, 'e2e-browser-take.png', WINDOW)
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Hand back')
+  const driven = await until(session, signal, badgeIs, `Driven by: ${FAKE_CHAT_TITLE}`)
+  const status = await statusTurn(session, signal, chat.id)
+  assertStatus(status, { owner: 'agent', url: home })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id, url: home }, loop, badge: badge.badge, typed,
+    badgeAfterHandBack: driven.badge, ownerAfterHandBack: status.owner, viewScreenshot, screenshot
+  }
+}
+
 /** The screenshot copies the run left in the temp folder; none may remain once the app quit. */
 function leftShotCopies(session) {
   const left = shotDirectories().filter((name) => !session.browser.shotsBefore.includes(name))
@@ -3427,7 +3754,10 @@ const STEPS = {
   'browser-skitarii': { name: 'browser-skitarii', run: browserSkitarii, browser: true, skitarii: true, deadlineMs: 60_000 },
   'browser-shot': { name: 'browser-shot', run: browserShot, browser: true, deadlineMs: 30_000 },
   'browser-guard': { name: 'browser-guard', run: browserGuard, browser: true, deadlineMs: 30_000 },
-  'browser-signin': { name: 'browser-signin', run: browserSignin, browser: true, deadlineMs: 20_000 }
+  'browser-signin': { name: 'browser-signin', run: browserSignin, browser: true, deadlineMs: 20_000 },
+  'browser-origin': { name: 'browser-origin', run: browserOrigin, browser: true, deadlineMs: 45_000 },
+  'browser-stop': { name: 'browser-stop', run: browserStop, browser: true, deadlineMs: 30_000 },
+  'browser-take': { name: 'browser-take', run: browserTake, browser: true, deadlineMs: 30_000 }
 }
 
 async function captureFailure(session, step) {
