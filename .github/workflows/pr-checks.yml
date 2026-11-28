@@ -5,6 +5,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main, 'feature/**']
+  # `npm run verify:ci` (scripts/verifyCi.mjs): the full Definition of Done for a pushed branch head, on these runners.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA every job checks out (default the dispatched branch head)
+        required: false
+        default: ''
+        type: string
+      base:
+        description: Branch Fireguard grades the head against (git diff base...head)
+        required: false
+        default: main
+        type: string
 
 jobs:
   shard-plan:
@@ -17,6 +30,8 @@ jobs:
       unit: ${{ steps.plan.outputs.unit }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -42,6 +57,8 @@ jobs:
       matrix: ${{ fromJSON(needs.shard-plan.outputs.unit) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -91,6 +108,8 @@ jobs:
           SHARD_RESULT: ${{ needs.test-shards.result }}
         run: test "$PLAN_RESULT" = success && test "$SHARD_RESULT" = success
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -138,13 +157,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           # History for the merge base without every blob; git fetches the few it diffs on demand.
           filter: blob:none
       - name: Pin base ref for every grading job
         id: scope
+        env:
+          BASE: ${{ inputs.base || github.base_ref || 'main' }}
         run: |
-          BASE="${{ github.base_ref || 'main' }}"
           git fetch --no-tags origin "$BASE:refs/remotes/origin/$BASE" || git fetch --no-tags origin "$BASE"
           echo "base=$(git rev-parse "origin/$BASE^{commit}")" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
@@ -164,17 +185,19 @@ jobs:
       # on changed lines) so a typical PR grades in about 2 minutes, up to 40 shards. Runs no test.
       # The account starts at most CI_RUNNER_LIMIT jobs at once (a quiet run peaked at 40 with 14
       # grading shards queued, run 46181503154): the plan leaves room for the Vitest shards (the same
-      # history plan as shard-plan) plus lint, build and one hand-off job, so no shard waits a wave.
+      # history plan as shard-plan) plus lint, build, deadcode on a dispatch and one hand-off job, so no
+      # shard waits a wave.
       - name: Plan grading shards from the diff
         id: plan
         env:
           FIREGUARD_BASE_REF: ${{ steps.scope.outputs.base }}
           CI_RUNNER_LIMIT: '40'
+          OTHER_JOBS: ${{ github.event_name == 'workflow_dispatch' && '4' || '3' }}
           GH_TOKEN: ${{ github.token }}
           CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           UNIT_JOBS="$(GITHUB_OUTPUT= node scripts/ciShardPlan.mjs 2>/dev/null | jq '.unit.include | length')"
-          BUDGET=$(( CI_RUNNER_LIMIT - UNIT_JOBS - 3 ))
+          BUDGET=$(( CI_RUNNER_LIMIT - UNIT_JOBS - OTHER_JOBS ))
           if [ "$BUDGET" -lt 1 ]; then BUDGET=1; fi
           npm run --silent fireguard -- --plan --runner-budget "$BUDGET" --json-out fireguard-plan.json
           echo "grading=$(jq -c .matrix fireguard-plan.json)" >> "$GITHUB_OUTPUT"
@@ -200,6 +223,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
       - uses: actions/setup-node@v4
@@ -242,6 +266,7 @@ jobs:
         run: test "$SCOPE_RESULT" = success
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           filter: blob:none
       - uses: actions/setup-node@v4
@@ -284,6 +309,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -296,13 +323,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+      # Step names are the Definition of Done check names that `npm run verify:ci` reports.
+      - name: typecheck
+        run: npm run typecheck
+      - name: build
+        run: npm run build
       - name: Exercise delivery standards in the built desktop
         if: github.event_name == 'pull_request'
         run: node --import tsx scripts/native/deliveryStandardsEvidence.mjs
@@ -312,3 +344,18 @@ jobs:
           name: delivery-standards-desktop
           path: out/standards-evidence/*.png
           if-no-files-found: error
+
+  # Pull requests and main pushes run deadcode in deadcode.yml; a dispatch runs it here so one run holds every check.
+  deadcode:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run deadcode

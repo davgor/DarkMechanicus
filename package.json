@@ -23,6 +23,7 @@
     "coverage": "vitest run --coverage",
     "coverage:changed": "node scripts/changedCoverage.mjs",
     "check:row": "node scripts/rowCheck.mjs",
+    "verify:ci": "node scripts/verifyCi.mjs",
     "fireguard": "node fireguard/bin/fireguard.mjs",
     "audit:ci": "node scripts/security-audit.mjs",
     "deadcode": "node scripts/deadcode-check.mjs",
