@@ -181,40 +181,60 @@ Mechanicus process. This matters on the person's host. `requestSingleInstanceLoc
 (`scripts/e2e-agent-chat.mjs:622`), while the person's own DM, with its Magos and checkpoint Approve, stays open. An
 owner known to only one process would leave the other window's human-only controls unlocked.
 
-**The machine-wide owner.** Two parts make it hold across every instance:
+**The machine-wide owner.** The named mutex is the single source of truth for "locked". The owner record only says
+who holds control.
 
-1. **Authority: a named mutex.** `Local\DarkMechanicus.DesktopControl` is session-scoped, so it means one owner per
-   interactive desktop. The ESC hook helper (§6.1) creates and holds it, because that helper already lives exactly
-   as long as control and exits with its DM parent (O:184-185). Windows releases a named mutex when its holder dies,
-   so a crash never leaves a stale owner. Enable starts the helper first. A helper that reports the mutex as
-   `already-owned` refuses the enable (`conflict`) before any dialog or launch.
-2. **Visibility: an owner record.** The owning instance writes
-   `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json` after the helper holds the mutex. The record carries
-   `{pid, processStartTime, userData, folder, chatId, since}`. The location is per Windows user and outside every
-   profile's `userData`, so every instance reads the same file. The owner deletes it after the tree has exited
-   (§6.3).
+1. **Authority and the lock signal: a named mutex.** `Local\DarkMechanicus.DesktopControl` is session-scoped, so it
+   means one owner per interactive desktop.
+   - The ESC hook helper (§6.1) creates and holds it. That helper already lives exactly as long as control and exits
+     with its DM parent (O:184-185). Windows releases a named mutex when its holder dies, so a crash never leaves a
+     stale owner.
+   - Enable starts the helper first. A helper that reports the mutex as `already-owned` refuses the enable
+     (`conflict`) before any dialog or launch.
+   - **Readers probe the mutex itself.** Node has no mutex API, so every DM instance runs one small, long-lived probe
+     helper. It is bundled the same way as the hook helper, and it calls `OpenMutex(SYNCHRONIZE, false,
+     "Local\DarkMechanicus.DesktopControl")` every 250 ms, closes the handle at once so that it never keeps the mutex
+     alive itself, and prints `held` or `free` on each change.
+     - The mutex exists only while a holder is alive, so `held` means control is on somewhere on this desktop.
+     - If the probe helper exits or stops reporting for over 1 s, the instance reads **locked**. Fail closed, as with
+       the hook.
+2. **Who holds it: an owner record.** After the mutex is held, the owning instance writes
+   `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json` with `{pid, processStartTime, userData, folder, chatId,
+   since}`. The location is per Windows user and outside every profile's `userData`. The record is display-only:
+   other instances read it to name the controlling chat in the lock note. The owner deletes it after the tree has
+   exited (§6.3).
 
-**Every instance reads the owner.** Each DM instance, owner or not, watches that file (`fs.watch` plus a 500 ms poll,
-so a missed watch event cannot keep the lock off). `desktopControl.locked()` is true when either holds:
+**`desktopControl.locked()`** is true when this instance is the owner, or when the probe reports the mutex `held`. The
+file never decides it:
 
-- this instance is the owner;
-- the file names a live process, meaning the `pid` is running and its start time matches `processStartTime`, which
-  rules out pid reuse.
+- deleting `owner.json` while the mutex is held does not unlock anything;
+- a corrupt or leftover `owner.json` with no mutex does not lock anything. It is stale whatever it contains, and the
+  next reader or startup removes it.
 
-A file that cannot be read or parsed counts as **locked** (fail closed). A file whose process is gone is stale: the
-next reader removes it, and it does not lock. An enable in any instance is refused while `locked()` is true for
-another owner.
+An enable in any instance is refused while `locked()` is true.
 
-So while an isolated e2e or live-smoke instance holds control, the person's own DM window refuses every locked control
-in §5.6 as well, and shows the lock note naming "another Dark Mechanicus window". The reverse holds too.
+**Which builds honour the cross-instance lock.** It holds only between DM instances whose build contains
+`dc-machine-owner`. A DM built before it has no probe helper: it neither sees another instance's control nor refuses
+anything. This matters at the build sprint's own acceptance. The person's installed DM is the previous release until
+they install this one, and `dc-live-smoke` runs with real omp before that. The proposal handles it (`dc-live-smoke`
+c3):
 
-- An enable for any other chat, in this or any other instance, is refused (`conflict`: "Desktop control is already
-  on for <chat>; stop it first"). The refusal happens before the confirmation is shown.
-- The owner is cleared only by the kill (§6.3), after the OMP tree has exited.
+- the smoke lists every running DM process and its version first;
+- while any non-lock-aware DM is running, it kills control as soon as the foreground leaves the fixture;
+- its record states that the person's DM was not lock-aware.
+
+With lock-aware builds on both sides, while an isolated e2e or live-smoke instance holds control, the person's own DM
+window refuses every locked control in §5.6 and shows the lock note naming "another Dark Mechanicus window". The
+reverse holds too.
+
+- An enable for any other chat, in this or any other lock-aware instance, is refused (`conflict`: "Desktop control is
+  already on for <chat>; stop it first"). The refusal happens before the confirmation is shown.
+- The owner is cleared only by the kill (§6.3), after the OMP tree has exited. Stopping the hook helper then releases
+  the mutex.
 - Evidence for one owner: OMP's native input takes an OS-wide lock (`InputBusy` after 5 s), and one `eval` worker
   accepts one run at a time (B:178-179). Two controlling chats would fight over the same mouse.
-- **UNPROVEN:** no probe ran two DM instances or a named mutex. The build sprint's `dc-owner` and `dc-lock-main`
-  tests prove it with two instances against one owner file and mutex name.
+- **UNPROVEN:** no probe ran two DM instances or a named mutex. The build sprint's `dc-machine-owner`, `dc-owner` and
+  `dc-lock-main` tests prove it with two instances, one mutex name and real helpers.
 
 ## 5. The active signal and its UI
 
@@ -478,7 +498,7 @@ The agent's desktop screenshots should render inline through S3's chat-image pat
 4. **Startup sweep.** A DM crash skips step 3 and would leave screenshots of the person's screen on disk. So at every
    start, before any chat launches, main deletes every `<userData>/agents/omp/*/computer/` folder of its own profile.
    No chat holds control at startup (§3.4), so none of these folders is in use. The same startup step also removes
-   the machine-wide owner record (§4) when it names a dead process.
+   the machine-wide owner record (§4) when the named mutex is not held.
 
 That OMP honours `TEMP`/`TMP` for these files is **UNPROVEN** ([INFERENCE]: Node's `os.tmpdir()` reads `TEMP` on
 Windows; B:177 notes, as [INFERENCE], that `browser.screenshotDir` has no `computer` counterpart). The live-facts
@@ -593,8 +613,8 @@ Every path calls one `endDesktopControl(reason)` in main. Its order is fixed:
 The lock is lifted only after the tree is gone, so the agent cannot race an approval click into the gap. `reason` is
 one of `physical-esc`, `stop`, `chat-stop`, `chat-delete`, `untrack`, `agent-removed`, `quit`, `omp-exited`,
 `hook-exited`, `heartbeat-lost`, `ping-lost`, `overlay-lost` or `status-unconfirmed`. It shows in the chat status
-line and, for the fail-closed ones, in the notification (§5.4). The owner record (§4) is deleted in step 4, so every
-other DM instance lifts its lock at the same point.
+line and, for the fail-closed ones, in the notification (§5.4). Step 4 stops the hook helper, which releases the named
+mutex (§4), so every other lock-aware DM instance lifts its lock at the same point.
 
 ## 7. Known limits: UIPI, fullscreen and the secure desktop
 

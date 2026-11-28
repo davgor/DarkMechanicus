@@ -364,46 +364,56 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Chat A owns control | Enable for chat B | Refused with `conflict` before any dialog; A is unchanged | `desktopControl.test.ts` |
   | Fake omp answers `Computer use: disabled` after `ready` | Enable and confirm | Control ends with `status-unconfirmed`; owner cleared | `desktopControl.test.ts` |
   | A Magos that held control, then a restart marker written for it | Run the restart resume | It relaunches with no computer block; the toggle is Off | `restartResume.test.ts` |
-  | Two `desktopControl` instances with separate `userData` and one shared owner directory; instance A owns control | Enable a chat in instance B | Refused with `conflict` before any dialog; B's owner state names A's chat; A is unchanged | `desktopControl.test.ts` (two instances over the `dc-machine-owner` seam) |
+  | Two `desktopControl` instances with separate `userData`; instance A holds the named mutex | Enable a chat in instance B | Refused with `conflict` before any dialog; B's lock note names A's chat; A is unchanged | `desktopControl.test.ts` (two instances over the `dc-machine-owner` seam) |
 - **Dependencies.** `dc-launch`, `dc-machine-owner`.
 
 ### dc-machine-owner: One owner per desktop across every Dark Mechanicus instance
 
 - **Size** medium · **Reasoning** high
 - **Outcome.** D §4. `src/main/desktopControl/machineOwner.ts` **(new)** provides `acquire(owner)`, `release()`,
-  `current()` and `onChange`. It has two parts:
-  - **Authority.** This ticket extends the `dc-hook` helper so that it creates and holds the session-scoped named
-    mutex `Local\DarkMechanicus.DesktopControl` and reports `mutex: owned | already-owned` on its first line. Windows
+  `held()`, `holder()` and `onChange`. **The named mutex is the only source of truth for "locked"**; the owner record
+  only names the holder.
+  - **Holding.** This ticket extends the `dc-hook` helper so that it creates and holds the session-scoped named mutex
+    `Local\DarkMechanicus.DesktopControl`, and reports `mutex: owned | already-owned` on its first line. Windows
     releases the mutex when the helper dies.
-  - **Visibility.** After the mutex is owned, the owner writes `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json`
+  - **Probing.** `src/main/desktopControl/mutexProbe.ts` **(new)** runs one long-lived probe helper per DM instance,
+    with its C# source bundled the way `src/main/agentChat/windowsAgentJob.ts:3-4` bundles its supervisor. Every
+    250 ms it calls `OpenMutex(SYNCHRONIZE, false, name)`, closes the handle at once, and prints `held` or `free` on a
+    change, plus a heartbeat each second. `held()` mirrors it. A probe that exits or goes silent for over 1 s reads as
+    held (fail closed).
+  - **Naming.** After the mutex is owned, the owner writes `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json`
     with `{pid, processStartTime, userData, folder, chatId, since}` through `writePrivateFile`
-    (`src/main/terminals/privateFile.ts`). It deletes the file on release.
+    (`src/main/terminals/privateFile.ts`), and deletes it on release. `holder()` reads it only to name the chat in the
+    lock note. With the mutex free, the file is stale whatever it contains: it is removed by the next reader and at
+    startup, and it never locks. With the mutex held, a missing or corrupt file still locks, and the note reads
+    "another Dark Mechanicus window".
 
-  Every instance watches the file (`fs.watch` plus a 500 ms poll). `current()` reports another instance's owner when
-  the file names a live pid whose start time matches. An unreadable file reads as locked. A dead owner's file is
-  removed by the next reader and at startup. `desktopControl.locked()` (`dc-owner`) is true when this instance owns
-  control or `current()` names another live owner, and every instance pushes the change to its renderer.
-- **Source locations.** `src/main/terminals/privateFile.ts`, `src/main/index.ts` (`:145`, `requestSingleInstanceLock`,
-  which is per profile only), `scripts/e2e-agent-chat.mjs` (`:622`, isolated `--user-data-dir`),
-  `scripts/spike/desktop/esc-hook.ps1`.
-- **Tests.** `src/main/desktopControl/machineOwner.test.ts` **(new)**: a temp owner directory, an injected pid and
-  start-time probe, and fake timers. `src/main/desktopControl/machineOwner.real.test.ts` **(new)**: Windows-only, two
-  real helpers.
+  `desktopControl.locked()` (`dc-owner`) is true when this instance owns control or `held()` is true. Every instance
+  pushes the change to its renderer. The cross-instance lock covers only builds that contain this ticket (D §4);
+  `dc-live-smoke` c3 handles an older DM.
+- **Source locations.** `src/main/terminals/privateFile.ts`, `src/main/agentChat/windowsAgentJob.ts`,
+  `src/main/index.ts` (`:145`, `requestSingleInstanceLock`, which is per profile only), `scripts/e2e-agent-chat.mjs`
+  (`:622`, isolated `--user-data-dir`), `scripts/spike/desktop/esc-hook.ps1`.
+- **Tests.** `src/main/desktopControl/machineOwner.test.ts` **(new)**: a fake probe stream, a temp owner directory and
+  fake timers. `src/main/desktopControl/machineOwner.real.test.ts` **(new)**: Windows-only, real hook helpers and a
+  real probe.
 - **Acceptance criteria.**
-  - c1: With two `machineOwner` instances over one directory, A's `acquire` makes B's `current()` name A within
-    600 ms. A's `release` clears it within 600 ms. B's `acquire` while A owns is refused.
-  - c2: A file naming a dead pid, or a live pid with a different start time, is stale: it does not lock, and it is
-    removed. An unparsable file locks (fail closed).
-  - c3: On the host, a second real helper reports `already-owned` while the first holds the mutex. After the first
-    is killed with `taskkill /F`, a new helper reports `owned`.
+  - c1: `locked()` follows the probe alone. It is held → true and free → false, regardless of `owner.json`: deleting
+    the file while held does not unlock, and a corrupt or leftover file while free does not lock and is removed. A
+    probe silent for over 1 s reads as held.
+  - c2: Two instances: while A's helper holds the mutex, B's `acquire` is refused and B's `held()` turns true within
+    500 ms. After A releases, B's `held()` turns false within 500 ms.
+  - c3: On the host, a second real helper reports `already-owned` while the first holds the mutex. The real probe
+    reports `held`, then `free` within 500 ms of `taskkill /F` of the holder. A new helper then reports `owned`.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
-  | Instances A and B share an owner directory; no owner | A acquires for chat X | B's `current()` names X and B's `locked()` is true within 600 ms | `machineOwner.test.ts` |
-  | `owner.json` names pid 4242, whose process is gone | B reads the owner | Not locked; the file is removed | `machineOwner.test.ts` |
-  | `owner.json` contains `{not json` | B reads the owner | Locked (fail closed) | `machineOwner.test.ts` |
-  | Real helper 1 holds the mutex | Start real helper 2; then `taskkill /F` helper 1 and start helper 3 | Helper 2 reports `already-owned`; helper 3 reports `owned` | `machineOwner.real.test.ts` |
+  | Probe reports `held`; `owner.json` names chat X | Delete `owner.json` | `locked()` stays true; the note reads "another Dark Mechanicus window" | `machineOwner.test.ts` |
+  | Probe reports `free`; `owner.json` contains `{not json` | Read the state | `locked()` false; the file is removed | `machineOwner.test.ts` |
+  | Probe reports `free`; `owner.json` names a live pid | Read the state | `locked()` false; the file is stale and removed | `machineOwner.test.ts` |
+  | Probe silent for 1.1 s (fake timers) | Read the state | `locked()` true (fail closed) | `machineOwner.test.ts` |
+  | Real helper 1 holds the mutex; real probe running | Start helper 2; `taskkill /F` helper 1; start helper 3 | Helper 2 `already-owned`; the probe goes `held` → `free` within 500 ms; helper 3 `owned` | `machineOwner.real.test.ts` |
 - **Dependencies.** `dc-hook`.
 
 ### dc-overlay: Draw the border and note on every display from main
@@ -603,7 +613,7 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Desktop control active | `browser:decideOrigin` `once`, then `deny` | The first refused by the guard; the second reaches the handler | `ipcGuard.test.ts`, `browserIpc.test.ts` |
   | Desktop control active | A loosening `settings:setNotifications` | `confirmNotificationSettings` returns false without a dialog; the change is not saved | `bootstrap.test.ts`, `settingsIpc.test.ts` |
   | Desktop control active | `chats:startOrchestrator`, `chats:startPlanner`, `chats:create` for a saving orchestrator, `autoUpdate:quitAndInstall` | Each refused with `desktop_control_active`; no run queued, no grant issued, no `quitAndInstall` called | `chatIpc.test.ts`, `ipcGuard.test.ts` |
-  | Instance B (separate `userData`); instance A owns control through the shared owner directory | B receives `approveAndAdvance` and `chats:startOrchestrator` | Both refused in B with `desktop_control_active` | `handlers.test.ts`, `ipcGuard.test.ts` over the `dc-machine-owner` seam |
+  | Instance B (separate `userData`); instance A holds the named mutex | B receives `approveAndAdvance` and `chats:startOrchestrator` | Both refused in B with `desktop_control_active` | `handlers.test.ts`, `ipcGuard.test.ts` over the `dc-machine-owner` seam (probe reports `held`) |
   | A test-only channel registered through `guardIpc` and absent from `LOCK_CLASSIFICATION` | Run the inventory test | Fails, naming the channel | `lockClassification.test.ts` |
   | Control ended (owner exited) | `approveAndAdvance` | Runs normally | `handlers.test.ts` |
 - **Dependencies.** `dc-owner`.
@@ -865,21 +875,40 @@ same rules from the Sprint 5 tickets hold everywhere:
     window after 1 s.
   - At the end, no `omp-computer-*.png` remains, and the global `~/.omp/agent/config.yml` hash is unchanged.
 
-  The person's own DM stays locked for the length of the smoke (D §4); the record notes it.
+  **The person's own DM is not lock-aware yet.** The smoke runs at acceptance, before the person installs this
+  sprint's release, so the person's installed DM does not contain `dc-machine-owner` and cannot see the smoke's
+  control (D §4). The smoke therefore protects that window itself:
+  - **Before the run,** it lists every running Dark Mechanicus process, with its pid, exe path and file version. A
+    process counts as lock-aware only if its version is at least the version built from this sprint's increment
+    (`package.json` at the tested commit) **and** it has a live mutex-probe helper child. Every other DM process
+    counts as non-lock-aware.
+  - **During the run,** while any non-lock-aware DM is running, a long-lived foreground watcher reports the
+    foreground window's pid every ≤ 100 ms. It is `scripts/spike/desktop/foreground.ps1` extended with a loop mode,
+    so that no process starts per poll. The moment the foreground is not the fixture, the smoke ends control through
+    the same kill as Stop, with the reason `foreground-left-fixture`, and fails the run.
+  - **The record** names each DM process with its version and lock-awareness, and states plainly when the person's
+    DM was not lock-aware during the smoke.
 - **Source locations.** `scripts/spike/desktop/omp-computer-probe.mjs`, `scripts/spike/desktop/omp-transcript.mjs`,
-  `scripts/spike/desktop/windows.ps1`, `scripts/e2e-agent-chat.mjs` (launch helpers).
-- **Tests.** The smoke itself, plus `scripts/e2e-agent-chat.test.mjs` for any shared helper it moves there.
+  `scripts/spike/desktop/windows.ps1`, `scripts/spike/desktop/foreground.ps1`, `scripts/e2e-agent-chat.mjs` (launch
+  helpers), `package.json`.
+- **Tests.** The smoke itself, plus `scripts/e2e-agent-chat.test.mjs` for any shared helper it moves there. The
+  foreground-watch decision (fixture pid vs. other) and the lock-awareness classification are pure functions with
+  their own cases in `scripts/desktop-live-smoke.test.mjs` **(new)**.
 - **Acceptance criteria.**
   - c1: The record shows the fixture driven (`clicks≥1 text="hello"`), and Stop with tree-exited ≤ 150 ms and 0 keys
     after.
   - c2: The record shows the crash check passing within 1 s, `%TEMP%` clean, and the config hash unchanged. A
     failure fails the ticket. It is never rerun to green.
+  - c3: Before the run, the record lists every running DM process with its version and lock-awareness. While any
+    non-lock-aware DM runs, the foreground is polled every ≤ 100 ms, and control is killed as soon as the foreground
+    leaves the fixture. The record states whether the person's DM was lock-aware.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
   | Real omp signed in; built app; fixture launched | Run `desktop-live-smoke.mjs` (drive, then Stop) | Fixture `clicks≥1 text="hello"`; tree exited ≤ 150 ms after the kill decision; 0 keys after | The smoke JSON record attached to the acceptance |
   | Control re-enabled with real omp | `taskkill /F` of DM main | No OMP pid, helper or overlay after 1 s; `%TEMP%` clean; config hash unchanged | The smoke JSON record |
+  | The person's installed DM (older version, no probe child) running; smoke instance holds control | The foreground changes to a non-fixture window | The smoke kills control within one poll (≤ 100 ms) plus the kill, with reason `foreground-left-fixture`; the record lists the person's DM as not lock-aware | The smoke JSON record; `desktop-live-smoke.test.mjs` for the decision logic |
 - **Dependencies.** `dc-e2e-steps`.
 
 ### dc-docs: Document desktop control as built
@@ -932,14 +961,14 @@ same rules from the Sprint 5 tickets hold everywhere:
   | c7 | `dc-hook` | `npx vitest run src/main/desktopControl/escDecision.test.ts src/main/desktopControl/escHook.test.ts src/main/desktopControl/escHook.real.test.ts` passes on the host |
   | c8 | `dc-kill` | Every kill reason, `overlay-lost` included, is unit-tested; the e2e timings show overlay ≤ 10 ms and tree ≤ 150 ms with 0 keys after |
   | c9 | `dc-lock-main` | `npx vitest run src/main/ipcGuard.test.ts src/main/desktop/handlers.test.ts src/main/desktop/bootstrap.test.ts src/main/agents/chatIpc.test.ts src/main/desktopControl/lockClassification.test.ts` passes, including the `COMMAND_CAPABILITIES` sweep, the direct-in-main channels and the second-instance case; `desktop-lock` shows the refusals in the built app |
-  | c10 | `dc-voice-lock` | `npx vitest run src/main/agentChat/agentChatIpc.test.ts src/main/terminals/terminalHandlers.test.ts` passes with the person's-voice cases, as chosen at GO |
+  | c10 | `dc-voice-lock` | `npx vitest run src/main/agentChat/agentChatIpc.test.ts src/main/terminals/terminalHandlers.test.ts src/main/desktop/handlers.test.ts src/main/agents/chatIpc.test.ts` passes with the person's-voice cases, as chosen at GO |
   | c11 | `dc-lock-ui` | The locked-control capture states are attached and inspected, and the renderer tests pass |
   | c12 | `dc-never-arbitrate` | `npx vitest run src/main/magos/arbitrationRules.test.ts src/main/agentChat/agentChatWiring.test.ts` passes with the desktop predicate cases |
   | c13 | `dc-ui` | The header and tree capture states are attached and inspected; the notification tests pass |
   | c14 | `dc-screens` | `desktopScreens.test.ts` passes, including the startup sweep; the live smoke leaves no `omp-computer-*.png` |
   | c15 | `dc-fake-persona` | `npx vitest run src/main/agentChat/fakeAgentCli.test.ts` passes with the computer persona cases |
   | c16 | `dc-e2e-steps` | All `desktop-*` e2e steps pass with zero retries; verdicts attached |
-  | c17 | `dc-live-smoke` | The real-omp smoke record shows tree exited ≤ 150 ms after Stop, the crash check within 1 s, `%TEMP%` clean and the config hash unchanged |
+  | c17 | `dc-live-smoke` | The real-omp smoke record shows tree exited ≤ 150 ms after Stop, the crash check within 1 s, `%TEMP%` clean and the config hash unchanged; it lists every running DM process with version and lock-awareness and, while any is not lock-aware, kills control when the foreground leaves the fixture (≤ 100 ms poll) |
   | c18 | `dc-docs` | The as-built docs are merged. If this sprint is the final sprint, the report's `epicOutcome` reports s7–s16 as met with evidence (s12 by this sprint), any criterion that cannot be met as worded having been amended by a saved and adopted revision before the checkpoint; otherwise the report states that a later sprint follows and carries no `epicOutcome` |
 
 ## How each UNPROVEN item is settled
