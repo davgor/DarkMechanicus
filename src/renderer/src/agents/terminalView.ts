@@ -13,6 +13,8 @@ export interface TerminalSize {
 export interface TerminalViewOptions {
   theme: TerminalTheme
   fontFamily: string
+  /** Takes no input at all (xterm's `disableStdin`): a watch-only terminal. */
+  watchOnly?: boolean
 }
 
 /** One terminal emulator mounted in a pane's host element. */

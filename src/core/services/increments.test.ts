@@ -10,6 +10,7 @@ import { incrementContextOf, incrementRefusal } from './increments'
 import { getCheckpoint } from './checkpoints'
 import { getSprintReport, submitSprintReport } from './reports'
 import { getRun } from './runs'
+import { setEpicBranch } from './epics'
 
 const BRANCH: EpicBranch = { repository: null, name: 'epic/x', startCommit: 'a'.repeat(40) }
 
@@ -26,6 +27,17 @@ function setup(options: SeedRunOptions = {}): { ctx: TestCtx; run: SeededRun } {
   const ctx = createTestCtx()
   return { ctx, run: seedRun(ctx, { bundle: plan(), branch: BRANCH, ...options }) }
 }
+
+describe('incrementContextOf: a branch first bound mid-run', () => {
+  it('reads a branch first bound while the run is active, so the node can name its increment', () => {
+    const ctx = createTestCtx()
+    const run = seedRun(ctx, { bundle: plan(), state: 'running' })
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'running' })
+    expect(incrementContextOf(ctx, node)?.epicBranch).toBeNull()
+    setEpicBranch(ctx, { epicId: run.epicId, branch: BRANCH })
+    expect(incrementContextOf(ctx, node)?.epicBranch).toEqual(BRANCH)
+  })
+})
 
 describe('incrementContextOf: the sprint, the epic branch and the accepted work', () => {
   it('names the sprint and the epic branch the node belongs to', () => {

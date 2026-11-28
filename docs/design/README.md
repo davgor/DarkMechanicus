@@ -1,5 +1,7 @@
 # Desktop mockups
 
+Design records: [Cults](cults.md), the as-built record of cults (a Magos leading a timed swarm of acolyte agents), with its [runbook](../runbooks/cults.md).
+
 Static mockups of the v1 desktop experience described in [`docs/product-plan.md`](../product-plan.md) (Desktop experience section). They are design references for the milestone 2–5 implementation tickets, not production code.
 
 The editable source is the Claude Design canvas **Dark Mechanicus Mockups** (private to the repo owner; share it from the canvas's Share menu before linking others): https://claude.ai/artifact/AhCveCpWShoF6QcV1sJUzh

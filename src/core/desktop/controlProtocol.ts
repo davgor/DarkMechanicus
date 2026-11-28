@@ -1,7 +1,7 @@
 import type { ZodType } from 'zod'
 import {
   NAMING_CONTROL, NamingControlError, namingErrorCodeSchema, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema,
-  type NamingErrorCode, type NamingOperation, type NamingReply, type NamingRequest
+  requestBound, responseBound, type NamingErrorCode, type NamingOperation, type NamingReply, type NamingRequest
 } from '../../shared/agents/chatNaming'
 import {
   BROWSER_CONTROL, BrowserControlError, browserErrorCodeSchema, browserFailure, browserOperationSchema, browserReplySchema, browserRequestSchema,
@@ -26,7 +26,7 @@ export interface ControlLimits {
 }
 export type ControlReplyShape<Code> =
   | { readonly requestId: string; readonly ok: true }
-  | { readonly requestId: string; readonly ok: false; readonly error: { readonly code: Code } }
+  | { readonly requestId: string; readonly ok: false; readonly error: { readonly code: Code; readonly details?: unknown } }
 /** One wire protocol over the authenticated local transport: schemas, limits and its fixed-message error factory. */
 export interface ControlProtocol<
   Op extends { op: string; args: unknown },
@@ -38,12 +38,21 @@ export interface ControlProtocol<
   readonly requestSchema: ZodType<Request>
   readonly operationSchema: ZodType<Op>
   readonly replySchema: ZodType<Reply>
-  /** Only fixed messages cross the wire; exceptions can contain grants or transcripts. */
-  failure(requestId: string, code: Code | ControlTransportCode): Reply
+  /**
+   * Only fixed messages cross the wire; exceptions can contain grants or transcripts. `details` is structured data a
+   * protocol's own error carries (a refused cult model's alternatives), never an exception's text.
+   */
+  failure(requestId: string, code: Code | ControlTransportCode, details?: unknown): Reply
   error(code: Code | ControlTransportCode): Error
   errorCodeOf(error: unknown): Code | ControlTransportCode
-  /** A tighter request bound for one operation; the frame already enforces `limits.requestBytes`. */
+  /** The structured details a protocol error carries onto the wire, if any. */
+  detailsOf?(error: unknown): unknown
+  /** A tighter request bound for one operation, checked once the request parses. */
   requestBytesOf?(op: Op['op']): number
+  /** The largest request frame either side reads, when an operation may exceed `limits.requestBytes`. */
+  readonly frameRequestBytes?: number
+  /** One operation's reply bound, when it differs from `limits.responseBytes`. */
+  responseBytesOf?(op: Op['op']): number
 }
 
 function namingErrorCodeOf(error: unknown): NamingErrorCode {
@@ -64,7 +73,12 @@ export const NAMING_PROTOCOL: ControlProtocol<NamingOperation, NamingRequest, Na
   failure: namingFailure,
   error: (code) => new NamingControlError(code),
   errorCodeOf: namingErrorCodeOf,
-  requestBytesOf: (op) => op === 'name_chat' ? NAMING_CONTROL.namingRequestBytes : NAMING_CONTROL.requestBytes
+  // Only a refused cult model carries data: the signed-in ids the caller may choose from.
+  detailsOf: (error) => error instanceof NamingControlError ? error.details : undefined,
+  // Naming is smallest, a long cult text the largest; a cult result may outgrow the naming reply bound.
+  requestBytesOf: requestBound,
+  frameRequestBytes: NAMING_CONTROL.cultRequestBytes,
+  responseBytesOf: responseBound
 }
 
 function browserErrorCodeOf(error: unknown): BrowserErrorCode {

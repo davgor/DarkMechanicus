@@ -17,7 +17,7 @@ type AnyRequest = AnyOperation & { requestId: string; token: string }
 /** The client logic is protocol-agnostic; the typed boundary is createControlClient's signature. */
 type Setup = ControlClientOptions & { protocol: ControlProtocol<AnyOperation, AnyRequest, AnyReply, string>; envVar: string }
 type AnyReply = ControlReplyShape<string>
-interface Prepared { requestId: string; address: string; wire: string }
+interface Prepared { requestId: string; address: string; wire: string; op: string }
 
 function inheritedAuthority(setup: Setup, requestId: string): { address: string; token: string } | { reply: AnyReply } {
   const env = setup.env ?? process.env
@@ -41,7 +41,7 @@ function prepare(setup: Setup, operation: AnyOperation): Prepared | { reply: Any
   const wire = JSON.stringify(parsed.data) + '\n'
   const limit = protocol.requestBytesOf?.(operation.op) ?? protocol.limits.requestBytes
   if (Buffer.byteLength(wire) > limit) return { reply: protocol.failure(requestId, 'invalid_request') }
-  return { requestId, address: authority.address, wire }
+  return { requestId, address: authority.address, wire, op: operation.op }
 }
 
 function transport(setup: Setup, prepared: Prepared, signal?: AbortSignal): Promise<AnyReply> {
@@ -52,7 +52,7 @@ function transport(setup: Setup, prepared: Prepared, signal?: AbortSignal): Prom
     let socket: Socket | null = null
     let settled = false
     let reply: AnyReply | null = null
-    const frame = createControlFrame(protocol.limits.responseBytes, (code) => protocol.error(code))
+    const frame = createControlFrame(protocol.responseBytesOf?.(prepared.op) ?? protocol.limits.responseBytes, (code) => protocol.error(code))
     const after = setup.after ?? ((callback: () => void, ms: number) => {
       const timer = setTimeout(callback, ms)
       return () => clearTimeout(timer)
@@ -81,7 +81,7 @@ function transport(setup: Setup, prepared: Prepared, signal?: AbortSignal): Prom
           if (text !== null) {
             const parsed = protocol.replySchema.safeParse(JSON.parse(text) as unknown)
             if (!parsed.success || parsed.data.requestId !== requestId) { throw protocol.error('invalid_request') }
-            reply = parsed.data.ok ? parsed.data : failure(requestId, parsed.data.error.code)
+            reply = parsed.data.ok ? parsed.data : failure(requestId, parsed.data.error.code, parsed.data.error.details)
           }
         } catch { finish(failure(requestId, 'invalid_request')) }
       })

@@ -80,6 +80,9 @@ export const CAPABILITIES = [
   // An agent's own desktop-bound mailbox. Holding it is necessary, never sufficient: every mail operation also needs
   // the session's current grant to be bound to an open endpoint on this machine and folder (services/agentMail.ts).
   'mail.use',
+  // A cult member's commands over the desktop control pipe (commands/cults.ts). Necessary, never sufficient: main
+  // resolves the caller's run and role from its live bound grant and refuses every chat that is not a live member.
+  'cult.act',
   // Provisioning, binding, renaming and closing mailboxes, and the person's own inbox, seen cursor and wake credit.
   'mail.manage',
   // Retiring or replacing a published learning: the person decides which guidance future agents receive.
@@ -189,6 +192,8 @@ const ORCHESTRATOR: Capability[] = [
   'metrics.report_run',
   'plan.request_save',
   'browser.drive',
+  // A cult's Magos holds an orchestrator grant.
+  'cult.act',
 ]
 
 /** What the desktop never holds: claiming and reporting on work belong to the agents that execute it. */
@@ -214,7 +219,9 @@ const AGENT_ONLY: readonly Capability[] = [
   // A mailbox speaks for an agent's chat; the person reads and manages mail through `mail.manage` instead.
   'mail.use',
   // The desktop is the person's window onto the browser, never an agent driving it over the browser pipe.
-  'browser.drive'
+  'browser.drive',
+  // Only a cult member's own chat acts in its run; the person controls runs through the desktop's cult IPC.
+  'cult.act'
 ]
 
 const DESKTOP: Capability[] = CAPABILITIES.filter((capability) => !AGENT_ONLY.includes(capability))
@@ -235,7 +242,9 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
     'kanban.report',
     'browser.drive',
     'metrics.report',
-    'mail.use'
+    'mail.use',
+    // A cult's acolytes hold worker grants.
+    'cult.act'
   ],
   reviewer: ['read', 'chat.name', 'human.ask', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 }

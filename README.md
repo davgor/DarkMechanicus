@@ -44,6 +44,7 @@ This is a local coordination platform, not evidence of a distributed, multi-tena
 2. Track a project folder and choose repository-backed or database-only storage.
 3. Connect an [MCP agent host](docs/runbooks/mcp-setup.md), use the [CLI](docs/runbooks/cli.md), or configure a [hosted agent](docs/runbooks/agents.md).
 4. Draft and save a small plan, run it, and inspect the submitted evidence at its checkpoint.
+5. Optionally found a cult: a Magos agent leading a timed swarm of acolyte agents you can pause, stop and watch. See the [cults runbook](docs/runbooks/cults.md) and the [cults design record](docs/design/cults.md) (verified on Windows only).
 
 See the [operating guide](docs/project-guide.md) for setup details, source control, provider configuration, planning workflows, and release behavior. Agent runtimes and their authentication are configured separately; downloading the app does not supply model access.
 

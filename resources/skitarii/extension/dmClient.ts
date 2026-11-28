@@ -252,6 +252,8 @@ export interface DmClientDescriptor {
   /** Optional recovery-only local control; conveys no generic mailbox or repository authority. */
   recoveryAddress?: string
   inherit: string[]
+  /** The chat's role in a cult run; absent for any other chat, which then gets no cult tools and no cult wake. */
+  cultRole?: 'magos' | 'acolyte'
 }
 
 const DESCRIPTOR_KEYS = ['version', 'chatId', 'generation', 'folder', 'command', 'args', 'cwd', 'env', 'inherit'] as const
@@ -297,8 +299,10 @@ function pinnedArgsOk(d: Record<string, unknown>): boolean {
 
 function keysOk(d: Record<string, unknown>): boolean {
   const keys = Object.keys(d)
-  return keys.length === DESCRIPTOR_KEYS.length + (d.recoveryAddress === undefined ? 0 : 1) && DESCRIPTOR_KEYS.every((key) => keys.includes(key)) &&
-    (d.recoveryAddress === undefined || typeof d.recoveryAddress === 'string')
+  const optional = (d.recoveryAddress === undefined ? 0 : 1) + (d.cultRole === undefined ? 0 : 1)
+  return keys.length === DESCRIPTOR_KEYS.length + optional && DESCRIPTOR_KEYS.every((key) => keys.includes(key)) &&
+    (d.recoveryAddress === undefined || typeof d.recoveryAddress === 'string') &&
+    (d.cultRole === undefined || d.cultRole === 'magos' || d.cultRole === 'acolyte')
 }
 
 /** The shape main writes, exactly: no other key, absolute normalized paths, the CLI pinned to the folder. */

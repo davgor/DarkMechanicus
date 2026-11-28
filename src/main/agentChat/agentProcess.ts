@@ -211,9 +211,12 @@ class JsonlProcess implements AgentProcess {
   }
 }
 
-/** Main-only transport. Consumers must mask diagnostics before persistence or IPC. */
-export function startAgentProcess(spec: ProcessSpec, spawn: Spawn = spawnChild): AgentProcess {
-  const owned = process.platform === 'win32' ? windowsAgentJob(spec.file, spec.args) : undefined
+/**
+ * Main-only transport. Consumers must mask diagnostics before persistence or IPC. On Windows the CLI runs inside an
+ * owned job (`windowsAgentJob`) unless `ownedJob` is false, which only the test rig passes (`agentChatRig`).
+ */
+export function startAgentProcess(spec: ProcessSpec, spawn: Spawn = spawnChild, ownedJob = process.platform === 'win32'): AgentProcess {
+  const owned = ownedJob ? windowsAgentJob(spec.file, spec.args) : undefined
   const program = owned ?? spec
   return new JsonlProcess(spawn(program.file, program.args, {
     cwd: spec.cwd, env: spec.env, stdio: 'pipe', windowsHide: true, detached: startsOwnGroup()

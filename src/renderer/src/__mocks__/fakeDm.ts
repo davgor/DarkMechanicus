@@ -6,6 +6,7 @@ import { knowledgeStatus } from './fixtures'
 import { idleCrossRepoCorrections } from './idleCrossRepoCorrections'
 import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
+import { idleCults } from './idleCults'
 import { FakeAgentChat } from './fakeAgentChat'
 import { FakeBrowser } from './fakeBrowser'
 import { FakeSettings } from './fakeSettings'
@@ -66,6 +67,7 @@ export class FakeDm implements DmApi {
   async telegramStatus() { return { enabled: false, configured: false, paired: false, issue: '' } }
   async pairTelegram() { return 'pair-code' }
   chats = new FakeChats()
+  cults = idleCults()
   terminals = idleTerminals()
   agentChat = new FakeAgentChat()
   browser = new FakeBrowser()

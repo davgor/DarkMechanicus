@@ -154,13 +154,16 @@ class ControlServer implements ControlServerHandle {
 
 class ControlConnection {
   requestId = ''
+  /** The admitted operation, which bounds its reply. */
+  op = ''
   finished = false
   current: ControlOperation | null = null
   private readonly frame: ReturnType<typeof createControlFrame>
   private readonly cancelFrame: () => void
   constructor(readonly owner: ControlServer, readonly socket: Socket) {
     const { protocol } = owner
-    this.frame = createControlFrame(protocol.limits.requestBytes, (code) => protocol.error(code))
+    // The largest request any operation may send; each operation's own bound is checked once the request parses.
+    this.frame = createControlFrame(protocol.frameRequestBytes ?? protocol.limits.requestBytes, (code) => protocol.error(code))
     this.cancelFrame = owner.clock.after(() => this.finish(protocol.failure(this.requestId, 'timeout')), protocol.limits.frameMs)
     socket.on('data', this.onData)
     socket.on('end', this.onEnd)
@@ -188,6 +191,7 @@ class ControlConnection {
     if (!parsed.success) { this.finish(protocol.failure('', 'invalid_request')); return }
     const request = parsed.data
     this.requestId = request.requestId
+    this.op = request.op
     const limit = protocol.requestBytesOf?.(request.op)
     if (limit !== undefined && Buffer.byteLength(text) + 1 > limit) {
       this.finish(protocol.failure(this.requestId, 'invalid_request')); return
@@ -213,7 +217,9 @@ class ControlConnection {
     try {
       const parsed = protocol.replySchema.safeParse(reply)
       wire = JSON.stringify(parsed.success ? parsed.data : protocol.failure(this.requestId, 'internal_error')) + '\n'
-      if (Buffer.byteLength(wire) > protocol.limits.responseBytes) { wire = JSON.stringify(protocol.failure(this.requestId, 'response_too_large')) + '\n' }
+      if (Buffer.byteLength(wire) > (protocol.responseBytesOf?.(this.op) ?? protocol.limits.responseBytes)) {
+        wire = JSON.stringify(protocol.failure(this.requestId, 'response_too_large')) + '\n'
+      }
     } catch { wire = JSON.stringify(protocol.failure(this.requestId, 'internal_error')) + '\n' }
     endReply(this.socket, wire, protocol.limits.frameMs)
   }
@@ -291,7 +297,9 @@ class ControlOperation {
       }
       await this.verifyActive()
       this.connection.finish({ version: protocol.limits.version, requestId: this.connection.requestId, ok: true, data })
-    } catch (error) { this.connection.finish(protocol.failure(this.connection.requestId, protocol.errorCodeOf(error))) } finally {
+    } catch (error) {
+      this.connection.finish(protocol.failure(this.connection.requestId, protocol.errorCodeOf(error), protocol.detailsOf?.(error)))
+    } finally {
       this.controller.abort()
       this.connection.owner.release(this)
     }

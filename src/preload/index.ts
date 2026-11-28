@@ -7,6 +7,7 @@ import {
   type ChatPushEvent,
   type ChatsApi
 } from '../shared/agents/chatApi'
+import { CULT_EVENT_CHANNEL, type CultPushEvent, type CultsApi } from '../shared/cults/cultApi'
 import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi, type AgentChatEvent } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import { BROWSER_CHANNELS, browserStateSchema, type BrowserApi } from '../shared/browser/browserApi'
@@ -84,6 +85,34 @@ const chats: ChatsApi = {
     return () => ipcRenderer.removeListener(CHAT_EVENT_CHANNEL, handler)
   },
   mail
+}
+
+/** Cults: one `cults:*` invoke per request (main validates each argument), plus the pushed run snapshots. */
+const cults: CultsApi = {
+  list: () => ipcRenderer.invoke('cults:list'),
+  get: (cultId) => ipcRenderer.invoke('cults:get', cultId),
+  create: (input) => ipcRenderer.invoke('cults:create', input),
+  update: (cultId, input) => ipcRenderer.invoke('cults:update', cultId, input),
+  delete: (cultId) => ipcRenderer.invoke('cults:delete', cultId),
+  models: (refresh) => ipcRenderer.invoke('cults:models', refresh),
+  archetypes: () => ipcRenderer.invoke('cults:archetypes'),
+  start: (cultId, overrides) => ipcRenderer.invoke('cults:start', cultId, overrides),
+  pause: (runId) => ipcRenderer.invoke('cults:pause', runId),
+  resume: (runId) => ipcRenderer.invoke('cults:resume', runId),
+  stop: (runId) => ipcRenderer.invoke('cults:stop', runId),
+  killNow: (runId) => ipcRenderer.invoke('cults:killNow', runId),
+  raiseCap: (runId, cap) => ipcRenderer.invoke('cults:raiseCap', runId, cap),
+  decidePetition: (petitionId, approve, granted) => ipcRenderer.invoke('cults:decidePetition', petitionId, approve, granted),
+  dismissAcolyte: (runId, chatId) => ipcRenderer.invoke('cults:dismissAcolyte', runId, chatId),
+  runs: (cultId) => ipcRenderer.invoke('cults:runs', cultId),
+  pipeline: (runId, request) => ipcRenderer.invoke('cults:pipeline', runId, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: CultPushEvent): void => {
+      listener(event)
+    }
+    ipcRenderer.on(CULT_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(CULT_EVENT_CHANNEL, handler)
+  }
 }
 
 /**
@@ -225,6 +254,7 @@ const dm: DmApi = {
   telegramStatus: () => ipcRenderer.invoke('telegram:status'),
   pairTelegram: () => ipcRenderer.invoke('telegram:pair'),
   chats,
+  cults,
   terminals: createTerminalsApi(ipcRenderer),
   sourceCheckout,
   crossRepoCorrections,

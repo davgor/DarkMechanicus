@@ -217,6 +217,27 @@ const DESKTOP_READS: CommandName[] = [
  */
 const DESKTOP_ONLY: CommandName[] = ['uploadAttachment', 'setTicketBudget']
 
+/**
+ * Commands a cult member calls only through its native Skitarii cult tools (`resources/skitarii/extension/cultTools.ts`):
+ * each needs `cult.act`, and main acts only for a live member's bound grant over the desktop control pipe. No MCP tool
+ * adapts them.
+ */
+const CULT_MEMBER_ONLY: CommandName[] = [
+  'cultConcludeRun',
+  'cultConcludeService',
+  'cultCreateWorkerType',
+  'cultDismissAcolyte',
+  'cultListAcolytes',
+  'cultListWorkerTypes',
+  'cultOrderAll',
+  'cultPetition',
+  'cultPublishShrine',
+  'cultRecordSynthesis',
+  'cultRetireWorkerType',
+  'cultStatus',
+  'cultSummonAcolyte'
+]
+
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
   if (annotations?.readOnlyHint === true) {
     return 'read'
@@ -262,13 +283,12 @@ describe('tool inventory', () => {
     })
   })
 
-  it('adapts every command an agent may use, and none of the human-only ones or the desktop-only reads', () => {
+  it('adapts every command an agent may use, and none of the human-only ones, the desktop-only ones or the cult tools', () => {
     const adapted = new Set(Object.values(TOOLS).map((tool) => tool.method))
-    const agentCommands = COMMAND_NAMES.filter(
-      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name) && !DESKTOP_ONLY.includes(name)
-    )
+    const classified = [...HUMAN_ONLY, ...DESKTOP_READS, ...DESKTOP_ONLY, ...CULT_MEMBER_ONLY]
+    const agentCommands = COMMAND_NAMES.filter((name) => !classified.includes(name))
     expect([...adapted].sort()).toEqual([...agentCommands].sort())
-    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length + DESKTOP_ONLY.length)
+    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + classified.length)
   })
 
   it('annotates each tool by kind and only cancel_run as destructive', async () => {

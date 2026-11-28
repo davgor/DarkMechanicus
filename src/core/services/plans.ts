@@ -374,7 +374,7 @@ function requireSaveAuthority(ctx: Ctx, epicId: string): boolean {
     return false
   }
   const runsEpics = ctx.session.role === 'orchestrator' && ctx.session.capabilities.has('run.adopt')
-  if (runsEpics && ownedActiveRun(ctx, epicId) !== null) {
+  if (runsEpics && runSaveAllowed(ctx) && ownedActiveRun(ctx, epicId) !== null) {
     return true
   }
   const message = runsEpics
@@ -382,6 +382,15 @@ function requireSaveAuthority(ctx: Ctx, epicId: string): boolean {
     : undefined
   requireCapability(ctx.session, 'plan.save', message)
   return false
+}
+
+/** False for a session whose grant was issued with `runSave: false` (a cult Magos): it saves only with Allow save. */
+function runSaveAllowed(ctx: Ctx): boolean {
+  const row = ctx.db.get<{ run_save: number }>(
+    'SELECT g.run_save FROM sessions s JOIN grants g ON g.id = s.grant_id WHERE s.id = ?',
+    ctx.session.id
+  )
+  return row?.run_save !== 0
 }
 
 function ownedActiveRun(ctx: Ctx, epicId: string): { id: string; revision_id: string } | null {

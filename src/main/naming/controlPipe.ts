@@ -3,6 +3,7 @@ import { NAMING_PROTOCOL } from '../../core/desktop/controlProtocol'
 import {
   NamingControlError, type NamingErrorCode, type NamingOperation, type NamingReply, type NamingRequest
 } from '../../shared/agents/chatNaming'
+import { isCultOperation } from '../../shared/cults/cultControl'
 import {
   createControlServer, type ControlBinding, type ControlClock, type ControlDispatcher, type ControlOperationContext,
   type ControlServerHandle, type ControlServerProtocol
@@ -41,11 +42,13 @@ const NAMING_SERVER_PROTOCOL: ControlServerProtocol<NamingOperation, NamingReque
     if (verify !== undefined) {
       await verify('chat.name')
       if (operation.op === 'recover_tooling') await verify('tooling.recover')
+      // `cult.act` is necessary for a cult operation, never sufficient: the dispatcher also resolves live membership.
+      if (isCultOperation(operation.op)) await verify('cult.act')
     }
   }
 }
 
-/** The naming/tooling-recovery desktop pipe: `\\.\pipe\dm-desktop-<uuid>` on Windows, a socket in a `dm-n-` temp directory on POSIX. */
+/** The desktop control pipe (naming, tooling recovery, cult members): `\\.\pipe\dm-desktop-<uuid>` on Windows, a socket in a `dm-n-` temp directory on POSIX. */
 export function createControlPipe(options: ControlPipeOptions): Promise<ControlPipe> {
   return createControlServer({ ...options, protocol: NAMING_SERVER_PROTOCOL, addressPrefix: { unix: 'dm-n-', win32: 'dm-desktop-' } })
 }

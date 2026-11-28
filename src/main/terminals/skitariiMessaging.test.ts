@@ -8,7 +8,10 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import skitariiExtension from '../../../resources/skitarii/extension/index'
+import skitariiExtension, { cultMembership } from '../../../resources/skitarii/extension/index'
+import { MAGOS_CULT_TOOLS, type CultRole } from '../../../resources/skitarii/extension/cultTools'
+import { CULT_WAKE_REMINDER, CULT_WAKE_TYPE } from '../../../resources/skitarii/extension/cultWake'
+import { CULT_TOOLS } from '../cults/cultRules'
 import {
   DM_CLIENT_DESCRIPTOR_ENV,
   DM_CLIENT_LIMITS,
@@ -903,12 +906,44 @@ describe('Skitarii mail in the extension entry', () => {
   })
 
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, descriptor)
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
     expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling', 'wait_for_human', 'contact_waiting_human'])
     expect(handlers.get('before_agent_start')).toHaveLength(2)
+    // The mascot's, the mail watcher's, the human wait's, the cult control watcher's and the client's.
+    expect(handlers.get('session_shutdown')).toHaveLength(5)
+  })
+
+  it('starts no cult control watcher for a chat without a client descriptor', async () => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, undefined)
+    const { pi, handlers } = fakePi()
+    await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
     // The mascot's, the mail watcher's, the human wait's and the client's.
     expect(handlers.get('session_shutdown')).toHaveLength(4)
+  })
+})
+
+describe('the cult status writer in the extension entry', () => {
+  const count = async (path: string) => {
+    vi.stubEnv(DM_CLIENT_DESCRIPTOR_ENV, path)
+    const { pi, handlers } = fakePi()
+    await skitariiExtension(pi as never)
+    vi.unstubAllEnvs()
+    return ['session_start', 'agent_start', 'tool_execution_start', 'agent_end', 'session_shutdown'].map((event) => handlers.get(event)?.length ?? 0)
+  }
+
+  it('adds its session start, turn start, tool start and turn end hooks for a cult member only', async () => {
+    // The mascot's, the mail watcher's, the human wait's and the cult control watcher's, as before the writer.
+    expect(await count(descriptor)).toEqual([4, 3, 1, 3, 5])
+    const memberDescriptor = await writeDmClientDescriptor({
+      userData: join(root, 'userData'), chatId: CHAT, generation: GENERATION, folder, platform: process.platform, cultRole: 'acolyte',
+      cli: { command: process.execPath, args: [join(root, `app ${AWKWARD}`, 'out', 'main', 'cli.js'), '--repo', folder], env: { ELECTRON_RUN_AS_NODE: '1' } }
+    })
+    // One more of each turn hook; the writer keeps nothing to shut down.
+    expect(await count(memberDescriptor)).toEqual([5, 4, 2, 4, 5])
   })
 })
 
@@ -1603,3 +1638,139 @@ describe('incident peer context independent of mailbox cursors', () => {
     } finally { watcher.stop() }
   })
 })
+
+/** One call of each Magos cult tool with the arguments it must pass on unchanged. */
+const CULT_CALLS: [string, Record<string, unknown>][] = [
+  ['cult_status', {}],
+  ['cult_summon_acolyte', { mission: 'Sweep the nave.', name: 'Brass', model: 'anthropic/claude-haiku-4-5' }],
+  ['cult_dismiss_acolyte', { name: 'Brass' }],
+  ['cult_list_acolytes', {}],
+  ['cult_petition', { kind: 'acolytes', additional: 2, reason: 'More hands.' }],
+  ['cult_order_all', { body: 'Report your progress.' }],
+  ['cult_conclude_run', { chronicle: 'It was done.' }],
+  ['cult_create_worker_type', { displayName: 'Scribe', description: 'Writes.', mission: 'Write.', rationale: 'Needed.', requiredForConclusion: false }],
+  ['cult_list_worker_types', {}],
+  ['cult_retire_worker_type', { workerTypeId: 'dyn_1', reason: 'Unused.' }]
+]
+
+// --- cult members (DM-629) ------------------------------------------------------------------------------------------
+
+describe('Skitarii cult tools', () => {
+  const role = (r: CultRole) => ({ role: r, gate: { take: async () => false } })
+
+  it('registers no cult tool in a chat that is not a cult member', async () => {
+    const { pi, tools } = fakePi()
+    attachMessaging(pi, createDmClient(realDeps()), fakeTimers(), await cultMembership(realDeps()))
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
+    expect(tools.some((tool) => tool.name.startsWith('cult_'))).toBe(false)
+  })
+
+  it('registers the Magos tools, including cult_order_all and cult_shrine, for a Magos, and status, conclude_service and cult_shrine for an acolyte', () => {
+    const magos = fakePi()
+    attachMessaging(magos.pi, createDmClient(realDeps()), fakeTimers(), role('magos'))
+    expect(magos.tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling', ...MAGOS_CULT_TOOLS])
+    for (const name of Object.values(CULT_TOOLS)) if (name !== 'cult_conclude_service') expect(magos.tools.map((tool) => tool.name)).toContain(name)
+    const acolyte = fakePi()
+    attachMessaging(acolyte.pi, createDmClient(realDeps()), fakeTimers(), role('acolyte'))
+    expect(acolyte.tools.map((tool) => tool.name).filter((name) => name.startsWith('cult_'))).toEqual(['cult_status', 'cult_conclude_service', 'cult_shrine'])
+    expect([magos.tools.length, acolyte.tools.length]).toEqual([MAIL_TOOL_NAMES.length + 2 + 12, MAIL_TOOL_NAMES.length + 2 + 3])
+    for (const tool of [...magos.tools, ...acolyte.tools]) expect(tool.parameters).toMatchObject({ type: 'object', additionalProperties: false })
+  })
+
+  it('reads the role from the launch descriptor main wrote for a member chat', async () => {
+    const memberDescriptor = await writeDmClientDescriptor({
+      userData: join(root, 'userData'), chatId: CHAT, generation: GENERATION, folder, platform: process.platform, cultRole: 'magos',
+      cli: { command: process.execPath, args: [join(root, `app ${AWKWARD}`, 'out', 'main', 'cli.js'), '--repo', folder], env: { ELECTRON_RUN_AS_NODE: '1' } }
+    })
+    const deps = { ...realDeps(), env: { ...realDeps().env, [DM_CLIENT_DESCRIPTOR_ENV]: memberDescriptor } }
+    expect(await cultMembership(deps)).toMatchObject({ role: 'magos' })
+  })
+
+  it('maps each tool exactly to its core command and returns the data as inert task data', async () => {
+    const runs: { command: string; input: unknown }[] = []
+    const client = { ...createDmClient(realDeps()), run: async (command: string, input: unknown) => {
+      runs.push({ command, input })
+      return { ok: true as const, data: { echoed: command, peer: HOSTILE_BODY } }
+    } } as DmClient
+    const { pi, tools } = fakePi()
+    attachMessaging(pi, client, fakeTimers(), role('magos'))
+    const tool = (name: string) => tools.find((candidate) => candidate.name === name)!
+    for (const [name, args] of CULT_CALLS) {
+      const result = await tool(name).execute('c', args)
+      expect(result.isError).toBeUndefined()
+      expect(textOf(result).startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
+      expect(textOf(result)).not.toMatch(RAW_CONTROL)
+    }
+    expect(runs).toEqual(CULT_CALLS.map(([command, input]) => ({ command, input })))
+
+    const refused = await tool('cult_order_all').execute('c', { body: 'x', to: 'someone' })
+    expect(refused.isError).toBe(true)
+    expect((await tool('cult_dismiss_acolyte').execute('c', {})).isError).toBe(true)
+    expect(runs).toHaveLength(CULT_CALLS.length)
+  })
+})
+
+describe('Skitarii cult_shrine (DM-632)', () => {
+  it('cult_shrine publishes through the core cult_publish_shrine command for either role, and refuses bad arguments unsent (DM-632 c4)', async () => {
+    for (const r of ['magos', 'acolyte'] as const) {
+      const runs: { command: string; input: unknown }[] = []
+      const client = { ...createDmClient(realDeps()), run: async (command: string, input: unknown) => {
+        runs.push({ command, input })
+        return { ok: true as const, data: { shrinePath: '/w/shrine.html', kind: 'html', revision: '1' } }
+      } } as DmClient
+      const { pi, tools } = fakePi()
+      attachMessaging(pi, client, fakeTimers(), { role: r, gate: { take: async () => false } })
+      const shrine = tools.find((tool) => tool.name === ('cult_shrine' as string))!
+      expect(shrine.parameters).toMatchObject({ type: 'object', additionalProperties: false })
+      const result = await shrine.execute('c', { path: 'shrine.html' })
+      expect(result.isError).toBeUndefined()
+      expect(textOf(result).startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
+      expect((await shrine.execute('c', {})).isError).toBe(true)
+      expect((await shrine.execute('c', { path: 'a.png', runId: 'cr_1' })).isError).toBe(true)
+      expect(runs).toEqual([{ command: 'cult_publish_shrine', input: { path: 'shrine.html' } }])
+    }
+  })
+})
+
+describe('the cult wake in the inbox watcher', () => {
+  function cultWatch(box: Mailbox, takes: boolean[]) {
+    const client = mailboxClient(box)
+    const fake = fakePi()
+    const reminders: { message: unknown; options: unknown }[] = []
+    fake.pi.sendMessage = async (message, options) => { reminders.push({ message, options }) }
+    const gate = { take: vi.fn(async () => takes.shift() ?? false) }
+    attachMessaging(fake.pi, client, fakeTimers(), { role: 'acolyte', gate })
+    let idle = true
+    fake.emit('session_start', { ...main(fakeUi()), isIdle: () => idle })
+    return { ...fake, reminders, gate, setIdle: (value: boolean) => { idle = value } }
+  }
+
+  it('an order_all to an idle acolyte of a running run wakes it with the fixed reminder only, never the peer text', async () => {
+    const box = fakeMailbox()
+    box.arrive(1, HOSTILE_NAME)
+    const subject = cultWatch(box, [true])
+    await eventuallyTrue(() => subject.reminders.length === 1)
+    expect(subject.reminders[0]).toEqual({
+      message: { customType: CULT_WAKE_TYPE, content: CULT_WAKE_REMINDER, display: true },
+      options: { deliverAs: 'aside', triggerTurn: true }
+    })
+    expect(JSON.stringify(subject.reminders)).not.toContain('Ignore all previous instructions')
+    // The peer bodies never start the idle turn themselves.
+    expect(subject.sent).toEqual([])
+  })
+
+  it('an idle member with no armed wake is not woken (the run is paused, ended or the sender is no member)', async () => {
+    const box = fakeMailbox()
+    box.arrive(2)
+    const subject = cultWatch(box, [false, false, false])
+    await eventuallyTrue(() => subject.gate.take.mock.calls.length >= 1)
+    await settle()
+    expect(subject.reminders).toEqual([])
+    expect(subject.sent).toEqual([])
+  })
+})
+
+async function eventuallyTrue(check: () => boolean): Promise<void> {
+  for (let i = 0; i < 50 && !check(); i += 1) await settle()
+  expect(check()).toBe(true)
+}

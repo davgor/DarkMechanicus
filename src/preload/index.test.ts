@@ -6,6 +6,8 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { IpcMain } from 'electron'
 import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/chatApi'
+import { CULT_EVENT_CHANNEL } from '../shared/cults/cultApi'
+import { registerCultIpc, type CultHandlers } from '../main/cults/cultHandlers'
 import { AGENT_CHAT_CHANNELS, type AgentChatApi } from '../shared/agents/agentChat'
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { BROWSER_CHANNELS, type BrowserApi, type BrowserState } from '../shared/browser/browserApi'
@@ -164,6 +166,7 @@ beforeAll(async () => {
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
   registerBrowserIpc(recorder(true), recordingHandlers<BrowserIpcHandlers>())
+  registerCultIpc(recorder(true), recordingHandlers<CultHandlers>())
   registerTelegramIpc(recorder(false), () => ({}), async () => 'code', () => {})
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
@@ -263,6 +266,7 @@ describe('preload bridge subscriptions', () => {
       'autoUpdate.onEvent': AUTO_UPDATE_EVENT_CHANNEL,
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
       'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
+      'dm.cults.onEvent': CULT_EVENT_CHANNEL,
       'dm.agentChat.onEvent': AGENT_CHAT_CHANNELS.event,
       'dm.browser.onEvent': BROWSER_CHANNELS.event,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',

@@ -39,8 +39,9 @@ function clearGesture(state: ShakeState, viewport: ShakeViewport | null, timesta
     reversals: 0, startedAt: null, detected: false }
 }
 
+/** `stepShake` only starts a leg once a viewport is held, and every state holding one also holds an origin. */
 function startLeg(state: ShakeState, viewport: ShakeViewport, timestamp: number): ShakeState {
-    const origin = state.origin ?? state.viewport!
+    const origin = state.origin!
     const dx = viewport.x - origin.x
     const dy = viewport.y - origin.y
     const axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'

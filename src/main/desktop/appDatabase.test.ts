@@ -84,15 +84,31 @@ afterEach(() => {
 })
 
 describe('openAppDatabase', () => {
-  it('creates app.sqlite at user_version 4 with the three tables', () => {
+  it('creates app.sqlite at user_version 7 with the agent and cult tables', () => {
     const dir = tempDir()
     const db = open(dir)
     expect(existsSync(join(dir, 'app.sqlite'))).toBe(true)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
     const tables = db
-      .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+      .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name <> 'sqlite_sequence' ORDER BY name")
       .map((row) => row.name)
-    expect(tables).toEqual(['agents', 'app_meta', 'folder_agent_defaults'])
+    expect(tables).toEqual([
+      'agents',
+      'app_meta',
+      'cult_events',
+      'cult_members',
+      'cult_petitions',
+      'cult_pipeline',
+      'cult_pipeline_cursors',
+      'cult_plan_bindings',
+      'cult_role_slots',
+      'cult_run_worker_types',
+      'cult_runs',
+      'cult_specialist_reports',
+      'cult_syntheses',
+      'cults',
+      'folder_agent_defaults'
+    ])
   })
 
   it('stores an agent with no protocol and no handshake result, and whether it needs review', () => {
@@ -119,13 +135,13 @@ describe('openAppDatabase on a file already there', () => {
     open(dir).close()
     openDbs.length = 0
     const db = open(dir)
-    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 4, to: 4 })
+    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 8, to: 8 })
   })
 
   it('refuses a database at a newer user_version with incompatible_schema', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
-    raw.exec('PRAGMA user_version = 5')
+    raw.exec('PRAGMA user_version = 9')
     raw.close()
     const error = thrownBy(() => open(dir))
     expect(error).toBeInstanceOf(DomainError)
@@ -142,7 +158,7 @@ describe('openAppDatabase on a file already there', () => {
     )
     raw.close()
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
     expect(db.get('SELECT id, args_json, needs_review FROM agents')).toEqual({ id: 'cu_1', args_json: '["{folder}"]', needs_review: 1 })
   })
 })
@@ -150,7 +166,7 @@ describe('openAppDatabase on a file already there', () => {
 describe('upgrading an app.sqlite at today’s schema (v2): the protocol goes, ACP and Codex custom rows need review', () => {
   it('drops the protocol column, and the agent name the handshake reported', () => {
     const db = upgraded()
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
     expect(columnsOf(db, 'agents')).not.toContain('protocol')
     expect(columnsOf(db, 'agents')).not.toContain('reported_name')
     expect(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'agents'")?.sql).not.toMatch(/protocol|reported_name/)
@@ -219,7 +235,7 @@ describe('upgrading an app.sqlite at v3: omp becomes a kind', () => {
     const dir = tempDir()
     writeV3(dir)
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
     expect(columnsOf(db, 'agents')).toEqual(['id', 'kind', 'display_name', 'executable_path', 'args_json', 'version', 'connected_via', 'connected_at', 'last_probed', 'needs_review'])
     expect(db.all('SELECT * FROM agents ORDER BY rowid')).toEqual([
       { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', executable_path: '/bin/a8s', args_json: '[]', version: '0.79.0', connected_via: 'found', connected_at: 't1', last_probed: 't2', needs_review: 0 },
@@ -282,5 +298,85 @@ describe('app database constraints', () => {
     const db = open(tempDir())
     insertAgent(db, 'cu_1', 'custom')
     expect(thrownBy(() => db.run("UPDATE agents SET needs_review = 2 WHERE id = 'cu_1'"))).toBeInstanceOf(Error)
+  })
+})
+
+describe('upgrading an app.sqlite at v4: the cult tables arrive', () => {
+  it('keeps every agent, default and meta row and adds empty cult tables with the active-run index', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 4))
+    insertAgent(raw, 'omp', 'omp')
+    raw.run("INSERT INTO folder_agent_defaults (folder, agent_id, updated_at) VALUES ('/repos/a', 'omp', 't')")
+    raw.run("INSERT INTO app_meta (key, value) VALUES ('k', 'v')")
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
+    expect(db.all('SELECT id, kind FROM agents')).toEqual([{ id: 'omp', kind: 'omp' }])
+    expect(db.all('SELECT folder, agent_id FROM folder_agent_defaults')).toEqual([{ folder: '/repos/a', agent_id: 'omp' }])
+    expect(db.all('SELECT key, value FROM app_meta')).toEqual([{ key: 'k', value: 'v' }])
+    expect(db.all('SELECT id FROM cults')).toEqual([])
+    const indexes = db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'cult_%' ORDER BY name")
+    expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining(['cult_runs_one_active', 'cult_members_run', 'cult_members_name']))
+  })
+})
+
+describe('upgrading an app.sqlite at v5: cult events gain structured data', () => {
+  it('keeps every cult event, with no data, and accepts only JSON data', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 5))
+    expect(columnsOf(raw, 'cult_events')).not.toContain('data')
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
+    expect(columnsOf(db, 'cult_events')).toEqual(['run_id', 'seq', 'at', 'member_name', 'kind', 'summary', 'data'])
+  })
+})
+
+describe('upgrading an app.sqlite at v6: Plan Forge bindings, syntheses and run-type reports (DM-738)', () => {
+  it('keeps every slot report, adds the run worker type column, and refuses a report of both or neither', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 6))
+    raw.run("INSERT INTO cults (id, name, charter, scope, folder_path, archetype, magos_name, default_cap, acolyte_grace_ms, magos_window_ms, created_at, updated_at) VALUES ('ct_1', 'C', 'c', 'folder', '/f', 'general', 'M', 6, 60000, 60000, 't', 't')")
+    raw.run("INSERT INTO cult_runs (id, cult_id, state, grace_ms, magos_window_ms, cap, work_dir, started_at, running_since) VALUES ('cr_1', 'ct_1', 'running', 60000, 60000, 6, '/f', 't', 't')")
+    raw.run("INSERT INTO cult_members (run_id, chat_id, role, display_name, slot_id, worker_type, state, joined_at) VALUES ('cr_1', 'ch_1', 'acolyte', 'A', 'security', 'security', 'active', 't')")
+    raw.run("INSERT INTO cult_specialist_reports (run_id, member_chat_id, slot_id, text, target_revision, submitted_at) VALUES ('cr_1', 'ch_1', 'security', 'Ok.', 'saved 0, draft 1', 't')")
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
+    expect(db.all('SELECT id, slot_id, run_worker_type_id, text, target_revision FROM cult_specialist_reports')).toEqual([
+      { id: 1, slot_id: 'security', run_worker_type_id: null, text: 'Ok.', target_revision: 'saved 0, draft 1' }
+    ])
+    const insert = "INSERT INTO cult_specialist_reports (run_id, member_chat_id, slot_id, run_worker_type_id, text, submitted_at) VALUES ('cr_1', 'ch_1', ?, ?, 'x', 't')"
+    expect(thrownBy(() => db.run(insert, 'security', 'dyn_1'))).toBeInstanceOf(Error)
+    expect(thrownBy(() => db.run(insert, null, null))).toBeInstanceOf(Error)
+    expect(columnsOf(db, 'cult_plan_bindings')).toEqual(['run_id', 'epic_id', 'saved_revision', 'draft_revision', 'event_seq', 'bound_at'])
+    expect(thrownBy(() => db.run("INSERT INTO cult_syntheses (run_id, member_chat_id, draft_revision, recommendations, recorded_at) VALUES ('cr_1', 'ch_1', 1, 'not json', 't')"))).toBeInstanceOf(Error)
+  })
+})
+
+describe('upgrading an app.sqlite at v7: the cult pipeline (DM-634)', () => {
+  it('keeps every run and event, adds the empty pipeline and its cursors, and refuses a row that is both or neither', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 7))
+    raw.run("INSERT INTO cults (id, name, charter, scope, folder_path, archetype, magos_name, default_cap, acolyte_grace_ms, magos_window_ms, created_at, updated_at) VALUES ('ct_1', 'C', 'c', 'folder', '/f', 'general', 'M', 6, 60000, 60000, 't', 't')")
+    raw.run("INSERT INTO cult_runs (id, cult_id, state, grace_ms, magos_window_ms, cap, work_dir, started_at, running_since) VALUES ('cr_1', 'ct_1', 'running', 60000, 60000, 6, '/f', 't', 't')")
+    raw.run("INSERT INTO cult_events (run_id, seq, at, member_name, kind, summary) VALUES ('cr_1', 1, 't', 'M', 'summoned', 'M was summoned.')")
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
+    expect(db.all('SELECT run_id, seq, kind FROM cult_events')).toEqual([{ run_id: 'cr_1', seq: 1, kind: 'summoned' }])
+    expect(columnsOf(db, 'cult_pipeline')).toEqual(['run_id', 'seq', 'at', 'event_seq', 'message_id', 'sender_chat_id', 'recipient_chat_id', 'in_reply_to', 'body'])
+    expect(columnsOf(db, 'cult_pipeline_cursors')).toEqual(['run_id', 'chat_id', 'endpoint_id', 'through_seq'])
+    expect(db.all('SELECT * FROM cult_pipeline')).toEqual([])
+    const insert = "INSERT INTO cult_pipeline (run_id, seq, at, event_seq, message_id) VALUES ('cr_1', ?, 't', ?, ?)"
+    expect(thrownBy(() => db.run(insert, 1, 1, 'mm_1'))).toBeInstanceOf(Error)
+    expect(thrownBy(() => db.run(insert, 1, null, null))).toBeInstanceOf(Error)
+    db.run(insert, 1, 1, null)
+    db.run("DELETE FROM cult_runs WHERE id = 'cr_1'")
+    expect(db.all('SELECT * FROM cult_pipeline')).toEqual([])
   })
 })

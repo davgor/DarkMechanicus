@@ -10,7 +10,8 @@ export const PROD_CSP = [
   "script-src 'self'",
   "style-src 'self'",
   "connect-src 'self'",
-  "img-src 'self' data: dm-attachment: dm-chat-image:",
+  "img-src 'self' data: dm-attachment: dm-chat-image: dm-shrine:",
+  "frame-src dm-shrine:",
   "object-src 'none'",
   "base-uri 'none'"
 ].join('; ')
@@ -20,7 +21,8 @@ export const DEV_CSP = [
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${DEV_SERVER_ORIGIN} ${DEV_SERVER_WS_ORIGIN}`,
   `style-src 'self' 'unsafe-inline'`,
   `connect-src 'self' ${DEV_SERVER_ORIGIN} ${DEV_SERVER_WS_ORIGIN}`,
-  "img-src 'self' data: dm-attachment: dm-chat-image:",
+  "img-src 'self' data: dm-attachment: dm-chat-image: dm-shrine:",
+  "frame-src dm-shrine:",
   "object-src 'none'",
   "base-uri 'none'"
 ].join('; ')

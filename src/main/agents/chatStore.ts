@@ -47,7 +47,7 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'thinking' | 'epicId' | 'surface' | 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'cultRunId' | 'cultRole' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -230,12 +230,13 @@ function chatTarget(input: NewChat) {
   return { targetRepository: project ? new URL(project.repository).pathname.slice(1, -4) : input.folder.split(/[\\/]/).filter(Boolean).at(-1) }
 }
 
-function chatMetadata(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'epicId' | 'surface'>> {
+function chatMetadata(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup' | 'epicId' | 'surface' | 'cultRunId' | 'cultRole'>> {
   return {
     ...(input.epicId === undefined ? {} : { epicId: input.epicId }),
     ...(input.surface === undefined ? {} : { surface: input.surface }),
     ...(input.repairIncidentId === undefined ? {} : { repairIncidentId: input.repairIncidentId }),
-    ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup })
+    ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup }),
+    ...(input.cultRunId === undefined ? {} : { cultRunId: input.cultRunId, ...(input.cultRole === undefined ? {} : { cultRole: input.cultRole }) })
   }
 }
 

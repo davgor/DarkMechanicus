@@ -43,7 +43,8 @@ interface ChatGrantsDeps {
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
-interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
+/** `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true. */
+interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean }
 /** The trusted chat a grant is issued for: its stored identity and title, and its connected agent's kind. */
 export type GrantChat = MailboxChat & { kind: string }
 function reachedMailbox(owner: string | null, chat?: GrantChat): GrantChat | undefined {
@@ -75,6 +76,11 @@ export interface ChatGrants {
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
   renewChatGrant(grantId: string): Promise<void>
+  /**
+   * Flips Allow save on a held grant. Throws, unlike revoke/renew, so a petition approval fails visibly;
+   * `not_found` for a grant this app session did not issue.
+   */
+  setChatGrantAllowSave(grantId: string, allowSave: boolean): Promise<void>
 }
 
 interface HeldGrant {
@@ -126,7 +132,8 @@ class ChatGrantRegistry implements ChatGrants {
   /** Issues one grant in the folder's workspace and holds it; answers it with its token and that workspace. */
   private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: ProjectWorkspace }> {
     const workspace = this.deps.workspaceFor(folder)
-    const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
+    const runSave = grant.runSave === false ? { runSave: false } : {}
+    const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes, ...runSave })
     const browser = grantedCapabilities(grant.role, grant.allowSave).includes('browser.drive')
     this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox, browser })
     return { grantId: issued.grant.id, token: issued.token, workspace }
@@ -320,6 +327,11 @@ class ChatGrantRegistry implements ChatGrants {
       this.deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
     }
   }
+  async setChatGrantAllowSave(grantId: string, allowSave: boolean): Promise<void> {
+    const grant = this.held.get(grantId)
+    if (grant === undefined) throw new DomainError('not_found', 'That chat grant was not issued by this app session.')
+    await grant.workspace.call('setChatGrantAllowSave', grantId, allowSave)
+  }
 }
 
 export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
@@ -330,6 +342,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
     issueChatCli: (folder, grant, chat) => registry.issueChatCli(folder, grant, chat),
     revokeChatGrant: (id) => registry.revokeChatGrant(id),
     renewChatGrant: (id) => registry.renewChatGrant(id),
+    setChatGrantAllowSave: (id, allowSave) => registry.setChatGrantAllowSave(id, allowSave),
     bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
     authorizeNaming: (token) => registry.authorizeNaming(token),
     authorizeBrowser: (token) => registry.authorizeBrowser(token),

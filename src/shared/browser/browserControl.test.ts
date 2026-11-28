@@ -4,6 +4,7 @@ import {
   browserReplySchema, browserRequestSchema, type BrowserOperation
 } from './browserControl'
 import { namingErrorCodeSchema } from '../agents/chatNaming'
+import { CULT_ERROR_CODES } from '../cults/cultControl'
 
 const image = { id: 'ci_01h2xcejqtf2nbrexx3vqjhp41', width: 962, height: 602, bytes: 18_760, mime: 'image/png' }
 const valid: BrowserOperation[] = [
@@ -115,12 +116,15 @@ describe('browser replies', () => {
 })
 
 describe('browser error codes', () => {
-  it('extends the naming codes with the browser codes', () => {
+  it('extends the naming codes, without the cult members\' codes, with the browser codes', () => {
     const browserCodes = [
       'browser_disabled', 'origin_blocked', 'paused_by_person', 'stopped', 'no_tab', 'stale_ref', 'invalid_url',
       'secret_refused', 'password_field', 'navigation_failed', 'stale_prompt', 'view_hidden'
     ]
-    expect(browserErrorCodeSchema.options).toEqual([...namingErrorCodeSchema.options, ...browserCodes])
+    const cult: readonly string[] = CULT_ERROR_CODES
+    const namingOwn = namingErrorCodeSchema.options.filter((code) => !cult.includes(code))
+    expect(browserErrorCodeSchema.options).toEqual([...namingOwn, ...browserCodes])
+    expect(browserErrorCodeSchema.options.filter((code) => cult.includes(code))).toEqual([])
   })
 
   it('sends only a fixed message for each code', () => {

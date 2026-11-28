@@ -31,6 +31,11 @@ interface TerminalPaneProps {
   onOpenChat?(chatId: string): void
   /** The chat's browser site prompt, docked above the terminal: a terminal chat has no GUI prompt slot. */
   siteCard?: JSX.Element
+  /**
+   * Watch only (a cult acolyte's terminal): its output is shown, but no keystroke or paste is forwarded, the PTY is
+   * never resized, and the pane neither starts it again nor offers its inbox; a "Watch only" label says so.
+   */
+  readOnly?: boolean
 }
 
 interface SignInCardProps {
@@ -169,42 +174,60 @@ function FirstPromptRecovery({ chat }: { chat: ChatRecord }): JSX.Element | null
  * fresh one. A chat that stored a transcript before chats became terminals shows **Earlier conversation** above the
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
-export function TerminalPane({ folder, chat, agentName, agentKind, kit, scheduler, onAgentStatus, peers = [], onOpenChat, siteCard }: TerminalPaneProps): JSX.Element {
-  const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
-  const [earlierOpen, setEarlierOpen] = useState(false)
+interface PaneHeaderProps extends Pick<TerminalPaneProps, 'folder' | 'chat' | 'agentName' | 'agentKind' | 'scheduler' | 'peers' | 'onOpenChat'> {
+  readOnly: boolean
+  title: string
+  working: boolean
+  phase: TerminalPhase
+}
+
+/** The chat's header: the terminal's state and, for an interactive OMP chat in a folder, its inbox. */
+function PaneHeader({ folder, chat, agentName, agentKind, scheduler, peers, onOpenChat, readOnly, title, working, phase }: PaneHeaderProps): JSX.Element {
   const pill = PHASE_PILLS[phase.state]
   const skitarii = chat.agent === 'omp'
+  return (
+    <ChatHeader
+      chat={chat}
+      agentName={agentName}
+      // A watch-only terminal offers no other surface to act from.
+      surfaceTarget={readOnly ? undefined : { folder, agentKind }}
+      terminalTitle={title}
+      mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
+      // A project-less chat has no mailbox, so no inbox; a watch-only one sends nothing.
+      actions={skitarii && folder !== null && !readOnly ? <AgentInbox folder={folder} chat={chat} peers={peers ?? []} scheduler={scheduler} onOpenChat={onOpenChat} /> : undefined}
+      fact={
+        <>
+          <span className="chat-fact-label">Terminal</span>
+          <StatePill state={pill.state} label={pill.label} />
+          {readOnly ? <span className="badge terminal-watch-only">Watch only</span> : null}
+        </>
+      }
+    />
+  )
+}
+
+export function TerminalPane(props: TerminalPaneProps): JSX.Element {
+  const { folder, chat, agentName, kit, scheduler, onAgentStatus, readOnly = false, siteCard } = props
+  const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler, watchOnly: readOnly })
+  const [earlierOpen, setEarlierOpen] = useState(false)
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
   const notStarted = phase.state === 'signed_out' || phase.state === 'refused' || phase.state === 'failed'
   const notice = 'message' in phase ? <PhaseNotice message={phase.message} blocking={notStarted} /> : null
   return (
     <section className="terminal-pane" aria-label={`Terminal of ${chat.title}`}>
-      <ChatHeader
-        chat={chat}
-        agentName={agentName}
-        surfaceTarget={{ folder, agentKind }}
-        terminalTitle={title}
-        mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
-        // A project-less chat has no mailbox, so no inbox.
-        actions={skitarii && folder !== null ? <AgentInbox folder={folder} chat={chat} peers={peers} scheduler={scheduler} onOpenChat={onOpenChat} /> : undefined}
-        fact={
-          <>
-            <span className="chat-fact-label">Terminal</span>
-            <StatePill state={pill.state} label={pill.label} />
-          </>
-        }
-      />
+      <PaneHeader {...props} readOnly={readOnly} title={title} working={working} phase={phase} />
       {/* A project-less chat began after chats ran in terminals, so it stored no earlier conversation. */}
-      {folder === null ? null : <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />}
-      <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
+      {folder === null || readOnly ? null : <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />}
+      {/* Starting a watched member again (or signing it in) is not the watcher's to do. */}
+      {readOnly ? notice : <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />}
       <FirstPromptRecovery chat={chat} />
       {siteCard}
       <div
-        className={frameClass(notStarted, skitarii)}
+        className={frameClass(notStarted, chat.agent === 'omp')}
         style={background === null ? undefined : { background }}
         onClick={focus}
       >
-        <div ref={host} className="terminal-host" data-testid="terminal-host" />
+        <div ref={host} className="terminal-host" data-testid="terminal-host" data-watch-only={readOnly || undefined} />
       </div>
     </section>
   )

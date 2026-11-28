@@ -6,6 +6,7 @@
 import { z } from 'zod'
 import { chatImageRefSchema } from '../agents/chat'
 import { namingErrorCodeSchema } from '../agents/chatNaming'
+import { CULT_ERROR_CODES } from '../cults/cultControl'
 import { serializedCredentialWithinBound } from '../../../resources/skitarii/extension/controlLimits'
 
 /** Generation-bound browser control: 64 KiB replies carry `browser_read`/`browser_status`; screenshots are image refs. */
@@ -81,7 +82,8 @@ const browserScreenshotResultSchema = z.strictObject({ image: chatImageRefSchema
 const browserActionResultSchema = z.strictObject({ tab: browserTabSchema })
 
 export const browserErrorCodeSchema = z.enum([
-  ...namingErrorCodeSchema.options,
+  // The control transport's and naming's own codes; the cult members' codes are never a browser answer.
+  ...namingErrorCodeSchema.exclude(CULT_ERROR_CODES).options,
   'browser_disabled', 'origin_blocked', 'paused_by_person', 'stopped', 'no_tab', 'stale_ref', 'invalid_url',
   'secret_refused', 'password_field', 'navigation_failed', 'stale_prompt', 'view_hidden'
 ])
