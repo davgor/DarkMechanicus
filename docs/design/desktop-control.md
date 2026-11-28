@@ -186,18 +186,27 @@ who holds control.
 
 1. **Authority and the lock signal: a named mutex.** `Local\DarkMechanicus.DesktopControl` is session-scoped, so it
    means one owner per interactive desktop.
-   - The ESC hook helper (§6.1) creates and holds it. That helper already lives exactly as long as control and exits
-     with its DM parent (O:184-185). Windows releases a named mutex when its holder dies, so a crash never leaves a
-     stale owner.
-   - Enable starts the helper first. A helper that reports the mutex as `already-owned` refuses the enable
-     (`conflict`) before any dialog or launch.
+   - The ESC hook helper (§6.1) holds it. That helper already lives exactly as long as control and exits with its DM
+     parent (O:184-185). Windows releases a named mutex when its holder dies, so a crash never leaves a stale owner.
+   - **Ownership is decided by `WaitOne(0)`, not by whether the mutex already existed.** The helper opens or creates
+     the mutex (`new Mutex(false, name)`) and calls `WaitOne(0)`. `true` means owned. An `AbandonedMutexException`
+     also means owned: the previous holder died, and this helper now holds the mutex. `false` means `already-owned`.
+     `ERROR_ALREADY_EXISTS` (`createdNew`) is not used, because a handle without ownership, such as a probe's
+     momentary one, also makes the mutex exist.
+   - Enable starts the helper first. A helper that reports `already-owned` refuses the enable (`conflict`) before any
+     dialog or launch.
    - **Readers probe the mutex itself.** Node has no mutex API, so every DM instance runs one small, long-lived probe
-     helper. It is bundled the same way as the hook helper, and it calls `OpenMutex(SYNCHRONIZE, false,
-     "Local\DarkMechanicus.DesktopControl")` every 250 ms, closes the handle at once so that it never keeps the mutex
-     alive itself, and prints `held` or `free` on each change.
-     - The mutex exists only while a holder is alive, so `held` means control is on somewhere on this desktop.
-     - If the probe helper exits or stops reporting for over 1 s, the instance reads **locked**. Fail closed, as with
-       the hook.
+     helper, bundled the same way as the hook helper. On **every** 250 ms tick it calls `OpenMutex(SYNCHRONIZE, false,
+     "Local\DarkMechanicus.DesktopControl")`, closes the handle at once so that it never keeps the mutex alive itself,
+     and prints `held` or `free`. Each line is also its heartbeat.
+     - A named mutex exists while any process holds a handle to it. Only the hook helper keeps one open, so `held`
+       means control is on somewhere on this desktop.
+     - **Any other long-lived handle fails closed.** A stray or stuck process holding a handle makes the probe read
+       `held`, so every instance locks. The hook helper's `WaitOne(0)` still decides ownership correctly.
+     - **Silence limit: 1500 ms**, which is 6 missed 250 ms heartbeats. Past it, the instance reads **locked** (fail
+       closed, as with the hook). The limit stays above the largest gaps measured between a helper's periodic signals
+       on this host: 1026 ms idle and 1047 ms at 100 % CPU, at a 1 s cadence (O:179-180). Heartbeats arriving even
+       that late therefore never lock. A 1000 ms limit, about 4 heartbeats, would not clear the 1047 ms gap.
 2. **Who holds it: an owner record.** After the mutex is held, the owning instance writes
    `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json` with `{pid, processStartTime, userData, folder, chatId,
    since}`. The location is per Windows user and outside every profile's `userData`. The record is display-only:

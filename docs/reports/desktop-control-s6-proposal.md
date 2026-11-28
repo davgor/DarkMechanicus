@@ -373,14 +373,19 @@ same rules from the Sprint 5 tickets hold everywhere:
 - **Outcome.** D §4. `src/main/desktopControl/machineOwner.ts` **(new)** provides `acquire(owner)`, `release()`,
   `held()`, `holder()` and `onChange`. **The named mutex is the only source of truth for "locked"**; the owner record
   only names the holder.
-  - **Holding.** This ticket extends the `dc-hook` helper so that it creates and holds the session-scoped named mutex
-    `Local\DarkMechanicus.DesktopControl`, and reports `mutex: owned | already-owned` on its first line. Windows
-    releases the mutex when the helper dies.
+  - **Holding.** This ticket extends the `dc-hook` helper so that it opens or creates the session-scoped named mutex
+    `Local\DarkMechanicus.DesktopControl` (`new Mutex(false, name)`) and decides ownership with `WaitOne(0)`. `true`,
+    or an `AbandonedMutexException` (the previous holder died), means owned. `false` means `already-owned`. It never
+    uses `ERROR_ALREADY_EXISTS`/`createdNew`, because a non-owning handle also makes the mutex exist. The helper
+    reports `mutex: owned | already-owned` on its first line, and exits at once, closing its handle, when it does not
+    own the mutex. Windows releases the mutex when the holder dies.
   - **Probing.** `src/main/desktopControl/mutexProbe.ts` **(new)** runs one long-lived probe helper per DM instance,
-    with its C# source bundled the way `src/main/agentChat/windowsAgentJob.ts:3-4` bundles its supervisor. Every
-    250 ms it calls `OpenMutex(SYNCHRONIZE, false, name)`, closes the handle at once, and prints `held` or `free` on a
-    change, plus a heartbeat each second. `held()` mirrors it. A probe that exits or goes silent for over 1 s reads as
-    held (fail closed).
+    with its C# source bundled the way `src/main/agentChat/windowsAgentJob.ts:3-4` bundles its supervisor. On
+    **every** 250 ms tick it calls `OpenMutex(SYNCHRONIZE, false, name)`, closes the handle at once, and prints `held`
+    or `free`. That line is also its heartbeat. `held()` mirrors it. A probe that exits, or goes silent for over
+    **1500 ms** (6 heartbeats), reads as held (fail closed). The limit clears the largest helper-signal gaps measured
+    on this host, 1026 ms and 1047 ms (O:179-180). Any other process keeping a long-lived handle to the mutex also
+    reads as held, so it fails closed too (D §4).
   - **Naming.** After the mutex is owned, the owner writes `%LOCALAPPDATA%\DarkMechanicus\desktop-control\owner.json`
     with `{pid, processStartTime, userData, folder, chatId, since}` through `writePrivateFile`
     (`src/main/terminals/privateFile.ts`), and deletes it on release. `holder()` reads it only to name the chat in the
@@ -400,11 +405,13 @@ same rules from the Sprint 5 tickets hold everywhere:
 - **Acceptance criteria.**
   - c1: `locked()` follows the probe alone. It is held → true and free → false, regardless of `owner.json`: deleting
     the file while held does not unlock, and a corrupt or leftover file while free does not lock and is removed. A
-    probe silent for over 1 s reads as held.
+    probe silent for over 1500 ms reads as held. Heartbeats arriving 1047 ms apart never lock.
   - c2: Two instances: while A's helper holds the mutex, B's `acquire` is refused and B's `held()` turns true within
     500 ms. After A releases, B's `held()` turns false within 500 ms.
-  - c3: On the host, a second real helper reports `already-owned` while the first holds the mutex. The real probe
-    reports `held`, then `free` within 500 ms of `taskkill /F` of the holder. A new helper then reports `owned`.
+  - c3: On the host, a second real helper reports `already-owned` (`WaitOne(0)` false) while the first holds the
+    mutex. The real probe reports `held`, then `free` within 500 ms of `taskkill /F` of the holder. A new helper then
+    reports `owned`. A helper that finds the mutex abandoned, its holder killed while another process still keeps a
+    handle open, also reports `owned`.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
@@ -412,8 +419,10 @@ same rules from the Sprint 5 tickets hold everywhere:
   | Probe reports `held`; `owner.json` names chat X | Delete `owner.json` | `locked()` stays true; the note reads "another Dark Mechanicus window" | `machineOwner.test.ts` |
   | Probe reports `free`; `owner.json` contains `{not json` | Read the state | `locked()` false; the file is removed | `machineOwner.test.ts` |
   | Probe reports `free`; `owner.json` names a live pid | Read the state | `locked()` false; the file is stale and removed | `machineOwner.test.ts` |
-  | Probe silent for 1.1 s (fake timers) | Read the state | `locked()` true (fail closed) | `machineOwner.test.ts` |
-  | Real helper 1 holds the mutex; real probe running | Start helper 2; `taskkill /F` helper 1; start helper 3 | Helper 2 `already-owned`; the probe goes `held` → `free` within 500 ms; helper 3 `owned` | `machineOwner.real.test.ts` |
+  | Probe silent for 1501 ms (fake timers) | Read the state | `locked()` true (fail closed) | `machineOwner.test.ts` |
+  | Probe reporting `free`; heartbeats delivered at 1047 ms intervals for 10 s (fake timers) | Read the state after each one | `locked()` stays false throughout: a late heartbeat never locks | `machineOwner.test.ts` |
+  | Real helper 1 holds the mutex; real probe running | Start helper 2; `taskkill /F` helper 1; start helper 3 | Helper 2 `already-owned` and exits; the probe goes `held` → `free` within 500 ms; helper 3 `owned` | `machineOwner.real.test.ts` |
+  | Real helper 1 holds the mutex; a test process keeps a second, non-owning handle open | `taskkill /F` helper 1; start helper 2 | Helper 2 gets `AbandonedMutexException` and reports `owned`; the probe reads `held` while the test handle stays open | `machineOwner.real.test.ts` |
 - **Dependencies.** `dc-hook`.
 
 ### dc-overlay: Draw the border and note on every display from main
@@ -877,17 +886,25 @@ same rules from the Sprint 5 tickets hold everywhere:
 
   **The person's own DM is not lock-aware yet.** The smoke runs at acceptance, before the person installs this
   sprint's release, so the person's installed DM does not contain `dc-machine-owner` and cannot see the smoke's
-  control (D §4). The smoke therefore protects that window itself:
-  - **Before the run,** it lists every running Dark Mechanicus process, with its pid, exe path and file version. A
-    process counts as lock-aware only if its version is at least the version built from this sprint's increment
-    (`package.json` at the tested commit) **and** it has a live mutex-probe helper child. Every other DM process
-    counts as non-lock-aware.
+  control (D §4). Two things limit the exposure:
+  - **Prompt.** The smoke's fixed prompt names only the fixture.
+  - **Foreground guard.** It caps exposure at about one action. It does **not** prevent a click: input the agent
+    already sent can land before the guard sees the foreground change.
+
+  The steps:
+  - **Before the run,** the smoke lists every running Dark Mechanicus process, with its pid, exe path and file
+    version. A process counts as lock-aware only if its version is at least the version built from this sprint's
+    increment (`package.json` at the tested commit) **and** it has a live mutex-probe helper child. Every other DM
+    process counts as non-lock-aware.
   - **During the run,** while any non-lock-aware DM is running, a long-lived foreground watcher reports the
     foreground window's pid every ≤ 100 ms. It is `scripts/spike/desktop/foreground.ps1` extended with a loop mode,
-    so that no process starts per poll. The moment the foreground is not the fixture, the smoke ends control through
-    the same kill as Stop, with the reason `foreground-left-fixture`, and fails the run.
-  - **The record** names each DM process with its version and lock-awareness, and states plainly when the person's
-    DM was not lock-aware during the smoke.
+    so that no process starts per poll. The watcher is **armed only once control is `active` and the fixture is in
+    front**, so the enable confirmation and the relaunch, which put DM's own windows in front, do not trip it. Once
+    armed, the moment the foreground is not the fixture, the smoke ends control through the same kill as Stop, with
+    the reason `foreground-left-fixture`, and fails the run. The watcher is disarmed before the smoke's own Stop and
+    crash steps.
+  - **The record** names each DM process with its version and lock-awareness, the time the guard was armed, and
+    states plainly when the person's DM was not lock-aware during the smoke.
 - **Source locations.** `scripts/spike/desktop/omp-computer-probe.mjs`, `scripts/spike/desktop/omp-transcript.mjs`,
   `scripts/spike/desktop/windows.ps1`, `scripts/spike/desktop/foreground.ps1`, `scripts/e2e-agent-chat.mjs` (launch
   helpers), `package.json`.
@@ -900,15 +917,18 @@ same rules from the Sprint 5 tickets hold everywhere:
   - c2: The record shows the crash check passing within 1 s, `%TEMP%` clean, and the config hash unchanged. A
     failure fails the ticket. It is never rerun to green.
   - c3: Before the run, the record lists every running DM process with its version and lock-awareness. While any
-    non-lock-aware DM runs, the foreground is polled every ≤ 100 ms, and control is killed as soon as the foreground
-    leaves the fixture. The record states whether the person's DM was lock-aware.
+    non-lock-aware DM runs, the foreground guard arms only once control is `active` and the fixture is in front. It
+    then polls every ≤ 100 ms and kills control as soon as the foreground leaves the fixture. The record states
+    whether the person's DM was lock-aware, and that the guard caps exposure at about one action rather than
+    preventing it.
 - **testCases.**
 
   | startingCondition | action | expectedResult | verificationMethod |
   | --- | --- | --- | --- |
   | Real omp signed in; built app; fixture launched | Run `desktop-live-smoke.mjs` (drive, then Stop) | Fixture `clicks≥1 text="hello"`; tree exited ≤ 150 ms after the kill decision; 0 keys after | The smoke JSON record attached to the acceptance |
   | Control re-enabled with real omp | `taskkill /F` of DM main | No OMP pid, helper or overlay after 1 s; `%TEMP%` clean; config hash unchanged | The smoke JSON record |
-  | The person's installed DM (older version, no probe child) running; smoke instance holds control | The foreground changes to a non-fixture window | The smoke kills control within one poll (≤ 100 ms) plus the kill, with reason `foreground-left-fixture`; the record lists the person's DM as not lock-aware | The smoke JSON record; `desktop-live-smoke.test.mjs` for the decision logic |
+  | The person's installed DM (older version, no probe child) running; smoke instance holds control, guard armed | The foreground changes to a non-fixture window | The smoke kills control within one poll (≤ 100 ms) plus the kill, with reason `foreground-left-fixture`; the record lists the person's DM as not lock-aware | The smoke JSON record; `desktop-live-smoke.test.mjs` for the decision logic |
+  | A non-lock-aware DM running; the smoke enabling control | The enable confirmation and the relaunch take the foreground before control is `active` | The guard is not yet armed and does not kill; it arms once control is `active` and the fixture is in front | `desktop-live-smoke.test.mjs` (arming state machine) |
 - **Dependencies.** `dc-e2e-steps`.
 
 ### dc-docs: Document desktop control as built
