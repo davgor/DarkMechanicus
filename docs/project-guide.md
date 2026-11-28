@@ -142,16 +142,19 @@ npm run spike:claims # multi-process competing-claim stress proof
 `.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
 - `shard-plan` — selects independent counts for app/scripts Vitest, Fireguard Vitest, and Fireguard grading. It logs the policy and selected counts and uploads `ci-shard-plan.json`, including each source run ID and its per-shard execution seconds when available.
-- `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The `test` aggregate fails unless the plan and every shard succeed.
+- `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The app shards (`vitest.config.ts`) are also the coverage run: each runs with `--coverage` and the `blob` reporter (thresholds off, as one shard covers only part of the suite) and uploads its blob. The `test` aggregate fails unless the plan and every shard succeed.
+- `coverage` — merges the app shards' blobs on Windows (`vitest run --merge-reports .vitest-reports --coverage.enabled`), which enforces the `vitest.config.ts` thresholds on the merged total, then publishes the merged summary as the job summary (`scripts/coverageSummary.mjs`, exit 1 when a metric is below its threshold) and the `coverage-summary` artifact. No separate unsharded coverage run is needed.
 - `fireguard-shards` — disjoint Ubuntu jobs split the 100 flake runs and changed-module mutation work over one pinned HEAD/base. The `fireguard` aggregate requires the plan, scope and all grading jobs, validates the entire report set, and alone updates the sticky PR comment. See [shard reproduction](../fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
-Treat `test`, `fireguard`, `lint`, and `build` as the stable CI gate names when configuring required status checks. Coverage is not a GitHub job or artifact; `npm run coverage` still enforces the same local thresholds.
+Treat `test`, `coverage`, `fireguard`, `lint`, and `build` as the stable CI gate names when configuring required status checks. `npm run coverage` still enforces the same thresholds locally.
 
 ### Shard sizing
 
 Each suite independently uses its latest complete CI sample: `ceil(sum of shard execution seconds / 120)`, clamped to **1–16** per suite (at most 32 Windows jobs and 16 grading jobs, below GitHub's 256-job limit per matrix). The planner reads named execution-step timestamps, not queue time, dependency installation, or installer-tool preparation. Step wall time includes startup, test/grading setup and any reporting within the execution command.
+
+App shards are timed from their `Run disjoint Vitest shard with coverage` step, so the coverage overhead is in the sample. An older app sample timed the step without coverage (`Run disjoint Vitest shard`); the planner scales each of its shards by 1.1 (rounded), the measured local ratio of `npm run coverage` to `npm test`. The Fireguard unit suite collects no coverage and keeps its step.
 
 For each unit suite, the planner looks at the latest eight successful first-attempt default-branch push runs of **CI Checks**, including the legacy two-shard unit jobs. Grading time follows the graded diff, so a pull request's grading is sized only from up to eight earlier successful first-attempt runs of **the same pull request branch** (from this repository, to the default branch); every shard must mark that it completed a nonempty flake workload. Another branch's grade is never a sample: one pull request's one-file grade once sized a 107-module sprint diff to one serial shard. Pushes, fork pull requests and a branch's first run have no grading sample. Empty-scope pushes and unmarked legacy grades are not active samples. The planner reads only bounded GitHub job metadata, not executable artifacts. Missing, partial, inconsistent, or unavailable observations fall back independently: two shards per unit suite; grading uses the measured legacy baseline of 1,898 execution seconds ([run 45328911368](https://github.com/davgor/DarkMechanicus/actions/runs/45328911368)), which plans 16 shards.
 
