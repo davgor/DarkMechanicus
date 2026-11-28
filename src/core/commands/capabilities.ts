@@ -109,8 +109,6 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   rejectAttempt: 'attempt.review',
   failAttempt: 'attempt.fail',
   reconcileAttempt: 'attempt.reconcile',
-  // Naming a standing acceptance attempt's missing increment is a review decision, like accepting it.
-  nameSprintIncrement: 'attempt.review',
   carryForwardTicket: 'attempt.carry_forward',
   recordRowCheck: 'run.row_check',
   recordDelivery: 'run.delivery',

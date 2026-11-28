@@ -121,7 +121,6 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   rejectAttempt: true,
   failAttempt: true,
   reconcileAttempt: true,
-  nameSprintIncrement: true,
   carryForwardTicket: true,
   recordRowCheck: true,
   recordDelivery: true,

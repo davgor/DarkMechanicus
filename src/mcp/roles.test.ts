@@ -133,7 +133,6 @@ const ORCHESTRATOR_TOOLS = [
   'reject_attempt',
   'fail_attempt',
   'reconcile_attempt',
-  'name_sprint_increment',
   'carry_forward_ticket',
   'record_row_check',
   'record_delivery',
@@ -174,16 +173,7 @@ const WORKER_TOOLS = [
   'record_attempt_metrics',
   ...BROWSER_TOOLS
 ]
-const REVIEWER_TOOLS = [
-  ...READ_TOOLS,
-  ...COMMENT_TOOLS,
-  ...ATTACHMENT_WRITE_TOOLS,
-  ...MAIL_TOOLS,
-  'accept_attempt',
-  'reject_attempt',
-  'name_sprint_increment',
-  'record_run_metrics'
-]
+const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, ...MAIL_TOOLS, 'accept_attempt', 'reject_attempt', 'record_run_metrics']
 
 interface ListingCase {
   role: SessionRole

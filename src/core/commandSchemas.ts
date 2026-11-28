@@ -493,15 +493,7 @@ export const COMMAND_SCHEMAS = {
     resolution: z.enum(['abandon', 'resubmit']),
     outputs: attemptOutputsInput.optional(),
     evidence: attemptEvidenceInput.optional(),
-    notes: z.string().max(LIMITS.markdown).optional(),
-    increment: incrementRef.optional(),
-    increments: incrementRefs.optional()
-  }),
-  nameSprintIncrement: z.strictObject({
-    attemptId: stableId,
-    increment: incrementRef.optional(),
-    increments: incrementRefs.optional(),
-    idempotencyKey: idempotencyKey.unwrap()
+    notes: z.string().max(LIMITS.markdown).optional()
   }),
   carryForwardTicket: z.strictObject({ runId: stableId, ticketId: stableId, note: z.string().min(1).max(LIMITS.shortText) }),
   recordRowCheck: z.strictObject({

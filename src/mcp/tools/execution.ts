@@ -279,39 +279,16 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'reconcile_attempt',
     description:
-      'Resolves an attempt whose lease expired (execution is uncertain, not failed). Inspect the branch and workspace first, then "abandon" (treat as not done; the ticket can be claimed again) or "resubmit" with outputs and evidence for work that finished. A sprint acceptance node resubmits with its increment { branch, commit } (increments in a folder of repositories), verified and stored exactly as submit_attempt does. Required before any retry of that ticket.',
+      'Resolves an attempt whose lease expired (execution is uncertain, not failed). Inspect the branch and workspace first, then "abandon" (treat as not done; the ticket can be claimed again) or "resubmit" with outputs and evidence for work that finished. Required before any retry of that ticket.',
     kind: 'write',
     input: {
       attemptId,
       resolution: z.enum(['abandon', 'resubmit']),
       outputs: attemptOutputsInput.optional(),
       evidence: attemptEvidenceInput.optional(),
-      notes: markdown.optional(),
-      increment: incrementRef
-        .optional()
-        .describe('"resubmit" of an acceptance node of a single repository only, as in submit_attempt: the epic branch and the commit that landed the sprint on it.'),
-      increments: incrementRefs
-        .optional()
-        .describe('"resubmit" of an acceptance node of a folder of repositories only, instead of increment: one { repo, branch, commit } per repository the sprint touched, as in submit_attempt.')
+      notes: markdown.optional()
     },
     run: (api, input) => api.reconcileAttempt(input)
-  }),
-  defineTool({
-    name: 'name_sprint_increment',
-    description:
-      'Names the sprint increment of an acceptance node whose standing attempt (accepted, else submitted) stored none, such as one resubmitted through reconcile_attempt without it, or replaces one whose verdict failed, so the checkpoint\'s increment_merged gate can be met. Takes increment { branch, commit } (increments in a folder of repositories), refused and verified exactly as submit_attempt does; a failed verdict is stored with its reasons and can be named again. Refused for a work ticket, an attempt that is not the standing one, an attempt whose increment passed (`conflict`: a passing increment is never replaced) and a run that is not active.',
-    kind: 'write',
-    input: {
-      attemptId,
-      increment: incrementRef.optional().describe('A single repository: the epic branch and the commit that landed the sprint on it.'),
-      increments: incrementRefs
-        .optional()
-        .describe('A folder of repositories, instead of increment: one { repo, branch, commit } per repository the sprint touched.'),
-      idempotencyKey: idempotencyKey
-        .unwrap()
-        .describe('Required. Reuse the same key when retrying this exact call; the original result is returned instead of naming it twice.')
-    },
-    run: (api, input) => api.nameSprintIncrement(input)
   }),
   defineTool({
     name: 'carry_forward_ticket',

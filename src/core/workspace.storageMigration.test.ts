@@ -1,10 +1,8 @@
-import { buildSync } from 'esbuild'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { pngBytes } from '../test/images'
@@ -263,57 +261,7 @@ describe('storage migration canonical records and image bytes', () => {
   })
 })
 
-const ROOT = fileURLToPath(new URL('../../', import.meta.url))
-const CRASH_FIXTURE = 'DM_MIGRATION_CRASH_FIXTURE'
-
-/** What the crash child is told: where the project lives, the switch to make, and the rename after which it exits. */
-interface CrashFixture {
-  root: string
-  home: string
-  sourceMode: 'db' | 'repo'
-  targetMode: 'db' | 'repo'
-  target: string
-  point: 'before_commit' | 'after_commit'
-}
-
-/**
- * Bundles the crash child once, from source, as plain CommonJS (like the CLI's concurrent child fixtures), so each case
- * spawns plain node on it instead of compiling the workspace import graph on the fly: that compile cost about a
- * second alone and over the test timeout under full-suite load. The case arrives through `CRASH_FIXTURE`.
- */
-function buildCrashChild(dir: string): string {
-  const file = join(dir, 'migration-crash.cjs')
-  const result = buildSync({
-    stdin: { resolveDir: ROOT, contents: `
-      import { openWorkspace } from './src/core/workspace';
-      import { nodeFs } from './src/core/repo/nodeFs';
-      const { root, home, sourceMode, targetMode, target, point } = JSON.parse(process.env.${CRASH_FIXTURE});
-      const app = openWorkspace({ repoRoot: root, homeDir: home,
-        role: 'desktop', label: 'Crash proof', transport: 'desktop', autoReconcile: false,
-        git: { head: () => ({ branch: 'main', commit: '${'a'.repeat(40)}', detached: false }), countUncommitted: async () => 0, statusPaths: () => ({ ok: false, reason: 'git_failed' }) },
-        fs: { ...nodeFs, rename(from, to) {
-          nodeFs.rename(from, to);
-          const before = sourceMode === 'db' ? to === target : to.endsWith('migration-records.json');
-          const after = sourceMode === 'db' ? to.endsWith('.switch-retired') : to === target;
-          if (point === 'before_commit' ? before : after) process.exit(91);
-        }} });
-      void app.switchStorageMode({ mode: targetMode, confirmed: true }).then(() => process.exit(92));` },
-    outfile: file, bundle: true, platform: 'node', format: 'cjs', packages: 'external',
-    loader: { '.md': 'text' }, logLevel: 'error',
-    banner: { js: `require = require('node:module').createRequire(${JSON.stringify(join(ROOT, 'package.json'))});` }
-  })
-  expect(result.errors).toEqual([])
-  return file
-}
-
 describe('storage migration process interruption recovery', () => {
-  let childDir = ''
-  let crashChild = ''
-  beforeAll(() => {
-    childDir = mkdtempSync(join(tmpdir(), 'dm-migration-crash-'))
-    crashChild = buildCrashChild(childDir)
-  })
-  afterAll(() => { rmSync(childDir, { recursive: true, force: true }) })
 
   it.each([
     ['db', 'before_commit'], ['db', 'after_commit'], ['repo', 'before_commit'], ['repo', 'after_commit']
@@ -325,8 +273,22 @@ describe('storage migration process interruption recovery', () => {
     const source = sourceMode === 'db' ? dbProjectDir(harness.root, harness.homeDir) : join(harness.root, '.darkmechanicus')
     const target = targetMode === 'db' ? dbProjectDir(harness.root, harness.homeDir) : join(harness.root, '.darkmechanicus')
     workspace.close()
-    const fixture: CrashFixture = { root: harness.root, home: harness.homeDir, sourceMode, targetMode, target, point }
-    const child = spawnSync(process.execPath, [crashChild], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, [CRASH_FIXTURE]: JSON.stringify(fixture) } })
+    const module = new URL('./workspace.ts', import.meta.url).href
+    const fsModule = new URL('./repo/nodeFs.ts', import.meta.url).href
+    const script = `
+      import { openWorkspace } from ${JSON.stringify(module)};
+      import { nodeFs } from ${JSON.stringify(fsModule)};
+      const app = openWorkspace({ repoRoot: ${JSON.stringify(harness.root)}, homeDir: ${JSON.stringify(harness.homeDir)},
+        role: 'desktop', label: 'Crash proof', transport: 'desktop', autoReconcile: false,
+        git: { head: () => ({ branch: 'main', commit: '${'a'.repeat(40)}', detached: false }), countUncommitted: async () => 0, statusPaths: () => ({ ok: false, reason: 'git_failed' }) },
+        fs: { ...nodeFs, rename(from, to) {
+          nodeFs.rename(from, to);
+          const before = ${JSON.stringify(sourceMode)} === 'db' ? to === ${JSON.stringify(target)} : to.endsWith('migration-records.json');
+          const after = ${JSON.stringify(sourceMode)} === 'db' ? to.endsWith('.switch-retired') : to === ${JSON.stringify(target)};
+          if (${JSON.stringify(point)} === 'before_commit' ? before : after) process.exit(91);
+        }} });
+      await app.switchStorageMode({ mode: ${JSON.stringify(targetMode)}, confirmed: true }); process.exit(92);`
+    const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], { cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8' })
     expect(child.status, child.stderr).toBe(91)
     const reopened = harness.open('desktop', { transport: 'desktop' })
     expect((await reopened.getStorageStatus()).storage.mode).toBe(point === 'before_commit' ? sourceMode : targetMode)

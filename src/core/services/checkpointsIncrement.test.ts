@@ -48,7 +48,7 @@ describe('increment_merged gate: when the acceptance node has no verified increm
       id: 'increment_merged',
       label: 'Sprint increment merged',
       met: false,
-      detail: 'No sprint increment named yet: submit DM-3 with increment { branch, commit }, or name it with name_sprint_increment'
+      detail: 'No sprint increment named yet: submit DM-3 with increment { branch, commit }'
     })
     const view = getCheckpoint(ctx, { runId: run.runId })
     expect(view.conditions.find((item) => item.id === 'acceptance_accepted')?.met).toBe(true)
@@ -173,7 +173,7 @@ describe('a checkpoint cannot be passed without a verified increment', () => {
     acceptTickets(ctx, run, [1, 2])
     seedAttempt(ctx, run, { ticket: 3, state: 'accepted' })
     const submitted = report(ctx, run)
-    const message = "Sprint 1 can't advance yet: No sprint increment named yet: submit DM-3 with increment { branch, commit }, or name it with name_sprint_increment"
+    const message = "Sprint 1 can't advance yet: No sprint increment named yet: submit DM-3 with increment { branch, commit }"
     expect(errorOf(() => approveCheckpoint(withRole(ctx, 'desktop'), { runId: run.runId, reportId: submitted.id }))).toMatchObject({
       code: 'gate_blocked',
       message
@@ -244,7 +244,7 @@ describe('increment_merged gate in a folder of repositories', () => {
     seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {} })
     expect(incrementGate(ctx, run)).toMatchObject({
       met: false,
-      detail: 'No sprint increments named yet: submit DM-3 with increments, one { repo, branch, commit } per touched repository, or name them with name_sprint_increment'
+      detail: 'No sprint increments named yet: submit DM-3 with increments, one { repo, branch, commit } per touched repository'
     })
   })
 

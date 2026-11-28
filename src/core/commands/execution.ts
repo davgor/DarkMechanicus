@@ -1,7 +1,7 @@
 import { verifyTicketIntegration } from '../services/deliveryWorkflow'
 import type { RecordDeliveryInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { ReadinessView, RunView, SprintIncrement } from '../../shared/domain/views'
-import { type Capability, requireCapability } from '../authz'
+import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
@@ -13,7 +13,6 @@ import {
   claimTicket,
   failAttempt,
   heartbeatAttempt,
-  nameSprintIncrement,
   reconcileAttempt,
   rejectAttempt,
   submitAttempt
@@ -85,18 +84,14 @@ function readiness(ctx: Ctx, runId: string): ReadinessView {
  * (the store is synchronous, git is not). Undefined when the attempt is not on an acceptance node, or the
  * increments are refused, which the submission then refuses. Read-only: nothing in the repository changes.
  * A folder of repositories' `increments` are verified one per repository, each with that repository's adapter.
- * `submit_attempt`, `reconcile_attempt` (resubmit) and `name_sprint_increment` all verify through here, each under
- * the capability its own command needs.
  */
 interface IncrementProof {
   verdict: SprintIncrement | SprintIncrement[]
   assertCurrent?(): void
 }
 
-type NamedIncrement = Pick<SubmitAttemptInput, 'attemptId' | 'increment' | 'increments'>
-
-async function verifiedIncrement(core: WorkspaceCore, input: NamedIncrement, capability: Capability): Promise<IncrementProof | undefined> {
-  requireCapability(core.ctx().session, capability)
+async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput): Promise<IncrementProof | undefined> {
+  requireCapability(core.ctx().session, 'attempt.submit')
   if (input.increments !== undefined) {
     const entries = repositoryIncrementsOf(core.ctx(), input.attemptId, input.increments)
     return entries === null ? undefined : { verdict: await verifyRepositoryIncrements((repo) => core.gitFor(repo), entries, core.clock.nowIso()) }
@@ -200,7 +195,7 @@ const executionCommands = {
     schema: COMMAND_SCHEMAS.submitAttempt,
     mutates: true,
     run: async (core, input) => {
-      const proof = await verifiedIncrement(core, input, 'attempt.submit')
+      const proof = await verifiedIncrement(core, input)
       return submitAttempt(core.ctx(), input, proof?.verdict, proof?.assertCurrent)
     }
   },
@@ -227,19 +222,7 @@ const executionCommands = {
   reconcileAttempt: {
     schema: COMMAND_SCHEMAS.reconcileAttempt,
     mutates: true,
-    run: async (core, input) => {
-      // Only a resubmission stores an increment; the service refuses one named with `abandon` before git is asked.
-      const proof = input.resolution === 'resubmit' ? await verifiedIncrement(core, input, 'attempt.reconcile') : undefined
-      return reconcileAttempt(core.ctx(), input, proof?.verdict, proof?.assertCurrent)
-    }
-  },
-  nameSprintIncrement: {
-    schema: COMMAND_SCHEMAS.nameSprintIncrement,
-    mutates: true,
-    run: async (core, input) => {
-      const proof = await verifiedIncrement(core, input, 'attempt.review')
-      return nameSprintIncrement(core.ctx(), input, proof?.verdict, proof?.assertCurrent)
-    }
+    run: (core, input) => reconcileAttempt(core.ctx(), input)
   },
   carryForwardTicket: {
     schema: COMMAND_SCHEMAS.carryForwardTicket,

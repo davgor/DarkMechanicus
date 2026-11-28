@@ -241,8 +241,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   accept_attempt: 'ab2483e798caa59b',
   reject_attempt: 'a75cbd153cdd82ca',
   fail_attempt: '90e46283afbb645f',
-  // Changed on purpose: an acceptance node's resubmission names its increment (DM-1108).
-  reconcile_attempt: 'fe3e97fc8a347de1',
+  reconcile_attempt: '38fd644c92fad626',
   carry_forward_ticket: '96660ba8e2cc4f98',
   pause_run: 'be49650976f9ddba',
   resume_run: 'd481e0f29f2ca1c1',

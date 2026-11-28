@@ -194,7 +194,7 @@ Keep tool names explicit and publish schemas with structured errors and versione
 - Authoring: `create_epic`, `get_epic`, `list_tickets`, `create_ticket`, `get_ticket`, `update_ticket`. Editorial changes target a draft; execution status commands operate on the current saved entities. All reject mutations to completed epics.
 - Planning: `get_plan`, `update_plan_draft`, `validate_plan`, `save_plan`, `discard_plan_draft`. Draft bundles can contain client-local ticket references, sprints, and edges. Save returns stable IDs and the saved revision, or a clear pending/failure/conflict result. Saved and draft reads are explicit; agents cannot execute draft-only tickets.
 - Execution: `start_run`, `get_run`, `get_ready_tickets`, `claim_ticket`, `heartbeat_attempt`, `submit_attempt`, `accept_attempt`, `fail_attempt`, `pause_run`, `resume_run`, `cancel_run`.
-- Checkpoints and recovery: `get_run_events`, `get_sprint_report`, `submit_sprint_report`, `advance_sprint`, `reconcile_attempt`, `name_sprint_increment`.
+- Checkpoints and recovery: `get_run_events`, `get_sprint_report`, `submit_sprint_report`, `advance_sprint`, `reconcile_attempt`.
 - Repository lifecycle and memory: `initialize_repository`, `get_storage_status`, `flush_portable_state`, `reconcile_repository`, `search_history`. Initialization is explicit and repeatable; it creates repository metadata and ignores local database/WAL files without committing anything.
 - Status: `set_ticket_status`, `set_epic_status`, using only Backlog, In progress, Completed. Completed-epic transitions are rejected. Completion follows the same acceptance and checkpoint rules as other command paths; these tools cannot bypass them.
 
