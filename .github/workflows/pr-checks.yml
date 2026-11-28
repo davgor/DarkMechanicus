@@ -8,6 +8,7 @@ on:
 
 jobs:
   shard-plan:
+    needs: [fireguard-scope]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
     permissions:
@@ -27,6 +28,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          # Grading history comes only from this pull request's branch (never a fork's): another
+          # diff's grading time does not size this one.
+          CI_HISTORY_PR_BRANCH: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CI_GRADED_DIFF_FILES: ${{ needs.fireguard-scope.outputs.files }}
         run: node scripts/ciShardPlan.mjs > ci-shard-plan.json
       - uses: actions/upload-artifact@v4
         with:
@@ -80,6 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       base: ${{ steps.scope.outputs.base }}
+      files: ${{ steps.scope.outputs.files }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,7 +95,11 @@ jobs:
         run: |
           BASE="${{ github.base_ref || 'main' }}"
           git fetch --no-tags origin "$BASE:refs/remotes/origin/$BASE" || git fetch --no-tags origin "$BASE"
-          echo "base=$(git rev-parse "origin/$BASE^{commit}")" >> "$GITHUB_OUTPUT"
+          BASE_SHA="$(git rev-parse "origin/$BASE^{commit}")"
+          echo "base=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          # Files Fireguard can grade (its src, lib and app roots) that the diff adds or changes: the shard floor.
+          git diff --name-only --no-renames --diff-filter=AM "$BASE_SHA...HEAD" -- src lib app > graded-diff.txt
+          echo "files=$(wc -l < graded-diff.txt)" >> "$GITHUB_OUTPUT"
 
   fireguard-shards:
     name: fireguard-shards (${{ matrix.index }}/${{ matrix.count }})
