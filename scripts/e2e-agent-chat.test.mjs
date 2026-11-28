@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { folderStoreId } from '../src/main/agentChat/folderStoreId'
 import { resolveAgentExecutable } from '../src/main/terminals/agentExecutable'
 import {
+  addedView,
   assertHandoffOrder,
+  assertStatus,
   assertToggleLaunches,
   browserToolCalls,
   chatLaunches,
@@ -25,6 +27,7 @@ import {
   isAlive,
   isolatedEnv,
   launchModelFlags,
+  loopEnd,
   newChatLaunch,
   newerVersion,
   newTargets,
@@ -480,17 +483,19 @@ describe('parseArgs', () => {
   })
 
   it('runs the browser steps only when named, on the claude default with their fixed deadlines; never with --agent omp', () => {
-    const browser = ['browser-drive', 'browser-skitarii', 'browser-shot', 'browser-guard', 'browser-signin']
+    const browser = ['browser-drive', 'browser-skitarii', 'browser-shot', 'browser-guard', 'browser-signin', 'browser-origin', 'browser-stop', 'browser-take']
     expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('browser-'))).toEqual([])
     const parsed = parseArgs(['--out', 'x', '--steps', [...browser, 'quit'].join(',')])
     expect(parsed).toMatchObject({ agent: 'claude', keys: ['ready', ...browser, 'quit'] })
     expect(stepPhases(parsed.keys).map((phase) => [phase.name, phase.deadlineMs])).toEqual([
       ['app ready', undefined], ['browser-drive', 60_000], ['browser-skitarii', 60_000], ['browser-shot', 30_000],
-      ['browser-guard', 30_000], ['browser-signin', 20_000], ['quit', undefined]
+      ['browser-guard', 30_000], ['browser-signin', 20_000], ['browser-origin', 45_000], ['browser-stop', 30_000],
+      ['browser-take', 30_000], ['quit', undefined]
     ])
     expect(parseArgs(['--out', 'x', '--steps', 'browser-skitarii']).agent).toBe('claude')
     expect(parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'browser-skitarii']).keys).toEqual(['ready', 'browser-skitarii'])
     expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'browser-drive,browser-skitarii'])).toThrow('browser-drive, browser-skitarii run on the claude default: leave out --agent omp.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'browser-origin,browser-stop,browser-take'])).toThrow('browser-origin, browser-stop, browser-take run on the claude default: leave out --agent omp.')
   })
 })
 
@@ -836,6 +841,52 @@ describe('viewTarget', () => {
 
   it('refuses two views showing the URL: the harness could not tell which one it drives', () => {
     expect(() => viewTarget([view, { ...view, id: 'V3' }], { url: view.url })).toThrow('2 browser views show http://127.0.0.1:4100/: V1, V3.')
+  })
+})
+
+describe('addedView', () => {
+  const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+  const old = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4101/' }
+
+  it('finds the one browser view a new chat added, whatever it shows, never the app page or a non-page target', () => {
+    const fresh = { id: 'V2', type: 'page', url: 'about:blank' }
+    expect(addedView([app, old], [app, old])).toBeNull()
+    expect(addedView([app, old], [app, { ...old, url: 'http://127.0.0.1:4100/' }, fresh])).toBe(fresh)
+    expect(addedView([old], [app, old, { id: 'W1', type: 'service_worker', url: 'http://127.0.0.1:4100/' }])).toBeNull()
+  })
+
+  it('refuses two added views: the harness could not tell which one the chat drives', () => {
+    expect(() => addedView([app], [app, old, { ...old, id: 'V3' }])).toThrow('2 browser views appeared: V1 http://127.0.0.1:4101/, V3 http://127.0.0.1:4101/.')
+  })
+})
+
+describe('loopEnd', () => {
+  const call = (op, reply) => ({ op, args: {}, status: reply.ok ? 'completed' : 'failed', reply })
+  const navigate = call('browser_navigate', { ok: true, data: {} })
+  const read = call('browser_read', { ok: true, data: { content: 'Ready' } })
+  const refused = (code) => call('browser_read', { ok: false, error: { code, message: 'm' } })
+
+  it('answers the reads that succeeded and the code the last read was refused with', () => {
+    expect(loopEnd([navigate, read, read, refused('stopped')])).toEqual({ reads: 2, code: 'stopped' })
+    expect(loopEnd([navigate, read, refused('paused_by_person')])).toEqual({ reads: 1, code: 'paused_by_person' })
+  })
+
+  it('refuses a loop that never read, never ended on a refusal, or failed before its last read', () => {
+    expect(() => loopEnd([navigate, refused('stopped')])).toThrow('not a navigate, reads and one refused read.')
+    expect(() => loopEnd([navigate, read, read])).toThrow('[["browser_navigate",true,null],["browser_read",true,null],["browser_read",true,null]]')
+    expect(() => loopEnd([navigate, refused('stopped'), read, refused('stopped')])).toThrow('not a navigate, reads and one refused read.')
+    expect(() => loopEnd([call('browser_navigate', { ok: false, error: { code: 'origin_blocked' } }), read, refused('stopped')])).toThrow('["browser_navigate",false,"origin_blocked"]')
+    expect(() => loopEnd([])).toThrow('The loop\'s calls were [], not a navigate, reads and one refused read.')
+  })
+})
+
+describe('assertStatus', () => {
+  it('checks the owner and, when named, the agent tab URL of a browser_status reply', () => {
+    const data = { enabled: true, owner: 'agent', tab: { url: 'http://127.0.0.1:4100/' }, pendingOrigin: null }
+    expect(() => assertStatus(data, { owner: 'agent', url: 'http://127.0.0.1:4100/' })).not.toThrow()
+    expect(() => assertStatus({ ...data, owner: 'none', tab: null }, { owner: 'none' })).not.toThrow()
+    expect(() => assertStatus(data, { owner: 'stopped' })).toThrow('browser_status shows owner agent, not stopped.')
+    expect(() => assertStatus(data, { owner: 'agent', url: 'http://127.0.0.1:4101/' })).toThrow('browser_status shows the agent tab at http://127.0.0.1:4100/, not http://127.0.0.1:4101/.')
   })
 })
 
