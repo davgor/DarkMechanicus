@@ -524,3 +524,141 @@ describe('createBrowserHost site prompt events (DM-897)', () => {
     expect(fake.lines).toContain('browser site prompt listener failed')
   })
 })
+
+describe('createBrowserHost tab state edges', () => {
+  it('clips a long title without splitting a surrogate pair', () => {
+    const fake = setup()
+    fake.host.ensureAgentTab(CHAT)
+    fake.views[0].page.emit('page-title-updated', {}, `${'a'.repeat(511)}😀`)
+    expect(fake.host.state(CHAT).tab?.title).toBe('a'.repeat(511))
+  })
+
+  it('rejects at once when the op signal is already aborted, with its reason', async () => {
+    const fake = setup()
+    const controller = new AbortController()
+    controller.abort('timeout')
+    await expect(fake.host.ensureAgentTab(CHAT).whenReady(controller.signal)).rejects.toBe('timeout')
+  })
+
+  it("never lets an earlier load's paint admit ops for the page loading now", async () => {
+    const fake = setup()
+    const tab = fake.host.ensureAgentTab(CHAT)
+    const page = fake.views[0].page
+    page.emit('did-start-loading')
+    page.emit('did-stop-loading')
+    page.emit('did-start-loading')
+    let ready = false
+    void tab.whenReady().then(() => { ready = true })
+    page.painted()
+    await flush()
+    expect(ready).toBe(false)
+    page.emit('did-stop-loading')
+    page.painted()
+    await flush()
+    expect(ready).toBe(true)
+  })
+
+  it('ignores the page events of a closed tab: nothing pushed, logged or probed', () => {
+    const fake = setup()
+    fake.host.ensureAgentTab(CHAT)
+    const { page, view } = fake.views[0]
+    fake.host.closeViews()
+    const pushed = fake.pushed.length
+    for (const event of ['did-start-loading', 'did-stop-loading', 'render-process-gone']) page.emit(event)
+    page.emit('did-navigate', {}, 'https://late.example/')
+    expect(fake.pushed).toHaveLength(pushed)
+    expect(fake.lines).not.toContain('browser tab renderer gone')
+    expect(view.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+})
+
+describe('createBrowserHost loads that fail or race a close', () => {
+  it('answers navigation_failed for a load that fails, logging only its origin', async () => {
+    const fake = setup()
+    await fake.sites.add(FOLDER, 'https://a.example')
+    fake.host.ensureAgentTab(CHAT)
+    fake.views[0].view.webContents.loadURL.mockRejectedValueOnce(new Error('ERR_NAME_NOT_RESOLVED https://a.example/secret'))
+    expect(await fake.host.navigate(CHAT, 'https://a.example/secret', 'agent')).toEqual({ ok: false, code: 'navigation_failed' })
+    expect(fake.lines).toContain('browser load of https://a.example failed')
+    expect(fake.lines.join('\n')).not.toContain('/secret')
+  })
+
+  it('neither logs nor pushes a failed load of a chat deleted meanwhile', async () => {
+    const fake = setup()
+    await fake.sites.add(FOLDER, 'https://a.example')
+    fake.host.ensureAgentTab(CHAT)
+    let fail: (error: Error) => void = () => undefined
+    fake.views[0].view.webContents.loadURL.mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject }))
+    const navigation = fake.host.navigate(CHAT, 'https://a.example/', 'agent')
+    await vi.waitFor(() => expect(fake.views[0].view.webContents.loadURL).toHaveBeenCalled())
+    fake.host.disposeChat(CHAT)
+    const pushed = fake.pushed.length
+    fail(new Error('ERR_ABORTED'))
+    expect(await navigation).toEqual({ ok: false, code: 'navigation_failed' })
+    expect(fake.pushed).toHaveLength(pushed)
+    expect(fake.lines.some((line) => line.startsWith('browser load of'))).toBe(false)
+  })
+
+  it('loads nothing when the tab closes while the site list is read', async () => {
+    const fake = setup()
+    await fake.sites.add(FOLDER, 'https://a.example')
+    const navigation = fake.host.navigate(CHAT, 'https://a.example/', 'agent')
+    fake.host.closeViews()
+    expect(await navigation).toEqual({ ok: false, code: 'navigation_failed' })
+    expect(fake.views[0].view.webContents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('loads nothing when the tab that asked closes while an always answer is saved', async () => {
+    const fake = setup()
+    await fake.host.navigate(CHAT, 'https://new.example/', 'agent')
+    const deciding = fake.host.decideOrigin(CHAT, fake.host.state(CHAT).pendingOrigin?.id ?? '', 'always')
+    fake.host.closeViews()
+    expect(await deciding).toEqual({ ok: true })
+    expect(await fake.sites.list(FOLDER)).toEqual(['https://new.example'])
+    expect(fake.views[0].view.webContents.loadURL).not.toHaveBeenCalled()
+    expect(fake.views).toHaveLength(1)
+  })
+})
+
+describe('createBrowserHost Sign-in and disposal edges', () => {
+  it("loads an approved Sign-in prompt in the Sign-in tab, never the agent tab", async () => {
+    const fake = setup()
+    fake.host.ensureAgentTab(CHAT)
+    await fake.host.openSignIn(CHAT, 'https://login.example/start')
+    await fake.host.decideOrigin(CHAT, fake.host.state(CHAT).pendingOrigin?.id ?? '', 'once')
+    expect(fake.views[1].view.webContents.loadURL).toHaveBeenCalledWith('https://login.example/start')
+    expect(fake.views[0].view.webContents.loadURL).not.toHaveBeenCalled()
+  })
+
+  it("closing the Sign-in tab keeps an agent prompt, and closing none changes nothing", async () => {
+    const fake = setup()
+    fake.host.closeSignIn(CHAT)
+    expect(fake.pushed).toHaveLength(0)
+    expect(fake.detach).not.toHaveBeenCalled()
+    await fake.host.openSignIn(CHAT, 'https://login.example/')
+    await fake.host.navigate(CHAT, 'https://new.example/', 'agent')
+    fake.host.closeSignIn(CHAT)
+    expect(fake.host.agentPendingOrigin(CHAT)).toBe('https://new.example')
+  })
+
+  it('forgets the ownership of a chat with no tabs, keeps another chat shown, and closes a destroyed view once', () => {
+    const fake = setup()
+    fake.ownership.stop(CHAT.chatId)
+    fake.host.disposeChat(CHAT)
+    expect(fake.ownership.owner(CHAT.chatId)).toBe('none')
+    fake.host.ensureAgentTab(CHAT)
+    fake.host.ensureAgentTab(OTHER)
+    fake.host.setView(OTHER, { x: 0, y: 0, width: 400, height: 300 })
+    fake.views[0].view.webContents.close()
+    fake.host.disposeChat(CHAT)
+    expect(fake.views[0].view.webContents.close).toHaveBeenCalledOnce()
+    expect(fake.host.isShown(OTHER)).toBe(true)
+  })
+
+  it('pushes nothing once disposed', () => {
+    const fake = setup()
+    fake.host.dispose()
+    fake.host.refresh(CHAT)
+    expect(fake.pushed).toHaveLength(0)
+  })
+})

@@ -131,9 +131,9 @@ describe('hardenBrowserSession permissions and downloads', () => {
     expect(handlers.devicePermission?.()).toBe(false)
   })
 
-  it('cancels every download and logs it once per item by origin', () => {
+  it('cancels every download and logs it once per item by origin, never a payload or an unparsable URL', () => {
     const fake = hardened()
-    const downloads = ['https://files.example/dm-e2e-1.bin?token=x', 'http://127.0.0.1:8123/download'].map((url) => ({
+    const downloads = ['https://files.example/dm-e2e-1.bin?token=x', 'http://127.0.0.1:8123/download', 'data:text/plain,secret-payload', 'not a url'].map((url) => ({
       event: { preventDefault: vi.fn() },
       item: { getURL: () => url, cancel: vi.fn() }
     }))
@@ -145,7 +145,9 @@ describe('hardenBrowserSession permissions and downloads', () => {
     }
     expect(fake.log.mock.calls).toEqual([
       ['browser download cancelled https://files.example'],
-      ['browser download cancelled http://127.0.0.1:8123']
+      ['browser download cancelled http://127.0.0.1:8123'],
+      ['browser download cancelled null'],
+      ['browser download cancelled null']
     ])
   })
 })

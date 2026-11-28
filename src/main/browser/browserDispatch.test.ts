@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -69,7 +69,7 @@ function setup(options: { ready?: 'painted' | 'never'; shown?: boolean; window?:
   const cancel = new AbortController()
   const context = { binding: { folder: FOLDER, chatId: REF.chatId }, signal: cancel.signal } as unknown as ControlOperationContext<BrowserControlBinding>
   const run = (operation: BrowserOperation) => dispatcher.dispatch(operation, context) as Promise<Record<string, unknown>>
-  return { dispatcher, run, host, tab, whenReady, driver, images, ownership, ends, keys, root, setEnabled: (value: boolean) => { enabled = value } }
+  return { dispatcher, run, host, tab, whenReady, driver, images, ownership, ends, keys, root, cancel, setEnabled: (value: boolean) => { enabled = value } }
 }
 
 describe('browser dispatch routes each op to the chat tab', () => {
@@ -249,5 +249,51 @@ describe('browser owner labels (R19-2)', () => {
     const magos = setup({ chat: { role: 'orchestrator', runId: 'rn_01', title: 'Run chat' } })
     await magos.run({ op: 'browser_click', args: { ref: 'e1', as: 'Magos' } })
     expect(magos.dispatcher.ownerLabel(REF, 'agent')).toBe('Magos')
+  })
+})
+
+describe('browser dispatch cancellation by the pipe', () => {
+  it('answers cancelled, not stopped, when the caller goes away while the op waits for the paint', async () => {
+    const fake = setup({ ready: 'never' })
+    const pending = fake.run({ op: 'browser_click', args: { ref: 'e1' } })
+    await vi.waitFor(() => expect(fake.whenReady).toHaveBeenCalled())
+    fake.cancel.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'cancelled' })
+    expect(fake.ownership.owner(REF.chatId)).toBe('agent')
+    expect(fake.ends).toHaveBeenCalledOnce()
+  })
+
+  it('runs nothing for an op the pipe already cancelled, and still releases its slot', async () => {
+    const fake = setup()
+    fake.cancel.abort()
+    await expect(fake.run({ op: 'browser_click', args: { ref: 'e1' } })).rejects.toMatchObject({ code: 'cancelled' })
+    expect(fake.host.ensureAgentTab).not.toHaveBeenCalled()
+    expect(fake.driver.click).not.toHaveBeenCalled()
+    expect(fake.ends).toHaveBeenCalledOnce()
+  })
+})
+
+describe('browser dispatch edges', () => {
+  it('refuses a screenshot whose view was hidden while it was captured, keeping no image or copy', async () => {
+    const fake = setup()
+    fake.host.isShown.mockReturnValueOnce(true).mockReturnValueOnce(false)
+    await expect(fake.run({ op: 'browser_screenshot', args: {} })).rejects.toMatchObject({ code: 'view_hidden' })
+    expect(fake.driver.screenshot).toHaveBeenCalledOnce()
+    expect(fake.images.put).not.toHaveBeenCalled()
+    expect(readdirSync(fake.root)).toEqual([])
+  })
+
+  it("fails a screenshot the image store refuses with the store's own error, writing no copy", async () => {
+    const fake = setup()
+    fake.images.put.mockRejectedValueOnce(Object.assign(new Error('image too large'), { code: 'image_too_large' }))
+    await expect(fake.run({ op: 'browser_screenshot', args: {} })).rejects.toThrow('image too large')
+    expect(readdirSync(fake.root)).toEqual([])
+    expect(fake.ends).toHaveBeenCalledOnce()
+  })
+
+  it('labels a deleted chat: You while the person drives, nobody otherwise', () => {
+    const { dispatcher } = setup({ chat: null })
+    expect(dispatcher.ownerLabel(REF, 'person')).toBe('You')
+    expect(dispatcher.ownerLabel(REF, 'agent')).toBeNull()
   })
 })
