@@ -131,6 +131,7 @@ npm run package:win  # Windows NSIS + portable
 npm run package:mac  # macOS .dmg
 npm run deadcode     # ts-prune vs .tsprune-ignore
 npm run deadcode:refresh
+npm run verify:ci    # full Definition of Done on GitHub for the pushed branch head (see CI)
 npm run mcp -- --repo <path>   # headless stdio MCP server (after npm run build)
 npm run dm -- --list           # the dm CLI: one command, JSON out (after npm run build)
 npm run smoke:mcp    # drive the built MCP server end to end over stdio
@@ -139,7 +140,7 @@ npm run spike:claims # multi-process competing-claim stress proof
 
 ## CI
 
-`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
+`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**`, on every push to `main`, and on `workflow_dispatch` for a pushed branch (`npm run verify:ci`, below):
 
 - `shard-plan` — selects independent counts for app/scripts Vitest and Fireguard Vitest. It logs the policy and selected counts and uploads `ci-shard-plan.json`, including each source run ID and its per-shard execution seconds when available.
 - `test-shards` — disjoint native Windows Vitest shards for each configuration. Each job caps Vitest at two workers and uploads its JSON test inventory. The app shards (`vitest.config.ts`) are also the coverage run: each runs with `--coverage` and the `blob` reporter (thresholds off, as one shard covers only part of the suite) and uploads its blob. The `test` aggregate fails unless the plan and every shard succeed.
@@ -147,9 +148,16 @@ npm run spike:claims # multi-process competing-claim stress proof
 - `fireguard-scope` — pins the base commit and runs `fireguard --plan`, which sizes the grading matrix from this diff's own work and uploads `fireguard-plan.json` (see [grading shard sizing](#grading-shard-sizing)).
 - `fireguard-shards` — disjoint Ubuntu jobs split the 100 flake runs and the mutants on changed lines over one pinned HEAD/base. They start with the Vitest shards, not after them. The `fireguard` aggregate requires the scope/plan and all grading jobs, validates the entire report set against the planned count, and alone updates the sticky PR comment. See [shard reproduction](../fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
-- `build` — `npm run typecheck` && `npm run build`
+- `build` — steps `typecheck` (`npm run typecheck`) and `build` (`npm run build`)
+- `deadcode` — `npm run deadcode`, on a dispatch only (pull requests and `main` pushes run it in `deadcode.yml`)
 
 Treat `test`, `coverage`, `fireguard`, `lint`, and `build` as the stable CI gate names when configuring required status checks. `npm run coverage` still enforces the same thresholds locally.
+
+### Verify a pushed branch: `npm run verify:ci`
+
+Run the full Definition of Done for a pushed branch on GitHub's runners instead of the shared host: commit, push, then `npm run verify:ci` (Fireguard grades against `main`) or `npm run verify:ci -- --base <branch>` (for example the sprint integration branch). Locally, run only targeted tests and `npm run coverage:changed`.
+
+`scripts/verifyCi.mjs` refuses, before dispatching, a working tree with uncommitted or untracked changes, a detached HEAD, the default branch (its pushes already run CI Checks) and a HEAD that is not the branch head on `origin`. It then runs `gh workflow run pr-checks.yml --ref <branch> -f ref=<HEAD SHA> -f base=<base>`: every job checks out that exact commit, `fireguard-scope` pins `origin/<base>` and Fireguard grades `<base>...<HEAD>`. It waits with `gh run watch` and prints the run URL, head SHA, wall time, each check by its Definition of Done name (`lint`, `typecheck`, `test`, `coverage`, `deadcode`, `build`) plus `fireguard`, and the merged coverage from the `coverage-summary` artifact against the `vitest.config.ts` thresholds. It exits 0 when every check passed on that head and the merged coverage meets the thresholds, 1 otherwise, and 2 when it refused or a `git`/`gh` command failed. It needs an authenticated `gh` 2.87 or later (which prints the dispatched run URL).
 
 ### Shard sizing
 
