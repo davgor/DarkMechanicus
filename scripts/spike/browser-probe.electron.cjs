@@ -533,8 +533,14 @@ async function probeFocus(ctx) {
     await focusCase(ctx, 'CDP Input.insertText into the view', () => dbg.sendCommand('Input.insertText', { text: 'x' }))
   ]
 }
+/** Keeps the probe window above every other window (the person's own app may be topmost) while screen pixels are read. */
+function raise(win) {
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.moveTop()
+  win.focus()
+}
 async function probeBounds(ctx) {
-  ctx.win.setAlwaysOnTop(true)
+  raise(ctx.win)
   const scale = scaleOf(ctx.win)
   const zooms = [await alignmentAt(ctx, 1), await alignmentAt(ctx, 1.25)]
   ctx.win.webContents.setZoomFactor(1)
@@ -574,13 +580,14 @@ async function overlayCase(ctx, overlay, index) {
   return { overlay: overlay.name, openError: opened.ok ? null : opened.error, pixelsInHostPageCapture: inRenderer, pixelsWithViewShown: shown, pixelsWithViewHidden: hidden, result: blank ? BLANK : drawn }
 }
 async function probeOverlay(ctx) {
-  ctx.win.setAlwaysOnTop(true)
+  raise(ctx.win)
   const cases = []
   for (const [index, overlay] of OVERLAYS.entries()) cases.push(await overlayCase(ctx, overlay, index))
   ctx.win.setAlwaysOnTop(false)
   const under = cases.filter((entry) => entry.result.includes('UNDER')).map((entry) => entry.overlay)
   const untested = cases.every((entry) => entry.result === BLANK)
-  return { verdict: untested ? 'UNTESTED on screen' : 'GO', observations: { cases, underneath: under, designRule: 'the panel hides the view (setVisible(false)) whenever a renderer dialog, menu or toast may overlap it' } }
+  const inconclusive = cases.some((entry) => entry.result.startsWith('inconclusive'))
+  return { verdict: untested ? 'UNTESTED on screen' : inconclusive ? 'INCONCLUSIVE on screen' : 'GO', observations: { cases, underneath: under, designRule: 'the panel hides the view (setVisible(false)) whenever a renderer dialog, menu or toast may overlap it' } }
 }
 
 async function main() {

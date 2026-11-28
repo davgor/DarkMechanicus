@@ -31,10 +31,12 @@ Recorded on 2026-11-27 for the agent-chat epic, Sprint 4 (ticket DM-851), on the
 | 4 | Navigation events | **GO**; "`loadURL` fires none" **confirmed** for the main frame | 3.5 s |
 | 5 | Isolation (schemes, popup, download, permission) | **GO** | 0.9 s |
 | 6 | IPC guard | **GO** | 1 ms |
-| 7 | Bounds and DPI at 150%; focus | **GO on geometry** (simulated composite); on-screen alignment **UNTESTED** (RDP desktop not drawn); 100% **UNTESTED** | 9.1 s |
-| 8 | Overlay | **UNTESTED on screen** (RDP desktop not drawn); renderer-side evidence recorded | 10.3 s |
+| 7 | Bounds and DPI at 150%; focus | **GO on screen** at zoom 1 and 1.25 (0 magenta pixels); 100% **UNTESTED** | 6.6 s (2026-11-28 run) |
+| 8 | Overlay | **GO**: div menu, modal `<dialog>` and fixed toast render **under** the view; the `<select>` picker renders **over** it | 10.3 s (2026-11-28 run) |
 
-None of the items is a NO-GO. Items 7 and 8 are partly UNTESTED, and item 3 limits where screenshots can be taken. The orchestrator should decide on all three before dependent tickets are claimed (see "For the Magos").
+None of the items is a NO-GO. Item 7's 100% case is UNTESTED, and item 3 limits where screenshots can be taken. The orchestrator should decide on these before dependent tickets are claimed (see "For the Magos").
+
+**History of items 7 and 8.** Every run before 2026-11-28 had a blank RDP desktop, so their on-screen checks were UNTESTED. The first run with the desktop drawn captured the person's own topmost Dark Mechanicus window instead of the probe window: it gave a false item-7 NO-GO and an item-8 "GO" built on four inconclusive cases. The probe now raises its window (`raise(win)`: `setAlwaysOnTop(true, 'screen-saver')`, `moveTop`, `focus`) before reading screen pixels, and item 8 reports INCONCLUSIVE when any case is. Items 7 and 8 below are from the 2026-11-28 rerun on 923cfc98 plus that fix, desktop drawn, host at 150%.
 
 ### 1. Debugger
 
@@ -126,13 +128,13 @@ What this means for the browser tickets:
 | 1 | 37, 93, 641×401 | 37, 93, 641×401 | 962×602 | 56, 140 |
 | 1.25 | 37, 93, 641×401 | 46, 116, 801×501 | 1202×752 | 69, 174 |
 
-**Alignment.** On screen it is **UNTESTED**: the GDI capture of the window was blank (see "Session"). As a fallback the probe pasted the view's own capture at bounds × scale over the host page's capture. That simulated composite left **0 magenta placeholder pixels** at both zooms. It checks the arithmetic (rect × zoom → DIP → × scale), not Chromium's compositor. To close this, rerun the probe with the RDP window visible: it then measures the real composite, counting magenta pixels with a 1-device-pixel fringe allowance.
+**Alignment.** **GO on screen** (2026-11-28 run). The probe captured the raised window from the drawn desktop and counted magenta placeholder pixels, with a 1-device-pixel fringe allowance (limits 3,126 at zoom 1 and 3,906 at zoom 1.25): **0 magenta** at both zooms, with 546,062 and 870,842 view-green device pixels. The simulated composite (the view's capture pasted at bounds × scale over the host's capture) also left 0 magenta at both zooms.
 
-**Focus.** The composer textarea in the host page was focused first, with the window focused.
+**Focus** (same in the 2026-11-28 run). The composer textarea in the host page was focused first, with the window focused.
 - `webContents.sendInputEvent` (a synthetic Electron mouse click on the view; no OS input was sent): the composer kept focus. The view's `webContents.isFocused()` stayed false and its `document.hasFocus()` stayed false.
 - CDP `Input.dispatchMouseEvent` click on the view: the composer **kept** focus (`activeElement` composer, host `webContents.isFocused()` true). Inside the view, `document.hasFocus()` became true (CDP emulates focus for the target page), but the view's `webContents` never took native focus.
-- CDP `Input.insertText`: the composer kept focus.
-- **So agent-driven CDP input does not steal the composer's keyboard focus.** Whether a *real* mouse click on the view moves native focus to it is **UNTESTED**: it would need OS input on the person's desktop, which this probe never sends, and the RDP desktop was not drawn anyway. [INFERENCE] A real click focuses the view, as with any Chromium view; the Take control UI should rely on that and return focus to the composer on Hand back.
+- CDP `Input.insertText`: the composer kept focus; the view's `webContents` still had no native focus.
+- **So agent-driven CDP input does not steal the composer's keyboard focus.** Whether a *real* mouse click on the view moves native focus to it is **UNTESTED**: it would need OS input on the person's desktop, which this probe never sends. [INFERENCE] A real click focuses the view, as with any Chromium view; the Take control UI should rely on that and return focus to the composer on Hand back.
 
 ### 8. Overlay
 
@@ -142,13 +144,20 @@ Each of four renderer elements was opened in the host page, inside the area the 
 - a `position: fixed` toast;
 - a `<select>` opened with `showPicker()`.
 
-**On screen: UNTESTED.** Both GDI captures of every case were blank.
+**On screen: GO** (2026-11-28 run). Device pixels of each element's colour, in the host page's own capture / on screen with the view shown / on screen with the view hidden:
 
-**What was observed instead:** the host page's own `capturePage` contains each element. It holds 54,000, 53,032, 16,875 and 51,579 device pixels of the element's colour, in the order listed. The `<select>` count includes its popup, which this Chromium draws inside the page's surface. So all four draw in the renderer's surface.
+| Element | Host capture | View shown | View hidden | Result |
+|---|---|---|---|---|
+| menu `div` | 54,000 | 2,181 | 54,000 | **under** the view |
+| modal `<dialog>` | 53,032 | 0 | 53,032 | **under** the view |
+| `position: fixed` toast | 16,875 | 0 | 16,875 | **under** the view |
+| `<select>` picker | 51,579 | 51,579 | 51,579 | **over** the view |
 
-[INFERENCE] The native view composites above the window's web contents, so all four render **underneath** the view. This includes `<dialog>` and the open `<select>` list, because Chromium's top layer is still inside the page surface. Native OS menus (`Menu.popup`) and OS dialogs are separate windows and draw above.
+The probe's classifier labels the menu "renders over the view" because some pixels remain; 96% of it disappears when the view is shown. [INFERENCE] The 2,181 remaining pixels are the part of the menu outside the view's bounds, so the menu renders under the view.
 
-Design rule for the panel: hide the view (`setVisible(false)`) whenever a renderer dialog, menu, picker or toast may overlap the Browser tab, and show it again afterwards. A rerun with the RDP window visible turns this inference into a measurement.
+So everything drawn in the page's surface, including the top-layer `<dialog>`, renders under the native view. The `<select>` picker opened with `showPicker()` is a separate popup widget and renders over it. The earlier inference that the open `<select>` list renders underneath was wrong. Native OS menus (`Menu.popup`) and OS dialogs are separate windows and also draw above.
+
+Design rule for the panel: hide the view (`setVisible(false)`) whenever a renderer dialog, menu, picker or toast may overlap the Browser tab, and show it again afterwards. Gap recorded at the DM-871 review: toasts do not register with `overlays.ts`, so today a toast over the Browser tab is hidden by the view.
 
 ## Agent interface
 
@@ -181,8 +190,8 @@ What the probe measured that bears on the wire:
 ## For the Magos (decisions before dependent tickets)
 
 - **Item 3:** decide `browser_screenshot`'s behaviour on a hidden or off-window view: refuse, or show briefly and capture. Hidden and off-window captures are stale or nondeterministic, and with the window hidden there was no result in 5 s.
-- **Item 7:** on-screen alignment, and the real-click focus case, are UNTESTED on this host (RDP desktop not drawn); 100% scaling is UNTESTED (host at 150%). Rerunning the probe with the RDP window restored and visible closes the on-screen part.
-- **Item 8:** overlay behaviour is renderer-evidenced and inferred, not measured on screen. It closes the same way.
+- **Item 7:** on-screen alignment is GO at 150%; 100% scaling is UNTESTED (host at 150%, display settings never changed), and so is the real-click focus case (the probe sends no OS input).
+- **Item 8:** GO, measured on screen. Toasts must register with `overlays.ts` so the view hides under them (DM-871 review gap).
 - **Interface amendments:**
   - `browser_screenshot` returns an attachment reference, not bytes;
   - `browser_read` returns a trimmed projection that drops password values;
@@ -814,7 +823,16 @@ The complete stdout and stderr of `node scripts/spike/browser-probe.mjs --out C:
   ]
 }
 
-## Item 7: Bounds, DPI and focus -> GO on geometry (simulated composite); on-screen alignment UNTESTED (9057.5 ms)
+Summary (run 4): 1=GO 2=GO 3=GO 4=GO 5=GO 6=GO; items 7 and 8 of run 4 (blank RDP desktop, UNTESTED on screen) are superseded by the 2026-11-28 run below; Electron exit 0; missing items: none
+Output: C:\Users\davgo\dmwork\probe851-run4
+```
+
+## Probe output, items 7 and 8 (2026-11-28 on-screen run)
+
+Run on 923cfc98 plus the `raise(win)` fix, with the RDP desktop drawn and the host at 150%. Only the item 7 and 8 records are shown, from `probe-output.json` in `C:\Users\davgo\dmwork\s4acc-logs\probe4`.
+
+```text
+## Item 7: Bounds, DPI and focus -> GO (6623.2 ms)
 {
   "hostScaleFactor": 1.5,
   "hostScalingPercent": 150,
@@ -835,7 +853,20 @@ The complete stdout and stderr of `node scripts/spike/browser-probe.mjs --out C:
         "height": 401
       },
       "fringeLimit": 3126,
-      "onScreen": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)",
+      "onScreen": {
+        "file": "bounds-zoom-1.png",
+        "deviceRect": {
+          "x": 467,
+          "y": 278,
+          "width": 1630,
+          "height": 1048
+        },
+        "magenta": {
+          "count": 0,
+          "box": null
+        },
+        "viewGreen": 546062
+      },
       "simulated": {
         "file": "bounds-zoom-1-simulated.png",
         "hostDevicePx": {
@@ -871,7 +902,20 @@ The complete stdout and stderr of `node scripts/spike/browser-probe.mjs --out C:
         "height": 501
       },
       "fringeLimit": 3906,
-      "onScreen": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)",
+      "onScreen": {
+        "file": "bounds-zoom-1.25.png",
+        "deviceRect": {
+          "x": 467,
+          "y": 278,
+          "width": 1630,
+          "height": 1048
+        },
+        "magenta": {
+          "count": 0,
+          "box": null
+        },
+        "viewGreen": 870842
+      },
       "simulated": {
         "file": "bounds-zoom-1.25-simulated.png",
         "hostDevicePx": {
@@ -953,58 +997,60 @@ The complete stdout and stderr of `node scripts/spike/browser-probe.mjs --out C:
     }
   ],
   "desktopCapturerDiagnostic": {
-    "mediaSourceId": "window:1371145596:1",
+    "mediaSourceId": "window:428474490:1",
     "windowSources": 1,
-    "listsThisWindow": false,
+    "listsThisWindow": true,
     "screenThumbnailSizes": [
       {
-        "width": 0,
-        "height": 0
+        "width": 640,
+        "height": 400
       }
     ]
   }
 }
 
-## Item 8: Overlay -> UNTESTED on screen (10264.3 ms)
+## Item 8: Overlay -> GO (10276.1 ms)
 {
   "cases": [
     {
       "overlay": "absolutely positioned menu (div, z-index 1000)",
       "openError": null,
       "pixelsInHostPageCapture": 54000,
-      "pixelsWithViewShown": 0,
-      "pixelsWithViewHidden": 0,
-      "result": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)"
+      "pixelsWithViewShown": 2181,
+      "pixelsWithViewHidden": 54000,
+      "result": "renders over the view"
     },
     {
       "overlay": "modal <dialog> (showModal, top layer)",
       "openError": null,
       "pixelsInHostPageCapture": 53032,
       "pixelsWithViewShown": 0,
-      "pixelsWithViewHidden": 0,
-      "result": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)"
+      "pixelsWithViewHidden": 53032,
+      "result": "renders UNDER the view"
     },
     {
       "overlay": "position:fixed toast",
       "openError": null,
       "pixelsInHostPageCapture": 16875,
       "pixelsWithViewShown": 0,
-      "pixelsWithViewHidden": 0,
-      "result": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)"
+      "pixelsWithViewHidden": 16875,
+      "result": "renders UNDER the view"
     },
     {
       "overlay": "<select> picker (showPicker; a separate popup widget)",
       "openError": null,
       "pixelsInHostPageCapture": 51579,
-      "pixelsWithViewShown": 0,
-      "pixelsWithViewHidden": 0,
-      "result": "UNTESTED on screen: the screen capture is blank, so the desktop is not being drawn (this host runs in an RDP session)"
+      "pixelsWithViewShown": 51579,
+      "pixelsWithViewHidden": 51579,
+      "result": "renders over the view"
     }
   ],
-  "underneath": [],
+  "underneath": [
+    "modal <dialog> (showModal, top layer)",
+    "position:fixed toast"
+  ],
   "designRule": "the panel hides the view (setVisible(false)) whenever a renderer dialog, menu or toast may overlap it"
 }
 
-Summary: 1=GO 2=GO 3=GO 4=GO 5=GO 6=GO 7=GO on geometry (simulated composite); on-screen alignment UNTESTED 8=UNTESTED on screen; Electron exit 0; missing items: none
-Output: C:\Users\davgo\dmwork\probe851-run4
+Summary: 1=GO 2=GO 3=GO 4=GO 5=GO 6=GO 7=GO 8=GO; Electron exit 0; missing items: none
 ```
