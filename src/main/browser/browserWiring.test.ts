@@ -17,48 +17,12 @@ import { buildCliConfig } from '../desktop/cliConfig'
 import { createTestWorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
 import type { BrowserControlBinding } from './browserDispatch'
 import { startBrowser, type BrowserWindowLike, type BrowserWiring, type WiredView } from './browserWiring'
-
-type Listener = (...args: never[]) => unknown
-type BeforeRequest = (details: Record<string, unknown>, callback: (answer: { cancel?: boolean }) => void) => void
+import { fakeView, fakeWindow, type BeforeRequest, type FakeView } from './__mocks__/browserViewFakes'
 
 const cleanups: (() => unknown)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
-
-let nextId = 100
-
-/** A stand-in for a `WebContentsView`: what the host, the hardener and the driver call. */
-function fakeView(beforeRequests: Map<string, BeforeRequest>, partition: string) {
-  const listeners = new Map<string, Listener[]>()
-  let url = ''
-  const session = {
-    setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: vi.fn(),
-    protocol: { isProtocolHandled: () => false },
-    webRequest: { onBeforeRequest: (listener: BeforeRequest) => { beforeRequests.set(partition, listener) }, onHeadersReceived: vi.fn() }
-  }
-  const webContents = {
-    id: nextId++, session, loadURL: vi.fn(async (next: string) => { url = next }), getURL: () => url, getTitle: () => '',
-    isDestroyed: vi.fn(() => false), close: vi.fn(), executeJavaScriptInIsolatedWorld: vi.fn(async () => true),
-    setWindowOpenHandler: vi.fn(), setWebRTCIPHandlingPolicy: vi.fn(), closeDevTools: vi.fn(),
-    debugger: { attach: vi.fn(), detach: vi.fn(), isAttached: () => true, sendCommand: vi.fn(async () => ({ nodes: [] })), on: vi.fn() },
-    capturePage: vi.fn(), stop: vi.fn(), reload: vi.fn(),
-    navigationHistory: { getActiveIndex: () => 0, length: () => 1, getEntryAtIndex: () => ({ url }), goBack: vi.fn(), goForward: vi.fn() },
-    on(event: string, listener: Listener) { listeners.set(event, [...(listeners.get(event) ?? []), listener]); return webContents }
-  }
-  return { webContents, setBounds: vi.fn(), setVisible: vi.fn() }
-}
-
-function fakeWindow() {
-  const onClosed: (() => void)[] = []
-  let destroyed = false
-  const window = {
-    isDestroyed: () => destroyed, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() },
-    webContents: { getZoomFactor: () => 1 }, getContentSize: () => [1440, 900], isVisible: () => true, isMinimized: () => false,
-    once: (_event: 'closed', listener: () => void) => { onClosed.push(listener) }
-  } satisfies BrowserWindowLike<WiredView>
-  return { window, close: () => { destroyed = true; for (const listener of onClosed) listener() } }
-}
 
 /** Real chat grants in a real desktop workspace of a fresh folder; `browserAddress` comes from the wiring. */
 async function grantsRig(browserAddress: () => string | undefined) {
@@ -87,7 +51,7 @@ async function grantsRig(browserAddress: () => string | undefined) {
 
 function wiringRig(options: { grants: () => ChatGrants; root: string; authorize?: (token: string) => BrowserControlBinding }) {
   const windows: BrowserWindowLike<WiredView>[] = []
-  const views: ReturnType<typeof fakeView>[] = []
+  const views: FakeView[] = []
   const beforeRequests = new Map<string, BeforeRequest>()
   const wiring: BrowserWiring = startBrowser<WiredView>({
     root: join(options.root, 'browser'), appUrl: 'http://localhost:5173', windows: () => windows,

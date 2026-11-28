@@ -360,3 +360,73 @@ describe('browser driver screenshot', () => {
     expect(await codeOf(driver.screenshot())).toBe('navigation_failed')
   })
 })
+
+describe('browser driver edges', () => {
+  it('types without pressing Enter unless submit is set', async () => {
+    const { driver, dbg } = rig()
+    await driver.read({ mode: 'tree' })
+    dbg.calls = []
+    await driver.type({ ref: 'e3', text: 'no submit' })
+    expect(dbg.methods()).toEqual(['DOM.describeNode', 'DOM.focus', 'Input.insertText'])
+  })
+
+  it('drives a debugger another client already attached without attaching it again', async () => {
+    const { driver, dbg } = rig()
+    dbg.attached = true
+    await driver.press('Tab')
+    expect(dbg.attachVersions).toEqual([])
+  })
+
+  it('reads a page with no accessibility nodes as empty', async () => {
+    const { driver, dbg } = rig()
+    dbg.handlers['Accessibility.getFullAXTree'] = () => ({})
+    expect(await driver.read({ mode: 'tree' })).toEqual({ untrusted: true, content: '', truncated: false })
+  })
+
+  it('lists parentless text and a named node whose role is unreadable', async () => {
+    const { driver, dbg } = rig()
+    dbg.handlers['Accessibility.getFullAXTree'] = () => ({ nodes: [
+      { nodeId: '1', role: { value: 'StaticText' }, name: { value: 'Lone text' }, backendDOMNodeId: 5 },
+      { nodeId: '2', role: { value: 42 }, name: { value: 'Numbered' }, backendDOMNodeId: 6 }
+    ] })
+    expect((await driver.read({ mode: 'text' })).content).toBe('Lone text\nNumbered')
+  })
+})
+
+describe('browser driver password checks fail closed', () => {
+  const field = { nodes: [{ nodeId: '1', role: { value: 'textbox' }, name: { value: 'Code' }, backendDOMNodeId: 9 }] }
+
+  it('shows a field whose DOM node cannot be described as a password field', async () => {
+    const { driver, dbg } = rig()
+    dbg.handlers['Accessibility.getFullAXTree'] = () => field
+    dbg.handlers['DOM.describeNode'] = () => { throw new Error('Internal error') }
+    expect((await driver.read({ mode: 'tree' })).content).toBe('[e1] textbox (password)')
+  })
+
+  it('shows a described node with no attributes by its name', async () => {
+    const { driver, dbg } = rig()
+    dbg.handlers['Accessibility.getFullAXTree'] = () => field
+    dbg.handlers['DOM.describeNode'] = () => ({})
+    expect((await driver.read({ mode: 'tree' })).content).toBe('[e1] textbox "Code"')
+  })
+
+  it('fails the read when it is stopped while a field is checked, rather than showing the field', async () => {
+    const { driver, dbg } = rig()
+    const lease = new AbortController()
+    dbg.handlers['Accessibility.getFullAXTree'] = () => field
+    dbg.handlers['DOM.describeNode'] = () => { lease.abort('stopped'); return { node: { localName: 'input', attributes: [] } } }
+    expect(await codeOf(driver.read({ mode: 'tree' }, { signal: lease.signal }))).toBe('stopped')
+  })
+})
+
+describe('browser driver click failures', () => {
+  it('answers stale_ref for a box with too few points, and passes any other CDP failure through', async () => {
+    const { driver, dbg } = rig()
+    await driver.read({ mode: 'tree' })
+    dbg.handlers['DOM.getBoxModel'] = () => ({ model: { content: [0, 0, 10, 0] } })
+    expect(await codeOf(driver.click('e3'))).toBe('stale_ref')
+    dbg.handlers['DOM.getBoxModel'] = () => { throw new Error('Target crashed') }
+    await expect(driver.click('e3')).rejects.toThrow('Target crashed')
+    expect(dbg.methods()).not.toContain('Input.dispatchMouseEvent')
+  })
+})
