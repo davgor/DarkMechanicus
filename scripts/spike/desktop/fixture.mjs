@@ -59,11 +59,16 @@ export function inside(rect, x, y) {
   return x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height
 }
 
+/** The fixture's argv. `mode` (DM-1042): normal, top, maximized or fullscreen; see fixture.electron.cjs. */
+function fixtureArgs(statePath, title, root, { forceA11y = false, mode = 'normal' }) {
+  return [join(HERE, 'fixture.electron.cjs'), `--state=${statePath}`, `--title=${title}`, `--profile=${join(root, 'profile')}`, `--mode=${mode}`, ...(forceA11y ? ['--force-a11y'] : [])]
+}
+
 /** Launches the fixture and resolves once its window is shown, raised and has reported its bounds. */
-export async function launchFixture(title, { limitMs = 30_000, forceA11y = false } = {}) {
+export async function launchFixture(title, { limitMs = 30_000, ...options } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dm1041-fixture-'))
   const statePath = join(root, 'state.json')
-  const args = [join(HERE, 'fixture.electron.cjs'), `--state=${statePath}`, `--title=${title}`, `--profile=${join(root, 'profile')}`, ...(forceA11y ? ['--force-a11y'] : [])]
+  const args = fixtureArgs(statePath, title, root, options)
   const child = spawn(require('electron'), args, {
     cwd: REPO, env: cleanEnv(), stdio: ['ignore', 'ignore', 'inherit'], windowsHide: false
   })
