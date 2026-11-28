@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { removeTree } from '../src/snapshots.js';
 import type { ApplyAndTest, Lanes, TestRunner, WorkspaceSource } from '../src/types.js';
 
 export interface Deferred<T> {
@@ -51,13 +52,17 @@ export function memorySource(files: Record<string, string>): WorkspaceSource {
   };
 }
 
-/** Runs `run` in a fresh temporary directory, removed afterwards. */
+/**
+ * Runs `run` in a fresh temporary directory, removed afterwards as lane snapshots are: Windows
+ * refuses (EBUSY) while a process that ran in it, such as a closed lane's Vitest worker, has not
+ * fully exited yet, which lane tests running at once hit in CI run 46178522119.
+ */
 export async function withTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), 'fireguard-test-'));
   try {
     return await run(dir);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 }
 
