@@ -52,6 +52,8 @@ None of the items is a NO-GO. Items 7 and 8 are partly UNTESTED, and item 3 limi
 
 **Password.** The AX tree does **not** expose the password value. Neither the `value` attribute secret nor the typed secret appears anywhere in either tree's JSON. However, the password node (role `textbox`) carries `value: "•••…"`, **one bullet per character (41 bullets for 41 characters)**, so the tree leaks the password's length. `browser_read` must drop the value of any password field (and should drop all `value`s of `protected` or password nodes), not pass the AX value through.
 
+**GO list.** The CDP commands the agent driver (`src/main/browser/browserDriver.ts`) may send: `Accessibility.getFullAXTree`, `DOM.getBoxModel`, `Input.dispatchMouseEvent`, `DOM.focus`, `Input.insertText` and `Input.dispatchKeyEvent`, all measured above, plus two read-only DOM commands added by the browser service ticket (DM-866): `DOM.describeNode`, because the AX tree carries no password marker, and `DOM.scrollIntoViewIfNeeded`, before a click.
+
 ### 2. Detach
 
 - **`detach()`:** returned in 0.3 ms. The `detach` event **did** fire for a programmatic detach, with reason `"target closed"`, 0.4 ms after the call.
