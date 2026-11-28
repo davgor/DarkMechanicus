@@ -65,8 +65,8 @@ export interface AgentChatWiring<T extends TerminalOwners> {
   terminals: T
   agentChats: AgentChatSessions
   /**
-   * A chat's pending browser origin prompt changed (`BrowserHost.onSitePrompt`): a raised one notifies `browser_site`,
-   * and every change reaches the chat's needs-you items (`AgentChatSessions.siteChanged`).
+   * A chat's pending browser origin prompt changed (`BrowserHost.onSitePrompt`): one an agent or page raised notifies
+   * `browser_site` (the person's own never does), and every change reaches the chat's needs-you items (`AgentChatSessions.siteChanged`).
    */
   sitePrompt(event: SitePromptEvent): void
   /** Quit is held while either owner has work under way. */
@@ -153,7 +153,8 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
     terminals,
     agentChats: gui,
     sitePrompt: event => {
-      if (event.kind === 'site') notifySite(event)
+      // The person's own ask, raised from the panel they are looking at, never notifies; its needs-you item stays.
+      if (event.kind === 'site' && event.requestedBy !== 'person') notifySite(event)
       gui.siteChanged(event)
     },
     busy: () => terminals.busy() || gui.busy(),

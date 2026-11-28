@@ -345,6 +345,17 @@ describe('agent chat wiring: a pending browser origin (DM-897 c1)', () => {
     expect(attentionPushes(state)).toHaveLength(2)
     expect(state.notify).toHaveBeenCalledOnce()
   })
+
+  it("never notifies the person's own ask, yet keeps its needs-you item until it clears", () => {
+    const state = open(), chat = state.terminalChat(), folder = state.gui.repo
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-person', origin: 'https://mine.example', requestedBy: 'person' })
+    expect(state.notify).not.toHaveBeenCalled()
+    expect(state.wiring.agentChats.attention(folder)).toEqual([siteItem(chat.id, 'p-person', 'https://mine.example')])
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-page', origin: 'https://page.example', requestedBy: 'page' })
+    expect(state.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'browser_site', key: 'site:p-page' }))
+    state.wiring.sitePrompt({ kind: 'site_cleared', folder, chatId: chat.id })
+    expect(state.wiring.agentChats.attention(folder)).toEqual([])
+  })
 })
 
 describe('agent chat wiring: a pending browser origin through the real notifier (DM-897 c1)', () => {
