@@ -6,3 +6,12 @@
 .preview-composer { height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
 .preview-composer > .preview-chat { min-width: 0; }
 .preview-roles { height: 100vh; display: grid; place-items: center; padding: 24px; overflow: auto; background: var(--agent-backdrop); }
+/* Preview only: no native browser view exists here, so the empty page area says so; the capture proves the chrome only. */
+.preview-epic-agent .bp-content:empty::before {
+  content: 'Preview only: the agent’s page is drawn here by the native browser view';
+  max-width: 32ch;
+  padding: 12px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-align: center;
+}
