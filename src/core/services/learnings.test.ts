@@ -179,9 +179,6 @@ describe('replaceLearning', () => {
     expect(getLearning(ctx, { learningId: replacement.id }).history).toEqual([
       expect.objectContaining({ kind: 'created_by_replacement', relatedId: learningId, reason: 'Import tests catch the same defect', revision: 1, source: SOURCE })
     ])
-    expect(changeEvents(ctx)).toEqual([
-      { kind: 'kanban.learning_replaced', sessionId: ctx.session.id, payload: { learningId, cardId: SOURCE.cardId, replacementId: replacement.id } }
-    ])
   })
 
   it('rejects stale concurrent edits with conflict and creates nothing', () => {
@@ -204,6 +201,17 @@ describe('replaceLearning', () => {
     const { title, rule, check, applicability } = draft()
     expect(captureError(() => replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'Nothing new', replacement: { title, rule, check, applicability } })).code).toBe('invalid_input')
     expect(rows(ctx)).toHaveLength(1)
+  })
+})
+
+describe('learning change events (DM-983)', () => {
+  it('appends one kanban.learning_replaced event naming both learnings for a replacement', () => {
+    const ctx = human()
+    const learningId = seed(ctx, 1)
+    const { replacement } = replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'Sharper rule', replacement: REPLACEMENT })
+    expect(changeEvents(ctx)).toEqual([
+      { kind: 'kanban.learning_replaced', sessionId: ctx.session.id, payload: { learningId, cardId: SOURCE.cardId, replacementId: replacement.id } }
+    ])
   })
 })
 
