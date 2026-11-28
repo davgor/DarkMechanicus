@@ -49,4 +49,4 @@ Call `get_context` with `{ event?, topics?, paths?, ticketId?, budgetTokens? }` 
 
 Events: `run.started`, `ticket.claimed`, `acceptance.claimed`, `attempt.accepted`, `attempt.rejected`, `attempt.failed`, `row_check.failed`, `sprint.reported`, `checkpoint.approved`, `kanban.claimed`, `run.recovery`.
 
-Topics, pulled only: `folders-of-repositories` (first, in a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`, `time-box`, `final-validation-ci`, `post-checkpoint-delivery`, `sprint-delivery`, `learning-card`.
+Topics, pulled only: `folders-of-repositories` (first, in a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`, `time-box`, `final-validation-ci`, `post-checkpoint-delivery`, `sprint-delivery`, `learning-card`, `agent-browser`.

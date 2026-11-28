@@ -360,8 +360,16 @@ function passing() {
 
 const BROWSER_TAB = 'Getting started · Fixture docs'
 const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
-/** The epic stage's width at each size, and the Browser rail's at max(420 px, 45% of it). */
-const BROWSER_STAGE = { 1024: { stageWidth: 760, railWidth: 420 }, 1440: { stageWidth: 1176, railWidth: 529.2 } }
+const PAGE_STAND_IN = 'Preview only: the agent’s page is drawn here by the native browser view'
+/**
+ * The epic stage's width at each size (1280 the run's default, for the unsized states), the Browser rail's at
+ * max(420 px, 45% of it), and the rail's width on its Agents tab just before the Browser tab was clicked.
+ */
+const BROWSER_STAGE = {
+  1024: { stageWidth: 760, railWidth: 420, agentsWidth: 280 },
+  1280: { stageWidth: 1280, railWidth: 576, agentsWidth: 280 },
+  1440: { stageWidth: 1176, railWidth: 529.2, agentsWidth: 280 }
+}
 const DRIVEN = { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null }
 const SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
 /** A docked site card as the capture reads it, wholly above what follows it. */
@@ -397,11 +405,19 @@ const BROWSER_PANELS = {
   'browser-camera': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(true, [EVIDENCE_NOTE]) },
   'browser-camera-terminal': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(false, [NO_COMPOSER, EVIDENCE_NOTE]) }
 }
-/** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
+/**
+ * A Browser state's record at one width (an unsized state at the run's 1280): the epic Agent tab with the rail widened
+ * over the panel. The controls, the page's preview-only label and the Agents rail follow the seeded panel, not `patch`.
+ */
 function browserRecord(state, patch = {}) {
-  const [, base, width] = /^(.*)-(1024|1440)$/.exec(state)
-  const { stageWidth, railWidth } = BROWSER_STAGE[width]
-  return ready(state, { railWidth, browserPanel: { ...BROWSER_PANELS[base], stageWidth, ...patch } })
+  const [, base, width = '1280'] = /^(.*?)(?:-(1024|1440))?$/.exec(state)
+  const { stageWidth, railWidth, agentsWidth } = BROWSER_STAGE[width]
+  const seeded = BROWSER_PANELS[base]
+  const derived = {
+    controls: ['Stop agent', seeded.toggle], pageStandIn: seeded.page === '' ? PAGE_STAND_IN : null,
+    agentsRail: { tab: 'Agents', width: agentsWidth }
+  }
+  return ready(state, { railWidth, browserPanel: { ...seeded, ...derived, stageWidth, ...patch } })
 }
 function passingBrowserStates() {
   return Object.fromEntries(STATES.filter((state) => state.startsWith('browser-')).map((state) => [state, browserRecord(state)]))
@@ -439,7 +455,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 78 states once each, in capture order', () => {
+  it('lists the 81 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -455,9 +471,10 @@ describe('capture-agent-chat: state list and bounds', () => {
       'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
       'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
       'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
-      'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440'
+      'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440',
+      'browser-agent', 'browser-person', 'browser-origin'
     ])
-    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([78, true])
+    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([81, true])
   })
 })
 
@@ -479,9 +496,9 @@ describe('capture-agent-chat: Sprint 3 states and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 1185 s overall bound: 78 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 1230 s overall bound: 81 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(1_185_000)
+    expect(OVERALL_LIMIT_MS).toBe(1_230_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -500,8 +517,10 @@ describe('capture-agent-chat: Browser tab states', () => {
   it('fails a Browser rail left at the Agents width', () => {
     const record = browserRecord('browser-agent-1440')
     record.observations.railWidth = 280
-    expect(validateObservations('browser-agent-1440', record))
-      .toEqual(['browser-agent-1440: expected the rail is open at max(420 px, 45% of the stage); got [280,1176]'])
+    expect(validateObservations('browser-agent-1440', record)).toEqual([
+      'browser-agent-1440: expected the rail is open at max(420 px, 45% of the stage); got [280,1176]',
+      'browser-agent-1440: expected the Browser rail is wider than the rail was on its Agents tab; got [{"tab":"Agents","width":280},280]'
+    ])
   })
 
   it('holds the 420 px floor at 1024', () => {
@@ -529,6 +548,40 @@ describe('capture-agent-chat: Browser tab states', () => {
     expect(validateObservations('browser-empty-1440', browserRecord('browser-empty-1440', { enabled: true })))
       .toEqual(['browser-empty-1440: expected agents are not let use the browser and the page area shows the empty state; '
         + 'got [true,"Agents open pages here. You will be asked before any new site loads."]'])
+  })
+})
+
+describe('capture-agent-chat: Browser agent, person and origin at the run’s size', () => {
+  it('fails a rail measured on another tab or never measured on Agents before the Browser tab', () => {
+    const failure = (rail) => validateObservations('browser-agent', browserRecord('browser-agent', { agentsRail: rail }))
+    expect(failure({ tab: 'Browser', width: 576 }))
+      .toEqual(['browser-agent: expected the Browser rail is wider than the rail was on its Agents tab; got [{"tab":"Browser","width":576},576]'])
+    expect(failure(null)).toEqual(['browser-agent: expected the Browser rail is wider than the rail was on its Agents tab; got [null,576]'])
+  })
+
+  it('passes the agent, person and origin states with the controls, badge and site card as seeded', () => {
+    for (const state of ['browser-agent', 'browser-person', 'browser-origin']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+    expect(viewportOf('browser-origin')).toEqual(DEFAULT_VIEWPORT)
+  })
+
+  it('fails a missing toggle, a Take control beside Hand back and a missing Stop agent', () => {
+    const failure = (state, controls) => validateObservations(state, browserRecord(state, { controls }))
+    expect(failure('browser-agent', ['Stop agent']))
+      .toEqual(['browser-agent: expected the controls are ["Stop agent","Take control"]; got ["Stop agent"]'])
+    expect(failure('browser-person', ['Stop agent', 'Take control', 'Hand back']))
+      .toEqual(['browser-person: expected the controls are ["Stop agent","Hand back"]; got ["Stop agent","Take control","Hand back"]'])
+    expect(failure('browser-person-1024', ['Hand back']))
+      .toEqual(['browser-person-1024: expected the controls are ["Stop agent","Hand back"]; got ["Hand back"]'])
+  })
+
+  it('fails an empty page area without its preview-only label, and a label left over a page note', () => {
+    expect(validateObservations('browser-agent', browserRecord('browser-agent', { pageStandIn: null })))
+      .toEqual(['browser-agent: expected an empty page area carries the preview-only label, and a page note replaces it; got ["",null]'])
+    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { pageStandIn: PAGE_STAND_IN })))
+      .toEqual(['browser-sites-1440: expected an empty page area carries the preview-only label, and a page note replaces it; '
+        + `got ${JSON.stringify(['Browser hidden while Sites is open', PAGE_STAND_IN])}`])
   })
 })
 
@@ -568,7 +621,7 @@ describe('capture-agent-chat: Browser site card and Sites states', () => {
     expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sites: missing })))
       .toEqual([`browser-sites-1024: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
         + `got ${JSON.stringify([missing, 'Browser hidden while Sites is open'])}`])
-    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '' })))
+    expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '', pageStandIn: PAGE_STAND_IN })))
       .toEqual([`browser-sites-1440: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
         + `got ${JSON.stringify([SITES, ''])}`])
     expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sitesInPanel: false })))
@@ -590,7 +643,7 @@ describe('capture-agent-chat: Browser camera states', () => {
     const gui = expected('browser-camera-1024', popover.buttons, popover.notes)
     expect(validateObservations('browser-camera-1024', browserRecord('browser-camera-1024', { camera: { ...popover, thumbLoaded: false } })))
       .toEqual([`${gui}${JSON.stringify([{ ...popover, thumbLoaded: false }, 'Browser hidden while the capture is open'])}`])
-    expect(validateObservations('browser-camera-1440', browserRecord('browser-camera-1440', { page: '' })))
+    expect(validateObservations('browser-camera-1440', browserRecord('browser-camera-1440', { page: '', pageStandIn: PAGE_STAND_IN })))
       .toEqual([`${expected('browser-camera-1440', popover.buttons, popover.notes)}${JSON.stringify([popover, ''])}`])
     const terminal = BROWSER_PANELS['browser-camera-terminal'].camera
     const wrong = { ...terminal, buttons: popover.buttons }
