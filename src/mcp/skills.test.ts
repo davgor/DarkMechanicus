@@ -230,6 +230,17 @@ describe('the worker-relay marker', () => {
   })
 })
 
+describe('full gates in CI', () => {
+  it('makes PR CI or verify:ci the default for full gates and limits local runs to targeted tests and changed-file coverage', () => {
+    const verify = markdownSection(skill('worker').body, 'Verify')
+    expect(verify).toContain('Full gates run in PR CI or by workflow dispatch for the pushed head (in Dark Mechanicus, `npm run verify:ci`), not on the shared host')
+    expect(verify).toContain('locally run only targeted tests and changed-file coverage')
+    expect(verify).toContain('A sprint acceptance node runs the full gate once for the handed integration branch, pushed and dispatched to CI by default')
+    expect(orchestratorFactBodies('orchestrator.acceptance-round').join('\n'))
+      .toContain('by default in CI for the pushed integration branch (`npm run verify:ci`)')
+  })
+})
+
 describe('the Skitarii worker-model catalog guidance', () => {
   it('moved past 1.19.0 when a Skitarii Magos started registering the catalog the app wrote and spawning workers on their claimed model', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
