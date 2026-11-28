@@ -1,0 +1,582 @@
+{
+  "startedAt": "2026-11-28T17:50:15.287Z",
+  "records": [
+    {
+      "step": "version",
+      "argv": [
+        "agent-desktop",
+        "version"
+      ],
+      "ms": 35,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "status",
+      "argv": [
+        "agent-desktop",
+        "status"
+      ],
+      "ms": 65,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "permissions",
+      "argv": [
+        "agent-desktop",
+        "permissions"
+      ],
+      "ms": 64,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "fixture launched",
+      "forceRendererAccessibility": false
+    },
+    {
+      "step": "whole-desktop screenshot (screen 0)",
+      "argv": [
+        "agent-desktop",
+        "screenshot",
+        "--screen",
+        "0",
+        "<HOME>\\dmwork\\dm1041-probe\\out\\b9\\b-desktop-full.png"
+      ],
+      "ms": 316,
+      "exit": 0,
+      "ok": true,
+      "crop": {
+        "width": 824,
+        "path": "<HOME>\\dmwork\\dm1041-probe\\out\\b9\\b-desktop-cropped-to-fixture.png",
+        "height": 503,
+        "sourceWidth": 2560,
+        "x": 870,
+        "sourceHeight": 1600,
+        "y": 509
+      }
+    },
+    {
+      "step": "list-displays",
+      "argv": [
+        "agent-desktop",
+        "list-displays"
+      ],
+      "ms": 32,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "list-windows",
+      "argv": [
+        "agent-desktop",
+        "list-windows"
+      ],
+      "ms": 544,
+      "exit": 0,
+      "ok": true,
+      "fixtureWindow": {
+        "accessible": true,
+        "app_name": "electron.exe",
+        "bounds": {
+          "height": 512,
+          "width": 842,
+          "x": 860,
+          "y": 509
+        },
+        "id": "w-237634050",
+        "is_focused": true,
+        "minimized": false,
+        "pid": 12724,
+        "process_instance": "windows-proc-v1:13440361814:8777022",
+        "title": "DM-1041 fixture B",
+        "visible": true
+      }
+    },
+    {
+      "step": "window screenshot (fixture only)",
+      "argv": [
+        "agent-desktop",
+        "screenshot",
+        "--window-id",
+        "w-237634050",
+        "<HOME>\\dmwork\\dm1041-probe\\out\\b9\\b-window.png"
+      ],
+      "ms": 795,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "UI snapshot, skeleton",
+      "argv": [
+        "agent-desktop",
+        "snapshot",
+        "--window-id",
+        "w-237634050",
+        "--include-bounds",
+        "--skeleton",
+        "--timeout-ms",
+        "10000"
+      ],
+      "ms": 7778,
+      "exit": 0,
+      "ok": true,
+      "nodeCount": 14,
+      "complete": true,
+      "refCount": 2,
+      "button": null,
+      "input": null
+    },
+    {
+      "step": "UI snapshot, full tree",
+      "argv": [
+        "agent-desktop",
+        "snapshot",
+        "--window-id",
+        "w-237634050",
+        "--include-bounds",
+        "--timeout-ms",
+        "30000",
+        "--max-depth",
+        "40"
+      ],
+      "ms": 30111,
+      "exit": 1,
+      "ok": false,
+      "error": {
+        "code": "TIMEOUT",
+        "message": "Operation exceeded its deadline",
+        "suggestion": "The target application may be busy or unresponsive",
+        "recovery": {
+          "strategy": "inspect_state_then_retry_original",
+          "retryable": true,
+          "requires_fresh_snapshot": true,
+          "retry_after_ms": 250
+        },
+        "details": {
+          "elapsed_ms": 30051,
+          "kind": "deadline",
+          "timeout_ms": 30000
+        },
+        "disposition": {
+          "delivery": "not_delivered",
+          "retry": "safe"
+        }
+      },
+      "nodeCount": 0,
+      "complete": null,
+      "refCount": null,
+      "button": null,
+      "input": null
+    },
+    {
+      "step": "locate targets with in-box UIA (agent-desktop gave no refs)",
+      "uia": {
+        "found": {
+          "Probe input": {
+            "y": 758,
+            "height": 56,
+            "width": 505,
+            "type": "ControlType.Edit",
+            "x": 1038
+          },
+          "Probe button": {
+            "y": 667,
+            "height": 68,
+            "width": 233,
+            "type": "ControlType.Button",
+            "x": 908
+          }
+        },
+        "ms": 137.8,
+        "nodes": 17
+      }
+    },
+    {
+      "step": "foreground check before mouse-click",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "mouse-click Probe button centre (--headed)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "mouse-click",
+        "--xy",
+        "1025,701"
+      ],
+      "ms": 86,
+      "exit": 0,
+      "ok": true,
+      "readBack": 1
+    },
+    {
+      "step": "foreground check before press h",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press h (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "h",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 622,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "foreground check before press e",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press e (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "e",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 610,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "foreground check before press l",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press l (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "l",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 99,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "foreground check before press l",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press l (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "l",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 101,
+      "exit": 0,
+      "ok": true
+    },
+    {
+      "step": "foreground check before press o",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press o (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "o",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 104,
+      "exit": 0,
+      "ok": true,
+      "readBack": "hello"
+    },
+    {
+      "step": "press escape (headless, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "press",
+        "escape",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 117,
+      "exit": 0,
+      "ok": true,
+      "readBack": [
+        {
+          "key": "h",
+          "trusted": true,
+          "at": 1795888261750
+        },
+        {
+          "key": "e",
+          "trusted": true,
+          "at": 1795888262813
+        },
+        {
+          "key": "l",
+          "trusted": true,
+          "at": 1795888263342
+        },
+        {
+          "key": "l",
+          "trusted": true,
+          "at": 1795888263869
+        },
+        {
+          "key": "o",
+          "trusted": true,
+          "at": 1795888264402
+        },
+        {
+          "key": "Escape",
+          "trusted": true,
+          "at": 1795888264527
+        }
+      ]
+    },
+    {
+      "step": "foreground check before escape",
+      "front": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "fixture": {
+        "hwnd": 237634050,
+        "pid": 12724
+      },
+      "ok": true
+    },
+    {
+      "step": "press escape (--headed, --window-id)",
+      "argv": [
+        "agent-desktop",
+        "--headed",
+        "press",
+        "escape",
+        "--window-id",
+        "w-237634050"
+      ],
+      "ms": 615,
+      "exit": 0,
+      "ok": true,
+      "readBack": [
+        {
+          "key": "h",
+          "trusted": true,
+          "at": 1795888261750
+        },
+        {
+          "key": "e",
+          "trusted": true,
+          "at": 1795888262813
+        },
+        {
+          "key": "l",
+          "trusted": true,
+          "at": 1795888263342
+        },
+        {
+          "key": "l",
+          "trusted": true,
+          "at": 1795888263869
+        },
+        {
+          "key": "o",
+          "trusted": true,
+          "at": 1795888264402
+        },
+        {
+          "key": "Escape",
+          "trusted": true,
+          "at": 1795888264527
+        },
+        {
+          "key": "Escape",
+          "trusted": true,
+          "at": 1795888265585
+        }
+      ]
+    },
+    {
+      "step": "window screenshot after actions (fixture only)",
+      "argv": [
+        "agent-desktop",
+        "screenshot",
+        "--window-id",
+        "w-237634050",
+        "<HOME>\\dmwork\\dm1041-probe\\out\\b9\\b-window-after.png"
+      ],
+      "ms": 762,
+      "exit": 0,
+      "ok": true
+    }
+  ],
+  "baseline": {
+    "result": "ok",
+    "totalMs": 145.9,
+    "virtual": {
+      "y": 0,
+      "width": 2560,
+      "height": 1600,
+      "x": 0
+    },
+    "nonBlack": 3080,
+    "path": "<HOME>\\dmwork\\dm1041-probe\\out\\b9\\baseline-desktop-full.png",
+    "monitors": [
+      {
+        "device": "\\\\.\\DISPLAY65",
+        "width": 2560,
+        "y": 0,
+        "height": 1600,
+        "x": 0,
+        "primary": true
+      }
+    ],
+    "session": 2,
+    "captureMs": 47.3
+  },
+  "targets": [
+    {
+      "target": "mouse-click",
+      "point": {
+        "x": 1025,
+        "y": 701
+      },
+      "window": {
+        "x": 860,
+        "y": 509,
+        "width": 844,
+        "height": 514
+      },
+      "inside": true
+    }
+  ],
+  "finalState": {
+    "title": "DM-1041 fixture B",
+    "ready": true,
+    "clicks": 1,
+    "text": "hello",
+    "keys": [
+      {
+        "key": "h",
+        "trusted": true,
+        "at": 1795888261750
+      },
+      {
+        "key": "e",
+        "trusted": true,
+        "at": 1795888262813
+      },
+      {
+        "key": "l",
+        "trusted": true,
+        "at": 1795888263342
+      },
+      {
+        "key": "l",
+        "trusted": true,
+        "at": 1795888263869
+      },
+      {
+        "key": "o",
+        "trusted": true,
+        "at": 1795888264402
+      },
+      {
+        "key": "Escape",
+        "trusted": true,
+        "at": 1795888264527
+      },
+      {
+        "key": "Escape",
+        "trusted": true,
+        "at": 1795888265585
+      }
+    ],
+    "bounds": {
+      "dip": {
+        "x": 573,
+        "y": 339,
+        "width": 562,
+        "height": 342
+      },
+      "physical": {
+        "x": 860,
+        "y": 509,
+        "width": 844,
+        "height": 514
+      },
+      "contentPhysical": {
+        "x": 872,
+        "y": 554,
+        "width": 821,
+        "height": 457
+      },
+      "scaleFactor": 1.5
+    },
+    "hwnd": 237634050,
+    "pid": 12724
+  },
+  "endedAt": "2026-11-28T17:51:06.676Z"
+}
