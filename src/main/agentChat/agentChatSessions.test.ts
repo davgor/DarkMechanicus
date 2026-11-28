@@ -23,6 +23,9 @@ import type { Callsign } from '../../shared/agents/callsign'
 import type { ChatItem } from '../../shared/agents/chat'
 import { chatModelOptions } from '../../shared/agents/models'
 import { removeScratch } from '../../test/removeScratch'
+import { DM_CLIENT_DESCRIPTOR_ENV, parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
+import { skitariiMailGuidance } from '../agents/cliInstructions'
+import { dmClientDescriptorPath } from '../terminals/terminalFiles'
 
 /** The app logger the main process passes the Magos gate; neither the gate nor its runner imports one. */
 const log = { info: vi.fn<Console['info']>(), warn: vi.fn<Console['warn']>() }
@@ -1806,5 +1809,131 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} chat images acr
     await deleting
     expect(steps).toEqual(['remove'])
     expect(existsSync(join(r.userData, 'agents', 'chat-images', folderStoreId(chat.folder!), chat.id))).toBe(false)
+  })
+})
+
+const DESKTOP_PIPE = '\\\\.\\pipe\\dm-desktop-gui-test', BROWSER_PIPE = '\\\\.\\pipe\\dm-browser-gui-test'
+/**
+ * The rig with the grant main issues a chat with a mailbox (`endpointId`) and the desktop and browser pipes, recording
+ * each launch's environment and each grant binding's generation.
+ */
+function descriptorRig(kind: 'claude' | 'omp', grant: { endpointId: string | null; pipes: boolean }) {
+  const r = rig(kind), specs: { env: NodeJS.ProcessEnv }[] = [], bindings: { grantId: string; chatId: string; generation: string }[] = []
+  const issue = r.deps.issueChatCli, reach = r.deps.issueReachCli, start = r.deps.startProcess!, bind = r.deps.bindChatGrant!
+  const pipes: Record<string, string> = grant.pipes ? { DM_DESKTOP_PIPE: DESKTOP_PIPE, DM_BROWSER_PIPE: BROWSER_PIPE } : {}
+  r.deps.issueChatCli = async (folder, options, chat) => {
+    const issued = await issue(folder, options, chat)
+    return { ...issued, cli: { ...issued.cli, env: { ...issued.cli.env, ...pipes } }, endpointId: grant.endpointId }
+  }
+  r.deps.issueReachCli = async (targets, options) => {
+    const issued = await reach(targets, options)
+    return { ...issued, cli: { ...issued.cli, env: { ...issued.cli.env, ...pipes } } }
+  }
+  r.deps.startProcess = spec => { specs.push({ env: spec.env ?? {} }); return start(spec) }
+  r.deps.bindChatGrant = (grantId, identity) => { bindings.push({ grantId, chatId: identity.chatId, generation: identity.generation }); return bind(grantId, identity) }
+  /** The chat's descriptor folder's files: none once its launches ended. */
+  const files = (chat: ChatRef): string[] => {
+    const dir = join(r.userData, 'agents', 'omp', chat.id, 'dm-client')
+    return existsSync(dir) ? readdirSync(dir) : []
+  }
+  return { ...r, specs, bindings, files }
+}
+
+describe('omp GUI launch: its DM client descriptor (DM-1118)', () => {
+  it('names the generation-scoped full client in the launch env, bound to the same generation as the grant, with the recovery address', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    await r.sessions.start(chat)
+    const [binding] = r.bindings
+    expect(r.bindings).toEqual([{ grantId: 'grant-1', chatId: chat.id, generation: expect.any(String) }])
+    const path = dmClientDescriptorPath(r.userData, chat.id, binding!.generation)
+    expect(r.specs[0]!.env[DM_CLIENT_DESCRIPTOR_ENV]).toBe(path)
+    const text = readFileSync(path, 'utf8')
+    const parsed = parseDmClientDescriptor(path, text)
+    expect(parsed).toMatchObject({ ok: true, value: { chatId: chat.id, generation: binding!.generation, folder: r.repo, cwd: r.repo, recoveryAddress: DESKTOP_PIPE } })
+    // The same grant and pipes reach the process as a terminal's (`terminalEnv`); the descriptor holds none of them but the recovery address.
+    expect(r.specs[0]!.env).toMatchObject({ DM_SESSION_TOKEN: r.token, DM_DESKTOP_PIPE: DESKTOP_PIPE, DM_BROWSER_PIPE: BROWSER_PIPE })
+    expect(text).not.toContain(r.token)
+    expect(text).not.toContain(BROWSER_PIPE)
+    expect(readFileSync(join(r.userData, 'agents', 'instructions', `${chat.id}.md`), 'utf8')).toContain(skitariiMailGuidance())
+  })
+
+  it('gives a chat with no mailbox but a desktop pipe the recovery-only descriptor, and one with neither none', async () => {
+    const recovery = descriptorRig('omp', { endpointId: null, pipes: true }), chat = recovery.newChat()
+    await recovery.sessions.start(chat)
+    const generation = recovery.bindings[0]!.generation
+    const path = dmClientDescriptorPath(recovery.userData, chat.id, generation)
+    expect(recovery.specs[0]!.env[DM_CLIENT_DESCRIPTOR_ENV]).toBe(path)
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ version: 1, chatId: chat.id, generation, recoveryAddress: DESKTOP_PIPE })
+    const none = descriptorRig('omp', { endpointId: null, pipes: false }), bare = none.newChat()
+    await none.sessions.start(bare)
+    expect(none.specs[0]!.env).not.toHaveProperty(DM_CLIENT_DESCRIPTOR_ENV)
+    expect(none.files(bare)).toEqual([])
+  })
+
+  it('gives a project-less chat with reach what the terminal rule gives it: the recovery-only descriptor and no mail guidance', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_unused', pipes: true }), chat = r.newChat(undefined, null)
+    await r.sessions.start(chat)
+    const generation = r.bindings[0]!.generation
+    const path = dmClientDescriptorPath(r.userData, chat.id, generation)
+    expect(r.specs[0]!.env[DM_CLIENT_DESCRIPTOR_ENV]).toBe(path)
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ version: 1, chatId: chat.id, generation, recoveryAddress: DESKTOP_PIPE })
+    expect(readFileSync(join(r.userData, 'agents', 'instructions', `${chat.id}.md`), 'utf8')).not.toContain(skitariiMailGuidance())
+  })
+
+  it('gives a Claude GUI chat none', async () => {
+    const r = descriptorRig('claude', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    await r.sessions.start(chat)
+    expect(r.specs[0]!.env).not.toHaveProperty(DM_CLIENT_DESCRIPTOR_ENV)
+    expect(existsSync(join(r.userData, 'agents', 'omp', chat.id))).toBe(false)
+  })
+})
+
+describe('omp GUI launch: its descriptor across the launch lifecycle (DM-1118)', () => {
+  it('removes it on stop, and a start after the stop gets a new generation and file', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    await r.sessions.start(chat)
+    const first = r.specs[0]!.env[DM_CLIENT_DESCRIPTOR_ENV]!
+    expect(existsSync(first)).toBe(true)
+    await r.sessions.stop(chat)
+    expect(existsSync(first)).toBe(false)
+    await r.sessions.start(chat)
+    const second = r.specs[1]!.env[DM_CLIENT_DESCRIPTOR_ENV]!
+    expect(r.bindings.map(binding => binding.generation)).toEqual([expect.any(String), expect.any(String)])
+    expect(r.bindings[1]!.generation).not.toBe(r.bindings[0]!.generation)
+    expect(second).toBe(dmClientDescriptorPath(r.userData, chat.id, r.bindings[1]!.generation))
+    expect(r.files(chat)).toEqual([`${r.bindings[1]!.generation}.json`])
+  })
+
+  it('removes it when the process exits', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    await r.sessions.start(chat)
+    expect(r.files(chat)).toHaveLength(1)
+    turn(r.children[0]!, 'omp', '[crash]')
+    await eventually(() => r.sessions.snapshot(chat).status === 'failed')
+    await eventually(() => r.files(chat).length === 0)
+  })
+
+  it('removes it when the start fails after it was written', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    let written: string | undefined
+    r.deps.startProcess = spec => {
+      written = spec.env?.[DM_CLIENT_DESCRIPTOR_ENV]
+      expect(existsSync(written!)).toBe(true)
+      throw new Error('spawn refused')
+    }
+    expect(await r.sessions.start(chat)).toMatchObject({ status: 'failed' })
+    expect(written).toBeDefined()
+    expect(existsSync(written!)).toBe(false)
+    expect(r.revoked).toEqual(['grant-1'])
+  })
+
+  it('keeps it across a live model switch, which relaunches nothing', async () => {
+    const r = descriptorRig('omp', { endpointId: 'me_gui', pipes: true }), chat = r.newChat()
+    await r.sessions.start(chat)
+    const path = r.specs[0]!.env[DM_CLIENT_DESCRIPTOR_ENV]!
+    await r.sessions.setModel(chat, SOL, async () => ompCatalog)
+    expect(r.specs).toHaveLength(1)
+    expect(existsSync(path)).toBe(true)
+    expect(r.files(chat)).toEqual([`${r.bindings[0]!.generation}.json`])
   })
 })

@@ -104,7 +104,7 @@ import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
-import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeWorldMailDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
+import { launchHasMailbox, removeDmClientDescriptor, writeLaunchDmClient, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 import { DomainError } from '../../core/errors'
 
@@ -568,20 +568,16 @@ function killsExhausted(manager: Manager, live: Live): void {
     'it is not retried, and the chat cannot start again until the app restarts.'))
 }
 
-/**
- * The pre-start step: the files the chat's CLI is started with, written before its grant is issued, so a failed
- * write issues nothing. The instructions and, on macOS, the chat's `dm` launcher; for Claude also its settings
- * file with the memory guards (`claudeSettingsFile.ts`), passed as `files.claudeSettings`.
- */
-function hasLaunchMailbox(context: StartContext): boolean {
-  return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
-}
-
 /** A cult member starts only with the rules its launcher wrote (`cultLauncher.ts`): a missing file fails the start. */
 async function cultRulesOf(userData: string, chat: ChatRecord): Promise<{ cultRules?: string }> {
   return chat.cultRunId === undefined ? {} : { cultRules: await readCultRules(userData, chat.id) }
 }
 
+/**
+ * The pre-start step: the files the chat's CLI is started with, written before its grant is issued, so a failed
+ * write issues nothing. The instructions and, on macOS, the chat's `dm` launcher; for Claude also its settings
+ * file with the memory guards (`claudeSettingsFile.ts`), passed as `files.claudeSettings`.
+ */
 async function writeStartFiles(context: StartContext, repairCheckout: string | undefined): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
@@ -599,7 +595,7 @@ async function writeStartFiles(context: StartContext, repairCheckout: string | u
     orchestratesRun: chat.runId !== undefined,
     nameFirstPrompt: chat.titleStatus === 'pending',
     // A project-less chat has no mailbox, so no mail guidance.
-    skitariiMail: hasLaunchMailbox(context),
+    skitariiMail: launchHasMailbox(agent.kind, chat.folder, reach),
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     conversation: chat.conversation,
@@ -1278,25 +1274,18 @@ function dropDmClient(manager: Manager, path: string): Promise<void> {
 }
 
 /**
- * The files with the launch's mail client descriptor, for an OMP chat whose grant was bound to its mailbox
- * (`issued.endpointId`): written once the grant is issued and before the spawn, so it names this launch's generation.
+ * The files with the launch's DM client descriptor (`writeLaunchDmClient`, the rule the GUI launch shares): written once
+ * the grant is issued and before the spawn, so it names this launch's generation.
  */
 async function withDmClient(context: StartContext, files: TerminalFiles, issued: IssuedGrants, generation: string): Promise<TerminalFiles> {
   const { manager, chat, agent, folder } = context
-  if (agent.kind !== 'omp' || files.omp === undefined) {
-    return files
-  }
+  if (files.omp === undefined) return files
   const { userData, platform } = manager.deps
-  if (chat.folder !== null && context.reach !== undefined) {
-    const dmClient = await writeWorldMailDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform, reach: context.reach })
-    return { ...files, omp: { ...files.omp, dmClient } }
-  }
-  const address = issued.cli.env['DM_DESKTOP_PIPE']
-  if (issued.endpointId === null && address === undefined) return files
-  const dmClient = issued.endpointId === null
-    ? await writeRecoveryClientDescriptor({ userData, chatId: chat.id, generation, address: address! })
-    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform, ...(chat.cultRole === undefined ? {} : { cultRole: chat.cultRole }) })
-  return { ...files, omp: { ...files.omp, dmClient } }
+  const dmClient = await writeLaunchDmClient({
+    userData, platform, kind: agent.kind, chatId: chat.id, chatFolder: chat.folder, folder, generation, cli: issued.cli,
+    endpointId: issued.endpointId, reach: context.reach, ...(chat.cultRole === undefined ? {} : { cultRole: chat.cultRole })
+  })
+  return dmClient === null ? files : { ...files, omp: { ...files.omp, dmClient } }
 }
 
 /** Spawns the launch with its mail client descriptor, if it gets one; the descriptor goes again when the start fails. */

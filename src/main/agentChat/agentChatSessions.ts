@@ -18,7 +18,7 @@ import type { SitePromptEvent } from '../browser/browserHost'
 import { claudeSessionExists } from '../terminals/claudeSession'
 import { writeClaudeSettings } from '../terminals/claudeSettingsFile'
 import { ompSessionId, writeOmpFiles } from '../terminals/ompSession'
-import { writeTerminalFiles, type TerminalFiles } from '../terminals/terminalFiles'
+import { launchHasMailbox, removeDmClientDescriptor, writeLaunchDmClient, writeTerminalFiles, type TerminalFiles } from '../terminals/terminalFiles'
 import type { TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
@@ -143,6 +143,8 @@ interface Entry {
   /** Main's own OMP requests awaiting their reply, by command id (`ompRequest`). */
   requests: Map<string, { resolve(data: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>
   grantIds: string[]
+  /** This launch's DM client descriptor (`writeLaunchDmClient`), removed with its cleanup; unset when it has none. */
+  dmClient?: string
   release?: () => void
   cancelled: boolean
   cancel(): void
@@ -611,11 +613,17 @@ class SessionManager {
     // Defer invocation so even a synchronous close callback sees the installed composite barrier.
     entry.transportStopped = Promise.resolve().then(() => child?.stop())
     if (!child) void revoke.then(entry.completeClose, entry.rejectClose)
-    entry.cleanup = Promise.all([entry.transportStopped, entry.closed, revoke]).then(() => {
+    entry.cleanup = Promise.all([entry.transportStopped, entry.closed, revoke, this.dropDmClient(entry)]).then(() => {
       entry.cleanupComplete = true
       entry.process = undefined
     })
     return entry.cleanup
+  }
+  /** Removes the launch's descriptor once; never rejects. */
+  private dropDmClient(entry: Entry): Promise<void> {
+    const path = entry.dmClient
+    entry.dmClient = undefined
+    return path === undefined ? Promise.resolve() : removeDmClientDescriptor(path).catch(() => undefined)
   }
   private awaitCleanup(entry: Entry): Promise<void> {
     if (entry.cleanupComplete) return entry.cleanup!
@@ -796,7 +804,7 @@ class SessionManager {
     const cli = deps.cliFor(chat.folder)
     const paths = await this.step(entry, writeTerminalFiles({ userData: deps.userData, chatId: chat.id, platform: deps.platform,
       folder: cwd, cli, role: chat.role, allowSave: chat.allowSave, orchestratesRun: chat.runId !== undefined,
-      nameFirstPrompt: chat.titleStatus === 'pending', skitariiMail: false,
+      nameFirstPrompt: chat.titleStatus === 'pending', skitariiMail: launchHasMailbox(entry.protocol, chat.folder, reach),
       transferEpicId: chat.transferEpicId, cardId: chat.cardId, conversation: chat.conversation, reach }))
     if (entry.protocol === 'claude') return { ...paths, claudeSettings: await this.step(entry, writeClaudeSettings({
       userData: deps.userData, chatId: chat.id, platform: deps.platform, folder: cwd, cli, home: homedir(), tmp: tmpdir(),
@@ -809,13 +817,33 @@ class SessionManager {
       ...(chat.cultRunId === undefined ? {} : { cultMember: true }) }
     const identity = { ...mailboxChat(chat), kind: agent.kind }
     const issuing = reach === undefined
-      ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId] }))
-      : reach.length ? deps.issueReachCli(reach, grant) : Promise.resolve({ cli: deps.cliFor(null), grantIds: [] })
+      ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId], endpointId: value.endpointId }))
+      : (reach.length ? deps.issueReachCli(reach, grant) : Promise.resolve({ cli: deps.cliFor(null), grantIds: [] })).then(value => ({ ...value, endpointId: null }))
     return this.step(entry, issuing.then(async value => {
       if (entry.cancelled || this.closing) { await this.revoke(value.grantIds); throw new Error('The chat start was cancelled.') }
       entry.grantIds = value.grantIds
       return value
     }))
+  }
+  /**
+   * Writes the launch's descriptor by the terminal's rule (`writeLaunchDmClient`) once its grant is issued and before the
+   * spawn, naming `generation`, which its grants are then bound to. A start cancelled meanwhile removes it again.
+   */
+  private async withDmClient(entry: Entry, paths: TerminalFiles, input: {
+    cwd: string; reach: ReachTarget[] | undefined; generation: string; issued: { cli: DarkMechanicusCli; endpointId: string | null }
+  }): Promise<TerminalFiles> {
+    const { chat } = entry, { deps } = this
+    if (paths.omp === undefined) return paths
+    const dmClient = await this.step(entry, writeLaunchDmClient({
+      userData: deps.userData, platform: deps.platform, kind: entry.protocol, chatId: chat.id, chatFolder: chat.folder, folder: input.cwd,
+      generation: input.generation, cli: input.issued.cli, endpointId: input.issued.endpointId, reach: input.reach,
+      ...(chat.cultRole === undefined ? {} : { cultRole: chat.cultRole })
+    }).then(async path => {
+      if (path !== null && (entry.cancelled || this.closing)) { await removeDmClientDescriptor(path); throw new Error('The chat start was cancelled.') }
+      if (path !== null) entry.dmClient = path
+      return path
+    }))
+    return dmClient === null ? paths : { ...paths, omp: { ...paths.omp, dmClient } }
   }
   private launch(entry: Entry, input: {
     agent: AgentView; cwd: string; reach: ReachTarget[] | undefined
@@ -869,8 +897,8 @@ class SessionManager {
     if (entry.protocol === 'claude' && queued) this.emit(entry, { type: 'queued', count: entry.queued + 1 })
     if (entry.status !== 'busy') this.emit(entry, { type: 'status', status: 'busy' })
   }
-  private async bind(entry: Entry): Promise<void> {
-    const { chat } = entry, generation = randomUUID()
+  private async bind(entry: Entry, generation: string): Promise<void> {
+    const { chat } = entry
     for (const id of entry.grantIds) await this.step(entry, Promise.resolve(this.deps.bindChatGrant?.(id, {
       folder: chat.folder, chatId: chat.id, generation, runId: chat.runId, cardId: chat.cardId
     })))
@@ -896,15 +924,19 @@ class SessionManager {
     this.assertCurrent(entry)
     const cwd = this.folder(chat)
     const reach = chat.folder === null ? reachTargets(cwd, deps.reachFolders()) : undefined
-    const paths = await this.startFiles(entry, cwd, reach)
+    // The launch generation, minted before any file: its descriptor and every grant binding name it.
+    const generation = randomUUID()
+    const files = await this.startFiles(entry, cwd, reach)
     this.assertCurrent(entry)
     const issued = await this.issue(entry, agent, cwd, reach)
+    this.assertCurrent(entry)
+    const paths = await this.withDmClient(entry, files, { cwd, reach, generation, issued })
     this.assertCurrent(entry)
     const spec = this.launch(entry, { agent, cwd, reach, paths, grant: issued.cli, firstMessage })
     this.update(entry, { grantIds: issued.grantIds, sessionId: spec.sessionId })
     this.assertCurrent(entry)
     this.spawn(entry, spec)
-    await this.bind(entry)
+    await this.bind(entry, generation)
     await this.step(entry, entry.ready)
     this.assertCurrent(entry)
     if (entry.ending) await entry.ending

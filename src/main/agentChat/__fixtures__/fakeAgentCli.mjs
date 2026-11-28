@@ -3,10 +3,11 @@
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { MessageChannel } from 'node:worker_threads'
 
 const argv = process.argv.slice(2)
@@ -424,11 +425,11 @@ const BROWSER_LOOP_MS = 300
 const BROWSER_LOOP_READS = 20
 
 /**
- * A `[browser url=<u>]` keyword and its `-origin`, `-read`, `-hidden`, `-loop` and `-status` variants, or null. A value
- * is one word or a double-quoted string.
+ * A `[browser url=<u>]` keyword and its `-origin`, `-read`, `-hidden`, `-loop`, `-status` and `-native` variants, or
+ * null. A value is one word or a double-quoted string.
  */
 function browserKeyword(prompt) {
-  const match = prompt.match(/\[browser(?:-(origin|read|hidden|loop|status))?((?:\s+[a-z]+=(?:"[^"]*"|[^\s"\]]+))*)\s*\]/)
+  const match = prompt.match(/\[browser(?:-(origin|read|hidden|loop|status|native))?((?:\s+[a-z]+=(?:"[^"]*"|[^\s"\]]+))*)\s*\]/)
   if (match === null) return null
   const options = Object.fromEntries([...match[2].matchAll(/([a-z]+)=(?:"([^"]*)"|([^\s"\]]+))/g)].map((option) => [option[1], option[2] ?? option[3]]))
   return { variant: match[1] ?? 'browser', url: options.url }
@@ -508,6 +509,39 @@ async function browserScenario({ variant, url }, step, pause) {
   if (!['status', 'hidden'].includes(variant) && url === undefined) return 'browser failed: the prompt names no url='
   if (variant === 'loop') return browserLoop(url, step, pause)
   return runBrowserSteps(BROWSER_STEPS[variant](url), step)
+}
+
+/**
+ * `[browser-native]`, as OMP's `dm_call` runs `browser_status`: through the Skitarii extension's own client
+ * (`createDmClient` in the `dmClient.ts` beside the `-e` extension it was launched with), over the descriptor its
+ * launch named in `DM_SKITARII_CLIENT_DESCRIPTOR`, never the instructions' `dm` line. The descriptor must exist and
+ * name this chat (its OMP folder, from `--config`) and its file's launch generation. Answers one JSON line: the
+ * descriptor facts with the call's reply, or with `loadError`, the exact error when this runtime cannot load the client.
+ */
+async function nativeBrowserStatus() {
+  const path = process.env.DM_SKITARII_CLIENT_DESCRIPTOR
+  const chatId = argv.includes('--config') ? basename(dirname(option('--config'))) : null
+  const facts = { descriptor: path ?? null, exists: path !== undefined && existsSync(path), chatId }
+  if (!facts.exists) return { ...facts, error: 'no descriptor file' }
+  const written = JSON.parse(readFileSync(path, 'utf8'))
+  const generation = basename(path, '.json')
+  const named = { ...facts, generation, names: written.chatId === chatId && written.generation === generation && basename(dirname(dirname(path))) === chatId }
+  if (!named.names) return { ...named, error: 'the descriptor names another chat or launch' }
+  let client
+  try {
+    // The extension's TypeScript imports its siblings without an extension, as OMP's loader resolves them.
+    registerHooks({ resolve: (specifier, context, next) => {
+      try { return next(specifier, context) } catch (error) {
+        if (specifier.startsWith('.') && !specifier.endsWith('.ts')) return next(`${specifier}.ts`, context)
+        throw error
+      }
+    } })
+    const module = await import(pathToFileURL(join(dirname(option('-e')), 'dmClient.ts')).href)
+    client = module.createDmClient(module.nodeDmClientDeps())
+  } catch (error) {
+    return { ...named, loadError: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }
+  }
+  return { ...named, reply: await client.run('browser_status', {}) }
 }
 
 /** Text with this run's grant token, if any, replaced: a tool result never shows it. */
@@ -717,6 +751,7 @@ class ProtocolReplay {
    * outcome.
    */
   browser(message, keyword) {
+    if (keyword.variant === 'native') { this.native(message); return }
     const lines = this.turnLines('text', message)
     const turn = this.turn
     const head = mode === 'omp' ? lines.findIndex((line) => JSON.parse(line).type === 'message_start') : 0
@@ -739,6 +774,21 @@ class ProtocolReplay {
     void outcome.then((text) => {
       if (text === null || this.active !== held) return
       this.active = { ...held, lines: withReply(lines.slice(head), withoutToken(text)), waiting: null }
+      this.pump()
+    })
+  }
+
+  /** `[browser-native]` on the text golden: acknowledged at once, then the reply is `nativeBrowserStatus`'s JSON line. */
+  native(message) {
+    const lines = this.turnLines('text', message)
+    const head = mode === 'omp' ? lines.findIndex((line) => JSON.parse(line).type === 'message_start') : 0
+    for (const line of lines.slice(0, head)) emit(line)
+    const held = { lines: [], index: 0, waiting: 'browser', promptId: message.id, tails: new Map() }
+    this.tailQueries.clear()
+    this.active = held
+    void nativeBrowserStatus().catch((error) => ({ error: String(error) })).then((outcome) => {
+      if (this.active !== held) return
+      this.active = { ...held, lines: withReply(lines.slice(head), withoutToken(JSON.stringify(outcome))), waiting: null }
       this.pump()
     })
   }

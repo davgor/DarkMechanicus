@@ -13,7 +13,10 @@ import { transferGuidance } from '../../mcp/transferKickoff'
 import { cliCommandLine, skitariiMailGuidance } from '../agents/cliInstructions'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestratorKickoff'
-import { dmClientDescriptorPath, removeDmClientDescriptor, terminalFilePaths, terminalInstructions, writeDmClientDescriptor, writeTerminalFiles } from './terminalFiles'
+import {
+  dmClientDescriptorPath, launchHasMailbox, removeDmClientDescriptor, terminalFilePaths, terminalInstructions, writeDmClientDescriptor,
+  writeLaunchDmClient, writeRecoveryClientDescriptor, writeTerminalFiles, writeWorldMailDescriptor, type LaunchDmClientOptions
+} from './terminalFiles'
 import { parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
 import { MAIL_TOOL_NAMES } from '../../../resources/skitarii/extension/messaging'
 import { ompFilePaths } from './ompSession'
@@ -360,6 +363,65 @@ describe('writeDmClientDescriptor: the private file a launch’s mail client rea
     await removeDmClientDescriptor(second)
     await removeDmClientDescriptor(second)
     expect(readdirSync(join(second, '..'))).toEqual([])
+  })
+})
+
+const PIPE = '\\\\.\\pipe\\naming'
+const reach = [{ folder: '/Users/me/Member', tokenFile: '/Users/me/scratch/member.token' }]
+/** A mailbox-bound OMP launch's facts in `userData`, with `overrides`. */
+const facts = (userData: string, overrides: Partial<LaunchDmClientOptions> = {}): LaunchDmClientOptions => ({
+  userData, platform: 'win32', kind: 'omp', chatId: 'ch_1', chatFolder: FOLDER, folder: FOLDER, generation: 'gen-1',
+  cli: { ...cliFor(FOLDER), env: { ...cliFor(FOLDER).env, DM_DESKTOP_PIPE: PIPE } }, endpointId: 'me_1', reach: undefined, ...overrides
+})
+
+describe('writeLaunchDmClient: the one descriptor rule of terminal and GUI launches', () => {
+  let roots: string[]
+  beforeEach(() => { roots = [] })
+  afterEach(() => { for (const root of roots) removeScratch(root) })
+  /** Two launches' userData folders: the shared rule's file and the matching writer's must read the same. */
+  const pair = (): [string, string] => {
+    const made: [string, string] = [mkdtempSync(join(tmpdir(), 'dm-launch-rule-')), mkdtempSync(join(tmpdir(), 'dm-launch-direct-'))]
+    roots.push(...made)
+    return made
+  }
+
+  it('writes the full client for a grant bound to a mailbox, with its cult role, exactly as writeDmClientDescriptor does', async () => {
+    const [shared, direct] = pair()
+    const path = await writeLaunchDmClient(facts(shared, { cultRole: 'magos' }))
+    const expected = await writeDmClientDescriptor({ userData: direct, chatId: 'ch_1', generation: 'gen-1', folder: FOLDER, cli: facts(direct).cli, platform: 'win32', cultRole: 'magos' })
+    expect(path).toBe(dmClientDescriptorPath(shared, 'ch_1', 'gen-1'))
+    expect(readFileSync(path!, 'utf8')).toBe(readFileSync(expected, 'utf8'))
+    expect(readFileSync(path!, 'utf8')).not.toContain('grant-token')
+  })
+
+  it('writes the recovery-only descriptor with no mailbox but a desktop pipe, and none with neither', async () => {
+    const [shared, direct] = pair()
+    const path = await writeLaunchDmClient(facts(shared, { endpointId: null }))
+    const expected = await writeRecoveryClientDescriptor({ userData: direct, chatId: 'ch_1', generation: 'gen-1', address: PIPE })
+    expect(readFileSync(path!, 'utf8')).toBe(readFileSync(expected, 'utf8'))
+    expect(await writeLaunchDmClient(facts(shared, { endpointId: null, generation: 'gen-2', cli: cliFor(FOLDER) }))).toBeNull()
+    // The earlier launch's file stays: a launch with no descriptor writes and removes nothing.
+    expect(existsSync(path!)).toBe(true)
+  })
+
+  it('writes the world-mail descriptor for a tracked chat with reach, and the recovery-only one for a project-less chat with reach', async () => {
+    const [shared, direct] = pair()
+    // A launch with reach runs the project-less dm invocation: each route pins its own folder.
+    const cli = { ...facts(shared).cli, args: [cliFor(FOLDER).args[0]!] }
+    const world = await writeLaunchDmClient(facts(shared, { reach, endpointId: null, cli }))
+    const expected = await writeWorldMailDescriptor({ userData: direct, chatId: 'ch_1', generation: 'gen-1', folder: FOLDER, cli, platform: 'win32', reach })
+    expect(readFileSync(world!, 'utf8')).toBe(readFileSync(expected, 'utf8'))
+    expect(JSON.parse(readFileSync(world!, 'utf8'))).toMatchObject({ kind: 'forge-world', recoveryAddress: PIPE })
+    const projectless = await writeLaunchDmClient(facts(shared, { chatFolder: null, reach, endpointId: null, generation: 'gen-2' }))
+    expect(JSON.parse(readFileSync(projectless!, 'utf8'))).toEqual({ version: 1, chatId: 'ch_1', generation: 'gen-2', recoveryAddress: PIPE })
+  })
+
+  it('writes none for any agent but OMP, and names the mail tools only for an OMP launch that is not project-less', async () => {
+    const [shared] = pair()
+    for (const kind of ['claude', 'custom'] as const) expect(await writeLaunchDmClient(facts(shared, { kind }))).toBeNull()
+    expect(existsSync(join(shared, 'agents'))).toBe(false)
+    expect([launchHasMailbox('omp', FOLDER, undefined), launchHasMailbox('omp', FOLDER, reach), launchHasMailbox('omp', null, reach), launchHasMailbox('claude', FOLDER, undefined)])
+      .toEqual([true, true, false, false])
   })
 })
 
