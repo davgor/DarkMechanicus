@@ -22,7 +22,9 @@ import { createControlServer, type ControlServerHandle, type ControlServerProtoc
 import { join } from 'node:path'
 import { createBrowserDispatcher, type BrowserControlBinding, type BrowserDispatcher } from './browserDispatch'
 import { createBrowserDriver, type BrowserDriver, type DriverContents } from './browserDriver'
-import { createBrowserHardener, createBrowserHost, type BrowserChatRef, type BrowserHost, type HostContents, type HostView } from './browserHost'
+import {
+  createBrowserHardener, createBrowserHost, type AgentTab, type BrowserChatRef, type BrowserHost, type HostContents, type HostView
+} from './browserHost'
 import { createBrowserOwnership, type BrowserOwnership, type OwnerLabelChat } from './browserOwnership'
 import { BROWSER_WEB_PREFERENCES } from './browserSession'
 import { createBrowserSettings, type BrowserSettings } from './browserSettings'
@@ -151,25 +153,39 @@ function listen(deps: Pick<BrowserWiringDeps<WiredView>, 'authorize' | 'log'>, d
   }
 }
 
+/** The views as the deps made them, which the window takes, and each tab's driver. */
+function wiredViews<View extends WiredView>(createView: BrowserWiringDeps<View>['createView'], slot: WindowSlot<View>) {
+  const views = new WeakMap<HostView, View>()
+  const drivers = new WeakMap<HostContents, BrowserDriver>()
+  return {
+    createView: (webPreferences: Parameters<typeof createView>[0]): HostView => {
+      const view = createView(webPreferences)
+      views.set(view, view)
+      drivers.set(view.webContents, createBrowserDriver(view.webContents))
+      return view
+    },
+    attach: (view: HostView) => { const wired = views.get(view); if (wired !== undefined) slot.attach(wired) },
+    detach: (view: HostView) => { const wired = views.get(view); if (wired !== undefined) slot.detach(wired) },
+    driverFor: (tab: AgentTab): BrowserDriver => {
+      const driver = drivers.get(tab.contents)
+      if (driver === undefined) throw new BrowserControlError('no_tab')
+      return driver
+    }
+  }
+}
+
 export function startBrowser<View extends WiredView>(deps: BrowserWiringDeps<View>): BrowserWiring {
   const settings = createBrowserSettings({ root: deps.root })
   const sites = createSiteStore({ root: join(deps.root, 'sites'), log: deps.log })
   const ownership = createBrowserOwnership()
   const shots = deps.shots ?? createBrowserShots()
-  // The window takes the views as the deps made them; the dispatcher drives each tab's contents.
-  const views = new WeakMap<HostView, View>()
-  const drivers = new WeakMap<HostContents, BrowserDriver>()
   let dispatcher: BrowserDispatcher | null = null
   const slot = new WindowSlot(deps.windows, () => host.closeViews())
+  const views = wiredViews(deps.createView, slot)
   const host: BrowserHost = createBrowserHost({
-    createView: (webPreferences) => {
-      const view = deps.createView(webPreferences)
-      views.set(view, view)
-      drivers.set(view.webContents, createBrowserDriver(view.webContents))
-      return view
-    },
-    attach: (view) => { const wired = views.get(view); if (wired !== undefined) slot.attach(wired) },
-    detach: (view) => { const wired = views.get(view); if (wired !== undefined) slot.detach(wired) },
+    createView: views.createView,
+    attach: views.attach,
+    detach: views.detach,
     zoomFactor: () => slot.current()?.webContents.getZoomFactor() ?? 1,
     windowContentSize: () => slot.contentSize(),
     appUrl: deps.appUrl,
@@ -187,11 +203,7 @@ export function startBrowser<View extends WiredView>(deps: BrowserWiringDeps<Vie
     host, ownership, settings, shots, images: deps.images, chatFor: deps.chatFor,
     hasWindow: () => slot.current() !== null,
     boundTicketKeys: (ref) => boundTicketKeys(deps, ref),
-    driverFor: (tab) => {
-      const driver = drivers.get(tab.contents)
-      if (driver === undefined) throw new BrowserControlError('no_tab')
-      return driver
-    }
+    driverFor: views.driverFor
   })
   const pipe = listen(deps, dispatcher.dispatch)
   return {
