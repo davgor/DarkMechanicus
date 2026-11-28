@@ -496,15 +496,28 @@ describe('setEpicBranch', () => {
     const saved = createSavedEpic(ctx)
     const stale = captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH, expectedRevision: 1 }))
     expect(stale).toMatchObject({ code: 'conflict', details: { currentRevision: 2 } })
+    setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH })
     const run = insertRun(ctx, { epicId: saved.epicId, revisionId: saved.revisionId, state: 'queued' })
-    expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH }))).toMatchObject({
+    const rebind = { ...BRANCH, name: 'feature/other' }
+    expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: rebind }))).toMatchObject({
       code: 'active_run_exists',
       details: { runId: run }
     })
+    expect(getEpic(ctx, { epicId: saved.epicId }).branch).toEqual(BRANCH)
     forceStatus(ctx, saved.epicId, 'completed')
     expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH })).code).toBe('completed_epic')
     const planner = withRole(ctx, 'planner')
     expect(captureError(() => setEpicBranch(planner, { epicId: saved.epicId, branch: BRANCH })).code).toBe('unauthorized')
+  })
+
+  it.each(['running', 'paused'] as const)('binds a first branch while a %s run is active', (state) => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    insertRun(ctx, { epicId: saved.epicId, revisionId: saved.revisionId, state })
+    expect(setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH }).branch).toEqual(BRANCH)
+    expect(getEpic(ctx, { epicId: saved.epicId }).branch).toEqual(BRANCH)
+    const rebind = { ...BRANCH, name: 'feature/other' }
+    expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: rebind })).code).toBe('active_run_exists')
   })
 })
 

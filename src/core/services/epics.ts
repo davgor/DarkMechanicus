@@ -371,7 +371,11 @@ export function setEpicBranch(
     const row = loadEpicRow(ctx, input.epicId)
     assertEpicOpen(row)
     assertEpicRevision(row, input.expectedRevision)
-    assertNoActiveRun(ctx, row.id, "The epic branch can't change while a run is using it.")
+    if (row.branch_json !== null) {
+      // A first binding is allowed mid-run (a run started without a branch needs one to name increments);
+      // re-binding a branch a run is already using is not.
+      assertNoActiveRun(ctx, row.id, "The epic branch can't change while a run is using it.")
+    }
     ctx.db.run(
       'UPDATE epics SET branch_json = ?, revision = revision + 1, updated_at = ? WHERE id = ?',
       toJson(input.branch),
