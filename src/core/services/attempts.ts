@@ -6,7 +6,7 @@
 import { effectiveSprint, effectiveTicket, workStandards, type AppliedStandard } from './workStandards'
 import { checkTicketDecision } from './deliveryWorkflow'
 import { join } from 'node:path'
-import type { ClaimTicketInput, HeartbeatAttemptInput, SubmitAttemptInput } from '../../shared/domain/api'
+import type { ClaimTicketInput, HeartbeatAttemptInput, NameSprintIncrementInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import {
@@ -69,7 +69,7 @@ import {
 } from './execution'
 import { isRepositoryFolder } from './epicBranches'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { incrementRefusal, sprintDefinition, touchedRepositories } from './increments'
+import { incrementRefusal, sprintDefinition, standingAttempt, touchedRepositories } from './increments'
 import { enqueueOutbox } from './outbox'
 import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
@@ -717,12 +717,15 @@ function storeSubmission(
 /** What a submission stores in `increment_json`: one verdict for a single repository, one per touched repository for a folder. */
 type SubmittedIncrement = SprintIncrement | SprintIncrement[]
 
+/** What a submission, a resubmission or `nameSprintIncrement` names: a single repository's increment or a folder's increments. */
+type NamedIncrement = Pick<SubmitAttemptInput, 'increment' | 'increments'>
+
 /**
  * The verdict to store with a submission that names an increment (or a folder of repositories' increments). Only a
  * sprint's acceptance node names one, in the shape the project takes (`incrementRefusal`), and the command layer must
  * already have verified it: an unverified increment is never stored as if it passed.
  */
-function verdictOf(ctx: Ctx, row: AttemptRow, input: SubmitAttemptInput, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
+function verdictOf(ctx: Ctx, row: AttemptRow, input: NamedIncrement, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
   if (input.increment === undefined && input.increments === undefined) {
     return undefined
   }
@@ -745,7 +748,7 @@ function verdictOf(ctx: Ctx, row: AttemptRow, input: SubmitAttemptInput, verifie
  * `verified` when it answers what the submission named: a single repository's one verdict, or a verdict for every
  * named repository and only those, in name order. Undefined otherwise.
  */
-function verifiedAsNamed(input: SubmitAttemptInput, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
+function verifiedAsNamed(input: NamedIncrement, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
   if (input.increments === undefined) {
     return Array.isArray(verified) ? undefined : verified
   }
@@ -971,7 +974,7 @@ export function failAttempt(
   })
 }
 
-interface ReconcileInput {
+interface ReconcileInput extends NamedIncrement {
   attemptId: string
   resolution: 'abandon' | 'resubmit'
   outputs?: OutputsInput
@@ -992,12 +995,12 @@ function abandonAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, inpu
   )
 }
 
-function resubmitAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, input: ReconcileInput): void {
+function resubmitAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, input: ReconcileInput, increment: SubmittedIncrement | undefined): void {
   const outputs =
     input.outputs ?? fail('invalid_input', 'Resubmitting an expired attempt needs its outputs.', { attemptId: target.row.id })
   const evidence = claimEvidenceAttachments(ctx, input.evidence, { kind: 'attempt', id: target.row.id })
   guardUnique(
-    () => storeSubmission(ctx, target.row, { outputs, evidence }),
+    () => storeSubmission(ctx, target.row, { outputs, evidence, increment }),
     OPEN_ATTEMPT_COLUMNS,
     () =>
       fail('conflict', 'Another attempt for this ticket is already open; abandon this one instead.', {
@@ -1009,16 +1012,35 @@ function resubmitAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, inp
   indexAttempt(ctx, target.run, target.row.id)
 }
 
-const RESOLUTIONS: Record<ReconcileInput['resolution'], typeof abandonAttempt> = {
+type Resolve = (ctx: Ctx, target: { row: AttemptRow; run: RunRow }, input: ReconcileInput, increment: SubmittedIncrement | undefined) => void
+
+const RESOLUTIONS: Record<ReconcileInput['resolution'], Resolve> = {
   abandon: abandonAttempt,
   resubmit: resubmitAttempt
 }
 
 /**
- * Resolves an expired lease: `abandon` counts it as a used try (the failure policy applies at the
- * limit); `resubmit` records outputs the worker produced anyway as a submission awaiting review.
+ * The verdict a resubmission stores, exactly as `submitAttempt` would (`verdictOf`): only `resubmit` names an
+ * increment, since an abandoned attempt stores no submission.
  */
-export function reconcileAttempt(ctx: Ctx, input: ReconcileInput): AttemptView {
+function reconciledIncrement(ctx: Ctx, row: AttemptRow, input: ReconcileInput, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
+  if (input.resolution === 'abandon' && (input.increment !== undefined || input.increments !== undefined)) {
+    fail('invalid_input', "Only resolution 'resubmit' names an increment; an abandoned attempt stores no submission.", { attemptId: row.id })
+  }
+  return verdictOf(ctx, row, input, verified)
+}
+
+/**
+ * Resolves an expired lease: `abandon` counts it as a used try (the failure policy applies at the
+ * limit); `resubmit` records outputs the worker produced anyway as a submission awaiting review. A sprint's
+ * acceptance node resubmits its increment as `submitAttempt` does: `verified` is the server's verdict on it.
+ */
+export function reconcileAttempt(
+  ctx: Ctx,
+  input: ReconcileInput,
+  verified?: SubmittedIncrement,
+  assertVerificationCurrent?: () => void
+): AttemptView {
   requireCapability(ctx.session, 'attempt.reconcile')
   settleLeases(ctx, input.attemptId)
   return ctx.db.tx(() => {
@@ -1030,12 +1052,67 @@ export function reconcileAttempt(ctx: Ctx, input: ReconcileInput): AttemptView {
     if (row.state !== 'lease_expired' || row.reconciled_at !== null) {
       fail('conflict', 'Only an unreconciled expired attempt can be reconciled.', { attemptId: row.id, state: row.state })
     }
-    RESOLUTIONS[input.resolution](ctx, { row, run }, input)
-    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.reconciled', payload: { resolution: input.resolution } })
+    const increment = reconciledIncrement(ctx, row, input, verified)
+    assertVerificationCurrent?.()
+    RESOLUTIONS[input.resolution](ctx, { row, run }, input, increment)
+    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.reconciled', payload: { resolution: input.resolution, ...submittedPayload(increment) } })
     if (input.resolution === 'abandon') {
       applyFailurePolicy(ctx, row)
     }
     return attemptView(loadAttempt(ctx, row.id))
+  })
+}
+
+/**
+ * The attempt `nameSprintIncrement` may name an increment for: a sprint acceptance node's standing attempt (accepted,
+ * else submitted; never superseded) in a live run owned by this machine, which stored no increment yet.
+ */
+function nameableAttempt(ctx: Ctx, attemptId: string): { row: AttemptRow; run: RunRow } {
+  const row = loadAttempt(ctx, attemptId)
+  const live = requireRun(ctx, row.run_id)
+  if (!isActiveRunState(live.state)) {
+    fail('run_not_active', `The run is ${live.state}; its increments can no longer be named.`, { runId: live.id, state: live.state })
+  }
+  const run = requireOwnedRun(ctx, live.id)
+  const ticket = ticketOf(loadBundle(ctx, run.revision_id), row.ticket_id)
+  if (!isAcceptanceTicket(ticket)) {
+    fail('invalid_input', `${ticket.key} is a work ticket; only a sprint's acceptance node names an increment.`, { ticketId: ticket.id })
+  }
+  const attempts = ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', run.id)
+  if (standingAttempt(attempts, row.ticket_id)?.id !== row.id) {
+    fail('unauthorized_transition', `Only ${ticket.key}'s standing attempt (accepted, else submitted, and not superseded) can name its increment; this attempt is ${row.state}.`, {
+      attemptId: row.id,
+      state: row.state
+    })
+  }
+  if (row.increment_json !== null) {
+    fail('conflict', `${ticket.key}'s attempt already names its increment; a named increment is never overwritten.`, { attemptId: row.id })
+  }
+  return { row, run }
+}
+
+/**
+ * Names the increment of a sprint acceptance node's standing attempt that stored none, for a submission that could
+ * not name it (one resubmitted before `reconcile_attempt` took increments). The increment is refused and verified
+ * exactly as `submitAttempt`'s (`verified` is the server's verdict), stored where the `increment_merged` gate reads
+ * it, and recorded as an `attempt.increment_named` event. A stored increment is never replaced.
+ */
+export function nameSprintIncrement(
+  ctx: Ctx,
+  input: NameSprintIncrementInput,
+  verified?: SubmittedIncrement,
+  assertVerificationCurrent?: () => void
+): AttemptView {
+  requireCapability(ctx.session, 'attempt.review')
+  return withIdempotency(ctx, { command: 'nameSprintIncrement', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
+    const { row, run } = nameableAttempt(ctx, input.attemptId)
+    const increment =
+      verdictOf(ctx, row, input, verified) ??
+      fail('invalid_input', 'Name the increment: increment { branch, commit }, or increments in a folder of repositories.', { attemptId: row.id })
+    assertVerificationCurrent?.()
+    ctx.db.run('UPDATE attempts SET increment_json = ?, updated_at = ? WHERE id = ?', toJson(increment), ctx.clock.nowIso(), row.id)
+    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.increment_named', payload: submittedPayload(increment) })
+    return attemptView(indexAttempt(ctx, run, row.id))
   })
 }
 

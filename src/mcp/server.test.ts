@@ -92,6 +92,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   reject_attempt: { method: 'rejectAttempt', kind: 'write' },
   fail_attempt: { method: 'failAttempt', kind: 'write' },
   reconcile_attempt: { method: 'reconcileAttempt', kind: 'write' },
+  name_sprint_increment: { method: 'nameSprintIncrement', kind: 'write' },
   carry_forward_ticket: { method: 'carryForwardTicket', kind: 'write' },
   record_row_check: { method: 'recordRowCheck', kind: 'write' },
   record_delivery: { method: 'recordDelivery', kind: 'write' },
