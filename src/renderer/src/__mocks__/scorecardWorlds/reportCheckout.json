@@ -6572,7 +6572,7 @@
               "id": "increment_merged",
               "label": "Sprint increment merged",
               "met": false,
-              "detail": "No sprint increment named yet: submit DM-4 with increment { branch, commit }"
+              "detail": "No sprint increment named yet: submit DM-4 with increment { branch, commit }, or name it with name_sprint_increment"
             },
             {
               "id": "retro",

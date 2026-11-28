@@ -301,6 +301,18 @@ export interface SubmitAttemptInput {
   idempotencyKey?: string
 }
 
+/**
+ * Names the increment of a sprint acceptance node's standing attempt (accepted, else submitted) that stored none:
+ * `increment` for a single repository, `increments` for a folder of repositories. Verified and stored exactly as
+ * `submitAttempt` stores one. A stored verdict that failed is replaced; one that passed is refused, never replaced.
+ */
+export interface NameSprintIncrementInput {
+  attemptId: string
+  increment?: IncrementRef
+  increments?: IncrementRef[]
+  idempotencyKey: string
+}
+
 export interface StartRunInput {
   epicId: string
   host?: { label: string; type: string } | null
@@ -772,7 +784,11 @@ export interface CommandApi {
     outputs?: Partial<AttemptOutputs> & { summary: string }
     evidence?: AttemptEvidenceSubmission
     notes?: string
+    /** `resubmit` of a sprint's acceptance node only: verified and stored as `submitAttempt` stores it. */
+    increment?: IncrementRef
+    increments?: IncrementRef[]
   }): Promise<AttemptView>
+  nameSprintIncrement(input: NameSprintIncrementInput): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
   /** Carries `context` (for an orchestrator) only when the check did not pass. */
   recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
