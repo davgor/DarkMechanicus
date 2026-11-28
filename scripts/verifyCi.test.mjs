@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -159,6 +159,14 @@ describe('verifyCi dispatch and report', () => {
 })
 
 describe('checkResults', () => {
+  it('reads every check as passed from the real `gh run view --json url,headSha,jobs` of dispatched run 46185176015', () => {
+    const view = JSON.parse(readFileSync(new URL('./verifyCi.run-view.fixture.json', import.meta.url), 'utf8'))
+    expect(view.url).toBe('https://github.com/davgor/DarkMechanicus/actions/runs/46185176015')
+    expect(checkResults(view)).toEqual(CHECKS.map(({ name }) => ({ name, status: 'passed', conclusion: 'success' })))
+    const failedShard = { ...view, jobs: view.jobs.map((entry) => entry.name === 'test' ? { ...entry, conclusion: 'failure' } : entry) }
+    expect(checkResults(failedShard).filter((result) => result.status === 'failed').map((result) => result.name)).toEqual(['test'])
+  })
+
   it('reads each Definition of Done check plus Fireguard from its job or build step', () => {
     expect(CHECKS.map((check) => check.name)).toEqual(['lint', 'typecheck', 'test', 'coverage', 'deadcode', 'build', 'fireguard'])
     const view = { jobs: [job('lint', 'cancelled'), job('build', 'failure', [step('typecheck', 'failure'), step('build', 'skipped')]),
