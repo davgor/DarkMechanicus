@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { runCli } from '../src/cli.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { runFireguard, type RunFireguardDeps } from '../src/runFireguard.js';
-import { mergeShards, partition, parseShard, shardRunCount } from '../src/sharding.js';
+import { parseShard, partition, shardRunCount } from '../src/partition.js';
+import { mergeShards } from '../src/sharding.js';
 import type { FireguardReport } from '../src/types.js';
 import { fakeLanes, git, initRepo, memorySource, withTempDir } from './support.js';
 
@@ -12,8 +13,10 @@ const files: Record<string, string> = {
   'src/a.ts': 'export function a(n: number) { return n + 1; }',
   'src/b.ts': 'export function b(n: number) { return n * 2; }',
   'src/c.ts': 'export function c(n: number) { return n - 1; }',
+  'src/d.ts': 'export function d(n: number) { if (n > 1) return n + 2; return n - 3; }',
   'src/a.test.ts': "import { a } from './a'; it('a', () => expect(a(2)).toBe(3));",
   'src/b.test.ts': "import { b } from './b'; it('b', () => expect(b(2)).toBe(4));",
+  'src/d.test.ts': "import { d } from './d'; it('d', () => expect(d(2)).toBe(4));",
 };
 const identity = { head: 'head-commit', base: 'base-commit' };
 
@@ -26,8 +29,8 @@ function harness(shard?: { index: number; count: number }, fail = false) {
     shard: shard && { ...shard, ...identity },
     getDiffEntries: async () => Object.keys(files).map((path) => ({ status: 'M', path })),
     readFile: async (path) => files[path]!,
-    openLanes: async () => fakeLanes(async ({ file }) => {
-      mutants.push(file);
+    openLanes: async () => fakeLanes(async ({ file, mutatedSource }) => {
+      mutants.push(`${file}: ${mutatedSource}`);
       return { ok: false };
     }, {
       source: memorySource(files),
@@ -74,8 +77,28 @@ describe('CI workload sharding', () => {
     expect(shards.flatMap(({ mutants }) => mutants).sort()).toEqual(whole.mutants.sort());
     expect(combined.gates).toEqual(expected.gates);
     expect(combined.grade).toEqual(expected.grade);
-    expect(combined.gates.mutation).toMatchObject({ total: 3, killed: 2, survived: 1, score: 67 });
-    expect(combined.gates.ast?.assertionCount).toBe(2);
+    expect(combined.gates.mutation).toMatchObject({ total: 7, killed: 6, survived: 1, score: 86 });
+    expect(combined.gates.ast?.assertionCount).toBe(3);
+    // Every shard plans the whole mutant set and runs its round-robin share of it.
+    expect(partial.map((report) => report.gates.mutation?.planned)).toEqual(shards.map(() => 7));
+    expect(partial.map((report) => report.gates.mutation?.total))
+      .toEqual(shards.map((_, i) => shardRunCount(7, { index: i + 1, count })));
+  });
+
+  it('spreads the mutants of one module over every shard, disjoint and deterministic', async () => {
+    const only = (deps: RunFireguardDeps) => {
+      deps.getDiffEntries = async () => ['src/d.ts', 'src/d.test.ts'].map((path) => ({ status: 'M', path }));
+      return deps;
+    };
+    const whole = harness();
+    await runFireguard(only(whole.deps));
+    expect(whole.mutants).toHaveLength(4);
+    const shards = [1, 2, 3, 4].map((index) => harness({ index, count: 4 }));
+    await Promise.all(shards.map(({ deps }) => runFireguard(only(deps))));
+    expect(shards.map(({ mutants }) => mutants)).toEqual(whole.mutants.map((mutant) => [mutant]));
+    const again = harness({ index: 3, count: 4 });
+    await runFireguard(only(again.deps));
+    expect(again.mutants).toEqual(shards[2]!.mutants);
   });
 
   it('handles empty module partitions and diffs with no grading work', async () => {
@@ -99,14 +122,19 @@ describe('CI workload sharding', () => {
       return runFireguard(deps);
     }));
     expect(sparse.map((report) => report.gates.mutation?.modules))
-      .toEqual([['src/a.ts'], [], [], []]);
+      .toEqual([['src/a.ts'], ['src/a.ts'], ['src/a.ts'], ['src/a.ts']]);
+    expect(sparse.map((report) => report.gates.mutation?.total)).toEqual([1, 0, 0, 0]);
     expect(mergeShards(sparse, 4, identity).gates.mutation).toMatchObject({ killed: 1, total: 1 });
   });
 
   it('fails closed for missing, duplicate, mismatched and incomplete shards', async () => {
     const partial = await reports();
     expect(() => mergeShards(partial.slice(0, 1), 2, identity)).toThrow(/missing/i);
+    expect(() => mergeShards([...partial, partial[1]!], 2, identity)).toThrow(/extra/i);
     expect(() => mergeShards([partial[0]!, partial[0]!], 2, identity)).toThrow(/duplicate/i);
+    const third = structuredClone(partial[1]!);
+    third.shard!.index = 3;
+    expect(() => mergeShards([partial[0]!, third], 2, identity)).toThrow(/shard/i);
     expect(() => mergeShards(partial, 2, { ...identity, head: 'different' })).toThrow(/commit/i);
     expect(() => mergeShards(partial, 2, { ...identity, base: 'different' })).toThrow(/commit/i);
     const missingShardHead = structuredClone(partial);
@@ -136,9 +164,26 @@ describe('CI workload sharding', () => {
     const wrongBudget = structuredClone(partial);
     wrongBudget[1]!.gates.flake!.runs = 1;
     expect(() => mergeShards(wrongBudget, 2, identity)).toThrow(/runs/i);
+  });
+
+  it('fails closed for a mutant share that is missing, dropped or planned differently', async () => {
+    const partial = await reports();
     const missingModules = structuredClone(partial);
     missingModules[0]!.gates.mutation!.modules = [];
     expect(() => mergeShards(missingModules, 2, identity)).toThrow(/module/i);
+    const droppedMutant = structuredClone(partial);
+    droppedMutant[1]!.gates.mutation!.killed -= 1;
+    droppedMutant[1]!.gates.mutation!.total -= 1;
+    expect(() => mergeShards(droppedMutant, 2, identity)).toThrow(/mutant/i);
+    const otherPlan = structuredClone(partial);
+    otherPlan[1]!.gates.mutation!.planned = 8;
+    expect(() => mergeShards(otherPlan, 2, identity)).toThrow(/mutant/i);
+    const missingPlan = structuredClone(partial);
+    delete missingPlan[0]!.gates.mutation!.planned;
+    expect(() => mergeShards(missingPlan, 2, identity)).toThrow(/mutant/i);
+    const otherTests = structuredClone(partial);
+    otherTests[1]!.gates.mutation!.moduleTests = {};
+    expect(() => mergeShards(otherTests, 2, identity)).toThrow(/mutation scope/i);
   });
 
   it('propagates failed flake shards and retains global failure indices', async () => {

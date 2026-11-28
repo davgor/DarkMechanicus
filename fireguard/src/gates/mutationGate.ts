@@ -1,11 +1,13 @@
 import ts from 'typescript';
 import type { RelatedTests } from '../importGraph.js';
 import { runOnLanes } from '../lanePool.js';
+import { partition } from '../partition.js';
 import type {
   ApplyAndTest,
   FireguardConfig,
   MutationGateResult,
   MutationSurvivor,
+  ShardIdentity,
 } from '../types.js';
 
 export type MutantKind = 'conditional-inversion' | 'operator-swap' | 'return-value-tweak';
@@ -208,9 +210,16 @@ interface MutationOptions {
   changedLines?: ReadonlyMap<string, ReadonlySet<number>>;
   /** One applier per lane; mutants are spread over the lanes, one per lane at a time. */
   appliers: ApplyAndTest[];
+  /**
+   * A CI shard: every mutant of `modules` is collected in the same order, and this shard runs
+   * its round-robin share of them, so one module's mutants spread over every shard.
+   */
+  shard?: Pick<ShardIdentity, 'index' | 'count'>;
 }
 
-function collectJobs(options: MutationOptions) {
+type JobSource = Pick<MutationOptions, 'modules' | 'relatedTests' | 'relatedTestsFor' | 'changedLines'>;
+
+function collectJobs(options: JobSource) {
   const moduleTests: Record<string, number> = {};
   const jobs: MutantJob[] = [];
   let unchangedLineMutants = 0;
@@ -231,8 +240,15 @@ function collectJobs(options: MutationOptions) {
   return { jobs, moduleTests, unchangedLineMutants };
 }
 
+/** The mutants an unsharded run executes for these modules, so a plan can size the shards. */
+export function countMutants(options: Pick<JobSource, 'modules' | 'changedLines'>): number {
+  return collectJobs({ ...options, relatedTests: [] }).jobs.length;
+}
+
 export async function runMutationGate(options: MutationOptions): Promise<MutationGateResult> {
-  const { jobs, moduleTests, unchangedLineMutants } = collectJobs(options);
+  const collected = collectJobs(options);
+  const { moduleTests, unchangedLineMutants } = collected;
+  const jobs = options.shard ? partition(collected.jobs, options.shard) : collected.jobs;
   const killedByJob: boolean[] = [];
   await runOnLanes(jobs.length, options.appliers, async (index, applyAndTest) => {
     killedByJob[index] = await isKilled(jobs[index]!, applyAndTest);
@@ -251,7 +267,7 @@ export async function runMutationGate(options: MutationOptions): Promise<Mutatio
     });
   });
 
-  return scoreMutations({
+  const result = scoreMutations({
     killed,
     survived: survivors.length,
     minScore: options.config.thresholds.minMutationScore,
@@ -260,4 +276,6 @@ export async function runMutationGate(options: MutationOptions): Promise<Mutatio
     moduleTests: options.relatedTestsFor ? moduleTests : undefined,
     unchangedLineMutants: options.changedLines ? unchangedLineMutants : undefined,
   });
+  if (options.shard) result.planned = collected.jobs.length;
+  return result;
 }

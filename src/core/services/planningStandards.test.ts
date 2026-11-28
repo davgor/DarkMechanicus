@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest'
 import { defaultPrompts, baselineDeliveryPolicy } from '../../shared/domain/standardsPrompts'
 import { createSavedEpic, saveNow } from '../../test/authoring'
-import { claim, startedRun } from '../../test/execution'
+import { claim, clearOutbox, pendingOutbox, startedRun } from '../../test/execution'
 import { createTestCtx, withRole } from '../../test/testContext'
 import { planBundle, ticketInput } from '../schemas'
+import { failAttempt } from './attempts'
 import { openDraft, updatePlanDraft } from './drafts'
 import { createEpic } from './epics'
 import { claimKanbanCard, playKanbanCard } from './kanban/attempts'
@@ -90,4 +91,19 @@ it('keeps an explicitly standardized decision on its own revision when a later c
   ctx.deliveryStandards = () => ({ revision: 8, policy: { ...standards.policy, prompts: { ...defaultPrompts, ticket: 'Later rules' } } })
   expect(claim(ctx, runId, 1).packet.deliveryStandards).toEqual({ revision: 7, prompt: defaultPrompts.ticket })
   expect(itemWorkflow(ctx, epicId, 'ticket', tid(1))).toEqual(explicit)
+})
+
+it('queues the saved epic\'s record again when a later claim moves a pin, even on a ticket already in progress', () => {
+  const ctx = createTestCtx()
+  const { runId, epicId, bundle } = startedRun(ctx)
+  ctx.deliveryStandards = () => standards
+  pinPlanWorkflows(ctx, epicId, bundle)
+  const first = claim(ctx, runId, 1)
+  failAttempt(ctx, { attemptId: first.attempt.id, claimToken: first.packet.claimToken, failure: { reason: 'Try again' } })
+  clearOutbox(ctx)
+  ctx.deliveryStandards = () => ({ revision: 8, policy: { ...standards.policy, prompts: { ...defaultPrompts, ticket: 'Later rules' } } })
+  const again = claim(ctx, runId, 1)
+  expect(again.attempt).toMatchObject({ number: 2, state: 'claimed' })
+  expect(itemWorkflow(ctx, epicId, 'ticket', tid(1))).toMatchObject({ revision: 8, source: 'creation' })
+  expect(pendingOutbox(ctx)).toContain(`epic_state:${epicId}:`)
 })

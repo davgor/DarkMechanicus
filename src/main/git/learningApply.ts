@@ -141,9 +141,14 @@ async function run(deps: LearningIntegrationDeps, plan: LearningIntegrationPlan,
   return { state: 'applied', plan, receipts }
 }
 
-/** Deletes the owned prepared ref only while it still holds the planned commit, then the owned identity file. */
+/**
+ * Deletes the owned prepared ref only while it still holds the planned commit and the recorded checkout is still the
+ * prepared repository (DM-983: a path rebound since the move is refused, so no other repository's ref is deleted),
+ * then the owned identity file.
+ */
 async function removeOwned(deps: LearningIntegrationDeps, cardId: string, target: PlannedLearningTarget): Promise<void> {
   if ((await resolveCommit(deps.runner, target.checkout, target.preparedRef)) === target.newHead) {
+    await verifyIdentity(deps, cardId, target)
     await deps.runner.run({ cwd: target.checkout, args: ['update-ref', '-d', target.preparedRef, target.newHead], kind: 'write' })
   }
   const file = identityFile(target.identity.commonDir, cardId)

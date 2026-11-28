@@ -10,7 +10,9 @@ import {
 } from './prComment.js';
 import { formatHumanReport, formatJsonReport } from './report.js';
 import { runFireguard, type RunFireguardDeps } from './runFireguard.js';
-import { mergeShards, parseShard } from './sharding.js';
+import { parseShard } from './partition.js';
+import { planFireguard, type GradingPlan } from './plan.js';
+import { mergeShards } from './sharding.js';
 import type { FireguardConfig, FireguardReport } from './types.js';
 import { openLanes } from './workspaceLanes.js';
 
@@ -32,6 +34,12 @@ function flagValue(argv: string[], name: string): string | undefined {
   const idx = argv.indexOf(name);
   if (idx === -1) return undefined;
   return argv[idx + 1];
+}
+
+function describePlan({ count, work, estimatedShardSeconds, targetSeconds, maxShards }: GradingPlan): string {
+  return `fireguard plan: ${count} grading shard${count === 1 ? '' : 's'} (target ${targetSeconds}s, cap ${maxShards}); ` +
+    `${work.flakeRuns} flake runs of ${work.gradedTestFiles} graded test files and ${work.mutants} mutants; ` +
+    `longest shard estimated ${estimatedShardSeconds}s\n`;
 }
 
 /** Git/vitest/filesystem-backed dependencies for a real run: everything graded is committed. */
@@ -66,6 +74,7 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
   const jsonOut = flagValue(argv, '--json-out');
   const shardArg = flagValue(argv, '--shard');
   const mergeDirectory = flagValue(argv, '--merge-shards');
+  const planOnly = argv.includes('--plan');
   const astOnly = argv.includes('--ast-only');
 
   if (help) {
@@ -98,6 +107,10 @@ PR integration:
   --shard i/n     Execute disjoint flake-run/module partitions (no final grade/comment)
   --merge-shards  Directory of shard JSON reports; validate and issue the combined grade
   --shard-count n Expected report count when merging (required)
+  --plan          Size the CI grade of this diff (flake runs, mutants, estimated seconds) into
+                  grading shards (a typical PR in about 2 minutes, at most 40); runs no test
+  --runner-budget n  With --plan: shards that can start at once beside the workflow's other
+                  jobs; the plan never exceeds it
 
 Exit codes:
   0  pass (grade not F)
@@ -121,6 +134,20 @@ Exit codes:
       { cwd, encoding: 'utf8' }).trim();
     const identity = { head: revision('HEAD'), base: revision(config.baseRef) };
     const deps = { ...createDeps(cwd, config, identity), astOnly };
+    if (planOnly) {
+      if (shardArg || mergeDirectory || commentPr || astOnly) {
+        throw new Error('--plan cannot shard, merge, run --ast-only or post PR comments');
+      }
+      const budget = flagValue(argv, '--runner-budget');
+      if (argv.includes('--runner-budget') && !/^\d{1,3}$/.test(budget ?? '')) {
+        throw new Error('--runner-budget requires a whole number');
+      }
+      const plan = await planFireguard(deps, budget === undefined ? undefined : Number(budget));
+      const text = `${JSON.stringify(plan, null, 2)}\n`;
+      if (jsonOut) writeFile(jsonOut, text);
+      stdout(json ? text : describePlan(plan));
+      return 0;
+    }
     if (shardArg || mergeDirectory) {
       if (mergeDirectory) {
         const count = Number(flagValue(argv, '--shard-count'));

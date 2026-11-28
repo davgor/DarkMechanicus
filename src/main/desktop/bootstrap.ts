@@ -69,6 +69,7 @@ import { createLearningIntegrationLocks } from '../git/learningIntegration'
 import { createOperationLocks, type OperationLocks } from '../git/operationLock'
 import { createLearningApprovals, type LearningApprovalController } from '../kanban/approveLearningCard'
 import { createLearningApprovalHandlers, registerLearningApprovalIpc } from './learningApprovalIpc'
+import { mayHavePendingLearningApprovals } from './learningRecoveryProbe'
 import { createAccountStore } from '../github/accountStore'
 import { createGithubClient, createSessionClient, type GithubClient } from '../github/client'
 import { createGhCli, isExecutableFile, runGhProcess } from '../github/ghCli'
@@ -1072,7 +1073,8 @@ interface SharedGit {
 
 /**
  * DM-956: the `dm:approveLearningCard` channel over the shared runner and locks, through each tracked folder's own
- * desktop workspace. At startup each available, set-up folder recovers the approvals this machine left in progress.
+ * desktop workspace. At startup each available, set-up folder recovers the approvals this machine left in progress;
+ * DM-983: only a folder whose database holds such an approval opens its workspace for it.
  */
 function startLearningApprovals(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve' | 'list'>, pool: WorkspacePool, git: SharedGit): LearningApprovalController {
   const approvals = createLearningApprovals({
@@ -1081,8 +1083,9 @@ function startLearningApprovals(ipc: Pick<IpcMain, 'handle'>, registry: Pick<Fol
     git: { ...git, cards: createLearningIntegrationLocks() }
   })
   registerLearningApprovalIpc(ipc, createLearningApprovalHandlers(approvals))
+  const home = darkMechanicusHome()
   for (const folder of registry.list()) {
-    if (!folder.initialized || !folder.available) continue
+    if (!folder.initialized || !folder.available || !mayHavePendingLearningApprovals(folder.path, home)) continue
     approvals.recover(folder.path).catch((error: unknown) => logger.error('Learning approval recovery failed for ' + folder.path, error))
   }
   return approvals
