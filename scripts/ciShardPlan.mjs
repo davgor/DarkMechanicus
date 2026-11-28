@@ -12,6 +12,11 @@ const HISTORY_RUNS = 8
 const JOB_PAGE_SIZE = 100 // More than all possible jobs in a run with these matrices.
 const WORKFLOW = 'pr-checks.yml'
 const UNIT_STEP = 'Run disjoint Vitest shard'
+// App shards collect coverage for the merged report (coverage-merge job) under their own step name.
+const COVERAGE_STEP = 'Run disjoint Vitest shard with coverage'
+// A legacy app shard ran without coverage; with v8 coverage the full app suite took up to 1.1x as long
+// (local `npm test` 246-266 s, `npm run coverage` 267-270 s).
+const COVERAGE_OVERHEAD = 1.1
 const GRADING_STEP = 'Grade disjoint flake runs and production modules'
 const ACTIVE_STEP = 'Record active Fireguard timing sample'
 const UNIT_CONFIGS = { app: 'vitest.config.ts', 'fireguard-unit': 'fireguard/vitest.config.ts' }
@@ -73,9 +78,12 @@ function recordTiming(seconds, count, [index, total], elapsed) {
   return true
 }
 
-function executionSeconds(job, grading) {
+function executionSeconds(job, grading, suite) {
   if (grading && !successfulStep(job, ACTIVE_STEP)) return NaN
-  return stepSeconds(successfulStep(job, grading ? GRADING_STEP : UNIT_STEP))
+  if (grading) return stepSeconds(successfulStep(job, GRADING_STEP))
+  if (suite !== 'app') return stepSeconds(successfulStep(job, UNIT_STEP))
+  const covered = successfulStep(job, COVERAGE_STEP)
+  return covered ? stepSeconds(covered) : Math.round(stepSeconds(successfulStep(job, UNIT_STEP)) * COVERAGE_OVERHEAD)
 }
 
 function collectTimings(suite, jobs) {
@@ -90,7 +98,7 @@ function collectTimings(suite, jobs) {
     if (position === undefined) continue
     if (position === null) return undefined
     count ??= position[1]
-    if (!recordTiming(seconds, count, position, executionSeconds(job, grading))) {
+    if (!recordTiming(seconds, count, position, executionSeconds(job, grading, suite))) {
       return undefined
     }
   }
