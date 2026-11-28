@@ -4570,12 +4570,11 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 2,
         "host": null,
-        "skillVersion": "1.13.0",
+        "skillVersion": "1.21.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
         "autoContinue": false,
-        "learningCard": null,
         "createdAt": "2026-11-15T09:00:00.000Z",
         "startedAt": "2026-11-15T09:00:00.000Z",
         "updatedAt": "2026-11-15T10:08:00.000Z",
@@ -5261,7 +5260,8 @@
             "issuedAt": "2026-11-15T10:08:00.000Z",
             "valid": true
           }
-        }
+        },
+        "learningCard": null
       }
     },
     {
@@ -5278,7 +5278,7 @@
         "baseRevisionId": null,
         "baseRevisionNumber": null,
         "draftRevision": null,
-        "contentHash": "sha256:3efdeedca2c0edb336916549d898f33cef87f460c74f3a0fbda0238a2203ee2d",
+        "contentHash": "sha256:3e5f114b99707af4dc295327f5c584f694adb4910225a02af0ca47209809d0c7",
         "bundle": {
           "formatVersion": 1,
           "epic": {
@@ -5564,7 +5564,7 @@
             "maxConcurrency": null,
             "retryLimit": 2,
             "onTicketFailure": "continue_independent",
-            "leaseSeconds": 900
+            "leaseSeconds": 3600
           },
           "rationale": ""
         },

@@ -4720,12 +4720,11 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.13.0",
+        "skillVersion": "1.21.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
         "autoContinue": false,
-        "learningCard": null,
         "createdAt": "2026-11-15T09:00:00.000Z",
         "startedAt": "2026-11-15T09:00:00.000Z",
         "updatedAt": "2026-11-15T09:00:00.000Z",
@@ -4873,7 +4872,7 @@
             },
             "revisionId": "rv_00000000000000000000000002",
             "ticketContentHash": "sha256:4660a92831a22b66a09854d8bbb863b5365730e9c583f97987a15ef9288e9d84",
-            "leaseExpiresAt": "2026-11-15T09:29:00.000Z",
+            "leaseExpiresAt": "2026-11-15T10:14:00.000Z",
             "heartbeatAt": null,
             "outputs": null,
             "evidence": null,
@@ -5022,7 +5021,8 @@
           "gatesMet": false,
           "canAdvance": false,
           "approval": null
-        }
+        },
+        "learningCard": null
       }
     },
     {
@@ -5039,7 +5039,7 @@
         "baseRevisionId": null,
         "baseRevisionNumber": null,
         "draftRevision": null,
-        "contentHash": "sha256:9a6e6e98afdbb0faf14ebd723b82ede4cf3bcbf27a6ecb0d8261e4e62fda36b2",
+        "contentHash": "sha256:23a8fe42442b5bbed4c452f291fb8251d9d3375e91bc5781388e1e4ee10c495c",
         "bundle": {
           "formatVersion": 1,
           "epic": {
@@ -5241,7 +5241,7 @@
             "maxConcurrency": null,
             "retryLimit": 2,
             "onTicketFailure": "continue_independent",
-            "leaseSeconds": 900
+            "leaseSeconds": 3600
           },
           "rationale": ""
         },
