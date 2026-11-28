@@ -26,7 +26,8 @@ import { join } from 'node:path'
 import { createBrowserDispatcher, type BrowserControlBinding, type BrowserDispatcher } from './browserDispatch'
 import { createBrowserDriver, type BrowserDriver, type DriverContents } from './browserDriver'
 import {
-  createBrowserHardener, createBrowserHost, type AgentTab, type BrowserChatRef, type BrowserHost, type HostContents, type HostView
+  createBrowserHardener, createBrowserHost, type AgentTab, type BrowserChatRef, type BrowserHost, type HostContents, type HostView,
+  type SitePromptEvent
 } from './browserHost'
 import { createBrowserIpcHandlers, registerBrowserIpc, type PanelContents } from './browserIpc'
 import { createBrowserOwnership, type BrowserOwnership, type OwnerLabelChat } from './browserOwnership'
@@ -70,6 +71,8 @@ interface BrowserWiringDeps<View extends WiredView> {
   bindings: Pick<ActivityBindings, 'threadsOf'>
   ticketKeyOfAttempt(folder: string, attemptId: string): Promise<string | null>
   push(state: BrowserState): void
+  /** Each change of a chat's pending origin prompt (`BrowserHost`), for the needs-you items and the OS notifier. */
+  onSitePrompt?(event: SitePromptEvent): void
   log(line: string): void
   /** DNS for the session's address checks; the real resolver when omitted. */
   lookup?: (host: string) => Promise<readonly { address: string }[]>
@@ -212,6 +215,7 @@ export function startBrowser<View extends WiredView>(deps: BrowserWiringDeps<Vie
     ownerLabel: (ref, owner) => dispatcher?.ownerLabel(ref, owner) ?? null,
     enabled: () => settings.enabled(),
     push: deps.push,
+    onSitePrompt: deps.onSitePrompt,
     log: deps.log
   })
   dispatcher = createBrowserDispatcher({

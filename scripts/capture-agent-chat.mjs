@@ -386,8 +386,8 @@ const STATE_CHECKS = {
         && matches(o.approvalRecord, /The Magos decided: \S/)]
   ],
   'agent-needs-you': [
-    ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
-    ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+    ['the header reads 4 needs you, the Magos’s browser site among them', (o) => matches(o.needsYouHeader, /^4 needs you/)],
+    ['four badged rows, the unwatched planner’s and the Magos’s among them', (o) => o.badgedRows === 4]
   ],
   'agent-composer': [
     ['two composers: the idle one with Send and no Stop, the busy one with Stop and no Send',

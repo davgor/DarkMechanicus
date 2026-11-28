@@ -484,12 +484,13 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins, browser }:
 
 /**
  * The agent browser (`browserWiring.ts`) over the main window found at each use, and its pipe, which the chats' live
- * grants authorize; the chat store and the grants are created after it, so they are reached lazily. The panel's
- * `browser:*` channels are registered on `ipc`.
+ * grants authorize; the chat store, the grants and the chat owners are created after it, so they are reached lazily.
+ * Each chat's pending origin prompt goes to the owners' needs-you items and the OS notifier. The panel's `browser:*`
+ * channels are registered on `ipc`.
  */
 function createChatBrowser(
   { folders, workspaces, activity, chatImages, ipc }: Pick<ChatProcessOptions, 'folders' | 'workspaces' | 'activity' | 'chatImages' | 'ipc'>,
-  late: { store: () => ChatStore; grants: () => ChatGrants }
+  late: { store: () => ChatStore; grants: () => ChatGrants; owners: () => Pick<AgentChatWiring<TerminalSessions>, 'sitePrompt'> }
 ): BrowserWiring {
   const browser = startBrowser<WebContentsView>({
     root: join(app.getPath('userData'), 'browser'),
@@ -503,6 +504,7 @@ function createChatBrowser(
     bindings: activity,
     ticketKeyOfAttempt: (folder, attemptId) => ticketKeyOfAttempt(desktopWorkspace(folders, workspaces, folder), attemptId),
     push: createBrowserPush(() => BrowserWindow.getAllWindows()),
+    onSitePrompt: (event) => late.owners().sitePrompt(event),
     log: (line) => logger.warn(line)
   })
   browser.registerIpc(ipc)
@@ -518,7 +520,7 @@ function createChatBrowser(
  */
 function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages, ipc }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
-  const browser = createChatBrowser({ folders, workspaces, activity, chatImages, ipc }, { store: () => store, grants: () => grants })
+  const browser = createChatBrowser({ folders, workspaces, activity, chatImages, ipc }, { store: () => store, grants: () => grants, owners: () => owners })
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages, browser: browser.host })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })

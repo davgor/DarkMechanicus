@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { BrowserState } from '../../shared/browser/browserApi'
 import { folderStoreId } from '../agentChat/folderStoreId'
-import { createBrowserHardener, createBrowserHost, type HostContents, type HostView } from './browserHost'
+import { createBrowserHardener, createBrowserHost, type HostContents, type HostView, type SitePromptEvent } from './browserHost'
 import { createBrowserOwnership } from './browserOwnership'
 import { createSiteStore } from './siteStore'
 
@@ -94,6 +94,7 @@ function setup(options: { zoom?: number; windowSize?: { width: number; height: n
   const sessions = new Map<string, ReturnType<typeof fakeSession>>()
   const pushed: BrowserState[] = []
   const lines: string[] = []
+  const sitePrompts: SitePromptEvent[] = []
   const attach = vi.fn()
   const detach = vi.fn()
   let clock = 1_000_000
@@ -122,6 +123,7 @@ function setup(options: { zoom?: number; windowSize?: { width: number; height: n
     ownerLabel: (_ref, owner) => (owner === 'agent' ? 'Acolyte:DM-865' : null),
     enabled: () => true,
     push: (state) => pushed.push(state),
+    onSitePrompt: (event) => sitePrompts.push(event),
     log: (line) => lines.push(line),
     now: () => clock
   })
@@ -129,7 +131,7 @@ function setup(options: { zoom?: number; windowSize?: { width: number; height: n
   const pageAsk = (index: number, url: string) =>
     views[index].page.emit('will-navigate', { url, isMainFrame: true, preventDefault: vi.fn() })
   return {
-    host, sites, ownership, views, sessions, pushed, lines, attach, detach, hardenSpy, last, pageAsk,
+    host, sites, ownership, views, sessions, pushed, lines, attach, detach, hardenSpy, last, pageAsk, sitePrompts,
     advance: (ms: number) => { clock += ms }
   }
 }
@@ -480,5 +482,45 @@ describe('createBrowserHost agent prompt and window close', () => {
     fake.host.ensureAgentTab(CHAT)
     expect(fake.views).toHaveLength(2)
     expect(fake.attach).toHaveBeenLastCalledWith(fake.views[1].view)
+  })
+})
+
+describe('createBrowserHost site prompt events (DM-897)', () => {
+  it('tells each raised, replaced and decided prompt with its chat, id, origin and requester', async () => {
+    const fake = setup()
+    await fake.host.navigate(CHAT, 'https://first.example/a', 'agent')
+    const first = fake.host.state(CHAT).pendingOrigin?.id ?? ''
+    await fake.host.navigate(CHAT, 'https://second.example/', 'person')
+    const second = fake.host.state(CHAT).pendingOrigin?.id ?? ''
+    await fake.host.decideOrigin(CHAT, second, 'deny')
+    expect(fake.sitePrompts).toEqual([
+      { kind: 'site', folder: FOLDER, chatId: CHAT.chatId, promptId: first, origin: 'https://first.example', requestedBy: 'agent' },
+      { kind: 'site', folder: FOLDER, chatId: CHAT.chatId, promptId: second, origin: 'https://second.example', requestedBy: 'person' },
+      { kind: 'site_cleared', folder: FOLDER, chatId: CHAT.chatId }
+    ])
+  })
+
+  it('clears the prompt when its Sign-in tab closes, every view closes, or the chat goes; a stale answer tells nothing', async () => {
+    const fake = setup()
+    await fake.host.openSignIn(CHAT, 'https://login.example/')
+    fake.host.closeSignIn(CHAT)
+    await fake.host.navigate(OTHER, 'https://other.example/', 'agent')
+    fake.host.closeViews()
+    await fake.host.navigate(CHAT, 'https://again.example/', 'agent')
+    expect(await fake.host.decideOrigin(CHAT, 'stale', 'deny')).toEqual({ ok: false, code: 'stale_prompt' })
+    fake.host.disposeChat(CHAT)
+    expect(fake.sitePrompts.map((event) => [event.kind, event.chatId, event.kind === 'site' ? event.requestedBy : null])).toEqual([
+      ['site', CHAT.chatId, 'person'], ['site_cleared', CHAT.chatId, null],
+      ['site', OTHER.chatId, 'agent'], ['site_cleared', OTHER.chatId, null],
+      ['site', CHAT.chatId, 'agent'], ['site_cleared', CHAT.chatId, null]
+    ])
+  })
+
+  it('a throwing listener is logged and never breaks the prompt', async () => {
+    const fake = setup()
+    fake.sitePrompts.push = () => { throw new Error('listener broke') }
+    expect(await fake.host.navigate(CHAT, 'https://new.example/', 'agent')).toEqual({ ok: false, code: 'origin_blocked' })
+    expect(fake.host.state(CHAT).pendingOrigin?.origin).toBe('https://new.example')
+    expect(fake.lines).toContain('browser site prompt listener failed')
   })
 })

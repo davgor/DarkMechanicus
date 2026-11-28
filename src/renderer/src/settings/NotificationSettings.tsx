@@ -21,7 +21,8 @@ const EVENT_LABELS: Record<NotificationEvent, string> = {
   question: 'A question needs you',
   checkpoint_ready: 'A checkpoint is ready',
   run_failed: 'A run failed',
-  run_stalled: 'A run went quiet (5 minutes)'
+  run_stalled: 'A run went quiet (5 minutes)',
+  browser_site: 'A site needs your approval'
 }
 
 const ARBITRATE_HELP =

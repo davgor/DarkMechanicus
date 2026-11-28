@@ -133,9 +133,11 @@ const threadTodos = { threadId: z.string().nullable(), phases: z.array(agentTodo
 /**
  * One prompt of a live GUI chat that waits on the person or the Magos: never tool input. `shown` marks the head of the
  * chat's queue (the prompt its card shows); prompts behind it keep the translator's `off` until they reach the head.
+ * A `site` item is the chat's pending browser origin prompt (any chat, live GUI or not): always shown, never arbitrated
+ * (`off`), on the chat's own row (`threadId` and `callsign` null), its title the masked origin.
  */
 export const attentionItemSchema = z.strictObject({
-  chatId: chatIdSchema, promptId: z.string().min(1), kind: z.enum(['approval', 'question']),
+  chatId: chatIdSchema, promptId: z.string().min(1), kind: z.enum(['approval', 'question', 'site']),
   threadId: z.string().nullable(), callsign: callsignSchema.nullable(), arbitration: z.enum(['off', 'deciding', 'escalated']),
   title: z.string().max(200), shown: z.boolean()
 })

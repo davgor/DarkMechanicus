@@ -12,7 +12,7 @@ let dm: FakeDm
 
 const stored: Settings = {
   version: 1,
-  events: { approval_needed: true, question: false, checkpoint_ready: true, run_failed: false, run_stalled: true },
+  events: { approval_needed: true, question: false, checkpoint_ready: true, run_failed: false, run_stalled: true, browser_site: false },
   sound: false,
   whenFocused: 'notify',
   arbitration: { enabled: true, alwaysAsk: ['Bash', 'mcp__github__*'], autoHandleNotes: 'npm test is routine.' }
@@ -91,9 +91,21 @@ describe('NotificationSettings (DM-829 c1)', () => {
         control.textContent
       expect(name?.trim(), control.outerHTML).toBeTruthy()
     }
-    expect(screen.getAllByRole('checkbox')).toHaveLength(6)
+    expect(screen.getAllByRole('checkbox')).toHaveLength(7)
     expect(screen.getAllByRole('radio')).toHaveLength(2)
     expect(screen.getAllByRole('switch')).toHaveLength(1)
+  })
+})
+
+describe('NotificationSettings browser_site event (DM-897 c4)', () => {
+  it('shows "A site needs your approval" with the stored value and saves it in the full object', async () => {
+    await mount()
+    expect(box('A site needs your approval').checked).toBe(false)
+    fireEvent.click(box('A site needs your approval'))
+    fireEvent.click(button('Save'))
+    await settle()
+    expect(dm.settings.saved).toEqual([{ ...stored, events: { ...stored.events, browser_site: true } }])
+    expect(box('A site needs your approval').checked).toBe(true)
   })
 })
 

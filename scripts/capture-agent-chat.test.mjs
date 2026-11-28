@@ -339,7 +339,7 @@ function passing() {
     'agent-magos-decided': ready('agent-magos-decided', {
       approvalRecord: 'Approval Denied by the Magos Run npm test Asked by Acolyte:DM-442 The Magos decided: docs only.'
     }),
-    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '3 needs you · 4 working', badgedRows: 3 }),
+    'agent-needs-you': ready('agent-needs-you', { needsYouHeader: '4 needs you · 4 working', badgedRows: 4 }),
     'agent-planners': ready('agent-planners', {
       treeRows: [row('Magos'), ...Array.from({ length: 9 }, (_, index) => row(index === 0 ? 'Lexmechanic' : `Lexmechanic-${index + 1}`, index === 1))]
     }),

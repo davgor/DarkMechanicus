@@ -230,7 +230,8 @@ describe('agent chat attention', () => {
       arbitration: 'escalated', title: 'a'.repeat(200), shown: true
     }
     const queued: AttentionItem = { ...item, promptId: 'req_2', kind: 'question', threadId: null, callsign: null, arbitration: 'off', shown: false }
-    for (const event of [{ ...ref, type: 'attention', items: [item, queued] }, { ...ref, type: 'attention', items: [] }] as AgentChatEvent[]) {
+    const site: AttentionItem = { ...item, promptId: 'site_1', kind: 'site', threadId: null, callsign: null, arbitration: 'off', title: 'https://docs.example' }
+    for (const event of [{ ...ref, type: 'attention', items: [item, queued, site] }, { ...ref, type: 'attention', items: [] }] as AgentChatEvent[]) {
       expect(agentChatEventSchema.parse(JSON.parse(JSON.stringify(event)))).toEqual(event)
     }
     for (const invalid of [
