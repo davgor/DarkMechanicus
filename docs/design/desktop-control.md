@@ -64,7 +64,7 @@ What the probe showed:
 
 **Limits carried into the build:**
 
-- Model images are capped at 1280×896 (B:173-174).
+- Model images sent to Claude models are capped at 1280×896 (B:73, B:173-174).
 - OMP leaves every computer screenshot in `%TEMP%\omp-computer-*.png` (B:175-177); §5.7 deals with this.
 - The OS-wide input lock (`InputBusy` after 5 s) means two computer-use chats contend for the desktop (B:178-179);
   §4 makes ownership single.
@@ -130,7 +130,8 @@ executes. It is rejected for these reasons:
 - **Observing RPC frames is enough.** DM needs to know that control is active and what the agent did. The active
   signal is the overlay setting, confirmed by `/computer status` and `get_state` (B:139-144). Per-action evidence is
   the `eval` `tool_execution_*` frames whose `args.code` uses `computer.`, plus OMP's takeover result lines (B:142-144).
-  The GUI already translates both into tool cards.
+  The GUI already translates both into tool cards: the OMP reducer maps every `tool_execution_*` frame
+  (`src/main/agentChat/ompReducer.ts:450`).
 
 **Cost of the choice:** DM cannot veto an individual action. That is the person's requirement, not a gap.
 
@@ -194,8 +195,10 @@ The route below is exactly as probed (O:69-80, `scripts/spike/desktop/overlay/ov
 - a 500 ms re-assert of `setAlwaysOnTop(true,'screen-saver')` plus `moveTop()`, which does not activate the window;
 - a rebuild on `display-added`, `display-removed` and `display-metrics-changed`.
 
-The page draws a 4 px `rgba(255,64,64,0.85)` border and a top-centre note, "A Skitarii agent is controlling the desktop
-— press Esc to stop" (O:74-75).
+The page draws a 4 px `rgba(255,64,64,0.85)` border (O:74-75) and a top-centre note in the person's exact words: "A
+Skitarii agent is controlling the desktop". The spike's note added "— press Esc to stop" (O:75, O:243). The product
+keeps that hint only if the person approves it at the checkpoint (open question in the proposal); without approval,
+the note is exactly the person's text.
 
 What the probe showed:
 
@@ -381,9 +384,10 @@ The agent's desktop screenshots should render inline through S3's chat-image pat
 3. Main deletes the folder when control ends. This also closes the `%TEMP%` leak.
 
 That OMP honours `TEMP`/`TMP` for these files is **UNPROVEN** ([INFERENCE]: Node's `os.tmpdir()` reads `TEMP` on
-Windows; B:177 notes there is no `browser.screenshotDir` counterpart). The live-facts probe proves it first. If it is
-false, the fallback is to collect `%TEMP%\omp-computer-*.png` files whose creation time falls inside the owner's
-session and move them into the chat folder. Single ownership (§4) keeps the attribution unambiguous.
+Windows; B:177 notes, as [INFERENCE], that `browser.screenshotDir` has no `computer` counterpart). The live-facts
+probe proves it first. If it is false, the fallback is to collect `%TEMP%\omp-computer-*.png` files whose creation
+time falls inside the owner's session and move them into the chat folder. Single ownership (§4) keeps the attribution
+unambiguous.
 
 **Privacy:** a desktop screenshot is the person's own screen, shown only in their own chat on their own machine. It
 never goes into an evidence attachment unless the person attaches it (S3 rules).
@@ -433,34 +437,48 @@ then exits. Its test asserts the order.
 
 ### 6.2 Bounds
 
-All figures are from the Windows host. "Kill start" is main's kill decision.
+The overlay figures are from the Windows host. The tree-ended figures were measured with the spike's
+`taskkill /T /F` of a stand-in tree and of a bare OMP tree (O:167, O:194-198). The product kills through the GUI
+process's force stop, which runs the same `taskkill /pid /t /f` (`agentProcess.ts:143-144`, `processTree.ts:7,247`),
+but it sits under the `windowsAgentJob` supervisor, which was never timed. So the "tree ended" bound for the
+product route is **UNPROVEN** until the live-facts probe's fact 3 and the e2e timings. "Kill start" is main's kill
+decision.
 
 | Path | Trigger reaches main | Overlay removed | Control off (computer-capable tree ended) | Evidence |
 | --- | --- | --- | --- | --- |
-| **Physical ESC** | hook callback → parent 0.36 ms | ≤ 10 ms (6.9–7.1 ms measured) | ≤ 150 ms (111 ms stand-in, 135 ms OMP tree) | O:163-167, O:194-201; the press itself **UNPROVEN** (O:169-171) |
-| **Header Stop** | IPC hop (not measured) | ≤ 10 ms after main receives it | ≤ 150 ms | same kill as ESC; the IPC hop is **UNPROVEN**, measured by the e2e `desktop-stop` step |
-| **Chat stop / delete** (`agentChatSessions.ts:1138-1156`) | direct call | ≤ 10 ms | ≤ 150 ms | same kill. The kill runs **before** the normal 5 s bounded shutdown (`:250-256`), never the 5 s-grace `interrupt` (`:1039-1058`) |
-| **Folder untrack** (`releaseFolder`, `:1163-1172`, S3's leak fix) | direct call | ≤ 10 ms | ≤ 150 ms | same kill, inside `stopWhere` |
-| **Agent removal** (`endAgent`, `:1173-1175`) | direct call | ≤ 10 ms | ≤ 150 ms | same kill |
-| **Quit** (`quitDisposal.ts:62`, `dispose` `agentChatSessions.ts:1176-1190`) | `before-quit` | ≤ 10 ms | ≤ 150 ms, inside the 5 s quit bound | same kill, run first in dispose |
+| **Physical ESC** | hook callback → parent 0.36 ms | ≤ 10 ms (6.9–7.1 ms measured) | target ≤ 150 ms (spike: 111 ms stand-in, 135 ms OMP tree; product route **UNPROVEN**) | O:163-167, O:194-201; the press itself **UNPROVEN** (O:169-171) |
+| **Header Stop** | IPC hop (not measured) | ≤ 10 ms after main receives it | target ≤ 150 ms | same kill as ESC; the IPC hop is **UNPROVEN**, measured by the e2e `desktop-stop` step |
+| **Chat stop / delete** (`agentChatSessions.ts:1138-1156`) | direct call | ≤ 10 ms | target ≤ 150 ms | same kill. The kill runs **before** the normal 5 s bounded shutdown (`:250-256`), never the 5 s-grace `interrupt` (`:1039-1058`) |
+| **Folder untrack** (`releaseFolder`, `:1163-1172`, S3's leak fix) | direct call | ≤ 10 ms | target ≤ 150 ms | same kill, inside `stopWhere` |
+| **Agent removal** (`endAgent`, `:1173-1175`) | direct call | ≤ 10 ms | target ≤ 150 ms | same kill |
+| **Quit** (`quitDisposal.ts:62`, `dispose` `agentChatSessions.ts:1176-1190`) | `before-quit` | ≤ 10 ms | target ≤ 150 ms, inside the 5 s quit bound | same kill, run first in dispose |
 | **OMP exits on its own** | process `exit` | ≤ 10 ms | already ended | owner cleared on exit |
-| **Hook helper dies** | helper exit seen by parent ~80–92 ms after it is killed | 8.1 ms after the exit is seen | 117 ms after kill start | O:182 (rerun 19:07Z) |
-| **Lost heartbeat** | ≤ 1000 ms limit + 100 ms watchdog (1099 ms measured) | 9.1 ms after detection | 112 ms after detection | O:183 |
-| **Lost ping** (hook silently removed) | ≤ 2500 ms limit + watchdog | ≤ 10 ms after detection | ≤ 150 ms after detection | O:151; the same kill path. Ping loss itself was not induced in the probe: **UNPROVEN**, and a unit test with an injected clock proves the watchdog |
-| **DM main crash** | — | windows die with the process | the helper's parent watch: unhooked 4.6 ms after the parent ended. Node's children ended 5.6 ms after the parent was terminated ([INFERENCE] kill-on-close job). The OMP CLI runs in DM's owned job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (`windowsAgentJob.ts:137`, `agentProcess.ts:215-224`) | O:184-185; the chain from DM crash to the OMP tree ending is **UNPROVEN** for the real OMP and is proven by the e2e `desktop-crash` step (`taskkill /F` of DM main; OMP pid, helper and overlay all gone within 1 s) |
+| **Hook helper dies** | helper exit seen by parent ~80–92 ms after it is killed | 8.1 ms after the exit is seen | 117 ms after kill start (spike route) | O:182 (rerun 19:07Z) |
+| **Lost heartbeat** | ≤ 1000 ms limit + 100 ms watchdog (1099 ms measured) | 9.1 ms after detection | 112 ms after detection (spike route) | O:183 |
+| **Lost ping** (hook silently removed) | ≤ 2500 ms limit + 100 ms watchdog tick (`control.mjs:195-199`) | ≤ 10 ms after detection | target ≤ 150 ms after detection | O:151; the same kill path. Ping loss itself was not induced in the probe: **UNPROVEN**, and a unit test with an injected clock proves the watchdog |
+| **DM main crash** | — (no kill decision) | windows die with the process | own bound: OMP pid, helper and overlay gone within **1 s**. Evidence so far: the helper's parent watch unhooked 4.6 ms after the parent ended; Node's children ended 5.6 ms after the parent was terminated ([INFERENCE] kill-on-close job); the overlay's own parent watch took 297 ms in the spike. The OMP CLI runs in DM's owned job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (`windowsAgentJob.ts:137`, `agentProcess.ts:215-224`) | O:184-185; the chain from DM crash to the OMP tree ending is **UNPROVEN** for the real OMP and is proven by the e2e `desktop-crash` step (`taskkill /F` of DM main; OMP pid, helper and overlay all gone within 1 s) |
 
-**Stated bound (from O:200-201):** the overlay is removed within **10 ms** of the kill decision. The computer-capable
-tree has ended within **150 ms** of the kill decision. No injected input arrives after the tree has ended (0 tagged
-keys in the 1 s watch, O:196).
+**Stated bound:**
+
+- The overlay is removed within **10 ms** of the kill decision (O:200-201).
+- The computer-capable tree has ended within **150 ms** of the kill decision. This is the spike's measured bound
+  (O:200-201). It is **UNPROVEN** for the product's job-supervised route until `dc-live-facts` and `dc-e2e` time it.
+- No injected input arrives after the tree has ended (0 tagged keys in the 1 s watch, O:196).
 
 Up to about 10 keys from a stand-in that injected every 10 ms still landed inside the 110–135 ms window, because
-`taskkill` is a process start (O:201-204). The build narrows that window in two ways:
+`taskkill` is a process start (O:201-204). The GUI process's force stop (`AgentProcess.stop({ force: true })`,
+`agentProcess.ts:206-211`) goes through the same `taskkill` (`agentProcess.ts:143-144`), so on its own it narrows
+nothing. Two narrowings are available, and both are **UNPROVEN**:
 
-- OMP's own physical-Esc stop halts takeover input at the same keypress (O:202-203);
-- the kill uses the GUI process's force stop (`AgentProcess.stop({ force: true })`, `agentProcess.ts:206-211`), which
-  starts the tree kill at once.
+- O:204's route: collect the OMP root's descendants, then `TerminateProcess` the known root at once, before the
+  tree kill. The live-facts probe's fact 3 times it against `taskkill`, and the kill ticket uses whichever is faster.
+- On a physical ESC only, OMP's own physical-Esc stop should halt takeover input at the same keypress (O:202-203).
+  Whether the OMP and DM stops fire together is **UNPROVEN** (O:216-218). The person's checkpoint step runs on the
+  fake persona, so it does not settle this either. It stays a documented UNPROVEN item, and DM's kill does not
+  depend on it.
 
-**Fail-closed bound:** if the hook is silently removed, control ends within 2.5 s plus 150 ms.
+**Fail-closed bound:** if the hook is silently removed, control ends within 2.6 s (the 2500 ms ping limit plus the
+100 ms watchdog tick) plus the tree kill.
 
 ### 6.3 One kill, every path
 
@@ -484,7 +502,7 @@ These limits are from DM-1042 (O:254-266). Where a limit is untested, it says so
 
 | Situation | What the person should expect | Evidence |
 | --- | --- | --- |
-| **Elevated window in front** (Task Manager, an admin terminal) | A medium-integrity hook does not see keys while an elevated window has focus (UIPI). A physical Esc there may **not** kill. The helper's own ping may also be blocked, which reads as a lost hook and is a fail-closed kill. Expect control to end within about 2.5 s of an elevated window taking focus, or ESC to do nothing until focus leaves it. | O:260-262: **UNPROVEN**, because testing needs a UAC prompt, which an agent cannot handle unattended. The proposal lists it as a person-observable note, not a gate. |
+| **Elevated window in front** (Task Manager, an admin terminal) | A medium-integrity hook does not see keys while an elevated window has focus (UIPI). A physical Esc there may **not** kill. The helper's own ping may also be blocked, which reads as a lost hook and is a fail-closed kill. Expect control to end within about 2.6 s of an elevated window taking focus, or ESC to do nothing until focus leaves it. | O:260-262: **UNPROVEN**, because testing needs a UAC prompt, which an agent cannot handle unattended. The proposal lists it as a person-observable note, not a gate. |
 | **Exclusive-fullscreen app** (some games, some 3D viewports) | The app may take the display and hide the border. The hook and the kill still work ([INFERENCE]: the hook is not a window). | O:258-259: **UNPROVEN**, because no exclusive-fullscreen app was launched. Borderless fullscreen was proven covered (O:95). |
 | **Secure desktop** (UAC prompt, Ctrl+Alt+Del, lock screen) | No border, no hook. [INFERENCE]: the agent's medium-integrity injection cannot reach that desktop either. | O:263 |
 | **Multiple displays, add/remove, DPI change** | One overlay per display, rebuilt on change. | O:109-111, O:264: **UNPROVEN** on a one-monitor host |
@@ -558,6 +576,8 @@ Everything is checked by an agent on the Windows host except one physical keypre
   - OMP honouring `TEMP` for its screenshots (§5.7);
   - inline rendering of desktop screenshots (B:56);
   - the DM-crash → OMP-tree-ended chain for real OMP (§6.2);
+  - the tree-ended bound (≤ 150 ms) for the product's job-supervised kill route, and the faster root-first kill
+    (§6.2);
   - the Stop IPC hop (§6.2);
   - ping-loss detection (§6.2);
   - multi-monitor, add/remove and DPI (O:264);

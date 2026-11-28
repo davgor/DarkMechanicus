@@ -111,9 +111,10 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
   - fails closed on its own death, a heartbeat gap over 1000 ms or a ping gap over 2500 ms;
   - stops its ping thread before unhooking.
 - **x6.** Every kill path (physical ESC, header Stop, chat stop and delete, untrack, agent removal, quit, OMP exit,
-  hook death, heartbeat and ping loss, DM crash) runs one kill. The overlay is removed within 10 ms and the tree has
-  ended within 150 ms of the kill decision, with no injected key after. The lock is lifted only after the tree has
-  exited.
+  hook death, heartbeat and ping loss) runs one kill. The overlay is removed within 10 ms and the tree has ended
+  within 150 ms of the kill decision (measured on the product's route), with no injected key after. The lock is lifted
+  only after the tree has exited. A DM crash, which has no kill decision, leaves no OMP pid, hook helper or overlay
+  window after 1 s.
 - **x7.** While control is active, main refuses every locked control:
   - every `HUMAN_ONLY_CAPABILITIES` command;
   - the locked channels;
@@ -135,7 +136,7 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
   controls any live-host Restart now.
 - **x12.** The final-sprint closeout follows the Placement section above.
 
-**`deploymentVerification`** (1,825 characters):
+**`deploymentVerification`** (1,884 characters):
 
 > Deliverable: on Windows the person turns on Desktop control for a Skitarii GUI chat, sees the red border with the
 > note on every display and the header badge, and a physical ESC ends control at once.
@@ -155,7 +156,8 @@ The sprint is **placement-neutral**: it works whether it runs before or after An
 > Person's single step at checkpoint, in the installed app with the isolated profile and the fake persona: turn on
 > Desktop control for the fixture chat; confirm the light red border and note are visible on every display (this
 > also settles whether a content-protected border shows through RDP); press Esc on the physical keyboard. Expected:
-> the border disappears at once and the chat header shows Desktop control ended (physical-esc).
+> the border disappears at once and the header shows Desktop control ended (physical-esc) with its overlay and tree
+> times in ms, which the report records.
 
 **Checkpoint mode:** `human`.
 
@@ -352,7 +354,8 @@ same rules from the Sprint 5 tickets hold everywhere:
   It re-asserts `screen-saver` plus `moveTop()` every 500 ms (`:155`), rebuilds on display add, remove and
   metrics-change (`:158`), and `close()` destroys every window synchronously.
   - **Page.** A static, script-free page under a strict CSP draws the 4 px `rgba(255,64,64,0.85)` border and the
-    top-centre note "A Skitarii agent is controlling the desktop — press Esc to stop" (O:74-75).
+    top-centre note in the person's exact words, "A Skitarii agent is controlling the desktop" (O:74-75). The spike's
+    "— press Esc to stop" suffix (O:75) is added only if the person approves it (open question 1 below).
   - **`windows.test.ts`.** `src/main/windows.test.ts:17-23` is updated **deliberately**: the allowed set becomes
     `index.ts` and `desktopControl/overlayWindows.ts`, with exactly one `new BrowserWindow` each. A new assertion pins
     the overlay's options.
@@ -417,11 +420,16 @@ same rules from the Sprint 5 tickets hold everywhere:
 - **Size** medium · **Reasoning** high
 - **Outcome.** `endDesktopControl(reason)` in `desktopControl.ts` runs the fixed order of D §6.3:
   1. close the overlay windows synchronously;
-  2. at the same moment, force-stop the owner's process (`AgentProcess.stop({ force: true })`,
-     `src/main/agentChat/agentProcess.ts:206-211`). Never `interrupt` (`agentChatSessions.ts:1039-1058`), and never
-     the 5 s graceful path first (`:250-256`);
+  2. at the same moment, end the owner's process tree without any grace: never `interrupt`
+     (`agentChatSessions.ts:1039-1058`), and never the 5 s graceful path first (`:250-256`). The route is the faster
+     of the two that `dc-live-facts` fact 3 timed:
+     - the GUI process's force stop (`AgentProcess.stop({ force: true })`,
+       `src/main/agentChat/agentProcess.ts:206-211`, which runs `taskkill /t /f` through `processTree.ts:247`);
+     - collecting the root's descendants, then `TerminateProcess` of the known root at once before the tree kill
+       (O:204).
   3. keep the hook listening for 1 s;
-  4. on exit, clear the owner, lift the lock, stop the helper and push the state.
+  4. on exit, clear the owner, lift the lock, stop the helper and push the state. The end record carries `reason` and
+     the measured kill-decision → overlay-closed and kill-decision → tree-exited times in ms.
 
   It is wired to every path:
   - physical ESC and the watchdog (`dc-hook`);
@@ -574,7 +582,7 @@ same rules from the Sprint 5 tickets hold everywhere:
   - **Header.** `ChatHeader` (`src/renderer/src/agentChat/AgentChat.tsx:217-237`) gets a **Desktop control** toggle
     (OMP GUI chats on Windows only, Off by default). While control is active it shows a light red badge "Desktop
     control on" (`role="status"`) and a **Stop desktop control** button. A "Starting desktop control" state and an
-    "Ended: <reason>" line come from the pushed state.
+    "Ended: <reason> (overlay <n> ms, tree <m> ms)" line come from the pushed state.
   - **Tree.** `TreeRow` (`src/renderer/src/agentTree/AgentTree.tsx:190`) shows a lock glyph named "Desktop control on"
     on the owner's root row.
   - **Notification.** `NOTIFICATION_EVENTS` (`src/shared/desktop/notificationSettings.ts:10`) gains `desktop_control`,
@@ -742,7 +750,9 @@ same rules from the Sprint 5 tickets hold everywhere:
 
 | UNPROVEN item (source) | Settled by |
 | --- | --- |
-| The physical ESC press and its timing; OMP and DM stops together (O:256-257, B:234-235) | The person's single checkpoint step (`deploymentVerification`). The DM side is asserted by `escHook.real.test.ts` (injected) and the `dc-hook` decision tests |
+| The physical ESC press and its callback-to-overlay time (O:256-257, B:234-235) | The person's single checkpoint step (`deploymentVerification`). The ended line shows `physical-esc` with the overlay and tree times. The DM side is also asserted by `escHook.real.test.ts` (injected) and the `dc-hook` decision tests |
+| OMP's own physical-Esc stop and DM's kill firing together (O:216-218) | **Retired by decision.** DM's kill does not depend on OMP's stop (D §6.2), so the product never relies on the two firing together. The person's step runs on the fake persona, so OMP's stop is not present there. `dc-docs` records it as a known limit, not a guarantee |
+| The tree-ended bound (≤ 150 ms) for the product's job-supervised kill route (D §6.2) | `dc-live-facts` fact 3, then `dc-e2e` `desktop-stop` timings |
 | RDP visibility of the content-protected overlay (O:128-129, O:265) | The same checkpoint step, on the product's protected overlay |
 | OMP honours `TEMP` for `omp-computer-*.png` (D §5.7) | `dc-live-facts` fact 1; the fallback is in `dc-screens` |
 | A resumed session with the default overlay is disabled (D §3.4) | `dc-live-facts` fact 2; `dc-owner` c3 pins the invariant |
@@ -756,3 +766,12 @@ same rules from the Sprint 5 tickets hold everywhere:
 | Elevated windows (UIPI) and exclusive fullscreen (O:258-262) | Not agent-testable (it needs a UAC prompt, or such an app). They stay documented limits (D §7) and are stated in the runbook by `dc-docs` |
 | The piped-stdin oddity (O:266) | Moot: the overlay is in-process (D §5.1) |
 | agent-desktop on non-Chromium apps (B:207-208, B:239-240) | Moot: agent-desktop is not used |
+
+## Open questions for the person (raised at the S5 checkpoint)
+
+1. **The note's hint.** The person's note is "A Skitarii agent is controlling the desktop". The spike added "— press
+   Esc to stop" (O:75). Keep the hint? Without approval, `dc-overlay` uses the exact note.
+2. **Docked approval Allow.** The person's lock list does not name the docked approval card's Allow on a chat's own
+   pending tool prompt (`agentChat:answer`, `src/main/agentChat/agentChatIpc.ts:244`). An agent with control could
+   click Allow on another chat's prompt. The recommendation is to lock approving answers while control is active
+   (`dc-lock-main` optional c4). The redraft saves c4 only if the person agrees.
