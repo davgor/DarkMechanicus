@@ -42,7 +42,8 @@ function fakeView(beforeRequests: Map<string, BeforeRequest>, partition: string)
     isDestroyed: vi.fn(() => false), close: vi.fn(), executeJavaScriptInIsolatedWorld: vi.fn(async () => true),
     setWindowOpenHandler: vi.fn(), setWebRTCIPHandlingPolicy: vi.fn(), closeDevTools: vi.fn(),
     debugger: { attach: vi.fn(), detach: vi.fn(), isAttached: () => true, sendCommand: vi.fn(async () => ({ nodes: [] })), on: vi.fn() },
-    capturePage: vi.fn(),
+    capturePage: vi.fn(), stop: vi.fn(), reload: vi.fn(),
+    navigationHistory: { getActiveIndex: () => 0, length: () => 1, getEntryAtIndex: () => ({ url }), goBack: vi.fn(), goForward: vi.fn() },
     on(event: string, listener: Listener) { listeners.set(event, [...(listeners.get(event) ?? []), listener]); return webContents }
   }
   return { webContents, setBounds: vi.fn(), setVisible: vi.fn() }
@@ -90,6 +91,7 @@ function wiringRig(options: { grants: () => ChatGrants; root: string; authorize?
   const beforeRequests = new Map<string, BeforeRequest>()
   const wiring: BrowserWiring = startBrowser<WiredView>({
     root: join(options.root, 'browser'), appUrl: 'http://localhost:5173', windows: () => windows,
+    registry: { resolve: (path) => (path === join(options.root, 'repo') ? path : null) },
     createView: (webPreferences) => {
       const view = fakeView(beforeRequests, webPreferences.partition)
       views.push(view)
@@ -218,5 +220,23 @@ describe('browser disposal (c3, R19-8)', () => {
     await rig.wiring.dispose()
     expect(rig.views[1].webContents.close).toHaveBeenCalledOnce()
     expect(await call(env, STATUS)).toMatchObject({ ok: false, error: { code: 'desktop_unavailable' } })
+  })
+})
+
+describe('browser panel IPC through the wiring', () => {
+  it("Stop on the panel detaches the agent tab's debugger and stops its load in the same tick", async () => {
+    const rig = await setup()
+    rig.windows.push(fakeWindow().window)
+    const request = { folder: rig.repo, chatId: 'chat-panel' }
+    rig.wiring.host.ensureAgentTab(request)
+    const listeners = new Map<string, (event: unknown, request: unknown) => unknown>()
+    rig.wiring.registerIpc({ handle: (channel, listener) => void listeners.set(channel, listener as (event: unknown, request: unknown) => unknown) })
+    expect([...listeners.keys()]).toContain('browser:stopAgent')
+    const answered = listeners.get('browser:stopAgent')!({}, request)
+    expect(rig.views[0].webContents.debugger.detach).toHaveBeenCalledOnce()
+    expect(rig.views[0].webContents.stop).toHaveBeenCalledOnce()
+    expect(await answered).toEqual({ ok: true, data: null })
+    expect(rig.wiring.ownership.owner('chat-panel')).toBe('stopped')
+    expect(await listeners.get('browser:stopAgent')!({}, { ...request, folder: join(rig.root, 'elsewhere') })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
   })
 })

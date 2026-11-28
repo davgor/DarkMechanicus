@@ -126,7 +126,7 @@ import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { createChatImages, type ChatImages } from '../agentChat/chatImages'
 import { createChatImageLookup, registerChatImageProtocol } from '../agentChat/chatImageProtocol'
-import { BROWSER_CHANNELS } from '../../shared/browser/browserApi'
+import { createBrowserPush } from '../browser/browserIpc'
 import { startBrowser, type BrowserWiring } from '../browser/browserWiring'
 import { ticketKeyOfAttempt } from '../magos/arbiterContext'
 import { resolveAppUrl } from './navigation'
@@ -456,6 +456,8 @@ interface ChatProcessOptions {
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
   /** The chats' images (`userData/agents/chat-images`): deleting a chat removes its images with its transcript. */
   chatImages: ChatImages
+  /** The sender-guarded registrar (`guardIpc`) the browser panel's `browser:*` channels are registered on. */
+  ipc: Pick<IpcMain, 'handle'>
 }
 interface ChatQuitOptions {
   grants: ChatGrants
@@ -482,15 +484,17 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins, browser }:
 
 /**
  * The agent browser (`browserWiring.ts`) over the main window found at each use, and its pipe, which the chats' live
- * grants authorize; the chat store and the grants are created after it, so they are reached lazily.
+ * grants authorize; the chat store and the grants are created after it, so they are reached lazily. The panel's
+ * `browser:*` channels are registered on `ipc`.
  */
 function createChatBrowser(
-  { folders, workspaces, activity, chatImages }: Pick<ChatProcessOptions, 'folders' | 'workspaces' | 'activity' | 'chatImages'>,
+  { folders, workspaces, activity, chatImages, ipc }: Pick<ChatProcessOptions, 'folders' | 'workspaces' | 'activity' | 'chatImages' | 'ipc'>,
   late: { store: () => ChatStore; grants: () => ChatGrants }
 ): BrowserWiring {
-  return startBrowser<WebContentsView>({
+  const browser = startBrowser<WebContentsView>({
     root: join(app.getPath('userData'), 'browser'),
     appUrl: resolveAppUrl(process.env['ELECTRON_RENDERER_URL'], join(__dirname, '../renderer/index.html')),
+    registry: folders,
     windows: () => BrowserWindow.getAllWindows(),
     createView: (webPreferences) => new WebContentsView({ webPreferences }),
     authorize: (token) => late.grants().authorizeBrowser(token),
@@ -498,9 +502,11 @@ function createChatBrowser(
     chatFor: (ref) => late.store().getChat({ folder: ref.folder, id: ref.chatId }),
     bindings: activity,
     ticketKeyOfAttempt: (folder, attemptId) => ticketKeyOfAttempt(desktopWorkspace(folders, workspaces, folder), attemptId),
-    push: (state) => sendToWindows(BrowserWindow.getAllWindows(), BROWSER_CHANNELS.event, state),
+    push: createBrowserPush(() => BrowserWindow.getAllWindows()),
     log: (line) => logger.warn(line)
   })
+  browser.registerIpc(ipc)
+  return browser
 }
 
 /**
@@ -510,9 +516,9 @@ function createChatBrowser(
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages, ipc }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
-  const browser = createChatBrowser({ folders, workspaces, activity, chatImages }, { store: () => store, grants: () => grants })
+  const browser = createChatBrowser({ folders, workspaces, activity, chatImages, ipc }, { store: () => store, grants: () => grants })
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages, browser: browser.host })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
@@ -1399,7 +1405,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
   const chatImages = createChatImages({ root: join(app.getPath('userData'), 'agents', 'chat-images') })
   const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail } = createChatProcesses({
-    folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages,
+    folders: registry, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages, ipc,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)

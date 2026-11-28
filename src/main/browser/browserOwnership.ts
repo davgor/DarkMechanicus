@@ -15,7 +15,7 @@ import type { browserOwnerSchema } from '../../shared/browser/browserControl'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 
 type BrowserOwner = z.infer<typeof browserOwnerSchema>
-type BrowserOwnershipEffect = 'detach_debugger' | 'stop_loading'
+export type BrowserOwnershipEffect = 'detach_debugger' | 'stop_loading'
 
 /** An admitted agent op: its signal aborts on stop or takeControl; `end` releases it once the op settles. */
 interface AgentOpLease {

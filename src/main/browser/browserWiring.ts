@@ -9,8 +9,10 @@
  *   holding the views closes, every view is closed and recreated lazily in the next window.
  * - The pipe checks `browser.drive` before dispatch, after it and while it runs, through the grant's own workspace
  *   (`verifyChatGrant`); `authorize` (the grant registry's `authorizeBrowser`) has already refused other roles.
+ * - The person's panel reaches the same host, ownership, settings and site lists through `registerIpc` (`browserIpc.ts`).
  * - Disposal closes the pipe (cancelling every op), then every view, then the screenshot copies.
  */
+import type { IpcMain } from 'electron'
 import { BROWSER_PROTOCOL } from '../../core/desktop/controlProtocol'
 import type { BrowserState } from '../../shared/browser/browserApi'
 import {
@@ -19,21 +21,23 @@ import {
 import type { ChatImages } from '../agentChat/chatImages'
 import type { ActivityBindings } from '../agents/activityBindings'
 import { createControlServer, type ControlServerHandle, type ControlServerProtocol } from '../control/controlServer'
+import type { FolderRegistry } from '../desktop/folderRegistry'
 import { join } from 'node:path'
 import { createBrowserDispatcher, type BrowserControlBinding, type BrowserDispatcher } from './browserDispatch'
 import { createBrowserDriver, type BrowserDriver, type DriverContents } from './browserDriver'
 import {
   createBrowserHardener, createBrowserHost, type AgentTab, type BrowserChatRef, type BrowserHost, type HostContents, type HostView
 } from './browserHost'
+import { createBrowserIpcHandlers, registerBrowserIpc, type PanelContents } from './browserIpc'
 import { createBrowserOwnership, type BrowserOwnership, type OwnerLabelChat } from './browserOwnership'
 import { BROWSER_WEB_PREFERENCES } from './browserSession'
 import { createBrowserSettings, type BrowserSettings } from './browserSettings'
 import { createBrowserShots, type BrowserShots } from './browserShots'
 import { createSiteStore, type SiteStore } from './siteStore'
 
-/** A view whose contents the driver can also drive; Electron's `WebContentsView` satisfies it. */
+/** A view whose contents the driver can also drive and the panel move in history; Electron's `WebContentsView` satisfies it. */
 export interface WiredView extends HostView {
-  readonly webContents: HostContents & DriverContents
+  readonly webContents: HostContents & DriverContents & PanelContents
 }
 
 /** The parts of a `BrowserWindow` the browser uses, over its own view type. */
@@ -52,6 +56,8 @@ interface BrowserWiringDeps<View extends WiredView> {
   root: string
   /** The app's own page, which a tab never opens. */
   appUrl: string | null
+  /** The tracked folders, which every panel request's folder must be one of. */
+  registry: Pick<FolderRegistry, 'resolve'>
   /** Every open window, the main window first (`BrowserWindow.getAllWindows`). */
   windows(): readonly BrowserWindowLike<View>[]
   createView(webPreferences: typeof BROWSER_WEB_PREFERENCES & { partition: string }): View
@@ -81,6 +87,8 @@ export interface BrowserWiring {
   readonly ready: Promise<void>
   /** Closes the pipe, then every view, then the uncollected screenshot copies. */
   dispose(): Promise<void>
+  /** Registers the panel's `browser:*` channels on `ipc` (the sender-guarded registrar from `guardIpc`). */
+  registerIpc(ipc: Pick<IpcMain, 'handle'>): void
 }
 
 /** The browser pipe's server side: status in its own lane, and `browser.drive` verified around every op. */
@@ -153,15 +161,17 @@ function listen(deps: Pick<BrowserWiringDeps<WiredView>, 'authorize' | 'log'>, d
   }
 }
 
-/** The views as the deps made them, which the window takes, and each tab's driver. */
+/** The views as the deps made them, which the window takes, and each tab's driver and history controls. */
 function wiredViews<View extends WiredView>(createView: BrowserWiringDeps<View>['createView'], slot: WindowSlot<View>) {
   const views = new WeakMap<HostView, View>()
   const drivers = new WeakMap<HostContents, BrowserDriver>()
+  const panels = new WeakMap<HostContents, PanelContents>()
   return {
     createView: (webPreferences: Parameters<typeof createView>[0]): HostView => {
       const view = createView(webPreferences)
       views.set(view, view)
       drivers.set(view.webContents, createBrowserDriver(view.webContents))
+      panels.set(view.webContents, view.webContents)
       return view
     },
     attach: (view: HostView) => { const wired = views.get(view); if (wired !== undefined) slot.attach(wired) },
@@ -170,6 +180,11 @@ function wiredViews<View extends WiredView>(createView: BrowserWiringDeps<View>[
       const driver = drivers.get(tab.contents)
       if (driver === undefined) throw new BrowserControlError('no_tab')
       return driver
+    },
+    contentsFor: (tab: AgentTab): PanelContents => {
+      const contents = panels.get(tab.contents)
+      if (contents === undefined) throw new BrowserControlError('no_tab')
+      return contents
     }
   }
 }
@@ -212,6 +227,10 @@ export function startBrowser<View extends WiredView>(deps: BrowserWiringDeps<Vie
       await pipe.close()
       host.dispose()
       await shots.dispose()
-    }
+    },
+    registerIpc: (ipc) => registerBrowserIpc(ipc, createBrowserIpcHandlers({
+      registry: deps.registry, host, ownership, settings, sites, driverFor: views.driverFor, contentsFor: views.contentsFor,
+      onUnexpectedError: (error) => deps.log(`Browser request failed: ${error instanceof Error ? error.message : String(error)}`)
+    }))
   }
 }

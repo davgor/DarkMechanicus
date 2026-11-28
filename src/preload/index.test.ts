@@ -8,6 +8,7 @@ import type { IpcMain } from 'electron'
 import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/chatApi'
 import { AGENT_CHAT_CHANNELS, type AgentChatApi } from '../shared/agents/agentChat'
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
+import { BROWSER_CHANNELS, type BrowserApi, type BrowserState } from '../shared/browser/browserApi'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
 import { startForge } from '../main/desktop/forgeService'
@@ -16,6 +17,7 @@ import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
 import { registerAutoUpdateHandlers } from '../main/autoUpdate'
+import { registerBrowserIpc, type BrowserIpcHandlers } from '../main/browser/browserIpc'
 import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from '../main/desktop/ipc'
 import type { YoloHandlers } from '../main/desktop/yoloHandlers'
 import { registerCrossRepoCorrectionIpc, type CrossRepoCorrectionHandlers } from '../main/desktop/crossRepoCorrections'
@@ -73,6 +75,12 @@ const registered = new Map<string, Listener>()
 const handled: Array<{ method: string; args: unknown[] }> = []
 const fakeEvent = { sender: 'renderer' }
 
+const BROWSER_STATE: BrowserState = {
+  folder: '/repo', chatId: 'chat_1', enabled: true, owner: 'agent', ownerLabel: 'Acolyte:DM-870',
+  tab: { url: 'https://a.example/', title: 'A', loading: false }, signIn: null,
+  pendingOrigin: { id: 'p1', origin: 'https://b.example', requestedBy: 'page' }
+}
+
 function recordingHandlers<T>(): T {
   return new Proxy({}, {
     get: (_target, method: string) => (...args: unknown[]) => {
@@ -103,6 +111,22 @@ const isSubscription = (path: string): boolean => /\.on[A-Z]\w*$/.test(path)
 /** The one method whose wire payload is not its argument list: attach sends one request object, as main's strict schema wants. */
 const wireArgs: Record<string, (args: unknown[]) => unknown[]> = {
   'dm.terminals.attach': ([folder, chatId]) => [{ folder, chatId }]
+}
+
+/**
+ * Bridged methods whose channel main does not register here, so the invoke reaches no handler: the agent-chat contract
+ * landed before its main handlers (DM-770), and `browser:capture` is registered by the camera ticket.
+ */
+function unregisteredChannel(path: string): string | undefined {
+  if (path.startsWith('dm.agentChat.')) return AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>]
+  return path === 'dm.browser.capture' ? BROWSER_CHANNELS.capture : undefined
+}
+
+/** The payload each subscription's push carries when it must be valid to be forwarded; `{ payload: path }` otherwise. */
+const PUSH_PAYLOADS: Record<string, unknown> = {
+  'dm.agentChat.onEvent': { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' },
+  'dm.notifications.onNavigate': { kind: 'epic', folder: '/repo', epicId: 'ep_01j0000000000000000000000e' },
+  'dm.browser.onEvent': BROWSER_STATE
 }
 
 async function recordForgeChannels(): Promise<void> {
@@ -140,6 +164,7 @@ beforeAll(async () => {
   registerLearningApprovalIpc(recorder(true), recordingHandlers<LearningApprovalHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
+  registerBrowserIpc(recorder(true), recordingHandlers<BrowserIpcHandlers>())
   registerTelegramIpc(recorder(false), () => ({}), async () => 'code', () => {})
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
@@ -161,11 +186,10 @@ describe('preload bridge', () => {
       bridge.calls.length = 0
       handled.length = 0
       const args = Array.from({ length: method.length }, (_, i) => `${path}#${i}`)
-      // DM-770 adds the contract before the agent-chat main handlers land.
-      if (path.startsWith('dm.agentChat.')) {
-        const channel = AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>]
-        await expect(method(...args)).rejects.toThrow(`Unregistered channel ${channel}`)
-        expect(bridge.calls, path).toEqual([[channel, ...args]])
+      const unregistered = unregisteredChannel(path)
+      if (unregistered !== undefined) {
+        await expect(method(...args)).rejects.toThrow(`Unregistered channel ${unregistered}`)
+        expect(bridge.calls, path).toEqual([[unregistered, ...args]])
         continue
       }
       const result = await method(...args)
@@ -241,6 +265,7 @@ describe('preload bridge subscriptions', () => {
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
       'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
       'dm.agentChat.onEvent': AGENT_CHAT_CHANNELS.event,
+      'dm.browser.onEvent': BROWSER_CHANNELS.event,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
       'dm.onFoldersChanged': 'forge:foldersChanged',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
@@ -255,9 +280,7 @@ describe('preload bridge subscriptions', () => {
       const unsubscribe = subscribe((...args: unknown[]) => received.push(args)) as () => void
       const listeners = bridge.listeners.get(expected[path])
       expect(listeners?.size, path).toBe(1)
-      const payload = path === 'dm.agentChat.onEvent' ? { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' }
-        : path === 'dm.notifications.onNavigate' ? { kind: 'epic', folder: '/repo', epicId: 'ep_01j0000000000000000000000e' }
-          : { payload: path }
+      const payload = PUSH_PAYLOADS[path] ?? { payload: path }
       for (const listener of listeners ?? []) listener(fakeEvent, payload)
       // Folder changes invalidate the registry without forwarding any payload.
       const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [payload]
@@ -282,6 +305,35 @@ describe('preload bridge subscriptions', () => {
     expect(received).toEqual([valid])
     unsubscribe()
     expect(listeners?.size).toBe(0)
+  })
+})
+
+describe('preload bridge browser', () => {
+  it('maps each browser method to its own browser:* channel, forwarding only the request', async () => {
+    const dm = bridge.exposed.get('dm') as { browser: BrowserApi }
+    const request = { folder: '/repo', chatId: 'chat_1' }
+    for (const method of ['state', 'back', 'forward', 'reload', 'stopAgent', 'takeControl', 'handBack', 'closeSignIn'] as const) {
+      bridge.calls.length = 0
+      handled.length = 0
+      expect(await dm.browser[method](request), method).toBe(`result:${method}`)
+      expect(bridge.calls, method).toEqual([[BROWSER_CHANNELS[method], request]])
+      expect(handled, method).toEqual([{ method, args: [request] }])
+    }
+  })
+
+  it('drops an invalid browser:event push and forwards a valid state', () => {
+    const dm = bridge.exposed.get('dm') as { browser: BrowserApi }
+    const received: unknown[] = []
+    const unsubscribe = dm.browser.onEvent((state) => received.push(state))
+    const invalid = [
+      null, 'state', { ...BROWSER_STATE, extra: true }, { ...BROWSER_STATE, owner: 'someone' },
+      { ...BROWSER_STATE, pendingOrigin: { id: 'p1', origin: 'https://b.example/path', requestedBy: 'page' } },
+      { ...BROWSER_STATE, ownerLabel: 'x'.repeat(41) }
+    ]
+    for (const state of [...invalid, BROWSER_STATE]) for (const listener of bridge.listeners.get(BROWSER_CHANNELS.event) ?? []) listener(fakeEvent, state)
+    expect(received).toEqual([BROWSER_STATE])
+    unsubscribe()
+    expect(bridge.listeners.get(BROWSER_CHANNELS.event)?.size).toBe(0)
   })
 })
 
