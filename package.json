@@ -20,6 +20,8 @@
     "test": "vitest run && vitest run --config fireguard/vitest.config.ts",
     "test:fireguard": "vitest run --config fireguard/vitest.config.ts",
     "coverage": "vitest run --coverage",
+    "coverage:changed": "node scripts/changedCoverage.mjs",
+    "check:row": "node scripts/rowCheck.mjs",
     "fireguard": "node fireguard/bin/fireguard.mjs",
     "audit:ci": "node scripts/security-audit.mjs",
     "deadcode": "node scripts/deadcode-check.mjs",

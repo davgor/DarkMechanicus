@@ -66,18 +66,22 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
   const jsonOut = flagValue(argv, '--json-out');
   const shardArg = flagValue(argv, '--shard');
   const mergeDirectory = flagValue(argv, '--merge-shards');
+  const astOnly = argv.includes('--ast-only');
 
   if (help) {
     stdout(`fireguard — deterministic unit-test quality grader
 
 Usage:
-  fireguard [--json] [--comment-pr] [--markdown-out path] [--json-out path]
+  fireguard [--json] [--ast-only] [--comment-pr] [--markdown-out path] [--json-out path]
 
 Grades committed, added or modified unit tests (git diff baseRef...HEAD, default main):
   Gate 1  AST mock/assert/tautology/empty checks
   Gate 2  Flakiness (default 100 isolated runs, 0% flake; fail-fast)
   Gate 3  Mutation score on the changed lines of changed production modules (≥75%); each
           mutant runs the nearest importing tests first, the rest only if it survives them
+
+  --ast-only  Run Gate 1 only on the diff's graded tests (a row check's early signal, in
+              seconds); the flake and mutation gates do not run. Not a full grade.
 
 Tests run in temporary snapshots of the committed tree (HEAD), so uncommitted edits are not
 graded and the working tree is never mutated.
@@ -110,10 +114,13 @@ Exit codes:
     if (argv.includes('--shard') && !shardArg) throw new Error('--shard requires index/count');
     if (argv.includes('--merge-shards') && !mergeDirectory) throw new Error('--merge-shards requires a directory');
     if (shardArg && (mergeDirectory || commentPr)) throw new Error('shards cannot merge or post PR comments');
+    if (astOnly && (shardArg || mergeDirectory || commentPr)) {
+      throw new Error('--ast-only cannot shard, merge or post PR comments');
+    }
     const revision = (ref: string) => execFileSync('git', ['rev-parse', '--verify', `${ref}^{commit}`],
       { cwd, encoding: 'utf8' }).trim();
     const identity = { head: revision('HEAD'), base: revision(config.baseRef) };
-    const deps = createDeps(cwd, config, identity);
+    const deps = { ...createDeps(cwd, config, identity), astOnly };
     if (shardArg || mergeDirectory) {
       if (mergeDirectory) {
         const count = Number(flagValue(argv, '--shard-count'));
