@@ -2,7 +2,7 @@
  * Row-check early signals: `npm run check:row -- --base <ref> [--json-out <path>]`.
  *
  * Runs, against the merge base of `<ref>` and HEAD, the checks that otherwise first fail at sprint acceptance or in CI:
- * Fireguard's AST gate (gate 1 only, on the diff's graded tests and changed modules; committed changes only),
+ * the inventory tests (`test:contracts`), Fireguard's AST gate (gate 1 only, on the diff's graded tests and changed modules; committed changes only),
  * `deadcode`, and `coverage:changed`. Each runs even when an earlier one fails; the exit code is 1 when any failed.
  * It finishes in minutes and never replaces the full gate (`npm test`, `npm run coverage`, full Fireguard) at
  * acceptance and in PR CI. `--json-out` writes `[{ name, status, exitCode, seconds }]` for `record_row_check`.
@@ -21,6 +21,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
  */
 export function rowChecks(base) {
   return [
+    { name: 'test:contracts', command: process.execPath, args: ['scripts/contractTests.mjs'], env: {} },
     { name: 'fireguard:ast', command: process.execPath, args: ['fireguard/bin/fireguard.mjs', '--ast-only'], env: { FIREGUARD_BASE_REF: base } },
     { name: 'deadcode', command: process.execPath, args: ['scripts/deadcode-check.mjs'], env: {} },
     { name: 'coverage:changed', command: process.execPath, args: ['scripts/changedCoverage.mjs', '--base', base], env: {} }
