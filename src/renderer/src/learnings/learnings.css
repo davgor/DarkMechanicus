@@ -142,6 +142,7 @@
   overflow-wrap: anywhere;
 }
 
+.learnings-evidence li,
 .learnings-history li {
   display: flex;
   flex-direction: column;

@@ -26,6 +26,7 @@ import { canonicalJson, contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
+import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { withIntegration } from './learningReview'
 import { enqueueOutbox } from './outbox'
@@ -217,6 +218,15 @@ function requireManage(ctx: Ctx): void {
   requireCapability(ctx.session, 'learning.manage', 'Only a person at the desktop may retire or replace a learning.')
 }
 
+/**
+ * DM-983: a retirement or replacement appends a `kanban.learning_<change>` workspace event: every desktop window routes
+ * `kanban.*` events to the folder's Kanban token, which the Learnings panel's refresh token follows, as it does for the
+ * card approval that publishes learnings. The payload carries ids only.
+ */
+function appendLearningChange(ctx: Ctx, change: 'retired' | 'replaced', learning: LearningRow, replacementId: string | null): void {
+  appendEvent(ctx, { kind: `kanban.learning_${change}`, payload: { learningId: learning.id, cardId: learning.card_id, replacementId } })
+}
+
 /** Retires an active learning with the person's reason; it stays readable with its history. */
 export function retireLearning(ctx: Ctx, input: RetireLearningInput): LearningView {
   requireManage(ctx)
@@ -225,6 +235,7 @@ export function retireLearning(ctx: Ctx, input: RetireLearningInput): LearningVi
     const row = loadChangeable(ctx, input)
     retireRow(ctx, row, input.reason, null)
     appendHistory(ctx, { learning: row, kind: 'retired', relatedId: null, reason: input.reason, revision: row.revision + 1 })
+    appendLearningChange(ctx, 'retired', row, null)
     return toLearningView(loadRow(ctx.db, row.id))
   })
 }
@@ -280,6 +291,7 @@ export function replaceLearning(ctx: Ctx, input: ReplaceLearningInput): ReplaceL
     const successor = loadRow(ctx.db, successorId)
     appendHistory(ctx, { learning: predecessor, kind: 'replaced', relatedId: successorId, reason: input.reason, revision: predecessor.revision + 1 })
     appendHistory(ctx, { learning: successor, kind: 'created_by_replacement', relatedId: predecessor.id, reason: input.reason, revision: 1 })
+    appendLearningChange(ctx, 'replaced', predecessor, successorId)
     return { retired: toLearningView(loadRow(ctx.db, predecessor.id)), replacement: toLearningView(successor) }
   })
 }

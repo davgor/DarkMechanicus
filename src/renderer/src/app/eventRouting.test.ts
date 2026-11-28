@@ -53,3 +53,14 @@ describe('event refresh domains', () => {
     expect(tokenReducer(changed, { type: 'remove', path: '/f' })).toEqual(EMPTY_TOKENS)
   })
 })
+
+describe('learning changes from another window (DM-983)', () => {
+  it('refreshes the Learnings token for a learning retired or replaced, without a board count', () => {
+    for (const kind of ['kanban.learning_retired', 'kanban.learning_replaced']) {
+      const next = applyRoute(EMPTY_TOKENS, '/f', routeEvents([eventView({ kind, epicId: null })]))
+      // The Learnings panel's refresh token is the folder's Kanban token plus its folder token (`useShell`).
+      expect(kanbanToken(next, '/f') + folderToken(next, '/f')).toBe(1)
+      expect(kanbanCountToken(next, '/f')).toBe(0)
+    }
+  })
+})

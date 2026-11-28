@@ -61,6 +61,10 @@ function human(): TestCtx {
 
 const rows = (ctx: TestCtx): unknown[] => ctx.db.all('SELECT * FROM learning_records ORDER BY id')
 const events = (ctx: TestCtx): unknown[] => ctx.db.all('SELECT * FROM learning_events ORDER BY seq')
+/** The workspace events another window's feed routes (`kind`, `session_id` and the id payload). */
+const changeEvents = (ctx: TestCtx): unknown[] =>
+  ctx.db.all<{ kind: string; session_id: string; payload_json: string }>("SELECT kind, session_id, payload_json FROM events WHERE kind LIKE 'kanban.learning%' ORDER BY seq")
+    .map((row) => ({ kind: row.kind, sessionId: row.session_id, payload: JSON.parse(row.payload_json) as unknown }))
 
 describe('reading learnings', () => {
   it.each(['desktop', ...AGENT_ROLES] as SessionRole[])('lets a %s session list and get stored guidance with its provenance', (role) => {
@@ -113,6 +117,8 @@ describe('retireLearning', () => {
       ['published', 1, 'desktop'],
       ['retired', 2, 'desktop']
     ])
+    // DM-983: one `kanban.*` workspace event, which every window routes to its Learnings refresh token.
+    expect(changeEvents(ctx)).toEqual([{ kind: 'kanban.learning_retired', sessionId: ctx.session.id, payload: { learningId, cardId: SOURCE.cardId, replacementId: null } }])
   })
 
   it('excludes retired learnings from the default list but keeps them on request', () => {
@@ -129,11 +135,11 @@ describe('retireLearning', () => {
     const ctx = human()
     const learningId = seed(ctx, 1)
     retireLearning(ctx, { learningId, expectedRevision: 1, reason: 'First person retires it' })
-    const before = [rows(ctx), events(ctx)]
+    const before = [rows(ctx), events(ctx), changeEvents(ctx)]
     const stale = captureError(() => retireLearning(ctx, { learningId, expectedRevision: 1, reason: 'Second person, stale view' }))
     expect(stale).toMatchObject({ code: 'conflict', details: { learningId, currentRevision: 2 } })
     expect(captureError(() => retireLearning(ctx, { learningId, expectedRevision: 2, reason: 'Again' })).code).toBe('invalid_state')
-    expect([rows(ctx), events(ctx)]).toEqual(before)
+    expect([rows(ctx), events(ctx), changeEvents(ctx)]).toEqual(before)
   })
 
   it('replays the original result for a repeated idempotency key', () => {
@@ -143,6 +149,7 @@ describe('retireLearning', () => {
     const first = retireLearning(ctx, input)
     expect(retireLearning(ctx, input)).toEqual(first)
     expect(events(ctx)).toHaveLength(2)
+    expect(changeEvents(ctx)).toHaveLength(1)
   })
 })
 
@@ -178,14 +185,14 @@ describe('replaceLearning', () => {
     const ctx = human()
     const learningId = seed(ctx, 1)
     const { replacement } = replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'First edit', replacement: REPLACEMENT })
-    const before = [rows(ctx), events(ctx)]
+    const before = [rows(ctx), events(ctx), changeEvents(ctx)]
     const second = { ...REPLACEMENT, title: 'A competing edit' }
     expect(captureError(() => replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'Second edit', replacement: second }))).toMatchObject({
       code: 'conflict',
       details: { learningId, currentRevision: 2 }
     })
     expect(captureError(() => replaceLearning(ctx, { learningId: replacement.id, expectedRevision: 3, reason: 'Wrong revision', replacement: second })).code).toBe('conflict')
-    expect([rows(ctx), events(ctx)]).toEqual(before)
+    expect([rows(ctx), events(ctx), changeEvents(ctx)]).toEqual(before)
   })
 
   it('refuses a replacement that repeats the content unchanged', () => {
@@ -194,6 +201,17 @@ describe('replaceLearning', () => {
     const { title, rule, check, applicability } = draft()
     expect(captureError(() => replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'Nothing new', replacement: { title, rule, check, applicability } })).code).toBe('invalid_input')
     expect(rows(ctx)).toHaveLength(1)
+  })
+})
+
+describe('learning change events (DM-983)', () => {
+  it('appends one kanban.learning_replaced event naming both learnings for a replacement', () => {
+    const ctx = human()
+    const learningId = seed(ctx, 1)
+    const { replacement } = replaceLearning(ctx, { learningId, expectedRevision: 1, reason: 'Sharper rule', replacement: REPLACEMENT })
+    expect(changeEvents(ctx)).toEqual([
+      { kind: 'kanban.learning_replaced', sessionId: ctx.session.id, payload: { learningId, cardId: SOURCE.cardId, replacementId: replacement.id } }
+    ])
   })
 })
 
