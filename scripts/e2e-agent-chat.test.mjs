@@ -29,6 +29,7 @@ import {
   isolatedEnv,
   launchModelFlags,
   loopEnd,
+  mark,
   newChatLaunch,
   newerVersion,
   newTargets,
@@ -112,6 +113,26 @@ describe('runStep', () => {
 
   it('names the failure screenshot after the step', () => {
     expect(failureScreenshotName('app ready')).toBe('e2e-app-ready-failed.png')
+  })
+})
+
+describe('step timing', () => {
+  it('records the wall-clock bounds of every step, passed or failed, for placing it among the app log lines', async () => {
+    const before = Date.now()
+    const passed = await runStep('quick', async () => ({}))
+    const failed = await runStep('broken', async () => { throw new Error('no build') })
+    for (const step of [passed, failed]) {
+      expect(Date.parse(step.startedAt)).toBeGreaterThanOrEqual(before)
+      expect(Date.parse(step.endedAt)).toBeGreaterThanOrEqual(Date.parse(step.startedAt))
+    }
+  })
+
+  it('carries the session marks in order, each with its wall-clock time', () => {
+    const session = { marks: [] }
+    mark(session, 'quit asked')
+    mark(session, 'app exited')
+    expect(session.marks.map(({ label }) => label)).toEqual(['quit asked', 'app exited'])
+    expect(Date.parse(session.marks[1].at)).toBeGreaterThanOrEqual(Date.parse(session.marks[0].at))
   })
 })
 
@@ -541,7 +562,7 @@ describe('parseArgs', () => {
 })
 
 describe('polish verdict', () => {
-  it('names one verdict step per polish step, each {name, ok, ms, detail}, run once under the deadline', async () => {
+  it('names one verdict step per polish step, each {name, ok, ms, detail, startedAt, endedAt}, run once under the deadline', async () => {
     const keys = parseArgs(['--out', 'x', '--steps', 'polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack']).keys
     const phases = stepPhases(keys)
     expect(phases.map((phase) => phase.name)).toEqual([
@@ -556,7 +577,7 @@ describe('polish verdict', () => {
     expect(runs).toEqual(phases.map((phase) => phase.name))
     expect(result.ok).toBe(true)
     for (const step of result.steps) {
-      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail'])
+      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail', 'startedAt', 'endedAt'])
       expect(step.ms).toBeLessThan(10_000)
     }
   })

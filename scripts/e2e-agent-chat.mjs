@@ -53,9 +53,11 @@
  * and hands back; each opens its own chat. They run on the claude default (`--agent omp` is refused). Each also saves
  * `e2e-<step>-view.png` from the view's own DevTools target, which the renderer capture never contains.
  *
- * Without `--steps` every step but the polish, image, coord, model and browser ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * Without `--steps` every step but the polish, image, coord, model and browser ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail, startedAt, endedAt}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
- * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
+ * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png` and its detail carries the run's latest
+ * wall-clock marks (quit asked, app exited, a restart launch, the no-resume window). The verdict is written even when
+ * the harness itself fails (a `harness` step). Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
  * only in the isolated app it launched, so it runs on Windows only. The `restart-resume` step starts the app itself
  * (with the app stopped: alone, or after `quit`) on a seeded restart marker, as Restart now leaves it, and runs in
@@ -93,6 +95,8 @@ const STEP_DEADLINE_MS = 10_000
 const POLL_MS = 100
 const SCREENSHOT_BOUND_MS = 5_000
 const STDERR_TAIL_LINES = 40
+/** How many of the latest wall-clock marks a failed step's detail carries. */
+const MARKS_SHOWN = 20
 const FOLDER_NAME = 'e2e-repo'
 const FAKE_VERSION = '2.1.329'
 /** What the fake's OMP persona prints for `--version` (`omp/18.16.0`), as the app stores it. */
@@ -342,6 +346,7 @@ const messageOf = (error) => (error instanceof Error ? error.message : String(er
  */
 export async function runStep(name, run, { deadlineMs = STEP_DEADLINE_MS, onFailure = async () => ({}) } = {}) {
   const started = performance.now()
+  const startedAt = new Date().toISOString()
   const controller = new AbortController()
   let timer
   const deadline = new Promise((_resolve, reject) => {
@@ -364,11 +369,17 @@ export async function runStep(name, run, { deadlineMs = STEP_DEADLINE_MS, onFail
     const extra = await onFailure(name).catch((error) => ({ failureCapture: messageOf(error) }))
     outcome.detail = { ...outcome.detail, ...extra }
   }
-  return { name, ...outcome }
+  // Wall-clock bounds, comparable with the app's main.log, so a failure's time can be placed among the app's lines.
+  return { name, ...outcome, startedAt, endedAt: new Date().toISOString() }
 }
 
 export function verdict(steps) {
   return { steps, ok: steps.length > 0 && steps.every((step) => step.ok) }
+}
+
+/** Records a wall-clock mark within a step (`session.marks`), which a failed step's detail carries. */
+export function mark(session, label) {
+  session.marks.push({ label, at: new Date().toISOString() })
 }
 
 export function failureScreenshotName(step) {
@@ -405,7 +416,7 @@ function createSession(out, exe, agent = 'claude', keys = []) {
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
-    stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
+    stdout: '', stderr: '', lastProbe: null, fakePids: [], marks: [], dialogs: null, epicId: null, folderPath: null, chat: null,
     store: null, restart: null, console: [], coord: null, model: null, browser: browser ? { servers: null } : null
   }
 }
@@ -1484,12 +1495,14 @@ async function quit(session, signal) {
   if (child === null) return { launched: false }
   closeSocket(session)
   if (!isRunning(child)) throw new Error(`The app exited before quit (code ${child.exitCode}).`)
-  signal.addEventListener('abort', () => forceKill(child), { once: true })
+  signal.addEventListener('abort', () => { mark(session, 'quit deadline: app force-killed'); forceKill(child) }, { once: true })
+  mark(session, 'quit asked')
   await tellApp(session, 'quit')
   // An attached inspector session would hold the packaged app's exit; it is closed before the wait.
   session.main?.socket.close()
   session.main = null
   const { code, signal: killedBy } = await session.exited
+  mark(session, 'app exited')
   if (code !== 0) throw new Error(`The app exited with code ${code}${killedBy ? ` (${killedBy})` : ''}.`)
   return { exitCode: code }
 }
@@ -1500,8 +1513,10 @@ async function killAndWait(session) {
   closeSocket(session)
   session.main?.socket.close()
   session.main = null
+  mark(session, 'cleanup: killing an app that cannot be asked to quit')
   forceKill(child)
   const { code, signal } = await session.exited
+  mark(session, 'app exited')
   return { forceKilled: true, exitCode: code, signal }
 }
 
@@ -1658,7 +1673,9 @@ async function restartSeed(session) {
 
 /** Launches the app on the seeded profile and reads its runtime version, the one the header shows. */
 async function restartLaunch(session, signal) {
+  mark(session, 'restart launch started')
   const ready = await appReady(session, signal)
+  mark(session, 'app ready')
   const version = await evaluate(session, 'window.appInfo.getVersion()')
   if (!/^\d+\.\d+\.\d+$/.test(version) || !newerVersion(version, RESTART_FROM_VERSION)) {
     throw new Error(`The app's runtime version ${version} is not newer than v${RESTART_FROM_VERSION}.`)
@@ -1738,7 +1755,9 @@ async function restartEqualLaunch(session, signal) {
 
 /** Phase 7: in 5 s the equal-version marker launches nothing for the chat and adds no message; it is consumed. */
 async function restartEqualVersion(session, signal) {
+  mark(session, 'no-resume window started')
   await delay(NO_RESUME_WINDOW_MS, undefined, { signal })
+  mark(session, 'no-resume window over')
   const launches = chatLaunches(readLog(session), RESTART_SESSION_ID)
   if (launches.length !== session.restart.launchesBefore) {
     throw new Error(`The equal-version start launched the chat: ${JSON.stringify(launches.slice(session.restart.launchesBefore))}`)
@@ -3825,7 +3844,10 @@ const STEPS = {
 }
 
 async function captureFailure(session, step) {
-  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe, refusedImages: refusedImages(session.console) }
+  const detail = {
+    stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe,
+    refusedImages: refusedImages(session.console), marks: session.marks.slice(-MARKS_SHOWN)
+  }
   if (session.page?.socket.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
   const bound = delay(SCREENSHOT_BOUND_MS).then(() => { throw new Error('screenshot timed out') })
   const { data } = await Promise.race([cdp(session, 'Page.captureScreenshot', { format: 'png' }), bound])
