@@ -35,7 +35,8 @@ export const STATES = Object.freeze([
   'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
   'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
   'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
-  'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440'
+  'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440',
+  'browser-agent', 'browser-person', 'browser-origin'
 ])
 
 /**
@@ -57,8 +58,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 78 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 1_185_000
+/** A declared bound once the preview is built: 81 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 1_230_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -293,19 +294,30 @@ function startModelChecks(label, dialog, model, effort) {
 /** The agent tab's fixture page title, and the private tab's label (red-team Fix 55) beside it. */
 const BROWSER_TAB = 'Getting started · Fixture docs'
 const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
+/** The preview's own label over an empty page area: no native view exists there, so a capture proves the chrome only. */
+const PAGE_STAND_IN = 'Preview only: the agent’s page is drawn here by the native browser view'
 /**
- * What every Browser state shows: the rail widened to max(420 px, 45% of the stage), the ownership badge, Stop agent
- * enabled only while an agent drives, and the toggle reading Take control or Hand back.
+ * What every Browser state shows: the rail widened to max(420 px, 45% of the stage) from its narrower Agents width, the
+ * ownership badge, Stop agent enabled only while an agent drives, the toggle reading Take control or Hand back beside
+ * it, and the preview-only label wherever the page area holds no note of its own.
  */
 function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
   const panel = (o) => o.browserPanel ?? {}
+  const controls = ['Stop agent', toggle]
   return [
     ['the rail is open at max(420 px, 45% of the stage)', (o) => typeof panel(o).stageWidth === 'number'
       && near(o.railWidth, Math.max(420, 0.45 * panel(o).stageWidth)), (o) => JSON.stringify([o.railWidth, panel(o).stageWidth])],
+    ['the Browser rail is wider than the rail was on its Agents tab', (o) => matches(panel(o).agentsRail?.tab, /^Agents\b/)
+      && typeof panel(o).agentsRail.width === 'number' && panel(o).agentsRail.width + 1 < o.railWidth,
+      (o) => JSON.stringify([panel(o).agentsRail ?? null, o.railWidth])],
     [`the badge reads ${badge}`, (o) => panel(o).badge === badge, (o) => JSON.stringify(panel(o).badge)],
     [`Stop agent is ${stop ? 'enabled' : 'disabled'}`, (o) => panel(o).stopEnabled === stop, (o) => JSON.stringify(panel(o).stopEnabled)],
     [`the toggle reads ${toggle}`, (o) => panel(o).toggle === toggle, (o) => JSON.stringify(panel(o).toggle)],
-    [`the tab strip reads ${JSON.stringify(tabs)}`, (o) => JSON.stringify(panel(o).tabs) === JSON.stringify(tabs), (o) => JSON.stringify(panel(o).tabs)]
+    [`the controls are ${JSON.stringify(controls)}`, (o) => JSON.stringify(panel(o).controls) === JSON.stringify(controls),
+      (o) => JSON.stringify(panel(o).controls)],
+    [`the tab strip reads ${JSON.stringify(tabs)}`, (o) => JSON.stringify(panel(o).tabs) === JSON.stringify(tabs), (o) => JSON.stringify(panel(o).tabs)],
+    ['an empty page area carries the preview-only label, and a page note replaces it',
+      (o) => panel(o).pageStandIn === (panel(o).page === '' ? PAGE_STAND_IN : null), (o) => JSON.stringify([panel(o).page, panel(o).pageStandIn])]
   ]
 }
 

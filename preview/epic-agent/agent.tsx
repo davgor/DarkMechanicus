@@ -712,6 +712,12 @@ async function reachGraph(): Promise<void> {
 }
 
 /**
+ * The epic rail as it stood with its Agents tab selected, measured just before a Browser state clicks the Browser tab,
+ * so the capture can show the Browser tab widens it; null outside the Browser states.
+ */
+let agentsRail: { tab: string | null; width: number } | null = null
+
+/**
  * The epic rail's Browser tab over `FakeBrowser` seeded from `browserScenario.ts`, reached by real clicks: the Agent
  * view, then the rail's Browser tab. The native view does not exist here, so the content area shows only its own box.
  */
@@ -721,6 +727,8 @@ function browserState(scenario: BrowserScenarioName, after?: () => Promise<void>
     seed: (context) => { context.backend.browser.current = browserScenarios[scenario] },
     reach: async () => {
       await openAgentTab()
+      const rail = await until(() => $('aside[aria-label="Epic agents"][data-collapsed="false"]'), 'the expanded Epic agents rail')
+      agentsRail = { tab: text($('[role="tab"][aria-selected="true"]', rail)), width: rail.getBoundingClientRect().width }
       await clickWhenPresent(() => $('aside[aria-label="Epic agents"] :is([role="tab"], .rr-strip-tab)[aria-label="Browser"]'),
         'the rail’s Browser tab')
       await until(() => { const badge = text($('.bp [aria-label="Browser owner"]')); return badge !== null && badge !== 'Loading…' },
@@ -1530,33 +1538,50 @@ function polishObservations(): Record<string, unknown> {
   }
 }
 
-/**
- * The Browser panel's chrome as a person reads it, the stage the widened rail shares, the chat's site card and the
- * open Sites popover's origins; null without a panel.
- */
-function browserObservations(): Record<string, unknown> | null {
-  const panel = $('section.bp')
-  if (panel === null) return null
+/** The Browser panel's control buttons a person can see, of Stop agent, Take control and Hand back, in that order. */
+const BROWSER_CONTROLS = ['Stop agent', 'Take control', 'Hand back']
+
+/** The panel's ownership badge, tab titles and control buttons: whether Stop agent is on and what the toggle reads. */
+function browserControlObservations(panel: HTMLElement): Record<string, unknown> {
   const stop = buttonNamed('Stop agent', panel)
-  const toggle = buttonNamed('Take control', panel) ?? buttonNamed('Hand back', panel)
-  const enabled = $('input[role="switch"]', panel)
-  const address = $('input[aria-label="Private tab address"]', panel)
-  const sites = $('.bp-sites-popover', panel)
-  const shot = $('.bp-camera-popover', panel)
   return {
     badge: text($('[aria-label="Browser owner"]', panel)),
     tabs: [...panel.querySelectorAll('.bp-tab-title')].map(text),
     stopEnabled: stop === null ? null : !stop.disabled,
-    toggle: text(toggle),
+    toggle: text(buttonNamed('Take control', panel) ?? buttonNamed('Hand back', panel)),
+    controls: BROWSER_CONTROLS.filter((name) => buttonNamed(name, panel) !== null)
+  }
+}
+
+/** The page area's own note, and the preview-only label the preview draws over it while it holds none. */
+function browserPageObservations(content: HTMLElement | null): { page: string | null; pageStandIn: string | null } {
+  const standIn = content === null ? 'none' : getComputedStyle(content, '::before').content
+  return { page: text(content), pageStandIn: standIn === 'none' || standIn === 'normal' ? null : standIn.replace(/^"|"$/g, '') }
+}
+
+/**
+ * The Browser panel's chrome as a person reads it, the stage the widened rail shares, the rail as it stood on its Agents
+ * tab, the chat's site card and the open Sites popover's origins; null without a panel.
+ */
+function browserObservations(): Record<string, unknown> | null {
+  const panel = $('section.bp')
+  if (panel === null) return null
+  const enabled = $('input[role="switch"]', panel)
+  const address = $('input[aria-label="Private tab address"]', panel)
+  const sites = $('.bp-sites-popover', panel)
+  const content = $('.bp-content', panel)
+  return {
+    ...browserControlObservations(panel),
     enabled: enabled instanceof HTMLInputElement ? enabled.checked : null,
-    page: text($('.bp-content', panel)),
+    ...browserPageObservations(content),
     privateAddress: address instanceof HTMLInputElement ? address.value : null,
     stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null,
+    agentsRail,
     siteCard: siteCardObservations($('section.agent-chat .origin-prompt'), $('section.agent-chat .chat-composer')),
-    panelSiteCard: siteCardObservations($('.origin-prompt', panel), $('.bp-content', panel)),
+    panelSiteCard: siteCardObservations($('.origin-prompt', panel), content),
     sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
     sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect()),
-    camera: cameraObservations(shot, panel)
+    camera: cameraObservations($('.bp-camera-popover', panel), panel)
   }
 }
 
