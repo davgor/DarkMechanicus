@@ -647,6 +647,39 @@ describe('dm session cleanup failures', () => {
   })
 })
 
+describe('dm session modes', () => {
+  const busy = () => Object.assign(new Error('database is locked'), { errcode: 5 })
+  const modeOf = (open: OpenWorkspaceOptions | undefined) => ({ mailPoll: open?.mailPoll, mailRead: open?.mailRead, leaseOnly: open?.leaseOnly })
+
+  it.each([
+    ['heartbeat_attempt', { mailPoll: undefined, mailRead: undefined, leaseOnly: true }],
+    ['heartbeat_kanban_card', { mailPoll: undefined, mailRead: undefined, leaseOnly: true }],
+    ['list_agent_peers', { mailPoll: undefined, mailRead: true, leaseOnly: undefined }],
+    ['get_agent_mail_status', { mailPoll: true, mailRead: undefined, leaseOnly: undefined }],
+    ['get_agent_identity', { mailPoll: true, mailRead: undefined, leaseOnly: undefined }],
+    ['list_epics', { mailPoll: undefined, mailRead: undefined, leaseOnly: undefined }]
+  ] as const)('opens %s in exactly its session mode', async (command, mode) => {
+    const recorded = recorder(['call', command, '{}'])
+    await runCli(recorded.host)
+    expect(recorded.opened).toHaveLength(1)
+    expect(modeOf(recorded.opened[0])).toEqual(mode)
+  })
+
+  it('reports a peer listing that met a busy database as its own failure, like a mail poll', async () => {
+    const recorded = recorder(['call', 'list_agent_peers', '{}'], { openError: busy() })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(payload(recorded)).toEqual({ ok: false, error: { code: 'internal', message: 'database is locked' } })
+  })
+
+  it('reports a heartbeat that met a busy database at the open stage, like any granted command', async () => {
+    const recorded = recorder(['call', 'heartbeat_attempt', '{}'], { openError: busy() })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(payload(recorded)).toMatchObject({ ok: false, error: { code: 'busy', details: { stage: 'open' } } })
+  })
+})
+
 describe('dm when writing the answer fails', () => {
   it('reports the failure as JSON and exits 1', async () => {
     const recorded = recorder(['--help'])
