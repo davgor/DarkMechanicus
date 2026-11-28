@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { rowChecks, summarizeRowChecks } from './rowCheck.mjs'
 
 describe('rowChecks', () => {
-  it('runs the Fireguard AST gate, deadcode and changed-file coverage against the base, cheapest first', () => {
+  it('runs the inventory tests, Fireguard AST gate, deadcode and changed-file coverage against the base, cheapest first', () => {
     const checks = rowChecks('origin/sprint/s1')
     expect(checks.map(({ name, args, env }) => ({ name, args, env }))).toEqual([
+      { name: 'test:contracts', args: ['scripts/contractTests.mjs'], env: {} },
       { name: 'fireguard:ast', args: ['fireguard/bin/fireguard.mjs', '--ast-only'], env: { FIREGUARD_BASE_REF: 'origin/sprint/s1' } },
       { name: 'deadcode', args: ['scripts/deadcode-check.mjs'], env: {} },
       { name: 'coverage:changed', args: ['scripts/changedCoverage.mjs', '--base', 'origin/sprint/s1'], env: {} }
