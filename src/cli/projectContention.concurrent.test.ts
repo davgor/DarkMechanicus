@@ -378,3 +378,61 @@ it('preserves a live heartbeat, one idempotent report and claim fencing across o
     harness.cleanup()
   }
 })
+
+/** Resolves once `child` has told its supervisor `count` times that it is waiting on a competing writer, or has exited. */
+function waitedOnWriter(child: ChildProcess, count: number): Promise<void> {
+  const { promise, resolve } = deferred<void>()
+  let seen = 0
+  child.on('message', (message) => {
+    if (message === 'dm.sqlite.writer-busy' && ++seen >= count) resolve()
+  })
+  child.once('close', () => resolve())
+  return promise
+}
+
+it('renews three live leases from concurrent CLI heartbeats while another process holds the repo-mode writer', async () => {
+  const harness = createHarness()
+  const cli = new WorkerCli(harness)
+  let holder: Db | undefined
+  try {
+    harness.clock.set(new Date().toISOString())
+    const desktop = harness.open('desktop')
+    await desktop.initializeRepository({ name: 'Contended heartbeats', mode: 'repo' })
+    const epic = await desktop.createEpic({ title: 'Keep claims alive' })
+    await dropAcceptanceNodes(desktop, epic.id)
+    const refs = ['a', 'b', 'c'] as const
+    const draft = await desktop.updatePlanDraft({ epicId: epic.id, ops: refs.map(ref => (
+      { op: 'add_ticket' as const, ref, sprint: '1', ticket: { title: `Ticket ${ref}` } }
+    )) })
+    await desktop.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+    const orchestrator = harness.open('orchestrator')
+    const { id: runId } = await orchestrator.startRun({ epicId: epic.id })
+    const { token } = await desktop.issueGrant({ role: 'worker', label: 'heartbeats' })
+    const claims = await Promise.all(refs.map(async (ref) => {
+      const { attempt, packet } = issued(await orchestrator.claimTicket({ runId, ticketId: draft.refMap[ref]!, worker: { label: ref }, leaseSeconds: 60 }))
+      return { attemptId: attempt.id, claimToken: packet.claimToken }
+    }))
+    const db = desktop.ctx().db
+    const writer = holder = openDatabase(db.path, { synchronous: 'off' })
+    writer.exec('BEGIN IMMEDIATE')
+    writer.run("UPDATE comments SET body = body WHERE 0")
+    const calls = claims.map(claim => cli.call(token, 'heartbeat_attempt', { ...claim, progress: { note: 'still working' } }))
+    // Held past each CLI's SQLite busy timeout at least twice over: a refusal at the first timeout would have exited.
+    await beforeDeadline(Promise.all(calls.map(call => waitedOnWriter(call.child, 2))), 8_000, 'CLI heartbeats never waited on the writer')
+      .finally(() => writer.exec('COMMIT'))
+    const outcomes = await Promise.all(calls.map(call => call.outcome))
+    for (const [index, outcome] of outcomes.entries()) {
+      expect(outcome).toMatchObject({ code: 0, envelope: { ok: true, data: { id: claims[index]!.attemptId, state: 'running' } } })
+    }
+    const now = Date.now()
+    for (const claim of claims) {
+      const row = db.get<{ state: string; lease_expires_at: string }>('SELECT state, lease_expires_at FROM attempts WHERE id = ?', claim.attemptId)
+      expect(row?.state).toBe('running')
+      expect(Date.parse(row!.lease_expires_at)).toBeGreaterThan(now)
+    }
+  } finally {
+    await cli.close()
+    holder?.close()
+    harness.cleanup()
+  }
+})

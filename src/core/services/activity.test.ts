@@ -256,7 +256,7 @@ describe('getAttemptTimeline — retries, failures and expired leases', () => {
 
   it('records an expired lease and its reconciliation', () => {
     const rigged = rig()
-    const claimed = claim(rigged.ctx, rigged.runId, 1)
+    const claimed = claim(rigged.ctx, rigged.runId, 1, { leaseSeconds: 900 })
     beat(rigged, claimed)
     tick(rigged.ctx, 3600)
     const expired = timeline(rigged, claimed)
@@ -545,7 +545,7 @@ describe('getRunTimeline — what a run timeline lists', () => {
 describe('getRunTimeline — lease trouble and the end of the run', () => {
   it('records lease trouble, takeover and the end of the run', () => {
     const { rigged } = runRig()
-    const claimed = claim(rigged.ctx, rigged.runId, 1)
+    const claimed = claim(rigged.ctx, rigged.runId, 1, { leaseSeconds: 900 })
     beat(rigged, claimed)
     tick(rigged.ctx, 3600)
     reconcileAttempt(rigged.ctx, { attemptId: claimed.attempt.id, resolution: 'abandon' })

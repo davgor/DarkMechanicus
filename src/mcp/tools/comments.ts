@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { attachmentRef, commentBody, LIMITS } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineTool, registerTools } from './define'
-import { epicId, idempotencyKey, ticketId } from './params'
+import { claimToken, epicId, idempotencyKey, ticketId } from './params'
 
 const COMMENT_TOOLS = [
   defineTool({
@@ -20,7 +20,8 @@ const COMMENT_TOOLS = [
         .max(LIMITS.attachmentsPerRecord)
         .optional()
         .describe('Staged image ids (from add_attachment) to attach to this comment, at most 20. Either purpose is allowed.'),
-      idempotencyKey
+      idempotencyKey,
+      claimToken: claimToken.optional().describe('Your claim token while you hold a claim: the call also renews that lease.')
     },
     run: (api, input) => api.addComment(input)
   }),
