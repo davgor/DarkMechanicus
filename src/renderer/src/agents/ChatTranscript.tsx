@@ -142,7 +142,7 @@ function EntryRow({ entry, answer, folder, agentName, imageSrc, pendingId }: Row
     case 'approval_request':
       return (
         <li className="chat-approval">
-          <ApprovalRecord request={entry} answer={answer} folder={folder} waiting={answer === null && entry.requestId === pendingId} />
+          <ApprovalRecord request={entry} answer={answer} folder={folder} waiting={entry.requestId === pendingId} />
         </li>
       )
     default: {
