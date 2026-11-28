@@ -373,7 +373,11 @@ export function setEpicBranch(
     assertEpicRevision(row, input.expectedRevision)
     if (row.branch_json !== null) {
       // A first binding is allowed mid-run (a run started without a branch needs one to name increments);
-      // re-binding a branch a run is already using is not.
+      // re-binding a branch a run is already using is not, but repeating the same binding is a no-op.
+      const bound = parseJson<EpicBranch | null>(row.branch_json, null)
+      if (activeRun(ctx, row.id) !== null && contentHash(bound) === contentHash(input.branch)) {
+        return epicDetail(ctx, row.id)
+      }
       assertNoActiveRun(ctx, row.id, "The epic branch can't change while a run is using it.")
     }
     ctx.db.run(

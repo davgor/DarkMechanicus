@@ -509,13 +509,28 @@ describe('setEpicBranch', () => {
     const planner = withRole(ctx, 'planner')
     expect(captureError(() => setEpicBranch(planner, { epicId: saved.epicId, branch: BRANCH })).code).toBe('unauthorized')
   })
+})
 
+describe('setEpicBranch during an active run', () => {
   it.each(['running', 'paused'] as const)('binds a first branch while a %s run is active', (state) => {
     const ctx = createTestCtx()
     const saved = createSavedEpic(ctx)
     insertRun(ctx, { epicId: saved.epicId, revisionId: saved.revisionId, state })
     expect(setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH }).branch).toEqual(BRANCH)
     expect(getEpic(ctx, { epicId: saved.epicId }).branch).toEqual(BRANCH)
+    const rebind = { ...BRANCH, name: 'feature/other' }
+    expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: rebind })).code).toBe('active_run_exists')
+  })
+
+  it('treats repeating the same binding during an active run as a no-op', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    insertRun(ctx, { epicId: saved.epicId, revisionId: saved.revisionId, state: 'paused' })
+    const first = setEpicBranch(ctx, { epicId: saved.epicId, branch: BRANCH })
+    const events = eventKinds(ctx).length
+    const retry = setEpicBranch(ctx, { epicId: saved.epicId, branch: { ...BRANCH } })
+    expect(retry).toMatchObject({ branch: BRANCH, revision: first.revision })
+    expect(eventKinds(ctx)).toHaveLength(events)
     const rebind = { ...BRANCH, name: 'feature/other' }
     expect(captureError(() => setEpicBranch(ctx, { epicId: saved.epicId, branch: rebind })).code).toBe('active_run_exists')
   })
