@@ -31,6 +31,7 @@ import { FakeBackend, deliveryScenario, scenario } from '../../src/renderer/src/
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
 import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
+import { browserScenarios, type BrowserScenarioName } from '../../src/renderer/src/browser/__mocks__/browserScenario'
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
@@ -710,6 +711,41 @@ async function reachGraph(): Promise<void> {
   await until(() => $('[aria-label="Plan graph"] .react-flow__node'), 'the plan graph')
 }
 
+/**
+ * The epic rail's Browser tab over `FakeBrowser` seeded from `browserScenario.ts`, reached by real clicks: the Agent
+ * view, then the rail's Browser tab. The native view does not exist here, so the content area shows only its own box.
+ */
+function browserState(scenario: BrowserScenarioName, after?: () => Promise<void>): StateDef {
+  return {
+    mount: 'epic',
+    seed: (context) => { context.backend.browser.current = browserScenarios[scenario] },
+    reach: async () => {
+      await openAgentTab()
+      await clickWhenPresent(() => $('aside[aria-label="Epic agents"] :is([role="tab"], .rr-strip-tab)[aria-label="Browser"]'),
+        'the rail’s Browser tab')
+      await until(() => { const badge = text($('.bp [aria-label="Browser owner"]')); return badge !== null && badge !== 'Loading…' },
+        'the Browser panel’s ownership badge')
+      await after?.()
+    }
+  }
+}
+
+/** The Browser tab's states: no tab with agents off, an Acolyte driving, the person in control, stopped, and a private tab. */
+const browserStates: Record<string, StateDef> = {
+  'browser-empty': browserState('browser-empty'),
+  'browser-agent': browserState('browser-agent'),
+  'browser-person': browserState('browser-person'),
+  'browser-stopped': browserState('browser-stopped'),
+  // The private tab is open over the agent tab, and Private tab's inline address field holds the next address.
+  'browser-private': browserState('browser-private', async () => {
+    await clickWhenPresent(() => buttonNamed('Private tab', $('.bp') ?? document), 'the Private tab button')
+    const field = await until(() => $('.bp input[aria-label="Private tab address"]') as HTMLInputElement | null, 'the private tab address field')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, 'https://accounts.example.com/login')
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await until(() => field.value === 'https://accounts.example.com/login', 'the typed private address')
+  })
+}
+
 /** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
 const deliveryStates: Record<string, StateDef> = {
   'delivery-editor': {
@@ -965,7 +1001,8 @@ const STATES: Record<string, StateDef> = {
       await chooseCatalogModel('Opus 5.5', 'Max')
     }
   },
-  ...deliveryStates
+  ...deliveryStates,
+  ...browserStates
 }
 
 // ---------------------------------------------------------------------------------------------- observations
@@ -1442,6 +1479,26 @@ function polishObservations(): Record<string, unknown> {
   }
 }
 
+/** The Browser panel's chrome as a person reads it, and the stage the widened rail shares; null without a panel. */
+function browserObservations(): Record<string, unknown> | null {
+  const panel = $('section.bp')
+  if (panel === null) return null
+  const stop = buttonNamed('Stop agent', panel)
+  const toggle = buttonNamed('Take control', panel) ?? buttonNamed('Hand back', panel)
+  const enabled = $('input[role="switch"]', panel)
+  const address = $('input[aria-label="Private tab address"]', panel)
+  return {
+    badge: text($('[aria-label="Browser owner"]', panel)),
+    tabs: [...panel.querySelectorAll('.bp-tab-title')].map(text),
+    stopEnabled: stop === null ? null : !stop.disabled,
+    toggle: text(toggle),
+    enabled: enabled instanceof HTMLInputElement ? enabled.checked : null,
+    page: text($('.bp-content', panel)),
+    privateAddress: address instanceof HTMLInputElement ? address.value : null,
+    stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null
+  }
+}
+
 function observe(state: string, context: Seeded | null): Record<string, unknown> {
   const view = $('[role="group"][aria-label="View"]')
   const agentLabel = $('.ew-toggle-agent strong')
@@ -1488,6 +1545,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     modelChoice: modelChoiceObservations(),
     ...deliveryObservations(),
     ...polishObservations(),
+    browserPanel: browserObservations(),
     errors: [...window.__errors]
   }
 }
@@ -1592,7 +1650,8 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 /** The states the capture also takes at a fixed width, as `<state>-1024` and `<state>-1440`. */
 const SIZED_STATES: Record<string, true> = {
   'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
-  'question-form': true
+  'question-form': true, 'browser-empty': true, 'browser-agent': true, 'browser-person': true, 'browser-stopped': true,
+  'browser-private': true
 }
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */

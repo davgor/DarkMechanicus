@@ -33,7 +33,7 @@ const BASE = {
   needsYouHeader: null, badgedRows: 0, ticketPanel: false, settingsControls: [], agentsPressed: null, sprintDeliveryRegion: false,
   deliveryLine: null, deliveryApproval: null, previousDelivery: false, firstFailedCheck: null,
   imageChips: 0, thumbnails: 0, composerHeights: { idle: null, busy: null }, copyButtons: 0, workedForRows: [], roleNames: [], checkedCount: null,
-  errors: []
+  browserPanel: null, errors: []
 }
 const row = (name, selected = false, level = 1) => ({ name, level, expanded: null, selected })
 const ready = (state, patch = {}) => ({
@@ -312,7 +312,7 @@ function passing() {
     ...passingRailStates(),
     ...passingChatStates(),
     ...passingDeliveryStates(),
-    ...passingQuestionStates(),
+    ...passingQuestionStates(), ...passingBrowserStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -358,6 +358,33 @@ function passing() {
   }
 }
 
+const BROWSER_TAB = 'Getting started · Fixture docs'
+const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
+/** The epic stage's width at each size, and the Browser rail's at max(420 px, 45% of it). */
+const BROWSER_STAGE = { 1024: { stageWidth: 760, railWidth: 420 }, 1440: { stageWidth: 1176, railWidth: 529.2 } }
+const BROWSER_PANELS = {
+  'browser-empty': {
+    badge: 'Idle', tabs: ['Agent tab'], stopEnabled: false, toggle: 'Take control', enabled: false,
+    page: 'Agents open pages here. You will be asked before any new site loads.', privateAddress: null
+  },
+  'browser-agent': { badge: 'Driven by: Acolyte:DM-442', tabs: [BROWSER_TAB], stopEnabled: true, toggle: 'Take control', enabled: true, page: '', privateAddress: null },
+  'browser-person': { badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
+  'browser-stopped': { badge: 'Stopped', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null },
+  'browser-private': {
+    badge: 'Idle', tabs: [BROWSER_TAB, PRIVATE_TAB], stopEnabled: false, toggle: 'Take control', enabled: true, page: '',
+    privateAddress: 'https://accounts.example.com/login'
+  }
+}
+/** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
+function browserRecord(state, patch = {}) {
+  const [, base, width] = /^(.*)-(1024|1440)$/.exec(state)
+  const { stageWidth, railWidth } = BROWSER_STAGE[width]
+  return ready(state, { railWidth, browserPanel: { ...BROWSER_PANELS[base], stageWidth, ...patch } })
+}
+function passingBrowserStates() {
+  return Object.fromEntries(STATES.filter((state) => state.startsWith('browser-')).map((state) => [state, browserRecord(state)]))
+}
+
 describe('capture-agent-chat: arguments and environment', () => {
   it('parses --out in both forms to an absolute directory', () => {
     expect(parseArgs(['--out', 'shots']).out).toMatch(/shots$/)
@@ -390,7 +417,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 55 states once each, in capture order', () => {
+  it('lists the 65 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -401,9 +428,11 @@ describe('capture-agent-chat: state list and bounds', () => {
       'question-form-1440', 'agent-transcript',
       'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
       'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
-      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+      'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
+      'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024',
+      'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440'
     ])
-    expect(new Set(STATES).size).toBe(55)
+    expect(new Set(STATES).size).toBe(65)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
@@ -424,9 +453,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 840 s overall bound: 55 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 990 s overall bound: 65 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(840_000)
+    expect(OVERALL_LIMIT_MS).toBe(990_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -438,6 +467,42 @@ describe('capture-agent-chat: state list and bounds', () => {
       configFile: join(preview, 'vite.config.ts'), root: preview,
       build: { outDir, emptyOutDir: true, rollupOptions: { input: join(preview, 'agent.html') } }
     })
+  })
+})
+
+describe('capture-agent-chat: Browser tab states', () => {
+  it('fails a Browser rail left at the Agents width', () => {
+    const record = browserRecord('browser-agent-1440')
+    record.observations.railWidth = 280
+    expect(validateObservations('browser-agent-1440', record))
+      .toEqual(['browser-agent-1440: expected the rail is open at max(420 px, 45% of the stage); got [280,1176]'])
+  })
+
+  it('holds the 420 px floor at 1024', () => {
+    expect(validateObservations('browser-person-1024', browserRecord('browser-person-1024'))).toEqual([])
+    expect(validateObservations('browser-person-1024', browserRecord('browser-person-1024', { stageWidth: 1000 })))
+      .toEqual(['browser-person-1024: expected the rail is open at max(420 px, 45% of the stage); got [420,1000]'])
+  })
+
+  it('fails a wrong badge, an enabled Stop for the person and a mislabelled toggle', () => {
+    expect(validateObservations('browser-person-1440', browserRecord('browser-person-1440', {
+      badge: 'Idle', stopEnabled: true, toggle: 'Take control'
+    }))).toEqual([
+      'browser-person-1440: expected the badge reads You have control; got "Idle"',
+      'browser-person-1440: expected Stop agent is disabled; got true',
+      'browser-person-1440: expected the toggle reads Hand back; got "Take control"'
+    ])
+  })
+
+  it('fails a private state without its tab label or its typed address, and an empty state with agents on', () => {
+    expect(validateObservations('browser-private-1024', browserRecord('browser-private-1024', { tabs: [BROWSER_TAB], privateAddress: null })))
+      .toEqual([
+        `browser-private-1024: expected the tab strip reads ${JSON.stringify([BROWSER_TAB, PRIVATE_TAB])}; got ${JSON.stringify([BROWSER_TAB])}`,
+        'browser-private-1024: expected Private tab’s inline address field holds the typed address; got null'
+      ])
+    expect(validateObservations('browser-empty-1440', browserRecord('browser-empty-1440', { enabled: true })))
+      .toEqual(['browser-empty-1440: expected agents are not let use the browser and the page area shows the empty state; '
+        + 'got [true,"Agents open pages here. You will be asked before any new site loads."]'])
   })
 })
 

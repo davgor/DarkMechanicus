@@ -30,7 +30,9 @@ export const STATES = Object.freeze([
   'agent-worked-for', 'image-result', 'agent-image-viewer',
   'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
   'new-chat-model', 'start-run-model', 'lexmechanic-model',
-  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
+  'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
+  'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440'
 ])
 
 /**
@@ -52,8 +54,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 55 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 840_000
+/** A declared bound once the preview is built: 65 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 990_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -116,7 +118,7 @@ const BASE_FIELDS = [
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
   'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed',
   'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck',
-  'imageChips', 'thumbnails', 'composerHeights', 'copyButtons', 'workedForRows', 'roleNames', 'checkedCount', 'errors'
+  'imageChips', 'thumbnails', 'composerHeights', 'copyButtons', 'workedForRows', 'roleNames', 'checkedCount', 'browserPanel', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
@@ -282,6 +284,25 @@ function startModelChecks(label, dialog, model, effort) {
     [`${model} is checked, with Effort ${effort} of Low to Max`, (o) => JSON.stringify(o.modelPicker?.checked) === JSON.stringify([model])
       && JSON.stringify(o.modelPicker?.efforts) === JSON.stringify(EFFORTS.map((level) => ({ label: level, checked: level === effort }))),
     (o) => JSON.stringify([o.modelPicker?.checked, o.modelPicker?.efforts])]
+  ]
+}
+
+/** The agent tab's fixture page title, and the private tab's label (red-team Fix 55) beside it. */
+const BROWSER_TAB = 'Getting started · Fixture docs'
+const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
+/**
+ * What every Browser state shows: the rail widened to max(420 px, 45% of the stage), the ownership badge, Stop agent
+ * enabled only while an agent drives, and the toggle reading Take control or Hand back.
+ */
+function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
+  const panel = (o) => o.browserPanel ?? {}
+  return [
+    ['the rail is open at max(420 px, 45% of the stage)', (o) => typeof panel(o).stageWidth === 'number'
+      && near(o.railWidth, Math.max(420, 0.45 * panel(o).stageWidth)), (o) => JSON.stringify([o.railWidth, panel(o).stageWidth])],
+    [`the badge reads ${badge}`, (o) => panel(o).badge === badge, (o) => JSON.stringify(panel(o).badge)],
+    [`Stop agent is ${stop ? 'enabled' : 'disabled'}`, (o) => panel(o).stopEnabled === stop, (o) => JSON.stringify(panel(o).stopEnabled)],
+    [`the toggle reads ${toggle}`, (o) => panel(o).toggle === toggle, (o) => JSON.stringify(panel(o).toggle)],
+    [`the tab strip reads ${JSON.stringify(tabs)}`, (o) => JSON.stringify(panel(o).tabs) === JSON.stringify(tabs), (o) => JSON.stringify(panel(o).tabs)]
   ]
 }
 
@@ -558,6 +579,20 @@ const STATE_CHECKS = {
     ['the gate’s Delivery on approval note holds Sprint 3', (o) => matches(o.deliveryApproval, /^After approval, Sprint 3 claims wait /)],
     ['the Previous sprint delivery region', (o) => o.previousDelivery === true],
     [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ],
+  'browser-empty': [
+    ...browserChecks('Idle', { stop: false, toggle: 'Take control', tabs: ['Agent tab'] }),
+    ['agents are not let use the browser and the page area shows the empty state',
+      (o) => o.browserPanel?.enabled === false && o.browserPanel.page === 'Agents open pages here. You will be asked before any new site loads.',
+      (o) => JSON.stringify([o.browserPanel?.enabled, o.browserPanel?.page])]
+  ],
+  'browser-agent': browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+  'browser-person': browserChecks('You have control', { stop: false, toggle: 'Hand back' }),
+  'browser-stopped': browserChecks('Stopped', { stop: false, toggle: 'Hand back' }),
+  'browser-private': [
+    ...browserChecks('Idle', { stop: false, toggle: 'Take control', tabs: [BROWSER_TAB, PRIVATE_TAB] }),
+    ['Private tab’s inline address field holds the typed address', (o) => o.browserPanel?.privateAddress === 'https://accounts.example.com/login',
+      (o) => JSON.stringify(o.browserPanel?.privateAddress)]
   ]
 }
 
