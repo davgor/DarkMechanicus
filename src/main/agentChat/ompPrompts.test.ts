@@ -238,6 +238,18 @@ describe('OMP 18.20.2 ask tool goldens (HTML form, answered field by field over 
     expect(JSON.stringify(toolResult)).toContain('\\"databases\\": [\\n    \\"sqlite\\",\\n    \\"postgres\\"\\n  ]')
   })
 
+  it('records the ask once: one question request, answered by the one Submit, then the summary; nothing left unanswered', () => {
+    const result = replay(golden('ask_multi_q.out.jsonl'), prompt => defaults(formOf(prompt)).map(field => field.fieldId === 'note' ? { ...field, text: 'No' } : field))
+    const records = result.events.flatMap(event => event.type === 'item' && (event.item.kind === 'approval_request' || event.item.kind === 'approval_decision'
+      || (event.item.kind === 'user_message' && event.item.id.startsWith('omp:answer:'))) ? [event.item] : [])
+    expect(records).toMatchObject([
+      { kind: 'approval_request', requestId: 'ui_T1_ask_1', category: 'other', summary: 'Answer 3 questions', question: true },
+      { kind: 'approval_decision', requestId: 'ui_T1_ask_1', decision: 'allow_once', decidedBy: 'person' },
+      { kind: 'user_message', text: 'Which databases?: SQLite, Postgres\nWhich region?: US\nAnything else?: No' }
+    ])
+    expect(result.events.filter(event => event.type === 'pending').at(-1)).toMatchObject({ prompt: null })
+  })
+
   it('lands toggles, Other text, a changed radio and typed text as the recorded responses after one Submit', () => {
     const result = replay(golden('ask_multi_q_changed.out.jsonl'), () => [
       { fieldId: 'databases', optionIds: ['option_2', 'option_1'], text: 'Redis' },

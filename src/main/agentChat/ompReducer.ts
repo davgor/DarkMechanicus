@@ -306,9 +306,10 @@ export class OmpReducer {
     return true
   }
   recordPrompt(held: OmpState['pending'][number]): void {
+    const question = held.prompt.kind === 'question'
     this.emit({ type: 'item', item: { kind: 'approval_request', id: `omp:approval:${held.prompt.id}`, at: this.at,
       ...(held.prompt.threadId ? { threadId: held.prompt.threadId } : {}), requestId: held.prompt.id, category: 'other',
-      tool: held.prompt.kind === 'question' ? held.method : 'OMP', summary: held.prompt.title } })
+      tool: question ? held.method : 'OMP', summary: held.prompt.title, ...(question ? { question: true } : {}) } })
   }
   queue(frame: ObjectValue): void { this.emit({ type: 'queued', count: array(frame.followUp).length + array(frame.steering).length }) }
   stateResponse(data: ObjectValue): void {

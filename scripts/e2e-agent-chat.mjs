@@ -1971,13 +1971,40 @@ const MULTI_QUESTION_PROMPT = '[ask-multi-q]'
 const ASK_DEFAULTS = '[["SQLite","Postgres"],["US"],[]]'
 /** Its questions as the card heads them: the HTML marks nothing required, so the checkbox group and the text are optional. */
 const ASK_LEGENDS = '["Which databases? (optional)","Which region?","Anything else? (optional)"]'
+/** The ask's one transcript record while its card is open, and once its one Submit answered it. */
+const ASK_WAITING = '[{"label":"Question: Answer 3 questions","state":"Waiting for your answer"}]'
+const ASK_ANSWERED = '[{"label":"Question: Answer 3 questions","state":"Answered"}]'
+
+/**
+ * The chat's approval and question records, each as its label and state pill, and how many read Not answered; folded
+ * `Worked for` rows are opened first so a record inside one is read too.
+ */
+function askRecords(_h) {
+  for (const toggle of document.querySelectorAll('section.agent-chat .chat-transcript .chat-work-toggle[aria-expanded="false"]')) toggle.click()
+  const cards = [...document.querySelectorAll('section.agent-chat .chat-transcript .chat-approval-card')]
+  return {
+    ok: true, notAnswered: cards.filter((card) => card.textContent.includes('Not answered')).length,
+    records: cards.map((card) => ({ label: card.getAttribute('aria-label'), state: card.querySelector('.chat-approval-head [data-state]')?.textContent ?? null }))
+  }
+}
+
+/** Polls the transcript's records until they read `expected` with none Not answered. */
+async function recordsWhere(session, signal, expected) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = session.lastProbe = await page(session, askRecords)
+    return state.notAnswered === 0 && JSON.stringify(state.records) === expected && state
+  }, signal)
+}
 
 /**
  * Polish 7, on the omp fake: a new folder chat's `[ask-multi-q]` docks one form with all three questions, SQLite and
- * Postgres checked and US chosen, Submit enabled. Space unchecks Postgres and a click on its label checks it again
- * (the fake replays the recorded requests, so the group goes back at its default), EU replaces US and "note" goes in
- * the text field. One Submit answers every question: OMP takes one response per request it asks, and the fake echoes
- * them all in one reply; the transcript's summary carries every answer, the untouched databases default included.
+ * Postgres checked and US chosen, Submit enabled, and the transcript holds one record of the ask, a question waiting
+ * for its answer (never a Not answered approval to "Use select"). Space unchecks Postgres and a click on its label
+ * checks it again (the fake replays the recorded requests, so the group goes back at its default), EU replaces US and
+ * "note" goes in the text field. One Submit answers every question: OMP takes one response per request it asks, and the
+ * fake echoes them all in one reply; the transcript's summary carries every answer, the untouched databases default
+ * included, and the one record reads Answered.
  */
 async function polishMultiquestion(session, signal) {
   await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
@@ -1987,6 +2014,7 @@ async function polishMultiquestion(session, signal) {
   if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
   const defaults = await formWhere(session, signal, (state) => JSON.stringify(state.fields.map((field) => field.legend)) === ASK_LEGENDS
     && checkedOf(state) === ASK_DEFAULTS && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
+  const waiting = await recordsWhere(session, signal, ASK_WAITING)
   const defaultsShot = await capture(session, 'e2e-polish-multiquestion-defaults.png', WINDOW)
   await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'focus' })
   await pressSpace(session)
@@ -2009,9 +2037,11 @@ async function polishMultiquestion(session, signal) {
   }
   const summary = 'Which databases?: SQLite, Postgres\nWhich region?: EU\nAnything else?: note'
   if (JSON.stringify(turn.summaries) !== JSON.stringify([summary])) throw new Error(`The answered form reads ${JSON.stringify(turn.summaries)}, not ${JSON.stringify(summary)}.`)
+  const answered = await recordsWhere(session, signal, ASK_ANSWERED)
   return {
-    chat, defaults, spaceUnchecked: unchecked.fields[0].checked, form, echo: echoes[0], responses: values, summary: turn.summaries[0],
-    defaultsScreenshot: defaultsShot, screenshot
+    chat, defaults, waiting: waiting.records, spaceUnchecked: unchecked.fields[0].checked, form, echo: echoes[0], responses: values,
+    summary: turn.summaries[0], answered: answered.records, defaultsScreenshot: defaultsShot, screenshot,
+    answeredScreenshot: await capture(session, 'e2e-polish-multiquestion-answered.png', WINDOW)
   }
 }
 

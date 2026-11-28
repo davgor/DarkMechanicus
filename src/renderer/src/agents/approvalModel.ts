@@ -220,6 +220,23 @@ export function answerView(item: DecisionItem): AnswerView {
   return { ...answerLabel(item), detail: answerDetail(item) }
 }
 
+/** A question's stored decision in words: answering it allowed the call, so any allow reads as Answered. */
+const QUESTION_ANSWERS: Readonly<Record<DecisionItem['decision'], { state: PillState; label: string }>> = {
+  allow_once: { state: 'accepted', label: 'Answered' },
+  allow_chat: { state: 'accepted', label: 'Answered' },
+  deny: { state: 'blocked', label: 'Declined' },
+  cancelled: { state: 'canceled', label: 'Not answered' }
+}
+
+/**
+ * A request's state in words: a question's own (Answered, Declined, Not answered) or an approval's decision; with no
+ * decision, waiting while it is the live chat's pending prompt (its card shows it) and otherwise not answered.
+ */
+export function requestState(question: boolean, answer: DecisionItem | null, waiting: boolean): AnswerView {
+  if (answer !== null) return question ? { ...QUESTION_ANSWERS[answer.decision], detail: answerDetail(answer) } : answerView(answer)
+  return waiting ? { state: 'waiting', label: 'Waiting for your answer', detail: null } : { state: 'canceled', label: 'Not answered', detail: null }
+}
+
 // ---- Transcript rows ----
 
 export interface TranscriptRowModel {

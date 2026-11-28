@@ -261,7 +261,8 @@ function Messages({ state, transcript, folder, agentLabel, imageSrc }: {
     }}>
       <div ref={content}>
         {state.items.length === 0 && transcript.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status} />
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={transcript} imageSrc={imageSrc} status={state.status}
+          pendingId={state.pending?.id ?? null} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>
