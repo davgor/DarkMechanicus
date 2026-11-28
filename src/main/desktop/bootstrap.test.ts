@@ -1,7 +1,8 @@
 import type { IpcMain } from 'electron'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult, FolderPickResult } from '../../shared/desktop/api'
@@ -402,16 +403,37 @@ it('a start after an update consumes the marker and skips a chat of an untracked
   await vi.waitFor(() => expect(vi.mocked(logger.warn)).toHaveBeenCalledWith('Restart resume skipped chat magos-1: its folder is no longer tracked.'))
 })
 
-it('recovers learning approvals at startup only in set-up folders, opening no owner for an uninitialized one', async () => {
+/** Leaves an open learning integration this machine owns in the project's database, as an interrupted approval does. */
+function seedPendingLearningIntegration(folder: string): void {
+  const local = join(folder, '.darkmechanicus', 'local')
+  const machine: unknown = JSON.parse(readFileSync(join(local, 'machine.json'), 'utf8'))
+  if (typeof machine !== 'object' || machine === null || !('machineId' in machine) || typeof machine.machineId !== 'string') throw new Error('No machine record')
+  const db = new DatabaseSync(join(local, 'state.sqlite'), { enableForeignKeyConstraints: false })
+  try {
+    db.prepare(`INSERT INTO learning_integrations (id, card_id, attempt_id, state, manifest_json, manifest_hash, failure_json, revision, created_at, updated_at, owner_machine_id)
+      VALUES ('li-pending', 'kc-missing', 'ka-missing', 'prepared', '{}', 'sha256:0', NULL, 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', ?)`).run(machine.machineId)
+  } finally {
+    db.close()
+  }
+}
+
+it('recovers learning approvals at startup only in the set-up folder with one pending, opening no other owner (DM-983)', async () => {
   const first = await bridgeFixture()
-  const project = await track(first, 'approvals')
-  await first.command(project.path, 'initializeRepository', { name: 'Approvals' })
+  const folders = []
+  for (const name of ['idle-a', 'pending', 'idle-b']) {
+    const folder = await track(first, name)
+    await first.command(folder.path, 'initializeRepository', { name })
+    folders.push(folder)
+  }
   const lazy = await track(first, 'lazy')
   await first.finish()
+  seedPendingLearningIntegration(folders[1]!.path)
 
   const restarted = await bridgeFixture({ home: first.root })
   await vi.waitFor(() => expect(restarted.owners.flatMap(postedNames)).toContain('pendingLearningApprovals'))
   expect(restarted.owners).toHaveLength(1)
+  const paths = new Set(restarted.owners[0]!.requests.flatMap(request => request.type === 'close' ? [] : [request.path]))
+  expect([...paths]).toEqual([realpathSync.native(folders[1]!.path)])
   // Like every owner it opens without reconciling and runs its open-time reconcile once on the sync lane; the only
   // project work startup recovery posts is the pending-approvals read.
   await vi.waitFor(() => expect(postedNames(restarted.owners[0]!).filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat']))
