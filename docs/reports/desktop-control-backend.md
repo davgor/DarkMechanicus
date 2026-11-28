@@ -36,20 +36,28 @@ titled `DM-1041 fixture <A|B>`, with a "Probe button" and a "Probe input" field.
 `setAlwaysOnTop(true, 'screen-saver')`, `moveTop()`, `show()` and `focus()`, and re-asserts that 0.5 s, 1.5 s and 3 s
 after it is shown, so the person's always-on-top Dark Mechanicus window cannot cover it. It writes every click, the
 field's text and every `keydown` (with `isTrusted`) to a state file the probes read back. The window was in front for
-every action: each physical keystroke the B probe sent was preceded by a `GetForegroundWindow` check
-(`foreground.ps1`) that returned the fixture's own HWND and PID, and the cropped captures below show the fixture on top.
+every action. In the recorded B run (b9), every `--headed` keystroke and the mouse click came right after a
+`GetForegroundWindow` check (`foreground.ps1`) that returned the fixture's own HWND and PID. The one exception is the
+headless `press escape`, which had no check of its own. The checks just before it (before `press o`) and just after it
+(before the headed Escape) both matched the fixture, and its Escape reached the fixture. `agent-desktop-probe.mjs` now
+checks before the headless press as well, but that change came after the recorded run. The cropped captures below
+show the fixture on top.
 
 ### Privacy of evidence
 
 - Whole-desktop captures were kept only as numbers (resolution, monitor layout, timings). Each PNG was deleted as soon
   as its crop to the fixture's visible frame was written. OMP's own desktop screenshots were taken with
   `{ silent: true }`, so the model never saw them. Note that OMP leaves every computer screenshot in `%TEMP%` as
-  `omp-computer-*.png`: the harness deleted the two from each run (`removedOmpScreenshots` in
-  `omp-computer-probe.json`).
+  `omp-computer-*.png`. In run a2 the harness deleted the two that run wrote (`removedOmpScreenshots` in
+  `omp-computer-probe.json`). Run a1 came before that cleanup existed, so its two files were deleted by hand right after
+  the run.
 - The committed RPC fixture went through `omp-transcript.mjs` `redact()`: image payloads become
   `<image:redacted-by-dm1041>`, tokens and keys are masked, and the home and temp folders become `<HOME>` / `<TMP>`.
   This run's stream carried no image payload: the tool-result images reached the model but were not echoed on stdout.
-  A grep for the user name, e-mail addresses and token shapes in the committed files finds nothing.
+  A per-frame grep of the first commit missed one temp path the model streamed across two text deltas (`C:\Users\dav` +
+  `go\AppData\…`). `redactDeltaStreams()` in `omp-transcript.mjs` now joins each stream's deltas before matching, the
+  committed fixture was re-redacted with it (the path is now `<TMP>`), and the user name no longer appears in the file
+  or in any joined delta stream.
 - Attached screenshots are the fixture window only: agent-desktop's own window capture, or a desktop capture cropped to
   the fixture's visible frame. The crop drops the 10 px invisible resize border on each side and 11 px at the bottom,
   measured against agent-desktop's window capture of the same window.
@@ -69,9 +77,9 @@ a1 and a2.
 | 5. Per-operation latency | Above. Whole session from launch to settled: **25.6 s** (a1) and **23.1 s** (a2), one `eval` call, about **$0.08** of model spend per run (`usage.cost.total` 0.036 + 0.042 in a2). | Above. Process start-up dominates (`version` 29–35 ms). `list-windows` ~550 ms; window screenshot 743–809 ms. | — |
 | 6. Blender | N/A: not installed. | N/A | N/A |
 | 7. Driven from a Skitarii GUI chat over `rpc-ui` | ✅ Runs a1 and a2 (redacted transcript committed, see below). | Not applicable: agent-desktop is a CLI or MCP tool, not a chat. | — |
-| 8. Coordinates inside the fixture | ✅ The one pixel call was `win.click(x, y)` with `(154, 192)` in the window's own screenshot frame (815×503): inside it. On the desktop, the window origin 869,509 plus the point is ≈1023–1025, 701, inside the fixture's physical bounds 860,509 844×514 (`coordinates` in `omp-computer-probe.json`). Every other action used an AX element of the fixture window, found by title. | ✅ The one coordinate, `1025,701`, is inside 860,509 844×514 (`targets` in `agent-desktop-probe.json`). Every `press` named the fixture's `--window-id` and ran only after the foreground check matched the fixture. | — |
+| 8. Coordinates inside the fixture | ✅ The one pixel call was `win.click(x, y)` with `(154, 192)` in the window's own screenshot frame (815×503): inside it. On the desktop, the window origin 869,509 plus the point is ≈1023–1025, 701, inside the fixture's physical bounds 860,509 844×514 (`coordinates` in `omp-computer-probe.json`). Every other action used an AX element of the fixture window, found by title. | ✅ The one coordinate, `1025,701`, is inside 860,509 844×514 (`targets` in `agent-desktop-probe.json`). Every `press` named the fixture's `--window-id`. Each one followed a foreground check that matched the fixture, except the headless Escape (see Fixture above). | — |
 
-Two notes on row 4, for `s5-overlay-esc` (DM-1042/1044). First, every key the fixture received, injected by either
+Two notes on row 4, for `s5-overlay-esc` (DM-1042/1043). First, every key the fixture received, injected by either
 backend, has `isTrusted: true`, so an app cannot tell an injected key from a physical one. The kill switch has to read
 the `LLKHF_INJECTED` flag in a low-level keyboard hook. OMP documents that its own physical-Esc stop ignores
 "synthetic Escape chords", and `computer.capabilities()` reports `globalEscape: true` on this host. Second, the

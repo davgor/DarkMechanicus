@@ -28,6 +28,61 @@ function redactString(text) {
   return out
 }
 
+/**
+ * Where each PATHS match lies in a delta stream's joined text, so a path cut across deltas is still found. At one
+ * start the longest match wins (the temp folder lies inside the home folder), and overlapping later matches are dropped.
+ */
+function pathRanges(joined) {
+  const found = []
+  for (const [pattern, label] of PATHS) {
+    for (const match of joined.matchAll(pattern)) found.push({ start: match.index, end: match.index + match[0].length, label })
+  }
+  found.sort((a, b) => a.start - b.start || b.end - a.end)
+  const kept = []
+  for (const range of found) if (!kept.length || range.start >= kept.at(-1).end) kept.push(range)
+  return kept
+}
+
+/** One delta's text with every range cut out of it; the delta holding a range's first character gets its label. */
+function rewriteDelta(text, offset, ranges) {
+  let out = ''
+  for (let at = 0; at < text.length; at++) {
+    const range = ranges.find((r) => offset + at >= r.start && offset + at < r.end)
+    if (!range) out += text[at]
+    else if (offset + at === range.start) out += range.label
+  }
+  return out
+}
+
+function deltaKey({ frame }) {
+  const event = frame.type === 'message_update' ? frame.assistantMessageEvent : null
+  return typeof event?.delta === 'string' ? `${frame.messageId}:${event.contentIndex}:${event.type}` : null
+}
+
+/**
+ * Streamed text arrives in deltas, and a home or temp path can be cut between two of them (`C:\Users\dav` + `go\…`),
+ * which a per-frame redaction cannot see. This joins each stream's deltas, finds the paths in the joined text and
+ * rewrites the deltas that carry them. Returns copies; the input is not changed.
+ */
+export function redactDeltaStreams(entries) {
+  const copies = entries.map((entry) => structuredClone(entry))
+  const streams = new Map()
+  for (const entry of copies) {
+    const key = deltaKey(entry)
+    if (key) streams.set(key, [...(streams.get(key) ?? []), entry.frame.assistantMessageEvent])
+  }
+  for (const events of streams.values()) {
+    const ranges = pathRanges(events.map((event) => event.delta).join(''))
+    let offset = 0
+    for (const event of events) {
+      const length = event.delta.length
+      if (ranges.length) event.delta = rewriteDelta(event.delta, offset, ranges)
+      offset += length
+    }
+  }
+  return copies
+}
+
 function redactObject(value) {
   const copy = {}
   for (const [name, entry] of Object.entries(value)) copy[name] = name === 'apiKey' ? '<token:redacted>' : redact(entry, name)
@@ -75,7 +130,7 @@ function probeResult(calls) {
 }
 
 export function summarize(frames, redactedPath) {
-  writeFileSync(redactedPath, frames.map((entry) => JSON.stringify(redact(entry))).join('\n') + '\n')
+  writeFileSync(redactedPath, redactDeltaStreams(frames).map((entry) => JSON.stringify(redact(entry))).join('\n') + '\n')
   const calls = toolEvents(frames)
   const types = {}
   for (const { dir, frame } of frames) types[`${dir}:${frame.type}`] = (types[`${dir}:${frame.type}`] ?? 0) + 1

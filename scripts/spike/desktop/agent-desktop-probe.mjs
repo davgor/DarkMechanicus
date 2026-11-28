@@ -98,10 +98,12 @@ function fixtureInFront(fixture, step) {
   return ok
 }
 
+/** Both presses go to the foreground queue (headless `press` too), so each waits for the fixture to be in front. */
 async function escapes(fixture, win) {
+  if (!fixtureInFront(fixture, 'headless escape')) return
   const headless = ad('press escape (headless, --window-id)', ['press', 'escape', '--window-id', String(win.id)])
   headless.record.readBack = (await waitFor(fixture, (s) => s.keys.some((k) => k.key === 'Escape'), 2000)).keys
-  if (!fixtureInFront(fixture, 'escape')) return
+  if (!fixtureInFront(fixture, 'headed escape')) return
   const before = fixture.read().keys.filter((k) => k.key === 'Escape').length
   const headed = ad('press escape (--headed, --window-id)', ['--headed', 'press', 'escape', '--window-id', String(win.id)])
   headed.record.readBack = (await waitFor(fixture, (s) => s.keys.filter((k) => k.key === 'Escape').length > before, 2000)).keys
