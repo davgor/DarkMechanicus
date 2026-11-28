@@ -27,6 +27,7 @@ import { chatsFor } from './agents/useChats'
 import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
 import { AgentChat } from './agentChat/AgentChat'
+import { OriginPromptCard } from './browser/OriginPromptCard'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
@@ -160,7 +161,8 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
     const callsign = rootCallsignOf(chat)?.role
     const skitarii = shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'
     return <AgentChat folder={folder} folderKey={folderKey} chatId={chat.id} agentLabel={cli} agentChip={callsign === undefined ? cli : `${callsign} · ${cli}`}
-      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii} />
+      context={folderName} scheduler={scheduler} rail="toggle" chat={chat} revealThreadId={threadId} onRevealed={onRevealed} skitarii={skitarii}
+      browser={window.dm.browser} />
   }
   return (
     <TerminalPane
@@ -173,6 +175,7 @@ function ChatPane({ shell, folder, folderKey, folderName, chat, scheduler, termi
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
       peers={folder === null ? undefined : chatsFor(shell.chats.lists, folder).chats}
       onOpenChat={folder === null ? undefined : (chatId) => shell.actions.selectChat(folder, chatId)}
+      siteCard={<OriginPromptCard folder={folder} chatId={chat.id} api={window.dm.browser} />}
     />
   )
 }

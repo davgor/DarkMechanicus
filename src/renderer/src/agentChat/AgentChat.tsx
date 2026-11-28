@@ -1,7 +1,9 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
-import type { AgentChatApi } from '../../../shared/agents/agentChat'
+import type { AgentChatAnswer, AgentChatApi } from '../../../shared/agents/agentChat'
+import type { BrowserApi } from '../../../shared/browser/browserApi'
 import type { CommandResult } from '../../../shared/desktop/api'
+import { OriginPromptCard } from '../browser/OriginPromptCard'
 import { ChatTranscript } from '../agents/ChatTranscript'
 import { RevealThreadContext } from '../agents/revealThread'
 import type { Scheduler } from '../app/scheduler'
@@ -45,6 +47,8 @@ interface Props {
   epic?: ChatEpic
   /** A Skitarii (OMP) chat: the composer offers its model and effort chip. Claude and every other chat has none. */
   skitarii?: boolean
+  /** The in-app browser (`window.dm.browser`): its pending site prompt docks above the composer. None shows no site card. */
+  browser?: BrowserApi
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -87,7 +91,7 @@ const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
-  epic, skitarii
+  epic, skitarii, browser
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
@@ -121,7 +125,7 @@ function ChatView({
             <Messages state={state} transcript={transcript} folder={folder} agentLabel={agentLabel} imageSrc={imageSrc} />
           </ChatEvidenceProvider></RevealThreadContext.Provider>
           <TurnActivityLine state={state} stop={stop} acting={command.acting} />
-          <PendingPromptCard prompt={state.pending} answer={answer} />
+          <PromptSlot folder={folder} chatId={chatId} pending={state.pending} answer={answer} browser={browser} />
           <TodoCard chatId={chatId} state={state} />
           <Composer chatId={chatId} folderKey={folderKey} agentLabel={agentLabel} agentChip={agentChip} context={context} state={state}
             command={command} images={images} send={send} stop={stop}
@@ -133,6 +137,22 @@ function ChatView({
         </div>}
       </div></ChatImagesContext.Provider>
     </section>
+  )
+}
+
+/** The prompt slot above the composer: the agent's approval or question, then the chat's browser site prompt below it. */
+function PromptSlot({ folder, chatId, pending, answer, browser }: {
+  folder: string | null
+  chatId: string
+  pending: ChatState['pending']
+  answer(request: AgentChatAnswer): Promise<CommandResult<null>>
+  browser: BrowserApi | undefined
+}): JSX.Element {
+  return (
+    <>
+      <PendingPromptCard prompt={pending} answer={answer} />
+      {browser && <OriginPromptCard folder={folder} chatId={chatId} api={browser} />}
+    </>
   )
 }
 

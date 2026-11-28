@@ -31,7 +31,7 @@ import { FakeBackend, deliveryScenario, scenario } from '../../src/renderer/src/
 import { fakeOrchestration } from '../../src/renderer/src/epic/__mocks__/fakeOrchestration'
 import { bundle, epicDetail, folder, runView, savedPlan, ticket } from '../../src/renderer/src/epic/__mocks__/fixtures'
 import { NotificationSettings } from '../../src/renderer/src/settings/NotificationSettings'
-import { browserScenarios, type BrowserScenarioName } from '../../src/renderer/src/browser/__mocks__/browserScenario'
+import { browserScenarios, browserSites, type BrowserScenarioName } from '../../src/renderer/src/browser/__mocks__/browserScenario'
 
 /**
  * The epic Agent tab's states for `scripts/capture-agent-chat.mjs`: the real `EpicWorkspace` (or a standalone
@@ -730,7 +730,10 @@ function browserState(scenario: BrowserScenarioName, after?: () => Promise<void>
   }
 }
 
-/** The Browser tab's states: no tab with agents off, an Acolyte driving, the person in control, stopped, and a private tab. */
+/**
+ * The Browser tab's states: no tab with agents off, an Acolyte driving, the person in control, stopped, a private tab,
+ * a site card per asker (agent, page, person) docked in the chat beside the panel, and the open Sites popover.
+ */
 const browserStates: Record<string, StateDef> = {
   'browser-empty': browserState('browser-empty'),
   'browser-agent': browserState('browser-agent'),
@@ -743,7 +746,34 @@ const browserStates: Record<string, StateDef> = {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, 'https://accounts.example.com/login')
     field.dispatchEvent(new Event('input', { bubbles: true }))
     await until(() => field.value === 'https://accounts.example.com/login', 'the typed private address')
-  })
+  }),
+  'browser-origin': browserState('browser-origin', siteCard),
+  'browser-origin-page': browserState('browser-origin-page', siteCard),
+  'browser-origin-person': browserState('browser-origin-person', siteCard),
+  // The folder's three always-allowed sites, listed in the open Sites popover with the page area hidden behind it.
+  'browser-sites': {
+    ...browserState('browser-agent', async () => {
+      await clickWhenPresent(() => buttonNamed('Sites', $('.bp') ?? document), 'the Sites button')
+      await until(() => $('.bp-sites-popover .bp-sites-row'), 'the Sites popover’s rows')
+    }),
+    seed: (context) => {
+      context.backend.browser.current = browserScenarios['browser-agent']
+      context.backend.browser.siteList = [...browserSites]
+    }
+  },
+  // The Magos runs in a terminal, so it has no chat column: its site card docks in the Browser panel above the page.
+  'browser-origin-terminal': {
+    ...browserState('browser-origin', async () => { await until(() => $('.bp .origin-prompt h3'), 'the Browser panel’s site card') }),
+    seed: (context) => {
+      context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
+      context.backend.browser.current = browserScenarios['browser-origin']
+    }
+  }
+}
+
+/** The chat's site card for the seeded pending origin, docked above the composer. */
+async function siteCard(): Promise<void> {
+  await until(() => $('section.agent-chat .origin-prompt h3'), 'the chat’s site card')
 }
 
 /** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
@@ -1479,7 +1509,10 @@ function polishObservations(): Record<string, unknown> {
   }
 }
 
-/** The Browser panel's chrome as a person reads it, and the stage the widened rail shares; null without a panel. */
+/**
+ * The Browser panel's chrome as a person reads it, the stage the widened rail shares, the chat's site card and the
+ * open Sites popover's origins; null without a panel.
+ */
 function browserObservations(): Record<string, unknown> | null {
   const panel = $('section.bp')
   if (panel === null) return null
@@ -1487,6 +1520,7 @@ function browserObservations(): Record<string, unknown> | null {
   const toggle = buttonNamed('Take control', panel) ?? buttonNamed('Hand back', panel)
   const enabled = $('input[role="switch"]', panel)
   const address = $('input[aria-label="Private tab address"]', panel)
+  const sites = $('.bp-sites-popover', panel)
   return {
     badge: text($('[aria-label="Browser owner"]', panel)),
     tabs: [...panel.querySelectorAll('.bp-tab-title')].map(text),
@@ -1495,7 +1529,25 @@ function browserObservations(): Record<string, unknown> | null {
     enabled: enabled instanceof HTMLInputElement ? enabled.checked : null,
     page: text($('.bp-content', panel)),
     privateAddress: address instanceof HTMLInputElement ? address.value : null,
-    stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null
+    stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null,
+    siteCard: siteCardObservations($('section.agent-chat .origin-prompt'), $('section.agent-chat .chat-composer')),
+    panelSiteCard: siteCardObservations($('.origin-prompt', panel), $('.bp-content', panel)),
+    sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
+    sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect())
+  }
+}
+
+/**
+ * A docked site card: its heading, label and buttons, and whether it sits wholly above what follows it (the chat's
+ * composer, or the Browser panel's page area the native view covers).
+ */
+function siteCardObservations(card: HTMLElement | null, next: HTMLElement | null): Record<string, unknown> | null {
+  if (card === null) return null
+  return {
+    heading: text($('h3', card)),
+    label: card.getAttribute('aria-label'),
+    buttons: [...card.querySelectorAll('button')].map(text),
+    above: next === null ? null : card.getBoundingClientRect().bottom <= next.getBoundingClientRect().top
   }
 }
 
@@ -1651,7 +1703,8 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 const SIZED_STATES: Record<string, true> = {
   'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
   'question-form': true, 'browser-empty': true, 'browser-agent': true, 'browser-person': true, 'browser-stopped': true,
-  'browser-private': true
+  'browser-private': true, 'browser-origin': true, 'browser-origin-page': true, 'browser-origin-person': true, 'browser-sites': true,
+  'browser-origin-terminal': true
 }
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */

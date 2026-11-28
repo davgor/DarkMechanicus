@@ -29,6 +29,8 @@ interface TerminalPaneProps {
   peers?: readonly ChatRecord[]
   /** Opens a chat of this folder, on the person's click in the inbox only. */
   onOpenChat?(chatId: string): void
+  /** The chat's browser site prompt, docked above the terminal: a terminal chat has no GUI prompt slot. */
+  siteCard?: JSX.Element
 }
 
 interface SignInCardProps {
@@ -167,7 +169,7 @@ function FirstPromptRecovery({ chat }: { chat: ChatRecord }): JSX.Element | null
  * fresh one. A chat that stored a transcript before chats became terminals shows **Earlier conversation** above the
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
-export function TerminalPane({ folder, chat, agentName, agentKind, kit, scheduler, onAgentStatus, peers = [], onOpenChat }: TerminalPaneProps): JSX.Element {
+export function TerminalPane({ folder, chat, agentName, agentKind, kit, scheduler, onAgentStatus, peers = [], onOpenChat, siteCard }: TerminalPaneProps): JSX.Element {
   const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const [earlierOpen, setEarlierOpen] = useState(false)
   const pill = PHASE_PILLS[phase.state]
@@ -196,6 +198,7 @@ export function TerminalPane({ folder, chat, agentName, agentKind, kit, schedule
       {folder === null ? null : <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />}
       <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
       <FirstPromptRecovery chat={chat} />
+      {siteCard}
       <div
         className={frameClass(notStarted, skitarii)}
         style={background === null ? undefined : { background }}

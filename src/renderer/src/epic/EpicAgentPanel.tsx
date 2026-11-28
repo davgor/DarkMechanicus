@@ -235,7 +235,7 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   if (chat.surface === 'gui') {
     return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
       agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} epic={epic}
-      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} />
+      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} browser={window.dm.browser} />
   }
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }
@@ -299,6 +299,14 @@ function tabInputs(nodes: readonly AgentTreeNodeInput[], counts: ReadonlyMap<str
   }
 }
 
+/**
+ * The selected chat's Browser rail tab. A GUI chat shown in the centre docks its site prompt above its composer; a
+ * terminal chat, or a thread shown in its place, has no such slot, so the prompt docks in the Browser panel instead.
+ */
+function browserTab(folder: string, chat: ChatRecord, threadId: string | null): RailTab {
+  return browserRailTab(folder, chat.id, chat.surface !== 'gui' || threadId !== null)
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -342,7 +350,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}
         tabs={railTabs(nodes, {
-          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress, browser: browserRailTab(folder, chat.id),
+          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress, browser: browserTab(folder, chat, threadId),
           changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
             onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
         })} />

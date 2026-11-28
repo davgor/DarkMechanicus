@@ -5,6 +5,8 @@ import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
 import { useAnyOverlayOpen } from '../components/overlays'
 import type { RailTab } from '../components/RightRail'
+import { OriginPromptCard } from './OriginPromptCard'
+import { SitesPopover } from './SitesPopover'
 import { useBrowser, type BrowserHandle } from './useBrowser'
 import './browserPanel.css'
 
@@ -14,6 +16,7 @@ const PLACEMENT_POLL_MS = 250
 const PRIVATE_TAB_LABEL = "Private tab (agents can't see this; sign-ins here don't carry over)"
 const EMPTY_TEXT = 'Agents open pages here. You will be asked before any new site loads.'
 const HIDDEN_TEXT = 'Browser hidden while a dialog is open'
+const SITES_HIDDEN_TEXT = 'Browser hidden while Sites is open'
 
 /** The ownership badge: who drives the chat's browser now. */
 function ownerBadge(owner: BrowserState['owner'], ownerLabel: string | null): string {
@@ -136,7 +139,7 @@ function PrivateTabButton({ state, browser }: { state: BrowserState | null; brow
   )
 }
 
-function Toolbar({ state, browser }: { state: BrowserState | null; browser: BrowserHandle }): JSX.Element {
+function Toolbar({ state, browser, sites }: { state: BrowserState | null; browser: BrowserHandle; sites: JSX.Element }): JSX.Element {
   // Back, Forward and Reload act on the agent tab, so they wait for it and stand down while the private tab is shown.
   const navigable = state?.tab != null && state.signIn === null
   return (
@@ -153,6 +156,7 @@ function Toolbar({ state, browser }: { state: BrowserState | null; browser: Brow
       </button>
       <AddressBar key={state?.tab?.url ?? ''} state={state} browser={browser} />
       <PrivateTabButton state={state} browser={browser} />
+      {sites}
     </div>
   )
 }
@@ -185,36 +189,55 @@ function Controls({ state, browser }: { state: BrowserState | null; browser: Bro
   )
 }
 
+/** The page area's own text: why the view is hidden, or the empty state while no page is shown; none over a page. */
+function pageNote({ overlay, sitesOpen, blank }: { overlay: boolean; sitesOpen: boolean; blank: boolean }): string | null {
+  if (overlay) return HIDDEN_TEXT
+  if (sitesOpen) return SITES_HIDDEN_TEXT
+  return blank ? EMPTY_TEXT : null
+}
+
 /**
  * The rail's Browser tab for one chat: its tab strip, toolbar, ownership badge and controls over the content area,
- * a placeholder whose rect main covers with the chat's native browser view. Menus and popovers of this panel open in
- * the toolbar, never over the content area, since the native view draws above the page.
+ * a placeholder whose rect main covers with the chat's native browser view. Menus and popovers of this panel open from
+ * the toolbar; the native view draws above the page, so it is hidden while the Sites popover drops over the content.
+ * With `siteCard` (a chat not showing its GUI chat column, such as a terminal one) the chat's site prompt docks here,
+ * above the content area, which shrinks to make room, so the view never covers it.
  */
-export function BrowserPanel({ folder, chatId, api = window.dm.browser }: {
+export function BrowserPanel({ folder, chatId, api = window.dm.browser, siteCard = false }: {
   folder: string | null
   chatId: string
   api?: BrowserApi
+  siteCard?: boolean
 }): JSX.Element {
   const browser = useBrowser(folder, chatId, api)
   const overlay = useAnyOverlayOpen()
+  const [sitesOpen, setSitesOpen] = useState(false)
+  const hidden = overlay || sitesOpen
   const content = useRef<HTMLDivElement>(null)
-  useViewPlacement({ api, folder, chatId, content, shown: !overlay })
+  useViewPlacement({ api, folder, chatId, content, shown: !hidden })
   const { state } = browser
-  const blank = state !== null && state.tab === null && state.signIn === null
+  const note = pageNote({ overlay, sitesOpen, blank: state !== null && state.tab === null && state.signIn === null })
+  const sites = <SitesPopover folder={folder} api={api} open={sitesOpen} onOpenChange={setSitesOpen} />
   return (
     <section className="bp" aria-label="Browser">
       <TabStrip state={state} browser={browser} />
-      <Toolbar state={state} browser={browser} />
+      <Toolbar state={state} browser={browser} sites={sites} />
       <Controls state={state} browser={browser} />
       {browser.error !== null && <p className="bp-error" role="alert">{browser.error}</p>}
-      <div ref={content} className={classNames('bp-content', overlay && 'bp-content-hidden')} role="region" aria-label="Browser page">
-        {overlay ? <p className="bp-note">{HIDDEN_TEXT}</p> : blank ? <p className="bp-note">{EMPTY_TEXT}</p> : null}
+      {siteCard && <OriginPromptCard folder={folder} chatId={chatId} api={api} />}
+      <div ref={content} className={classNames('bp-content', hidden && 'bp-content-hidden')} role="region" aria-label="Browser page">
+        {note !== null && <p className="bp-note">{note}</p>}
       </div>
     </section>
   )
 }
 
-/** The rail's Browser tab for one chat, as the epic and ordinary chat rails both offer it; it widens the rail. */
-export function browserRailTab(folder: string | null, chatId: string): RailTab {
-  return { id: 'browser', label: 'Browser', icon: 'globe', wide: true, content: <BrowserPanel folder={folder} chatId={chatId} /> }
+/**
+ * The rail's Browser tab for one chat, as the epic and ordinary chat rails both offer it; it widens the rail. `siteCard`
+ * docks the chat's site prompt in the panel, for a chat whose GUI chat column (and its card) is not shown.
+ */
+export function browserRailTab(folder: string | null, chatId: string, siteCard = false): RailTab {
+  return {
+    id: 'browser', label: 'Browser', icon: 'globe', wide: true, content: <BrowserPanel folder={folder} chatId={chatId} siteCard={siteCard} />
+  }
 }
