@@ -1,0 +1,177 @@
+/* The rail's Browser tab: chrome rows over a content area main covers with the chat's native browser view. */
+.bp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  min-height: 0;
+}
+
+.bp-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 50%;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.bp-tab-shown {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+
+.bp-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The private tab's label is its warning, so it takes the room it needs and wraps rather than being cut short. */
+.bp-tab-private {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+.bp-tab-private .bp-tab-title {
+  white-space: normal;
+}
+
+.bp-toolbar,
+.bp-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.rr .bp .bp-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+}
+
+.rr .bp button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.bp-address {
+  flex: 1 1 160px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.bp-address:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+
+/* The shared rail resets its buttons to bare text; the panel's labelled buttons keep their outline. */
+.rr .bp .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.rr .bp .bp-stop:not(:disabled) {
+  color: var(--danger-ink);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.rr .bp .bp-stop:not(:disabled):hover {
+  background: var(--btn-danger-hover);
+}
+
+.bp-badge {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: var(--radius);
+  background: var(--panel-3);
+  color: var(--ink-soft);
+}
+
+.bp-badge-agent {
+  color: var(--st-running);
+}
+
+.bp-badge-person {
+  color: var(--ink);
+}
+
+.bp-badge-stopped {
+  color: var(--danger);
+}
+
+.bp-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.bp-actions {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.bp-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* The native view covers this box exactly; its own text shows only while no page is shown. */
+.bp-content {
+  flex: 1 1 auto;
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.bp-content-hidden {
+  background: var(--panel-2);
+}
+
+.bp-note {
+  max-width: 32ch;
+  margin: 0;
+  padding: 12px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-align: center;
+}

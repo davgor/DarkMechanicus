@@ -128,7 +128,8 @@ function ChatView({
             model={skitarii ? <ModelPicker state={state} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
-          <ChatAgentsRail chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents} selected={reveal.target} select={show} />
+          <ChatAgentsRail folder={folder} chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents}
+            selected={reveal.target} select={show} />
         </div>}
       </div></ChatImagesContext.Provider>
     </section>

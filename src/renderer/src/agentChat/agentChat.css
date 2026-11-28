@@ -63,6 +63,15 @@
   min-height: 0;
 }
 
+/* The wrapper takes the Browser tab's width (about 45% of the chat, at least 420 px) and the rail fills it. */
+.agent-chat-rail:has(> .rr-wide) {
+  flex-basis: max(420px, 45%);
+}
+
+.agent-chat-rail > .rr-wide {
+  flex: 1 1 auto;
+}
+
 /* The transcript pane is .glass-strong at the lighter pane tint, so the backdrop shows through; the fallbacks still
    paint the utility's solid panel. */
 .agent-chat-scroll {

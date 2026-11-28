@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import type { KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
+import { useOverlayOpen } from './overlays'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -56,6 +57,7 @@ export function Dialog({ title, description, onClose, children, actions }: Dialo
   const descriptionId = useId()
   const panel = useRef<HTMLDivElement>(null)
   useDialogFocus(panel)
+  useOverlayOpen()
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key === 'Escape') {

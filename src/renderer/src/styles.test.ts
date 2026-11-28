@@ -308,7 +308,7 @@ const PANES = [
   },
   {
     name: 'the agent rail', sheet: './components/rightRail.css', selector: '.rr', utility: '.glass',
-    markup: [['components/RightRail.tsx', 'className="rr glass"']]
+    markup: [['components/RightRail.tsx', "className={classNames('rr glass',"]]
   },
   {
     name: 'the transcript pane', sheet: './agentChat/agentChat.css', selector: '.agent-chat-scroll', utility: '.glass-strong',

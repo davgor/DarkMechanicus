@@ -20,6 +20,7 @@ import { ChatTranscript } from '../agents/ChatTranscript'
 import { agentName } from '../agents/agentText'
 import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
+import { browserRailTab } from '../browser/BrowserPanel'
 import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
 import { EpicRolePicker } from './AgentPickerDialog'
 import { AgentTabStrip } from './AgentTabStrip'
@@ -186,13 +187,14 @@ function RelayComposer({ folder, context, ownerId, ownerName, threadId, name }: 
   )
 }
 
-function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes, needsYou, progress }: {
+function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes, needsYou, progress, browser }: {
   selectedId: string | null
   onSelect: (id: string) => void
   now: number
   changes: ReactNode
   needsYou: NeedsYouControls
   progress: (node: AgentTreeNode) => ReactNode
+  browser: RailTab
 }): RailTab[] {
   const tree = buildAgentTree(nodes)
   const { needsYou: waiting, working } = tree.counts
@@ -209,7 +211,7 @@ function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, chan
         progress={progress} />
       {changes}
     </>
-  }]
+  }, browser]
 }
 
 /** The selected root's chat (GUI or terminal), or one of its threads. */
@@ -340,7 +342,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}
         tabs={railTabs(nodes, {
-          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress,
+          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress, browser: browserRailTab(folder, chat.id),
           changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
             onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
         })} />
