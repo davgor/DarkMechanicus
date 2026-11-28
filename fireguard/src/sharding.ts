@@ -116,8 +116,9 @@ export function mergeShards(
     }
     gates.mutation = scoreMutations({ killed, survived, survivors: survivors.sort((a, b) =>
       a.file.localeCompare(b.file) || a.line - b.line), modules: first.scope.changedModules,
-      moduleTests: firstMutation.moduleTests, unchangedLineMutants: firstMutation.unchangedLineMutants,
-      minScore: config.thresholds.minMutationScore });
+      moduleTests: firstMutation.moduleTests && Object.fromEntries(Object.entries(firstMutation.moduleTests)
+        .sort(([a], [b]) => a.localeCompare(b))),
+      unchangedLineMutants: firstMutation.unchangedLineMutants, minScore: config.thresholds.minMutationScore });
   }
   if (first.execution) combined.execution = { ...first.execution,
     lanes: ordered.reduce((sum, report) => sum + (report.execution?.lanes ?? 0), 0) };
