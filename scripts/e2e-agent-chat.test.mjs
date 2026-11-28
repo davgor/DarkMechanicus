@@ -1,16 +1,22 @@
-import { spawnSync } from 'node:child_process'
+import { fork, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
+import { folderStoreId } from '../src/main/agentChat/folderStoreId'
 import { resolveAgentExecutable } from '../src/main/terminals/agentExecutable'
 import {
+  addedView,
   assertHandoffOrder,
+  assertStatus,
   assertToggleLaunches,
+  browserToolCalls,
+  canAskToQuit,
   chatLaunches,
   claudeSessionPath,
   consoleText,
+  countLines,
   coordLaunches,
   coordMailBody,
   evidenceComment,
@@ -22,8 +28,11 @@ import {
   isAlive,
   isolatedEnv,
   launchModelFlags,
+  loopEnd,
+  mark,
   newChatLaunch,
   newerVersion,
+  newTargets,
   parseArgs,
   pngSize,
   refusedImages,
@@ -35,13 +44,16 @@ import {
   restartTurn,
   runStep,
   seededAgents,
+  sendToChild,
   sha12,
+  siteFile,
   staleRoots,
   stepPhases,
   switchControls,
   transcriptImageRefs,
   turnEnded,
   verdict,
+  viewTarget,
   waitFor,
   withNodeFirst,
   wrapperSource,
@@ -104,6 +116,26 @@ describe('runStep', () => {
   })
 })
 
+describe('step timing', () => {
+  it('records the wall-clock bounds of every step, passed or failed, for placing it among the app log lines', async () => {
+    const before = Date.now()
+    const passed = await runStep('quick', async () => ({}))
+    const failed = await runStep('broken', async () => { throw new Error('no build') })
+    for (const step of [passed, failed]) {
+      expect(Date.parse(step.startedAt)).toBeGreaterThanOrEqual(before)
+      expect(Date.parse(step.endedAt)).toBeGreaterThanOrEqual(Date.parse(step.startedAt))
+    }
+  })
+
+  it('carries the session marks in order, each with its wall-clock time', () => {
+    const session = { marks: [] }
+    mark(session, 'quit asked')
+    mark(session, 'app exited')
+    expect(session.marks.map(({ label }) => label)).toEqual(['quit asked', 'app exited'])
+    expect(Date.parse(session.marks[1].at)).toBeGreaterThanOrEqual(Date.parse(session.marks[0].at))
+  })
+})
+
 describe('waitFor', () => {
   it('rejects once the signal aborts', async () => {
     const controller = new AbortController()
@@ -111,6 +143,45 @@ describe('waitFor', () => {
     await delay(15)
     controller.abort()
     await expect(waiting).rejects.toThrow()
+  })
+})
+
+describe('sendToChild', () => {
+  it('rejects on a closed IPC channel instead of emitting an unhandled error on the child', async () => {
+    const script = join(temp(), 'exit.cjs')
+    writeFileSync(script, 'process.exit(0)\n')
+    const child = fork(script, [], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
+    const errors = []
+    child.on('error', (error) => errors.push(error))
+    await new Promise((resolveExit) => child.once('exit', resolveExit))
+    expect(child.connected).toBe(false)
+    await expect(sendToChild(child, 'quit')).rejects.toThrow("The app's IPC channel is closed; could not send \"quit\".")
+    await delay(50)
+    expect(errors).toEqual([])
+  })
+
+  it('rejects with the error a connected channel reports, and resolves once a message is sent', async () => {
+    const failed = { connected: true, send: (_message, callback) => callback(new Error('EPIPE')) }
+    await expect(sendToChild(failed, 'quit')).rejects.toThrow('EPIPE')
+    const sent = []
+    const ok = { connected: true, send: (message, callback) => { sent.push(message); callback(null) } }
+    await expect(sendToChild(ok, { type: 'resize', width: 1, height: 1 })).resolves.toBeUndefined()
+    expect(sent).toEqual([{ type: 'resize', width: 1, height: 1 }])
+  })
+})
+
+describe('canAskToQuit', () => {
+  it('asks a connected child the harness has not killed, and never a disconnected or force-killed one', () => {
+    const connected = { connected: true }
+    const disconnected = { connected: false }
+    expect(canAskToQuit(null, null)).toBe(true)
+    expect(canAskToQuit(connected, null, new WeakSet())).toBe(true)
+    expect(canAskToQuit(disconnected, null, new WeakSet())).toBe(false)
+    expect(canAskToQuit(connected, null, new WeakSet([connected]))).toBe(false)
+  })
+
+  it('always asks the packaged app, through its inspector', () => {
+    expect(canAskToQuit({ connected: false }, 'C:\\app\\Dark Mechanicus.exe', new WeakSet())).toBe(true)
   })
 })
 
@@ -129,7 +200,7 @@ describe('isolatedEnv', () => {
   it('strips app-redirecting variables and isolates every home under the root', () => {
     const base = {
       Path: 'C:\\node', ELECTRON_RUN_AS_NODE: '1', electron_enable_logging: '1', NODE_OPTIONS: '--inspect',
-      DM_SESSION_TOKEN: 'secret', DM_DESKTOP_PIPE: 'pipe', UserProfile: 'C:\\Users\\real', AppData: 'C:\\real', KEEP: 'yes'
+      DM_SESSION_TOKEN: 'secret', DM_DESKTOP_PIPE: 'pipe', DM_BROWSER_PIPE: 'browser-pipe', UserProfile: 'C:\\Users\\real', AppData: 'C:\\real', KEEP: 'yes'
     }
     const env = isolatedEnv(base, 'C:\\tmp\\run', 'win32')
     expect(env).toEqual({
@@ -257,12 +328,14 @@ describe('writeShim: fake-omp', () => {
 describe('seededAgents', () => {
   const shims = { claude: 'C:\\run\\shim\\fake-claude.cmd', omp: 'C:\\run\\shim\\fake-omp.cmd' }
 
-  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp', () => {
+  it('connects the claude fake alone by default, and the omp fake beside it for --agent omp or when asked to', () => {
     expect(seededAgents(shims, 'claude')).toEqual([{ kind: 'claude', executablePath: shims.claude, version: '2.1.329' }])
-    expect(seededAgents(shims, 'omp')).toEqual([
+    const both = [
       { kind: 'claude', executablePath: shims.claude, version: '2.1.329' },
       { kind: 'omp', executablePath: shims.omp, version: '18.16.0' }
-    ])
+    ]
+    expect(seededAgents(shims, 'omp')).toEqual(both)
+    expect(seededAgents(shims, 'claude', true)).toEqual(both)
   })
 })
 
@@ -455,23 +528,41 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', 'x']).agent).toBe('claude')
     expect(parseArgs(['--out', 'x', '--agent', 'omp'])).toMatchObject({ agent: 'omp', keys: ['ready', 'new-chat', 'quit'] })
     expect(parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,new-chat']).keys).toEqual(['ready', 'new-chat'])
-    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart; stream drive the claude fake.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'ready,stream'])).toThrow('--agent omp runs only ready, new-chat, quit, coord-tabs, coord-mail, coord-wake, coord-close, model-pick, model-busy, model-restart, polish-multiquestion; stream drive the claude fake.')
     expect(() => parseArgs(['--out', 'x', '--agent', 'codex'])).toThrow('--agent takes claude or omp, not codex.')
     expect(() => parseArgs(['--out', 'x', '--agent'])).toThrow('--agent takes claude or omp, not nothing.')
   })
 
-  it('runs the polish steps only when named, in the order given, after ready; claude only', () => {
+  it('runs the polish steps only when named, in the order given, after ready; claude only but polish-multiquestion', () => {
     const polish = ['polish-picker', 'polish-composer', 'polish-copy', 'polish-multiselect', 'polish-worked-for', 'polish-untrack']
     expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('polish-'))).toEqual([])
     expect(parseArgs(['--out', 'x', '--steps', polish.join(',')]).keys).toEqual(['ready', ...polish])
     expect(parseArgs(['--out', 'x', '--steps', `ready,${polish[0]}`]).keys).toEqual(['ready', polish[0]])
     expect(parseArgs(['--out', 'x', '--steps', 'quit']).keys).toEqual(['ready', 'quit'])
     expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'polish-picker'])).toThrow('polish-picker drive the claude fake.')
+    expect(parseArgs(['--out', 'x', '--steps', 'polish-multiquestion'])).toMatchObject({ agent: 'omp', keys: ['ready', 'polish-multiquestion'] })
+    expect(() => parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'polish-multiquestion'])).toThrow('polish-multiquestion drive the omp fake: leave out --agent claude.')
+  })
+
+  it('runs the browser steps only when named, on the claude default with their fixed deadlines; never with --agent omp', () => {
+    const browser = ['browser-drive', 'browser-skitarii', 'browser-shot', 'browser-guard', 'browser-signin', 'browser-origin', 'browser-stop', 'browser-take']
+    expect(parseArgs(['--out', 'x']).keys.filter((key) => key.startsWith('browser-'))).toEqual([])
+    const parsed = parseArgs(['--out', 'x', '--steps', [...browser, 'quit'].join(',')])
+    expect(parsed).toMatchObject({ agent: 'claude', keys: ['ready', ...browser, 'quit'] })
+    expect(stepPhases(parsed.keys).map((phase) => [phase.name, phase.deadlineMs])).toEqual([
+      ['app ready', undefined], ['browser-drive', 60_000], ['browser-skitarii', 60_000], ['browser-shot', 30_000],
+      ['browser-guard', 30_000], ['browser-signin', 20_000], ['browser-origin', 45_000], ['browser-stop', 30_000],
+      ['browser-take', 30_000], ['quit', undefined]
+    ])
+    expect(parseArgs(['--out', 'x', '--steps', 'browser-skitarii']).agent).toBe('claude')
+    expect(parseArgs(['--out', 'x', '--agent', 'claude', '--steps', 'browser-skitarii']).keys).toEqual(['ready', 'browser-skitarii'])
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'browser-drive,browser-skitarii'])).toThrow('browser-drive, browser-skitarii run on the claude default: leave out --agent omp.')
+    expect(() => parseArgs(['--out', 'x', '--agent', 'omp', '--steps', 'browser-origin,browser-stop,browser-take'])).toThrow('browser-origin, browser-stop, browser-take run on the claude default: leave out --agent omp.')
   })
 })
 
 describe('polish verdict', () => {
-  it('names one verdict step per polish step, each {name, ok, ms, detail}, run once under the deadline', async () => {
+  it('names one verdict step per polish step, each {name, ok, ms, detail, startedAt, endedAt}, run once under the deadline', async () => {
     const keys = parseArgs(['--out', 'x', '--steps', 'polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack']).keys
     const phases = stepPhases(keys)
     expect(phases.map((phase) => phase.name)).toEqual([
@@ -486,7 +577,7 @@ describe('polish verdict', () => {
     expect(runs).toEqual(phases.map((phase) => phase.name))
     expect(result.ok).toBe(true)
     for (const step of result.steps) {
-      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail'])
+      expect(Object.keys(step)).toEqual(['name', 'ok', 'ms', 'detail', 'startedAt', 'endedAt'])
       expect(step.ms).toBeLessThan(10_000)
     }
   })
@@ -765,5 +856,117 @@ describe('model steps', () => {
     expect(launchModelFlags(['--mode', 'rpc-ui', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high'])).toEqual({ model: 'anthropic/claude-sonnet-5-5', thinking: 'high' })
     expect(launchModelFlags(['--mode', 'rpc-ui'])).toEqual({ model: null, thinking: null })
     expect(launchModelFlags(['--model'])).toEqual({ model: null, thinking: null })
+  })
+})
+
+describe('siteFile', () => {
+  it('names the folder\'s site file by the app\'s own folderStoreId and holds a version 1 list of the origins', () => {
+    const folder = 'C:\\Users\\Me\\AppData\\Local\\Temp\\dm-e2e-agent-chat-x\\e2e-repo'
+    const file = siteFile('C:\\run\\user-data', folder, ['http://127.0.0.1:4100'], 'win32')
+    expect(file.path).toBe(join('C:\\run\\user-data', 'browser', 'sites', `${folderStoreId(folder, 'win32')}.json`))
+    expect(JSON.parse(file.text)).toEqual({ version: 1, origins: ['http://127.0.0.1:4100'] })
+    expect(siteFile('C:\\run\\user-data', folder.toUpperCase(), [], 'win32').path).toBe(file.path)
+    expect(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path).toBe(join('/run/user-data', 'browser', 'sites', `${folderStoreId('/tmp/E2E-repo', 'linux')}.json`))
+    expect(siteFile('/run/user-data', '/tmp/e2e-repo', [], 'linux').path).not.toBe(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path)
+  })
+})
+
+describe('browser-guard proofs', () => {
+  it('names only the DevTools targets that appeared after a click, by type and URL', () => {
+    const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+    const view = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4100/' }
+    expect(newTargets([app, view], [app, { ...view, url: 'chrome-error://chromewebdata/' }])).toEqual([])
+    expect(newTargets([app, view], [app, view, { id: 'P1', type: 'page', url: 'http://127.0.0.1:4101/' }])).toEqual(['page http://127.0.0.1:4101/'])
+  })
+
+  it('counts the log lines holding a refusal, so a click waits for a new one rather than an earlier one', () => {
+    const log = '21:08:45.459 > browser popup blocked http://127.0.0.1:4101\r\nother\n21:09:01.000 > browser popup blocked http://127.0.0.1:4101\n(node:1) electron: Failed to load URL: http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT'
+    expect(countLines(log, 'browser popup blocked http://127.0.0.1:4101')).toBe(2)
+    expect(countLines(log, 'http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT')).toBe(1)
+    expect(countLines(log, 'browser download cancelled')).toBe(0)
+  })
+})
+
+describe('viewTarget', () => {
+  const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+  const view = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4100/' }
+  const other = { id: 'V2', type: 'page', url: 'http://127.0.0.1:4101/' }
+  const worker = { id: 'W1', type: 'service_worker', url: 'http://127.0.0.1:4100/' }
+
+  it('finds a browser view by its exact URL or its id, never the app page or a non-page target', () => {
+    expect(viewTarget([app, worker, view, other], { url: 'http://127.0.0.1:4100/' })).toBe(view)
+    expect(viewTarget([app, view, other], { id: 'V2' })).toBe(other)
+    expect(viewTarget([app, view], { url: 'http://127.0.0.1:4100' })).toBeNull()
+    expect(viewTarget([app], { id: 'APP' })).toBeNull()
+    expect(viewTarget([], { url: 'http://127.0.0.1:4100/' })).toBeNull()
+  })
+
+  it('refuses two views showing the URL: the harness could not tell which one it drives', () => {
+    expect(() => viewTarget([view, { ...view, id: 'V3' }], { url: view.url })).toThrow('2 browser views show http://127.0.0.1:4100/: V1, V3.')
+  })
+})
+
+describe('addedView', () => {
+  const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+  const old = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4101/' }
+
+  it('finds the one browser view a new chat added, whatever it shows, never the app page or a non-page target', () => {
+    const fresh = { id: 'V2', type: 'page', url: 'about:blank' }
+    expect(addedView([app, old], [app, old])).toBeNull()
+    expect(addedView([app, old], [app, { ...old, url: 'http://127.0.0.1:4100/' }, fresh])).toBe(fresh)
+    expect(addedView([old], [app, old, { id: 'W1', type: 'service_worker', url: 'http://127.0.0.1:4100/' }])).toBeNull()
+  })
+
+  it('refuses two added views: the harness could not tell which one the chat drives', () => {
+    expect(() => addedView([app], [app, old, { ...old, id: 'V3' }])).toThrow('2 browser views appeared: V1 http://127.0.0.1:4101/, V3 http://127.0.0.1:4101/.')
+  })
+})
+
+describe('loopEnd', () => {
+  const call = (op, reply) => ({ op, args: {}, status: reply.ok ? 'completed' : 'failed', reply })
+  const navigate = call('browser_navigate', { ok: true, data: {} })
+  const read = call('browser_read', { ok: true, data: { content: 'Ready' } })
+  const refused = (code) => call('browser_read', { ok: false, error: { code, message: 'm' } })
+
+  it('answers the reads that succeeded and the code the last read was refused with', () => {
+    expect(loopEnd([navigate, read, read, refused('stopped')])).toEqual({ reads: 2, code: 'stopped' })
+    expect(loopEnd([navigate, read, refused('paused_by_person')])).toEqual({ reads: 1, code: 'paused_by_person' })
+  })
+
+  it('refuses a loop that never read, never ended on a refusal, or failed before its last read', () => {
+    expect(() => loopEnd([navigate, refused('stopped')])).toThrow('not a navigate, reads and one refused read.')
+    expect(() => loopEnd([navigate, read, read])).toThrow('[["browser_navigate",true,null],["browser_read",true,null],["browser_read",true,null]]')
+    expect(() => loopEnd([navigate, refused('stopped'), read, refused('stopped')])).toThrow('not a navigate, reads and one refused read.')
+    expect(() => loopEnd([call('browser_navigate', { ok: false, error: { code: 'origin_blocked' } }), read, refused('stopped')])).toThrow('["browser_navigate",false,"origin_blocked"]')
+    expect(() => loopEnd([])).toThrow('The loop\'s calls were [], not a navigate, reads and one refused read.')
+  })
+})
+
+describe('assertStatus', () => {
+  it('checks the owner and, when named, the agent tab URL of a browser_status reply', () => {
+    const data = { enabled: true, owner: 'agent', tab: { url: 'http://127.0.0.1:4100/' }, pendingOrigin: null }
+    expect(() => assertStatus(data, { owner: 'agent', url: 'http://127.0.0.1:4100/' })).not.toThrow()
+    expect(() => assertStatus({ ...data, owner: 'none', tab: null }, { owner: 'none' })).not.toThrow()
+    expect(() => assertStatus(data, { owner: 'stopped' })).toThrow('browser_status shows owner agent, not stopped.')
+    expect(() => assertStatus(data, { owner: 'agent', url: 'http://127.0.0.1:4101/' })).toThrow('browser_status shows the agent tab at http://127.0.0.1:4100/, not http://127.0.0.1:4101/.')
+  })
+})
+
+describe('browserToolCalls', () => {
+  const bash = (command, resultSummary, status = 'completed') => ({ name: 'Bash', input: { command }, status, resultSummary })
+
+  it('parses the fake\'s dm call browser_* Bash calls in order, with the CLI reply, skipping any other call', () => {
+    const tools = [
+      { name: 'Read', input: { file_path: 'a' }, status: 'completed', resultSummary: 'x' },
+      bash('dm call browser_navigate {"url":"http://127.0.0.1:4100/","as":"Acolyte:DM-442"}', '{"ok":true,"data":{"tab":{"url":"http://127.0.0.1:4100/"}}}'),
+      bash('npm test', 'passed'),
+      bash('dm call browser_screenshot {"label":"hidden"}', '{"ok":false,"error":{"code":"view_hidden","message":"m"}}', 'failed'),
+      bash('dm call browser_read {"mode":"text"}', 'not json')
+    ]
+    expect(browserToolCalls(tools)).toEqual([
+      { op: 'browser_navigate', args: { url: 'http://127.0.0.1:4100/', as: 'Acolyte:DM-442' }, status: 'completed', reply: { ok: true, data: { tab: { url: 'http://127.0.0.1:4100/' } } } },
+      { op: 'browser_screenshot', args: { label: 'hidden' }, status: 'failed', reply: { ok: false, error: { code: 'view_hidden', message: 'm' } } },
+      { op: 'browser_read', args: { mode: 'text' }, status: 'completed', reply: null }
+    ])
   })
 })

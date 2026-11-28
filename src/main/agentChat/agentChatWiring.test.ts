@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AGENT_CHAT_CHANNELS } from '../../shared/agents/agentChat'
+import { AGENT_CHAT_CHANNELS, type AttentionItem, type PendingPrompt } from '../../shared/agents/agentChat'
 import type { ChatPushEvent, StartOrchestratorResult } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
@@ -22,6 +22,7 @@ import { createChatRecords } from '../agents/chatRecords'
 import type { ChatRef } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { ArbiterResult, startArbiter } from '../magos/arbiterRunner'
+import { arbitrationExclusion, exclusionText } from '../magos/arbitrationRules'
 import { createNotifier, type NotificationEvent } from '../notify/notifier'
 import { disposeBeforeQuit } from '../quitDisposal'
 import { gate, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
@@ -316,6 +317,144 @@ describe('agent chat wiring: the prompt dedupe key is scoped to the chat', () =>
     // The same prompt of the same chat still shows once.
     notifier.notify(notify.mock.calls[0][0])
     expect(shown).toHaveLength(2)
+  })
+})
+
+const siteItem = (chatId: string, promptId: string, title: string): AttentionItem =>
+  ({ chatId, promptId, kind: 'site', threadId: null, callsign: null, arbitration: 'off', title, shown: true })
+const attentionPushes = (state: ReturnType<typeof app>) => state.gui.pushes.filter(event => event.type === 'attention')
+
+describe('agent chat wiring: a pending browser origin (DM-897 c1)', () => {
+  it('notifies browser_site under the chat title and becomes a site needs-you item, pushed and read, until it clears', () => {
+    const state = open(), chat = state.terminalChat(), folder = state.gui.repo
+    state.gui.store.updateChat(chat, { title: 'Docs worker' })
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-1', origin: 'https://new.example', requestedBy: 'agent' })
+    expect(state.notify).toHaveBeenCalledExactlyOnceWith({
+      kind: 'browser_site', key: 'site:p-1', title: 'Docs worker wants a site', body: 'https://new.example',
+      target: { kind: 'chat', folder, chatId: chat.id }
+    })
+    const item = siteItem(chat.id, 'p-1', 'https://new.example')
+    expect(state.wiring.agentChats.attention(folder)).toEqual([item])
+    expect(state.wiring.agentChats.attention(null)).toEqual([])
+    expect(attentionPushes(state)).toEqual([{ type: 'attention', folder, chatId: chat.id, items: [item] }])
+    state.wiring.sitePrompt({ kind: 'site_cleared', folder, chatId: chat.id })
+    expect(state.wiring.agentChats.attention(folder)).toEqual([])
+    expect(attentionPushes(state).at(-1)).toEqual({ type: 'attention', folder, chatId: chat.id, items: [] })
+    // Clearing what is not pending pushes nothing, and only a raised prompt notifies.
+    state.wiring.sitePrompt({ kind: 'site_cleared', folder, chatId: chat.id })
+    expect(attentionPushes(state)).toHaveLength(2)
+    expect(state.notify).toHaveBeenCalledOnce()
+  })
+
+  it("never notifies the person's own ask, yet keeps its needs-you item until it clears", () => {
+    const state = open(), chat = state.terminalChat(), folder = state.gui.repo
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-person', origin: 'https://mine.example', requestedBy: 'person' })
+    expect(state.notify).not.toHaveBeenCalled()
+    expect(state.wiring.agentChats.attention(folder)).toEqual([siteItem(chat.id, 'p-person', 'https://mine.example')])
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-page', origin: 'https://page.example', requestedBy: 'page' })
+    expect(state.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'browser_site', key: 'site:p-page' }))
+    state.wiring.sitePrompt({ kind: 'site_cleared', folder, chatId: chat.id })
+    expect(state.wiring.agentChats.attention(folder)).toEqual([])
+  })
+})
+
+describe('agent chat wiring: a pending browser origin through the real notifier (DM-897 c1)', () => {
+  it('through the real notifier, keyed by the prompt id and gated by the browser_site setting', () => {
+    const shown: string[] = []
+    class ShownNotification {
+      static isSupported(): boolean { return true }
+      constructor(readonly options: { title: string; body: string; silent: boolean }) {}
+      on(): this { return this }
+      show(): void { shown.push(`${this.options.title} | ${this.options.body}`) }
+    }
+    let settings = DEFAULT_NOTIFICATION_SETTINGS
+    const notifier = createNotifier({ Notification: ShownNotification, windows: () => [], settings: () => settings, push: vi.fn(), logger: { info: vi.fn() }, now: () => 1_000_000 })
+    const state = open(undefined, {}, { notify: event => notifier.notify(event) }), chat = state.terminalChat(), folder = state.gui.repo
+    const raise = (promptId: string) => state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId, origin: 'https://new.example', requestedBy: 'page' })
+    raise('p-1')
+    raise('p-1')
+    expect(shown).toEqual(['New chat wants a site | https://new.example'])
+    settings = { ...DEFAULT_NOTIFICATION_SETTINGS, events: { ...DEFAULT_NOTIFICATION_SETTINGS.events, browser_site: false } }
+    raise('p-2')
+    expect(shown).toHaveLength(1)
+    // The item stands whether or not the OS notification shows.
+    expect(state.wiring.agentChats.attention(folder)).toEqual([siteItem(chat.id, 'p-2', 'https://new.example')])
+  })
+})
+
+describe('agent chat wiring: a pending browser origin of a live GUI chat (DM-897 c1)', () => {
+  it("joins a live GUI chat's own prompt queue in one push", async () => {
+    const state = open(undefined, { settings: () => withArbitration({ enabled: false }) }), chat = magosChat(state), folder = state.gui.repo
+    await state.wiring.agentChats.start(chat)
+    await vi.waitFor(() => expect(state.wiring.agentChats.attention(folder)).toHaveLength(1), { timeout: 5_000 })
+    state.wiring.sitePrompt({ kind: 'site', folder, chatId: chat.id, promptId: 'p-9', origin: 'https://docs.example', requestedBy: 'agent' })
+    const items = state.wiring.agentChats.attention(folder)
+    expect(items.map(item => [item.kind, item.promptId, item.shown])).toEqual([['approval', 'req_T1_worker_approval', true], ['site', 'p-9', true]])
+    expect(attentionPushes(state).at(-1)).toEqual({ type: 'attention', folder, chatId: chat.id, items })
+  })
+})
+
+const browserApproval = (id: string, tool: NonNullable<PendingPrompt['tool']>): PendingPrompt => ({
+  id, kind: 'approval', title: `${tool.name} wants to run`, detail: '', threadId: null, callsign: null, attributed: true,
+  arbitration: { state: 'off', reason: null }, tool, options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }]
+})
+const browserGate = (state: ReturnType<typeof app>, chat: ChatRef, prompt: PendingPrompt) => state.owned().arbitrate({
+  ref: chat, chat: state.gui.store.getChat(chat)!, agent: state.gui.deps.agentFor('claude')!, prompt, inputClipped: false
+})
+
+describe('agent chat wiring: browser tool approvals never reach the arbiter (DM-897 c2, R19-1)', () => {
+  const approval = browserApproval, gateOf = browserGate
+
+  it("Claude's Bash `dm call browser_*` and MCP browser_* prompts go to the person; another Bash command reaches the runner", async () => {
+    const runner = stubRunner({ verdict: { decision: 'allow_once', reason: 'Routine.' } })
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
+    const browserPrompts = [
+      approval('p-cli', { name: 'Bash', input: { command: 'dm call browser_navigate --args-file nav.json' } }),
+      approval('p-cli-path', { name: 'Bash', input: { command: 'node dm.mjs call  browser_click --ref e12' } }),
+      approval('p-mcp', { name: 'mcp__darkmechanicus__browser_navigate', input: { url: 'docs' } }),
+      approval('p-bare', { name: 'browser_screenshot', input: {} })
+    ]
+    for (const prompt of browserPrompts) {
+      const gate = gateOf(state, chat, prompt)
+      expect([prompt.id, gate.state, gate.state === 'deciding' ? null : gate.reason]).toEqual([prompt.id, 'escalated', exclusionText('never_arbitrate')])
+    }
+    expect(runner.start).not.toHaveBeenCalled()
+    const other = gateOf(state, chat, approval('p-echo', { name: 'Bash', input: { command: 'echo tests' } }))
+    expect(other.state).toBe('deciding')
+    await vi.waitFor(() => expect(runner.start).toHaveBeenCalledOnce(), { timeout: 5_000 })
+    // A command that only mentions a browser tool without calling one is not excluded by this rule.
+    expect(gateOf(state, chat, approval('p-grep', { name: 'Bash', input: { command: 'echo browser_navigate' } })).state).toBe('deciding')
+  })
+
+  it('the rule is removed when the wiring is disposed', async () => {
+    const state = open(), chat = magosChat(state)
+    const record = state.gui.store.getChat(chat)!
+    await state.wiring.dispose()
+    // The registry is process-wide: once disposed, the wiring's browser rule no longer excludes.
+    expect(arbitrationExclusion({
+      chat: record, agentKind: 'claude', folder: record.folder, settings: DEFAULT_NOTIFICATION_SETTINGS, platform: process.platform, allowedRoots: [],
+      prompt: approval('p-mcp', { name: 'mcp__darkmechanicus__browser_navigate', input: { url: 'docs' } })
+    })).toBeNull()
+  })
+})
+
+describe('agent chat wiring: quoted, escaped and camelCase `dm call browser*` never reach the arbiter (DM-897 c2)', () => {
+  it('matches the command with shell quoting and escapes stripped, and the camelCase alias; other commands still reach the runner', async () => {
+    const runner = stubRunner({ verdict: { decision: 'allow_once', reason: 'Routine.' } })
+    const state = open(undefined, { startArbiter: runner.start, arbiterReads: () => projectReads() }), chat = magosChat(state)
+    const commands = [
+      'dm call browserNavigate --args-file nav.json', 'dm call "browser_click" --ref e12', "dm call 'browser_click' --ref e12",
+      'dm call browser\\_click --ref e12', 'dm call brow""ser_click --ref e12', 'dm call brow^ser_click --ref e12',
+      'dm call -- browser_click --ref e12', 'dm call `browser_click` --ref e12'
+    ]
+    for (const [index, command] of commands.entries()) {
+      const gate = browserGate(state, chat, browserApproval(`p-${index}`, { name: 'Bash', input: { command } }))
+      expect([command, gate.state, gate.state === 'deciding' ? null : gate.reason]).toEqual([command, 'escalated', exclusionText('never_arbitrate')])
+    }
+    expect(runner.start).not.toHaveBeenCalled()
+    for (const command of ['echo tests', 'echo browser_navigate', 'dm call status', 'grep -r browser_click src']) {
+      expect([command, browserGate(state, chat, browserApproval(`n-${command}`, { name: 'Bash', input: { command } })).state]).toEqual([command, 'deciding'])
+    }
   })
 })
 

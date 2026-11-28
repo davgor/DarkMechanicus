@@ -29,6 +29,8 @@ interface TerminalPaneProps {
   peers?: readonly ChatRecord[]
   /** Opens a chat of this folder, on the person's click in the inbox only. */
   onOpenChat?(chatId: string): void
+  /** The chat's browser site prompt, docked above the terminal: a terminal chat has no GUI prompt slot. */
+  siteCard?: JSX.Element
   /**
    * Watch only (a cult acolyte's terminal): its output is shown, but no keystroke or paste is forwarded, the PTY is
    * never resized, and the pane neither starts it again nor offers its inbox; a "Watch only" label says so.
@@ -205,7 +207,7 @@ function PaneHeader({ folder, chat, agentName, agentKind, scheduler, peers, onOp
 }
 
 export function TerminalPane(props: TerminalPaneProps): JSX.Element {
-  const { folder, chat, agentName, kit, scheduler, onAgentStatus, readOnly = false } = props
+  const { folder, chat, agentName, kit, scheduler, onAgentStatus, readOnly = false, siteCard } = props
   const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler, watchOnly: readOnly })
   const [earlierOpen, setEarlierOpen] = useState(false)
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
@@ -219,6 +221,7 @@ export function TerminalPane(props: TerminalPaneProps): JSX.Element {
       {/* Starting a watched member again (or signing it in) is not the watcher's to do. */}
       {readOnly ? notice : <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />}
       <FirstPromptRecovery chat={chat} />
+      {siteCard}
       <div
         className={frameClass(notStarted, chat.agent === 'omp')}
         style={background === null ? undefined : { background }}

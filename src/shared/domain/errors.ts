@@ -27,6 +27,18 @@ export const DOMAIN_ERROR_CODES = [
   'stale_draft',
   /** The held agent question or approval has already been answered or replaced. */
   'stale_prompt',
+  /** The in-app browser refused an agent's `browser_*` operation (`src/shared/browser/browserControl.ts`). */
+  'browser_disabled',
+  'origin_blocked',
+  'paused_by_person',
+  'stopped',
+  'no_tab',
+  'stale_ref',
+  'invalid_url',
+  'secret_refused',
+  'password_field',
+  'navigation_failed',
+  'view_hidden',
   'invalid_graph',
   'invalid_plan',
   'unmet_prerequisite',

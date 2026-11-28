@@ -503,30 +503,45 @@ for (const kind of ['claude', 'omp'] as const) {
     })
   }
 
-  it(`${kind} keeps a multi question pending on an unknown or repeated id, then writes the golden multiselect answer`, async () => {
+  it(`${kind} keeps a multi-question form pending on an unknown, repeated or partial answer, then writes the golden answer in one line`, async () => {
     const r = rig(kind), chat = r.newChat('[multiselect]')
     await r.sessions.start(chat)
     await eventually(() => r.sessions.snapshot(chat).pending !== null)
     const pending = r.sessions.snapshot(chat).pending!
-    expect(pending).toMatchObject({ kind: 'question', multi: true, progress: { index: 1, total: 2 } })
+    expect(pending).toMatchObject({ kind: 'question', options: [], form: { fields: [{ id: 'field_0', multi: true }, { id: 'field_1', multi: false }] } })
     const before = [...r.writes]
-    for (const optionIds of [['option_0', 'option_9'], ['option_0', 'option_0']]) {
-      await expect(r.sessions.answer(chat, { promptId: pending.id, optionIds })).rejects.toMatchObject({ code: 'invalid_input' })
+    const second = { fieldId: 'field_1', optionIds: ['option_0'] }
+    for (const fields of [[{ fieldId: 'field_0', optionIds: ['option_0', 'option_9'] }, second], [{ fieldId: 'field_0', optionIds: ['option_0', 'option_0'] }, second], [second]]) {
+      await expect(r.sessions.answer(chat, { promptId: pending.id, fields })).rejects.toMatchObject({ code: 'invalid_input' })
       expect(r.sessions.snapshot(chat).pending).toEqual(pending)
     }
     expect(r.writes).toEqual(before)
-    await r.sessions.answer(chat, { promptId: pending.id, optionIds: kind === 'claude' ? ['option_2', 'option_0'] : ['option_1', 'option_0'] })
-    const second = r.sessions.snapshot(chat).pending!
-    expect(second).toMatchObject({ multi: false, progress: { index: 2, total: 2 } })
-    expect(r.writes).toEqual(before)
-    await r.sessions.answer(chat, { promptId: second.id, optionId: 'option_0' })
+    await r.sessions.answer(chat, { promptId: pending.id, fields: [{ fieldId: 'field_0', optionIds: kind === 'claude' ? ['option_2', 'option_0'] : ['option_1', 'option_0'] }, second] })
     const golden = readFileSync(join(import.meta.dirname, '__fixtures__', kind, 'question_multi.in.jsonl'), 'utf8').trim().split(/\r?\n/)[1]
-    expect(r.writes.at(-1)).toBe(golden)
+    expect(r.writes.slice(before.length)).toEqual([golden])
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
     const items = r.store.readTranscript(chat)!.items
     expect(items.filter(item => item.kind === 'user_message').map(item => item.text))
-      .toEqual(['[multiselect]', kind === 'claude' ? 'A, C' : 'SQLite, Postgres', kind === 'claude' ? 'SQLite' : 'EU'])
+      .toEqual(['[multiselect]', kind === 'claude' ? 'Which letters?: A, C\nWhich database?: SQLite' : 'Which databases?: SQLite, Postgres\nWhich region?: EU'])
     expect(items.filter(item => item.kind === 'assistant_text').at(-1)?.text).toMatch(/^answers: /)
+  })
+
+  if (kind === 'omp') it('omp answers a recorded ask tool form after one Submit, writing each request its response as OMP asks', async () => {
+    const r = rig(kind), chat = r.newChat('[ask-multi-q]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const pending = r.sessions.snapshot(chat).pending!
+    expect(pending).toMatchObject({ kind: 'question', title: 'Answer 3 questions', options: [], form: { fields: [{ id: 'databases' }, { id: 'region' }, { id: 'note', text: 'only' }] } })
+    const before = r.writes.length
+    await r.sessions.answer(chat, { promptId: pending.id, fields: [
+      { fieldId: 'databases', optionIds: ['option_0', 'option_1'] }, { fieldId: 'region', optionIds: ['option_1'] }, { fieldId: 'note', optionIds: [], text: 'No' }
+    ] })
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const golden = readFileSync(join(import.meta.dirname, '__fixtures__', kind, 'ask_multi_q.in.jsonl'), 'utf8').trim().split(/\r?\n/).slice(1)
+    expect(r.writes.slice(before)).toEqual(golden)
+    expect(r.sessions.snapshot(chat).pending).toBeNull()
+    const items = r.store.readTranscript(chat)!.items
+    expect(items.filter(item => item.kind === 'user_message').map(item => item.text)).toEqual(['[ask-multi-q]', 'Which databases?: SQLite, Postgres\nWhich region?: US\nAnything else?: No'])
   })
 
   it(`${kind} writes the allow_chat golden line but never answers a subsequent approval itself`, async () => {

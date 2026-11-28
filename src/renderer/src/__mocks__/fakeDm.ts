@@ -8,6 +8,7 @@ import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
 import { idleCults } from './idleCults'
 import { FakeAgentChat } from './fakeAgentChat'
+import { FakeBrowser } from './fakeBrowser'
 import { FakeSettings } from './fakeSettings'
 import { FakeNotifications } from './fakeNotifications'
 import type { Deferred } from './deferred'
@@ -69,6 +70,7 @@ export class FakeDm implements DmApi {
   cults = idleCults()
   terminals = idleTerminals()
   agentChat = new FakeAgentChat()
+  browser = new FakeBrowser()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
   settings = new FakeSettings()

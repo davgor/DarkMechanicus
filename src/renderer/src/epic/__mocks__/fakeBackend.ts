@@ -5,6 +5,7 @@
  */
 import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
 import { FakeAgentChat } from '../../__mocks__/fakeAgentChat'
+import { FakeBrowser } from '../../__mocks__/fakeBrowser'
 import { FakeSettings } from '../../__mocks__/fakeSettings'
 import { FakeNotifications } from '../../__mocks__/fakeNotifications'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
@@ -162,6 +163,7 @@ export class FakeBackend implements DmApi {
   cults = idleCults()
   terminals = idleTerminals()
   agentChat = new FakeAgentChat()
+  browser = new FakeBrowser()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
   settings = new FakeSettings()

@@ -10,13 +10,18 @@
   color: var(--ink);
 }
 
+/* The glass utility owns the header's surface; the header keeps only its bottom edge, square and without a shadow. */
 .agent-chat-header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+}
+
+.agent-chat-header.glass {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .agent-chat-header h2 {
@@ -58,7 +63,19 @@
   min-height: 0;
 }
 
+/* The wrapper takes the Browser tab's width (about 45% of the chat, at least 420 px) and the rail fills it. */
+.agent-chat-rail:has(> .rr-wide) {
+  flex-basis: max(420px, 45%);
+}
+
+.agent-chat-rail > .rr-wide {
+  flex: 1 1 auto;
+}
+
+/* The transcript pane is .glass-strong at the lighter pane tint, so the backdrop shows through; the fallbacks still
+   paint the utility's solid panel. */
 .agent-chat-scroll {
+  --glass-bg-strong: var(--glass-bg-pane);
   flex: 1;
   min-height: var(--agent-transcript-min);
   overflow-y: auto;

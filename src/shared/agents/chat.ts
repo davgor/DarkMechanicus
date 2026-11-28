@@ -236,6 +236,11 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     category: z.enum(APPROVAL_CATEGORIES),
     tool: z.string().min(1),
     summary: z.string(),
+    /**
+     * The request asked the person questions (a question prompt: Claude Code's AskUserQuestion, an OMP ask or form),
+     * never for a permission; its record reads as a question, answered or not.
+     */
+    question: z.boolean().optional(),
     /** The raw detail the vendor sent (the command, the edit), as the adapter passes it on. */
     input: toolInputSchema.optional(),
     /** The label of the thread (`threadId`) the request was raised in; absent in the chat's own thread. */

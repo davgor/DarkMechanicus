@@ -27,6 +27,14 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getHumanAnswer: 'human.ask',
   nameChat: 'chat.name',
   recoverTooling: 'tooling.recover',
+  browserStatus: 'browser.drive',
+  browserNavigate: 'browser.drive',
+  browserClick: 'browser.drive',
+  browserType: 'browser.drive',
+  browserPress: 'browser.drive',
+  browserRead: 'browser.drive',
+  // Also requires `attachment.write`, which every holder of `browser.drive` (worker, orchestrator) has.
+  browserScreenshot: 'browser.drive',
   // Necessary, not sufficient: main also requires the caller's live bound grant to be a live member of a cult run.
   cultStatus: 'cult.act',
   cultSummonAcolyte: 'cult.act',

@@ -2,6 +2,7 @@ import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
 import { CHAT_ROLES } from '../shared/agents/chat'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
+import { BROWSER_ARGS } from '../shared/browser/browserControl'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import {
   cultConcludeRunArgsSchema, cultConcludeServiceArgsSchema, cultCreateWorkerTypeArgsSchema, cultDismissArgsSchema, cultOrderAllArgsSchema,
@@ -231,6 +232,13 @@ export const COMMAND_SCHEMAS = {
   getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,
   recoverTooling: toolingRecoveryInputSchema,
+  browserStatus: BROWSER_ARGS.browser_status,
+  browserNavigate: BROWSER_ARGS.browser_navigate,
+  browserClick: BROWSER_ARGS.browser_click,
+  browserType: BROWSER_ARGS.browser_type,
+  browserPress: BROWSER_ARGS.browser_press,
+  browserRead: BROWSER_ARGS.browser_read,
+  browserScreenshot: BROWSER_ARGS.browser_screenshot,
   // Cult member commands (`src/shared/cults/cultControl.ts`): never a run, a role or a sender; main derives them.
   cultStatus: noInput,
   cultSummonAcolyte: cultSummonArgsSchema,

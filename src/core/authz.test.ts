@@ -63,6 +63,7 @@ const ORCHESTRATOR: Capability[] = [
   'kanban.report',
   'metrics.report',
   'metrics.report_run',
+  'browser.drive',
   'cult.act'
 ]
 
@@ -75,6 +76,7 @@ const WORKER: Capability[] = [
   'comment.write',
   'attachment.write',
   'kanban.report',
+  'browser.drive',
   'metrics.report',
   'mail.use',
   'cult.act'
@@ -153,6 +155,7 @@ const AGENT_ONLY = [
   'metrics.report',
   'metrics.report_run',
   'mail.use',
+  'browser.drive',
   'cult.act'
 ] as const
 
@@ -281,6 +284,21 @@ describe('mailbox capabilities', () => {
       'orchestrator',
       'worker'
     ])
+  })
+})
+
+describe('driving the in-app browser', () => {
+  it('gives browser.drive to the orchestrator and the worker alone, never the desktop, and never as human-only', () => {
+    for (const options of [{}, { allowSave: true }, { allowSave: false }]) {
+      expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, options).includes('browser.drive'))).toEqual(['orchestrator', 'worker'])
+    }
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('browser.drive')
+  })
+
+  it('lets every holder of browser.drive stage its screenshots as attachments', () => {
+    for (const role of ALL_ROLES.filter((each) => capabilitiesForRole(each).includes('browser.drive'))) {
+      expect(capabilitiesForRole(role)).toContain('attachment.write')
+    }
   })
 })
 

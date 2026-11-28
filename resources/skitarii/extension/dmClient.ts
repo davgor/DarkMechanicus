@@ -358,7 +358,17 @@ async function loadDescriptor(deps: DmClientDeps): Promise<Checked<DmClientDescr
   return parseDmClientDescriptor(path, text)
 }
 
-/** Only naming calls receive the live desktop route; all other DM addresses remain scrubbed. */
+/** The `browser_*` commands, in the CLI's snake and camel spellings: only they reach the chat's browser pipe. */
+const BROWSER_COMMANDS = new Set(['status', 'navigate', 'click', 'type', 'press', 'read', 'screenshot'].flatMap((op) => [
+  `browser_${op}`, `browser${op[0]?.toUpperCase() ?? ''}${op.slice(1)}`
+]))
+
+/** The one live control address a call may receive: naming gets the desktop pipe, browser_* the browser pipe; all other DM addresses remain scrubbed. */
+function controlAddressFor(cliName: string): 'DM_DESKTOP_PIPE' | 'DM_BROWSER_PIPE' | undefined {
+  if (cliName === 'name_chat' || cliName === 'nameChat') return 'DM_DESKTOP_PIPE'
+  return BROWSER_COMMANDS.has(cliName) ? 'DM_BROWSER_PIPE' : undefined
+}
+
 function dmChildEnv(descriptor: DmClientDescriptor, deps: DmClientDeps, token: string, cliName: string): Record<string, string> {
   const { env, platform } = deps
   const wanted = new Set(descriptor.inherit.map((name) => (platform === 'win32' ? name.toUpperCase() : name)))
@@ -367,9 +377,10 @@ function dmChildEnv(descriptor: DmClientDescriptor, deps: DmClientDeps, token: s
     const name = platform === 'win32' ? key.toUpperCase() : key
     if (value !== undefined && wanted.has(name) && !NEVER_INHERITED.test(key)) child[key] = value
   }
-  if (cliName === 'name_chat' || cliName === 'nameChat') {
-    const address = envValue(env, platform, 'DM_DESKTOP_PIPE')
-    if (address !== undefined && address !== '') child['DM_DESKTOP_PIPE'] = address
+  const route = controlAddressFor(cliName)
+  if (route !== undefined) {
+    const address = envValue(env, platform, route)
+    if (address !== undefined && address !== '') child[route] = address
   }
   return Object.assign(child, descriptor.env, { DM_SESSION_TOKEN: token })
 }

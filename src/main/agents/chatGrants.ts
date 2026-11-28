@@ -10,7 +10,7 @@ import type { YoloStatus } from '../../shared/desktop/api'
 import type { GrantView } from '../../shared/domain/views'
 import type { DesktopFence } from '../../core/services/yoloFence'
 import { DomainError } from '../../core/errors'
-import { hashToken } from '../../core/services/grants'
+import { grantedCapabilities, hashToken } from '../../core/services/grants'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
 import { writePrivateFile } from '../terminals/privateFile'
@@ -32,14 +32,27 @@ interface ChatGrantsDeps {
   log: (line: string) => void
   desktopAddress?: () => string | undefined
   desktopReady?: () => Promise<void>
+  /**
+   * The browser pipe's address once it listens; undefined when it has not (yet) or failed to start. Never awaited: a
+   * broken browser pipe never blocks a chat launch, whose `browser_*` calls then answer `desktop_unavailable`.
+   */
+  browserAddress?: () => string | undefined
   /** Main rotates this before opening any folder; absent means YOLO cannot be enabled. */
   desktopFence?: DesktopFence
   yoloReady?: () => Promise<void>
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
-/** `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true. */
-interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean }
+/**
+ * `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true.
+ * `cultMember` marks a cult run's Magos or acolyte: a hidden terminal chat with no Browser panel the person could
+ * watch, approve sites in or Stop from, so its grant never gets the browser pipe or browser authority.
+ */
+interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean; cultMember?: boolean }
+/** Whether a grant's chat may drive its in-app browser: its role holds `browser.drive` and it is no cult member. */
+function drivesBrowser(grant: GrantOptions): boolean {
+  return grant.cultMember !== true && grantedCapabilities(grant.role, grant.allowSave).includes('browser.drive')
+}
 /** The trusted chat a grant is issued for: its stored identity and title, and its connected agent's kind. */
 export type GrantChat = MailboxChat & { kind: string }
 function reachedMailbox(owner: string | null, chat?: GrantChat): GrantChat | undefined {
@@ -59,6 +72,8 @@ interface LiveIdentity { folder: string | null; chatId: string; generation: stri
 export interface ChatGrants {
   bindChatGrant(grantId: string, identity: LiveIdentity): Promise<void>
   authorizeNaming(token: string): NamingControlBinding
+  /** The live binding of a grant whose role holds `browser.drive`; any other token is `unauthorized`. */
+  authorizeBrowser(token: string): NamingControlBinding
   yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus>
   dispose(): Promise<void>
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
@@ -88,6 +103,8 @@ interface HeldGrant {
   lifetime: AbortController
   /** Whether it was bound to a mailbox, whose binding its revoke closes. */
   mailbox: boolean
+  /** Whether its chat may drive the browser (`drivesBrowser`): only such a grant's chat gets the browser pipe. */
+  browser: boolean
   runId?: string
   cardId?: string
 }
@@ -125,15 +142,21 @@ class ChatGrantRegistry implements ChatGrants {
     const workspace = this.deps.workspaceFor(folder)
     const runSave = grant.runSave === false ? { runSave: false } : {}
     const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes, ...runSave })
-    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox, browser: drivesBrowser(grant) })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }
-  /** The invocation with `token` as its grant and the naming transport's address, nothing else of either kind. */
-  private withGrant(launch: DarkMechanicusCli, token: string): DarkMechanicusCli {
+  /**
+   * The invocation with `token` as its grant, the naming transport's address and, for a grant that drives the browser
+   * (`drivesBrowser`), the browser pipe's; nothing else of any of them is inherited.
+   */
+  private withGrant(launch: DarkMechanicusCli, token: string, grant: GrantOptions): DarkMechanicusCli {
     const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: token }
     delete env['DM_DESKTOP_PIPE']
+    delete env['DM_BROWSER_PIPE']
     const address = this.deps.desktopAddress?.()
     if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
+    const browser = drivesBrowser(grant) ? this.deps.browserAddress?.() : undefined
+    if (browser !== undefined) env['DM_BROWSER_PIPE'] = browser
     return { ...launch, env }
   }
   async issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli> {
@@ -153,7 +176,7 @@ class ChatGrantRegistry implements ChatGrants {
         throw error
       }
     }
-    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token), grantId: issued.grantId, endpointId }
+    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token, grant), grantId: issued.grantId, endpointId }
   }
   /**
    * The environment's `DM_SESSION_TOKEN` is the first folder's token, as every chat terminal carries one; the CLI is
@@ -179,7 +202,7 @@ class ChatGrantRegistry implements ChatGrants {
       await Promise.all(issued.map(({ grantId }) => this.revokeChatGrant(grantId)))
       throw error
     }
-    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
+    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? '', grant), grantIds: issued.map(({ grantId }) => grantId) }
   }
   private async bindReachedMailbox(folder: string, held: { workspace: ProjectWorkspace; grantId: string }, owner: string | null, chat?: GrantChat): Promise<void> {
     if (chat === undefined) return
@@ -227,6 +250,12 @@ class ChatGrantRegistry implements ChatGrants {
     if (!binding) throw new NamingControlError('unauthorized')
     binding.assertCurrent()
     return binding
+  }
+  authorizeBrowser(token: string): NamingControlBinding {
+    const grant = this.liveByHash.get(hashToken(token))
+    if (grant?.live == null || !grant.browser) throw new NamingControlError('unauthorized')
+    grant.live.assertCurrent()
+    return grant.live
   }
   private yoloBinding(grantId: string, held: HeldGrant, binding: NamingControlBinding) {
     const fence = this.deps.desktopFence
@@ -323,6 +352,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
     setChatGrantAllowSave: (id, allowSave) => registry.setChatGrantAllowSave(id, allowSave),
     bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
     authorizeNaming: (token) => registry.authorizeNaming(token),
+    authorizeBrowser: (token) => registry.authorizeBrowser(token),
     yolo: (folder, grantId, action, confirm) => registry.yolo(folder, grantId, action, confirm),
     dispose: () => registry.dispose()
   }

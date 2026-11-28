@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useId } from 'react'
 import type { ReactNode } from 'react'
+import { classNames } from './classNames'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
 import { RAIL_TAB_ORDER, useRailState } from './useRailState'
@@ -11,6 +12,8 @@ export interface RailTab {
   label: string
   icon: IconName
   badge?: { text: string; tone: 'attention' | 'running' | 'neutral' }
+  /** The open rail widens to about 45% of the stage (at least 420 px) while this tab is selected, as the Browser does. */
+  wide?: boolean
   content: ReactNode
 }
 
@@ -75,7 +78,8 @@ function RailContents({ label, tabs, rail, reveal }: {
   }, [reveal, setTab, setCollapsed])
   return (
     <RailContext.Provider value={rail}>
-      <aside aria-label={label} className="rr glass" data-collapsed={state.collapsed}>
+      <aside aria-label={label} className={classNames('rr glass', !state.collapsed && selected?.wide === true && 'rr-wide')}
+        data-collapsed={state.collapsed}>
         {state.collapsed ? (
           <>
             <button type="button" className="rr-toggle" aria-label={`Expand ${label}`} aria-expanded="false" onClick={() => setCollapsed(false)}>

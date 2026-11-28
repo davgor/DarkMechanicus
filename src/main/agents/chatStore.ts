@@ -29,6 +29,7 @@ import { canonicalPath } from '../desktop/folderRegistry'
 import { maskClaimTokensDeep } from './claimTokenMask'
 import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 import type { ChatImages } from '../agentChat/chatImages'
+import type { BrowserHost } from '../browser/browserHost'
 
 /** The filesystem surface the store uses; tests inject fakes through it. */
 export interface ChatStoreFs {
@@ -111,6 +112,7 @@ interface StoreContext {
   now: () => string
   newId: () => string
   images: Pick<ChatImages, 'deleteChat'> | null
+  browser: Pick<BrowserHost, 'disposeChat'> | null
   /** Folder key -> the folder's chats by id, loaded from its index on first use. */
   indexes: Map<string, Map<string, ChatRecord>>
   /** Files whose tail was already checked for a truncated last line by this process. */
@@ -327,6 +329,7 @@ function deleteChat(context: StoreContext, ref: ChatRef): void {
   const index = join(location.dir, INDEX_FILE)
   context.fs.removeFile(transcript)
   context.images?.deleteChat({ folder: location.folder, chatId: chat.id })
+  context.browser?.disposeChat({ folder: location.folder, chatId: chat.id })
   context.fs.replaceFile(index, indexWithout(readLines(context.fs, index).join('\n'), chat.id))
   loadIndex(context, location).delete(chat.id)
 }
@@ -341,6 +344,8 @@ export function createChatStore(options: {
   newId?: () => string
   /** The chats' image store (`agentChat/chatImages`); deleting a chat removes its images with its transcript. */
   images?: Pick<ChatImages, 'deleteChat'>
+  /** The agent browser (`browser/browserHost`); deleting a chat closes its browser views. */
+  browser?: Pick<BrowserHost, 'disposeChat'>
 }): ChatStore {
   const context: StoreContext = {
     root: options.root,
@@ -348,6 +353,7 @@ export function createChatStore(options: {
     now: options.now ?? (() => new Date().toISOString()),
     newId: options.newId ?? (() => `chat_${randomUUID()}`),
     images: options.images ?? null,
+    browser: options.browser ?? null,
     indexes: new Map(),
     checked: new Set()
   }

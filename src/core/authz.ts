@@ -4,6 +4,8 @@ import { fail } from './errors'
 export const CAPABILITIES = [
   'tooling.recover',
   'read',
+  // Driving a GUI chat's in-app browser over the desktop's browser pipe (`DM_BROWSER_PIPE`); the person never needs it.
+  'browser.drive',
   'chat.name', 'human.ask',
   'repo.init',
   'repo.flush',
@@ -189,6 +191,7 @@ const ORCHESTRATOR: Capability[] = [
   'metrics.report',
   'metrics.report_run',
   'plan.request_save',
+  'browser.drive',
   // A cult's Magos holds an orchestrator grant.
   'cult.act',
 ]
@@ -215,6 +218,8 @@ const AGENT_ONLY: readonly Capability[] = [
   'metrics.report_run',
   // A mailbox speaks for an agent's chat; the person reads and manages mail through `mail.manage` instead.
   'mail.use',
+  // The desktop is the person's window onto the browser, never an agent driving it over the browser pipe.
+  'browser.drive',
   // Only a cult member's own chat acts in its run; the person controls runs through the desktop's cult IPC.
   'cult.act'
 ]
@@ -235,6 +240,7 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
     'comment.write',
     'attachment.write',
     'kanban.report',
+    'browser.drive',
     'metrics.report',
     'mail.use',
     // A cult's acolytes hold worker grants.

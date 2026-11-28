@@ -43,6 +43,14 @@ const PROBES: Record<CommandName, unknown> = {
   getHumanAnswer: { questionId: '22222222-2222-4222-8222-222222222222' },
   nameChat: { title: 'Semantic probe title' },
   recoverTooling: { action: 'status', incidentId: 'probe-incident' },
+  // No browser pipe in tests: a permitted call stops at `desktop_unavailable` right after its authorization check.
+  browserStatus: {},
+  browserNavigate: { url: 'https://example.com/' },
+  browserClick: { ref: 'e1' },
+  browserType: { ref: 'e1', text: 'probe' },
+  browserPress: { key: 'Enter' },
+  browserRead: { mode: 'text' },
+  browserScreenshot: {},
   cultStatus: undefined,
   cultSummonAcolyte: { mission: 'Probe the slot.' },
   cultDismissAcolyte: { name: 'Probe' },
@@ -364,6 +372,21 @@ describe('transfer capabilities', () => {
       'desktop',
       'orchestrator'
     ])
+  })
+})
+
+describe('browser capabilities', () => {
+  const BROWSER_COMMANDS: CommandName[] = [
+    'browserStatus', 'browserNavigate', 'browserClick', 'browserType', 'browserPress', 'browserRead', 'browserScreenshot'
+  ]
+
+  it('declares browser.drive for exactly the browser commands', () => {
+    expect(COMMAND_NAMES.filter((name) => COMMAND_CAPABILITIES[name] === 'browser.drive')).toEqual(BROWSER_COMMANDS)
+  })
+
+  it('lets only the orchestrator and worker drive the browser, never the desktop', () => {
+    const roles: SessionRole[] = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer', 'reader']
+    expect(roles.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('browser.drive'))).toEqual(['orchestrator', 'worker'])
   })
 })
 

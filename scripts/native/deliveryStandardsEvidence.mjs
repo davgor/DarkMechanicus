@@ -49,6 +49,7 @@ const env = { ...process.env, DARKMECHANICUS_HOME: homeDir }
 delete env.ELECTRON_RUN_AS_NODE
 delete env.DM_SESSION_TOKEN
 delete env.DM_DESKTOP_PIPE
+delete env.DM_BROWSER_PIPE
 const child = spawnSync(require('electron'), [fixture, root, output, process.cwd()], {
   env, stdio: 'inherit', windowsHide: true, timeout: live ? 600_000 : 60_000
 })

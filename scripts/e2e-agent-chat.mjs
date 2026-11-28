@@ -2,22 +2,27 @@
  * Built-app e2e harness for agent chats. Launches the built Electron app (run `npm run build` first) with an isolated
  * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent (`fake-claude`) and, with
  * `--agent omp`, also as the built-in `omp` (Skitarii) agent (`fake-omp`), drives it over CDP and runs named steps, each
- * exactly once under a 10 s condition-based deadline with no retries.
+ * exactly once under a 10 s condition-based deadline (or the longer one a step declares) with no retries.
  *
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-multiquestion
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps browser-drive,browser-skitarii,browser-shot,browser-guard,browser-signin,quit
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps browser-origin,browser-stop,browser-take,quit
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
  * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
  * the app prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios.
- * So `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord and model steps.
+ * So `--agent omp` runs only `ready`, `new-chat`, `quit`, the coord and model steps and `polish-multiquestion`.
  *
- * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
+ * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-question forms, `Worked for`, untrack)
  * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
  * folder. A step list that does not start the app itself (`ready` or `restart-resume`) gets `ready` first.
+ * `polish-multiquestion` instead starts its own folder chat on the omp fake (`--agent omp` implied, `--agent claude`
+ * refused), which replays the recorded OMP 18.20.2 ask form, and answers all three questions with one Submit.
  *
  * The `image-*` steps (screenshots in GUI chats) also run only when named: `image-send` sends `swatch.png` from a new
  * folder chat's composer, and `image-result` has the seeded epic's Magos (started through Start run) return it from a
@@ -35,9 +40,24 @@
  * turn, and `model-restart` relaunches the app and checks the chat starts again on that model and effort. The fake
  * logs each session control it receives to `<out>/fake-controls.jsonl`.
  *
- * Without `--steps` every step but the polish, image, coord and model ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `browser-*` steps (agents driving the in-app browser) also run only when named, each under its own deadline. The
+ * harness starts the two fixture servers (`browser-fixture-server.mjs`) and, before launch, always allows site `a` for
+ * the fixture folder by writing its site file (`<userData>/browser/sites/<folderStoreId>.json`); `b` is not allowed.
+ * `browser-drive` has a Claude chat's fake drive the Browser tab through its instructions' `dm` line, `browser-skitarii`
+ * the same from a Skitarii (omp-kind) chat (the omp fake is connected too, and the folder's default switched to it for
+ * that chat), `browser-shot` checks the screenshot attachment and the camera, `browser-guard` the file:, popup and
+ * download guards and a site the person allows once, and `browser-signin` the Private tab. `browser-origin` has a new
+ * chat's agent ask for `b`: Deny keeps the view on `a`, Allow once loads `b` without listing it in Sites, and Always
+ * allow in a second new chat lists it in Sites and the site file. `browser-stop` stops a `[browser-loop]` from the
+ * panel and hands back, and `browser-take` takes control of one, types into the page through the view's own target
+ * and hands back; each opens its own chat. They run on the claude default (`--agent omp` is refused). Each also saves
+ * `e2e-<step>-view.png` from the view's own DevTools target, which the renderer capture never contains.
+ *
+ * Without `--steps` every step but the polish, image, coord, model and browser ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail, startedAt, endedAt}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
- * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
+ * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png` and its detail carries the run's latest
+ * wall-clock marks (quit asked, app exited, a restart launch, the no-resume window). The verdict is written even when
+ * the harness itself fails (a `harness` step). Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
  * only in the isolated app it launched, so it runs on Windows only. The `restart-resume` step starts the app itself
  * (with the app stopped: alone, or after `quit`) on a seeded restart marker, as Restart now leaves it, and runs in
@@ -57,13 +77,14 @@ import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
-import { tmpdir } from 'node:os'
-import { dirname, join, posix, resolve, win32 } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
 import { createInterface } from 'node:readline'
 import { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { buildSync } from 'esbuild'
+import { startFixtureServers } from './browser-fixture-server.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -74,6 +95,8 @@ const STEP_DEADLINE_MS = 10_000
 const POLL_MS = 100
 const SCREENSHOT_BOUND_MS = 5_000
 const STDERR_TAIL_LINES = 40
+/** How many of the latest wall-clock marks a failed step's detail carries. */
+const MARKS_SHOWN = 20
 const FOLDER_NAME = 'e2e-repo'
 const FAKE_VERSION = '2.1.329'
 /** What the fake's OMP persona prints for `--version` (`omp/18.16.0`), as the app stores it. */
@@ -86,7 +109,7 @@ const EPIC_TITLE = 'E2E epic'
 const WINDOW = { width: 1024, height: 768 }
 const WIDE_WINDOW = { width: 1440, height: 900 }
 /** Inherited variables that would redirect the app: `ELECTRON_RUN_AS_NODE=1` alone would start plain Node. */
-const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE)$/i
+const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE)$/i
 /**
  * The protocol (GUI) and TUI invocations, which run until the app stops them. Version, auth and arbiter runs exit by
  * themselves and the app observes that directly; Windows recycles their pids, so they are not checked.
@@ -179,10 +202,13 @@ export function writeShim(directory, fixture, platform = process.platform, kind 
   return join(directory, files[0].name)
 }
 
-/** The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP. */
-export function seededAgents(shims, agent) {
+/**
+ * The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP or a step
+ * starts a Skitarii chat beside the claude default (`omp`).
+ */
+export function seededAgents(shims, agent, omp = agent === 'omp') {
   const claude = { kind: 'claude', executablePath: shims.claude, version: FAKE_VERSION }
-  return agent === 'omp' ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
+  return omp ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
 }
 
 /** The fake agent's invocation log, one entry per launch, in launch order. */
@@ -320,6 +346,7 @@ const messageOf = (error) => (error instanceof Error ? error.message : String(er
  */
 export async function runStep(name, run, { deadlineMs = STEP_DEADLINE_MS, onFailure = async () => ({}) } = {}) {
   const started = performance.now()
+  const startedAt = new Date().toISOString()
   const controller = new AbortController()
   let timer
   const deadline = new Promise((_resolve, reject) => {
@@ -342,11 +369,17 @@ export async function runStep(name, run, { deadlineMs = STEP_DEADLINE_MS, onFail
     const extra = await onFailure(name).catch((error) => ({ failureCapture: messageOf(error) }))
     outcome.detail = { ...outcome.detail, ...extra }
   }
-  return { name, ...outcome }
+  // Wall-clock bounds, comparable with the app's main.log, so a failure's time can be placed among the app's lines.
+  return { name, ...outcome, startedAt, endedAt: new Date().toISOString() }
 }
 
 export function verdict(steps) {
   return { steps, ok: steps.length > 0 && steps.every((step) => step.ok) }
+}
+
+/** Records a wall-clock mark within a step (`session.marks`), which a failed step's detail carries. */
+export function mark(session, label) {
+  session.marks.push({ label, at: new Date().toISOString() })
 }
 
 export function failureScreenshotName(step) {
@@ -363,7 +396,8 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
 
 /**
  * A run's state. With a coord step the fakes deliver their inbox at startup (`FAKE_AGENT_DELIVER_MAIL`), as the
- * Skitarii extension delivers mail; other runs never make that `dm` call.
+ * Skitarii extension delivers mail; other runs never make that `dm` call. With a browser step `browser` holds the
+ * fixture servers and what the browser steps share; a Skitarii browser step connects the omp fake as well (`omp`).
  */
 function createSession(out, exe, agent = 'claude', keys = []) {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
@@ -376,13 +410,14 @@ function createSession(out, exe, agent = 'claude', keys = []) {
       FAKE_AGENT_CONTROL_LOG: join(root, 'fake-controls.jsonl'), FAKE_AGENT_SLOW_MS: String(MODEL_SLOW_MS)
     })
   }
+  const browser = keys.some((key) => STEPS[key].browser)
   return {
-    out, root, exe, agent, env,
+    out, root, exe, agent, env, omp: agent === 'omp' || keys.some((key) => STEPS[key].browser && STEPS[key].skitarii),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
-    stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null, console: [], coord: null, model: null
+    stdout: '', stderr: '', lastProbe: null, fakePids: [], marks: [], dialogs: null, epicId: null, folderPath: null, chat: null,
+    store: null, restart: null, console: [], coord: null, model: null, browser: browser ? { servers: null } : null
   }
 }
 
@@ -468,7 +503,7 @@ function seedStores(session) {
     bundle: true, platform: 'node', format: 'cjs', target: 'node24', logLevel: 'warning'
   })
   const seed = {
-    userData: session.userData, agents: seededAgents(session.shims, session.agent), defaultAgent: session.agent,
+    userData: session.userData, agents: seededAgents(session.shims, session.agent, session.omp), defaultAgent: session.agent,
     folders: join(session.userData, 'folders.json'), home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME,
     folder: session.folder, second: session.second, epicTitle: EPIC_TITLE
   }
@@ -549,7 +584,7 @@ function stopDialogHelper(session) {
   session.dialogs = null
 }
 
-function setup(session) {
+async function setup(session) {
   if (session.exe === null && !existsSync(BUILT_MAIN)) throw new Error('out/main/index.js is missing: run `npm run build` first.')
   if (session.exe !== null && !existsSync(session.exe)) throw new Error(`The packaged app ${session.exe} does not exist.`)
   const { env } = session
@@ -566,9 +601,10 @@ function setup(session) {
     writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME, version }))
   }
   if (process.platform === 'win32') startDialogHelper(session)
+  const browser = await setupBrowser(session)
   return {
     shims: session.shims, agent: session.agent, folder: session.folder, second: session.second, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
-    app: session.exe ?? BUILT_MAIN
+    app: session.exe ?? BUILT_MAIN, ...browser
   }
 }
 
@@ -602,6 +638,29 @@ async function launch(session, signal) {
 }
 
 const isRunning = (child) => child !== null && child.exitCode === null && child.signalCode === null
+
+/** The app processes the harness killed itself: they can no longer be asked to quit. */
+const forceKilled = new WeakSet()
+
+/**
+ * Sends `message` to the built app's wrapper over its IPC channel. A closed channel rejects (rather than emitting an
+ * unhandled 'error' on the child, which would end the harness before it writes its verdict), as does a failed send.
+ */
+export function sendToChild(child, message) {
+  if (!child.connected) return Promise.reject(new Error(`The app's IPC channel is closed; could not send ${JSON.stringify(message)}.`))
+  return new Promise((resolveSend, rejectSend) => {
+    child.send(message, (error) => (error ? rejectSend(error) : resolveSend()))
+  })
+}
+
+/**
+ * Whether the harness can still ask the app to quit: always for the packaged app (through its inspector), and for the
+ * built sources only over a connected IPC channel to a child the harness has not force-killed.
+ */
+export function canAskToQuit(child, exe, killed = forceKilled) {
+  if (child === null || exe !== null) return true
+  return child.connected && !killed.has(child)
+}
 
 function assertRunning(session) {
   if (!isRunning(session.child)) throw new Error(`The app exited (code ${session.child.exitCode}) before it was ready.`)
@@ -714,8 +773,7 @@ async function startPackagedMain(session, signal) {
 /** Asks the app to resize its window or to quit: over the wrapper's IPC, or in the packaged app's main. */
 function tellApp(session, message) {
   if (session.exe === null) {
-    session.child.send(message)
-    return Promise.resolve()
+    return sendToChild(session.child, message)
   }
   const command = message === 'quit'
     ? 'app.quit()'
@@ -786,6 +844,14 @@ function installHelpers(_h) {
     rect(element) {
       const { left, top, right, bottom, width, height } = element.getBoundingClientRect()
       return { left, top, right, bottom, width, height }
+    },
+    /** The newest Bash card in `root` whose summary starts with `prefix`, in pill state `state`; opens folded work while there is none. */
+    toolCard(root, prefix, state) {
+      const cards = root ? [...root.querySelectorAll('.chat-transcript li.chat-tool[aria-label="Tool call: Bash"]')] : []
+      const card = cards.findLast((entry) => (entry.querySelector('.chat-tool-summary')?.textContent ?? '').startsWith(prefix) &&
+        entry.querySelector('[data-state]')?.getAttribute('data-state') === state)
+      if (!card) [...(root?.querySelectorAll('.chat-work-toggle[aria-expanded="false"]') ?? [])].at(-1)?.click()
+      return card ?? null
     },
     /** The GUI chat's section, found by its composer; null while it is not shown. */
     chatSection(chatId) {
@@ -945,7 +1011,7 @@ async function appReady(session, signal) {
   await attach(session, signal)
   const probe = await waitFor(async () => {
     assertRunning(session)
-    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent), session.agent))
+    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent, session.omp), session.agent))
     return session.lastProbe.ready && session.lastProbe
   }, signal)
   session.folderPath = probe.folder.path
@@ -1410,6 +1476,7 @@ async function epicAgent(session, signal) {
 
 function forceKill(child) {
   if (!isRunning(child)) return
+  forceKilled.add(child)
   if (process.platform === 'win32') {
     spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true })
   } else {
@@ -1428,14 +1495,29 @@ async function quit(session, signal) {
   if (child === null) return { launched: false }
   closeSocket(session)
   if (!isRunning(child)) throw new Error(`The app exited before quit (code ${child.exitCode}).`)
-  signal.addEventListener('abort', () => forceKill(child), { once: true })
+  signal.addEventListener('abort', () => { mark(session, 'quit deadline: app force-killed'); forceKill(child) }, { once: true })
+  mark(session, 'quit asked')
   await tellApp(session, 'quit')
   // An attached inspector session would hold the packaged app's exit; it is closed before the wait.
   session.main?.socket.close()
   session.main = null
   const { code, signal: killedBy } = await session.exited
+  mark(session, 'app exited')
   if (code !== 0) throw new Error(`The app exited with code ${code}${killedBy ? ` (${killedBy})` : ''}.`)
   return { exitCode: code }
+}
+
+/** Cleanup for an app that can no longer be asked to quit: kills its process tree and waits for it to exit. */
+async function killAndWait(session) {
+  const { child } = session
+  closeSocket(session)
+  session.main?.socket.close()
+  session.main = null
+  mark(session, 'cleanup: killing an app that cannot be asked to quit')
+  forceKill(child)
+  const { code, signal } = await session.exited
+  mark(session, 'app exited')
+  return { forceKilled: true, exitCode: code, signal }
 }
 
 async function fakeProcessesExited(session, signal) {
@@ -1445,14 +1527,16 @@ async function fakeProcessesExited(session, signal) {
 }
 
 /**
- * Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone. The capture is the last state before it,
- * once the new chat (when the run made one) carries the title the fake named it with.
+ * Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone, and after browser steps no screenshot
+ * copy is left in the temp folder. The capture is the last state before it, once the new chat (when the run made one)
+ * carries the title the fake named it with.
  */
 async function quitApp(session, signal) {
   const named = session.chat === null ? null : await until(session, signal, chatNamed, session.folderPath, session.chat.chatId, FAKE_CHAT_TITLE)
   const screenshot = await capture(session, 'e2e-quit.png', WINDOW)
   const exited = await quit(session, signal)
-  return { ...exited, ...await fakeProcessesExited(session, signal), newChatTitle: named?.title ?? null, screenshot }
+  const shots = session.browser === null ? {} : { shotCopies: leftShotCopies(session) }
+  return { ...exited, ...await fakeProcessesExited(session, signal), newChatTitle: named?.title ?? null, ...shots, screenshot }
 }
 
 /** The fixed session id of the seeded Magos chat, and the version its restart marker says the app was updated from. */
@@ -1589,7 +1673,9 @@ async function restartSeed(session) {
 
 /** Launches the app on the seeded profile and reads its runtime version, the one the header shows. */
 async function restartLaunch(session, signal) {
+  mark(session, 'restart launch started')
   const ready = await appReady(session, signal)
+  mark(session, 'app ready')
   const version = await evaluate(session, 'window.appInfo.getVersion()')
   if (!/^\d+\.\d+\.\d+$/.test(version) || !newerVersion(version, RESTART_FROM_VERSION)) {
     throw new Error(`The app's runtime version ${version} is not newer than v${RESTART_FROM_VERSION}.`)
@@ -1669,7 +1755,9 @@ async function restartEqualLaunch(session, signal) {
 
 /** Phase 7: in 5 s the equal-version marker launches nothing for the chat and adds no message; it is consumed. */
 async function restartEqualVersion(session, signal) {
+  mark(session, 'no-resume window started')
   await delay(NO_RESUME_WINDOW_MS, undefined, { signal })
+  mark(session, 'no-resume window over')
   const launches = chatLaunches(readLog(session), RESTART_SESSION_ID)
   if (launches.length !== session.restart.launchesBefore) {
     throw new Error(`The equal-version start launched the chat: ${JSON.stringify(launches.slice(session.restart.launchesBefore))}`)
@@ -1820,54 +1908,194 @@ async function polishCopy(session, signal) {
   return { stored: stored.reply, message, code, codeExpected: MARKDOWN_CODE, screenshot: await capture(session, 'e2e-polish-copy.png', WINDOW) }
 }
 
-const MULTI_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-multi-card[role="alertdialog"]'
-const SINGLE_CARD = 'section.agent-chat section.agent-prompt[role="alertdialog"]:not(.agent-prompt-multi-card)'
+const FORM_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-form-card[role="alertdialog"]'
 
-/** Checks exactly `labels` on the multi-select card, one checkbox per poll so React renders each change. */
-function checkOptions(_h, selector, labels) {
+/**
+ * The docked form: per fieldset its legend, checked option labels and free text, the answered count, and how many
+ * Submit buttons it has and whether the one is enabled; ok once the card shows.
+ */
+function formState(_h, selector) {
   const card = document.querySelector(selector)
   if (!card) return { ok: false, card: false }
-  const text = (element) => element?.textContent ?? null
-  const options = [...card.querySelectorAll('label.agent-prompt-check')].map((label) => ({
-    label: text(label.querySelector('.agent-prompt-check-label')), input: label.querySelector('input[type="checkbox"]')
+  const label = (input) => input.closest('label')?.querySelector('.agent-prompt-check-label')?.textContent ?? null
+  const fields = [...card.querySelectorAll('fieldset.agent-prompt-field')].map((fieldset) => ({
+    legend: fieldset.querySelector('legend')?.textContent ?? null,
+    checked: [...fieldset.querySelectorAll('input:checked')].map(label),
+    text: fieldset.querySelector(':scope > textarea')?.value ?? null
   }))
-  const wrong = options.find((option) => labels.includes(option.label) !== option.input.checked)
-  if (wrong) {
-    wrong.input.click()
-    return { ok: false, toggled: wrong.label }
-  }
-  const count = text(card.querySelector('.agent-prompt-count'))
+  const submits = [...card.querySelectorAll('button')].filter((button) => button.textContent === 'Submit')
   return {
-    ok: options.length > 0 && count === `${labels.length} selected`, count, legend: text(card.querySelector('legend')),
-    progress: text(card.querySelector('.agent-prompt-progress')), options: options.map((option) => option.label)
+    ok: true, heading: card.querySelector('h3')?.textContent ?? null, fields, count: card.querySelector('.agent-prompt-count')?.textContent ?? null,
+    submits: submits.length, submitEnabled: submits.length === 1 && !submits[0].disabled
   }
 }
 
-function singleQuestion(h, selector, label) {
-  const card = document.querySelector(selector)
-  if (!card) return { ok: false, card: false }
-  const progress = card.querySelector('.agent-prompt-progress')?.textContent ?? null
-  return { ok: progress === 'Question 2 of 2' && !!h.button(card, label), progress, heading: card.getAttribute('aria-label') }
+/** Polls the docked form until `test` holds for its state. */
+async function formWhere(session, signal, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = session.lastProbe = await page(session, formState, FORM_CARD)
+    return state.ok && test(state) && state
+  }, signal)
+}
+
+/** Checked option labels per field, in field order, for comparing a form's state. */
+const checkedOf = (state) => JSON.stringify(state.fields.map((field) => field.checked))
+
+/**
+ * One option row of the form field `legend`: clicks its input (`via: 'input'`), its label text (`'label'`), or only
+ * focuses the input (`'focus'`) for a key press. Ok once done.
+ */
+function formOption(_h, selector, { legend, option, via }) {
+  const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
+  const row = [...(fieldset?.querySelectorAll('label.agent-prompt-check') ?? [])]
+    .find((entry) => entry.querySelector('.agent-prompt-check-label')?.textContent === option)
+  const input = row?.querySelector('input')
+  if (!input || input.disabled) return { ok: false, fieldset: !!fieldset, row: !!row }
+  if (via === 'focus') {
+    input.focus()
+    return { ok: document.activeElement === input }
+  }
+  const target = via === 'label' ? row.querySelector('.agent-prompt-check-label') : input
+  target.click()
+  return { ok: true }
+}
+
+/** Focuses the free-text box of the form field `legend`. */
+function focusFormText(_h, selector, legend) {
+  const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
+  const box = fieldset?.querySelector(':scope > textarea')
+  if (!box || box.disabled) return { ok: false, found: !!box }
+  box.focus()
+  return { ok: document.activeElement === box }
+}
+
+/** A real Space key press in the focused element. */
+async function pressSpace(session) {
+  const key = { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyDown', text: ' ', unmodifiedText: ' ', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
 }
 
 /**
- * Polish 4: `[multiselect]` docks the multi question; two checked options and Submit bring the single second question,
- * "Question 2 of 2", and once it is answered the fake echoes the answers it received, both labels included.
+ * The chat once the turn `text` started has ended: idle, nothing pending; the user messages after it (an answered
+ * form's summary) and every assistant text after it.
+ */
+async function answeredTurn(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items, status, pending } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return {
+    ok: sent >= 0 && status === 'idle' && pending === null, status,
+    summaries: after.filter((item) => item.kind === 'user_message').map((item) => item.text),
+    replies: after.filter((item) => item.kind === 'assistant_text').map((item) => item.text)
+  }
+}
+
+/**
+ * Polish 4: `[multiselect]` (Claude Code's two questions) docks one form with both questions; checking A and C and
+ * choosing SQLite enables its one Submit, and once it is clicked the fake echoes both answers from one response.
  */
 async function polishMultiselect(session, signal) {
   const { chatId } = polishChat(session)
   await until(session, signal, composeAndSend, chatId, '[multiselect]')
-  const multi = await until(session, signal, checkOptions, MULTI_CARD, ['A', 'C'])
-  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
-  await until(session, signal, clickButton, MULTI_CARD, 'Submit')
-  const second = await until(session, signal, singleQuestion, SINGLE_CARD, 'SQLite')
-  await until(session, signal, clickButton, SINGLE_CARD, 'SQLite')
-  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[multiselect]' })
-  const { reply } = await until(session, signal, turnItems, session.folderPath, chatId, '[multiselect]')
-  if (!reply?.includes('"Which letters?":"A, C"') || !reply.includes('"Which database?":"SQLite"')) {
-    throw new Error(`The fake did not echo both checked labels: ${JSON.stringify(reply)}`)
+  const shown = await formWhere(session, signal, (state) => state.fields.length === 2 && state.submits === 1 && !state.submitEnabled)
+  for (const [legend, option] of [['Which letters?', 'A'], ['Which letters?', 'C'], ['Which database?', 'SQLite']]) {
+    await until(session, signal, formOption, FORM_CARD, { legend, option, via: 'input' })
   }
-  return { multi, second, echo: reply, screenshot }
+  const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["A","C"],["SQLite"]]' && state.submitEnabled)
+  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
+  await until(session, signal, clickButton, FORM_CARD, 'Submit')
+  const turn = await until(session, signal, answeredTurn, session.folderPath, chatId, '[multiselect]')
+  const echoes = turn.replies.filter((reply) => reply.startsWith('answers: '))
+  if (echoes.length !== 1 || !echoes[0].includes('"Which letters?":"A, C"') || !echoes[0].includes('"Which database?":"SQLite"')) {
+    throw new Error(`The fake did not echo both answers from one response: ${JSON.stringify(turn.replies)}`)
+  }
+  return { shown: shown.fields.map((field) => field.legend), form, summaries: turn.summaries, echo: echoes[0], screenshot }
+}
+
+/** The prompt of the multi-question chat: the fake replays the recorded OMP 18.20.2 ask form (`ask_multi_q`). */
+const MULTI_QUESTION_PROMPT = '[ask-multi-q]'
+/** The recorded form's defaults OMP marks checked. */
+const ASK_DEFAULTS = '[["SQLite","Postgres"],["US"],[]]'
+/** Its questions as the card heads them: the HTML marks nothing required, so the checkbox group and the text are optional. */
+const ASK_LEGENDS = '["Which databases? (optional)","Which region?","Anything else? (optional)"]'
+/** The ask's one transcript record while its card is open, and once its one Submit answered it. */
+const ASK_WAITING = '[{"label":"Question: Answer 3 questions","state":"Waiting for your answer"}]'
+const ASK_ANSWERED = '[{"label":"Question: Answer 3 questions","state":"Answered"}]'
+
+/**
+ * The chat's approval and question records, each as its label and state pill, and how many read Not answered; folded
+ * `Worked for` rows are opened first so a record inside one is read too.
+ */
+function askRecords(_h) {
+  for (const toggle of document.querySelectorAll('section.agent-chat .chat-transcript .chat-work-toggle[aria-expanded="false"]')) toggle.click()
+  const cards = [...document.querySelectorAll('section.agent-chat .chat-transcript .chat-approval-card')]
+  return {
+    ok: true, notAnswered: cards.filter((card) => card.textContent.includes('Not answered')).length,
+    records: cards.map((card) => ({ label: card.getAttribute('aria-label'), state: card.querySelector('.chat-approval-head [data-state]')?.textContent ?? null }))
+  }
+}
+
+/** Polls the transcript's records until they read `expected` with none Not answered. */
+async function recordsWhere(session, signal, expected) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = session.lastProbe = await page(session, askRecords)
+    return state.notAnswered === 0 && JSON.stringify(state.records) === expected && state
+  }, signal)
+}
+
+/**
+ * Polish 7, on the omp fake: a new folder chat's `[ask-multi-q]` docks one form with all three questions, SQLite and
+ * Postgres checked and US chosen, Submit enabled, and the transcript holds one record of the ask, a question waiting
+ * for its answer (never a Not answered approval to "Use select"). Space unchecks Postgres and a click on its label
+ * checks it again (the fake replays the recorded requests, so the group goes back at its default), EU replaces US and
+ * "note" goes in the text field. One Submit answers every question: OMP takes one response per request it asks, and the
+ * fake echoes them all in one reply; the transcript's summary carries every answer, the untouched databases default
+ * included, and the one record reads Answered.
+ */
+async function polishMultiquestion(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', MULTI_QUESTION_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: MULTI_QUESTION_PROMPT })
+  if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  const defaults = await formWhere(session, signal, (state) => JSON.stringify(state.fields.map((field) => field.legend)) === ASK_LEGENDS
+    && checkedOf(state) === ASK_DEFAULTS && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
+  const waiting = await recordsWhere(session, signal, ASK_WAITING)
+  const defaultsShot = await capture(session, 'e2e-polish-multiquestion-defaults.png', WINDOW)
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'focus' })
+  await pressSpace(session)
+  const unchecked = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite"],["US"],[]]')
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'label' })
+  await formWhere(session, signal, (state) => checkedOf(state) === ASK_DEFAULTS)
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which region?', option: 'EU', via: 'input' })
+  await until(session, signal, focusFormText, FORM_CARD, 'Anything else?')
+  await cdp(session, 'Input.insertText', { text: 'note' })
+  const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite","Postgres"],["EU"],[]]'
+    && state.fields[2].text === 'note' && state.submitEnabled)
+  const screenshot = await capture(session, 'e2e-polish-multiquestion.png', WINDOW)
+  await until(session, signal, clickButton, FORM_CARD, 'Submit')
+  const turn = await until(session, signal, answeredTurn, session.folderPath, chat.id, MULTI_QUESTION_PROMPT)
+  const echoes = turn.replies.filter((reply) => reply.startsWith('answers: '))
+  const responses = echoes.length === 1 ? JSON.parse(echoes[0].slice('answers: '.length)) : null
+  const values = Array.isArray(responses) ? responses.map((response) => response.value) : null
+  if (JSON.stringify(values) !== JSON.stringify(['✔ Done selecting', 'EU', 'note'])) {
+    throw new Error(`The fake did not echo one reply with every response: ${JSON.stringify(turn.replies)}`)
+  }
+  const summary = 'Which databases?: SQLite, Postgres\nWhich region?: EU\nAnything else?: note'
+  if (JSON.stringify(turn.summaries) !== JSON.stringify([summary])) throw new Error(`The answered form reads ${JSON.stringify(turn.summaries)}, not ${JSON.stringify(summary)}.`)
+  const answered = await recordsWhere(session, signal, ASK_ANSWERED)
+  return {
+    chat, defaults, waiting: waiting.records, spaceUnchecked: unchecked.fields[0].checked, form, echo: echoes[0], responses: values,
+    summary: turn.summaries[0], answered: answered.records, defaultsScreenshot: defaultsShot, screenshot,
+    answeredScreenshot: await capture(session, 'e2e-polish-multiquestion-answered.png', WINDOW)
+  }
 }
 
 /** The newest `Worked for` row: its label, whether it is open, and the state of its `name` tool card (null when hidden). */
@@ -2106,14 +2334,14 @@ function sentImage(_h, chatId) {
   return { ok: img.complete && img.naturalWidth > 0 && chips === 0, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0], chips }
 }
 
-/** A new folder GUI chat from the New chat popup, its first turn done. */
-async function openImageChat(session, signal) {
+/** A new folder GUI chat from the New chat popup with `prompt`, its first turn done. */
+async function openFolderChat(session, signal, prompt) {
   await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
-  await until(session, signal, fill, '.dialog[role="dialog"] textarea', IMAGE_CHAT_PROMPT)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', prompt)
   await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
-  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: IMAGE_CHAT_PROMPT })
-  if (chat.surface !== 'gui') throw new Error(`The image chat runs on ${chat.surface}, not gui.`)
-  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_CHAT_PROMPT })
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: prompt })
+  if (chat.surface !== 'gui') throw new Error(`The chat "${prompt}" runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: prompt })
   return chat
 }
 
@@ -2124,7 +2352,7 @@ async function openImageChat(session, signal) {
  */
 async function imageSend(session, signal) {
   const bytes = readFileSync(SWATCH)
-  const chat = await openImageChat(session, signal)
+  const chat = await openFolderChat(session, signal, IMAGE_CHAT_PROMPT)
   const input = await until(session, signal, fileInput, chat.id)
   await setComposerFile(session, chat.id, SWATCH)
   const chips = await until(session, signal, composerChips, chat.id, 1)
@@ -2701,10 +2929,14 @@ async function modelRestartQuit(session, signal) {
   return { record: { model: record.model, thinking: record.thinking }, ...exited, ...fakes }
 }
 
-/** Shows the chat: its composer, else a click on its sidebar row (by `title`). */
+/**
+ * Shows the chat: its composer, else a click on its sidebar row (by `title`). The row of the chat shown now is never
+ * the one clicked, so of two chats with the same title the other one opens.
+ */
 function showChat(_h, chatId, title) {
   if (document.getElementById(`agent-message-${chatId}`)) return { ok: true }
-  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')].find((button) => button.querySelector('.chat-row-title')?.textContent === title)
+  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')]
+    .find((button) => button.querySelector('.chat-row-title')?.textContent === title && button.getAttribute('aria-current') !== 'true')
   row?.click()
   return { ok: false, row: !!row }
 }
@@ -2730,6 +2962,830 @@ async function modelRestartResumed(session, signal) {
     launch: { pid: entry.pid, argv: entry.argv }, flags, snapshot: { model: state.model, thinking: state.thinking }, chip: chip.label,
     screenshot: await capture(session, 'e2e-model-restart.png', WINDOW)
   }
+}
+
+/** The first prompts of the browser steps' chats: the Claude chat browser-drive opens, the Skitarii one browser-skitarii opens. */
+const BROWSER_CHAT_PROMPT = 'hello browser'
+const SKITARII_CHAT_PROMPT = 'hello skitarii'
+/** The fake's `[browser]` scenario (`fakeAgentCli.mjs`, BROWSER_STEPS), and what it types into the fixture's Name box. */
+const BROWSER_SCENARIO_OPS = ['browser_navigate', 'browser_read', 'browser_click', 'browser_type', 'browser_read', 'browser_screenshot']
+const BROWSER_TYPED = 'Ada'
+/** The page a refused navigation leaves in a view: Chromium's own error page. */
+const ERROR_PAGE = 'chrome-error://chromewebdata/'
+/** Main's screenshot copies for the CLI (`dm-browser-shot-<random>` in the temp folder), removed once collected. */
+const SHOT_PREFIX = 'dm-browser-shot-'
+/** The fixture page's state, read in a browser view: its URL, `#status`, `#echo` and its size in DIP with the scale. */
+const FIXTURE_STATE = `({ href: location.href, status: document.querySelector('#status')?.textContent ?? null,
+  echo: document.querySelector('#echo')?.textContent ?? null, width: innerWidth, height: innerHeight, dpr: devicePixelRatio })`
+
+/** A folder's durable store id (`src/main/agentChat/folderStoreId.ts`); scripts cannot import TypeScript. */
+function folderStoreId(canonicalPath, platform) {
+  const identity = platform === 'win32' ? canonicalPath.toLowerCase() : canonicalPath
+  return createHash('sha256').update(identity).digest('hex').slice(0, 32)
+}
+
+/** The site file (`siteStore.ts`) that always allows `origins` in the folder at `canonicalPath`: its path and text. */
+export function siteFile(userData, canonicalPath, origins, platform = process.platform) {
+  return {
+    path: join(userData, 'browser', 'sites', `${folderStoreId(canonicalPath, platform)}.json`),
+    text: `${JSON.stringify({ version: 1, origins }, null, 2)}\n`
+  }
+}
+
+/** The DevTools page targets of in-app browser views: never the app's own page. */
+const browserViews = (targets) => targets.filter((target) => target.type === 'page' && !target.url.includes('/renderer/index.html'))
+
+/**
+ * The DevTools page target of an in-app browser view: the one listed with `id`, else the one whose URL is `url`
+ * exactly. Null while there is none; several with the URL throw, as the harness could not tell which view it drives.
+ */
+export function viewTarget(targets, { url, id }) {
+  const matches = browserViews(targets).filter((target) => (id === undefined ? target.url === url : target.id === id))
+  if (matches.length > 1) throw new Error(`${matches.length} browser views show ${url}: ${matches.map((target) => target.id).join(', ')}.`)
+  return matches[0] ?? null
+}
+
+/** The one browser view (as `viewTarget` finds them) `after` lists that `before` did not; null while none, several throw. */
+export function addedView(before, after) {
+  const known = new Set(before.map((target) => target.id))
+  const added = browserViews(after).filter((target) => !known.has(target.id))
+  if (added.length > 1) throw new Error(`${added.length} browser views appeared: ${added.map((target) => `${target.id} ${target.url}`).join(', ')}.`)
+  return added[0] ?? null
+}
+
+/**
+ * A turn's `dm call browser_*` Bash calls (the fake's browser steps), in order: the op, its arguments, the call's
+ * status and the CLI's JSON reply as the tool result holds it (null when it is not JSON).
+ */
+export function browserToolCalls(tools) {
+  return tools.flatMap((tool) => {
+    const command = tool.name === 'Bash' && typeof tool.input?.command === 'string' ? tool.input.command : ''
+    const [, op, args] = command.match(/^dm call (browser_[a-z]+) (\{.*\})$/s) ?? []
+    if (op === undefined) return []
+    let reply = null
+    try {
+      reply = JSON.parse(tool.resultSummary ?? '')
+    } catch {
+      // Not the CLI's JSON: the call shows as unreadable.
+    }
+    return [{ op, args: JSON.parse(args), status: tool.status, reply }]
+  })
+}
+
+/** Throws unless the turn `turn` made exactly the `expected` browser calls, each `[op, ok]`. */
+function assertCalls(turn, calls, expected) {
+  const actual = calls.map((call) => [call.op, call.status === 'completed' && call.reply?.ok === true])
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${turn}: the fake's browser calls were ${JSON.stringify(actual)}, not ${JSON.stringify(expected)}.`)
+  }
+}
+
+const shotDirectories = () => readdirSync(tmpdir()).filter((name) => name.startsWith(SHOT_PREFIX))
+
+/**
+ * With browser steps, starts the fixture servers and always allows site `a` in the fixture folder before launch (its
+ * site file, named by the folder's durable store id), and notes the screenshot copies already in the temp folder,
+ * which quit compares with. Answers the setup step's `browser` detail (none without browser steps).
+ */
+async function setupBrowser(session) {
+  if (session.browser === null) return {}
+  const servers = await startFixtureServers()
+  session.browser.servers = servers
+  const site = siteFile(session.userData, realpathSync.native(session.folder), [servers.a.origin])
+  mkdirSync(dirname(site.path), { recursive: true })
+  writeFileSync(site.path, site.text)
+  session.browser.sitePath = site.path
+  session.browser.shotsBefore = shotDirectories()
+  return { browser: { a: servers.a.origin, b: servers.b.origin, siteFile: site.path, allowed: [servers.a.origin], downloadName: servers.downloadName } }
+}
+
+/** The tool calls and the last reply of the turn the user message `text` started, from the stored transcript. */
+async function turnTools(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return {
+    ok: sent >= 0,
+    tools: after.filter((item) => item.kind === 'tool_call').map(({ name, input, status, resultSummary }) => ({ name, input, status, resultSummary })),
+    reply: after.findLast((item) => item.kind === 'assistant_text')?.text ?? null
+  }
+}
+
+/** Sends `text` in the chat and waits for its turn to end: the fake's reply and its browser calls. */
+async function browserTurn(session, signal, chatId, text) {
+  await until(session, signal, composeAndSend, chatId, text)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnTools, session.folderPath, chatId, text)
+  return { reply: turn.reply, calls: browserToolCalls(turn.tools) }
+}
+
+/** Throws unless the turn `text` replied `expected`. */
+function assertReply(text, turn, expected) {
+  if (turn.reply !== expected) throw new Error(`${text}: the fake replied ${JSON.stringify(turn.reply)}, not ${JSON.stringify(expected)}.`)
+}
+
+/**
+ * The shown chat's rail on `tab` (Agents or Browser), opening the collapsed rail first; ok once the tab is selected and
+ * the Browser panel shows exactly when it is Browser (the Agents tab unmounts it, which hides the view).
+ */
+function railTab(_h, tab) {
+  const rail = document.querySelector('aside[aria-label="Chat agents"]')
+  if (!rail) {
+    const toggle = document.querySelector('button.agent-chat-agents')
+    if (toggle && toggle.getAttribute('aria-pressed') !== 'true') toggle.click()
+    return { ok: false, rail: false, toggle: !!toggle }
+  }
+  const button = rail.querySelector(`button[role="tab"][aria-label="${tab}"]`)
+  if (!button) return { ok: false, tab: false }
+  if (button.getAttribute('aria-selected') !== 'true') {
+    button.click()
+    return { ok: false, selected: false }
+  }
+  const panel = document.querySelector('section.bp[aria-label="Browser"]') !== null
+  return { ok: panel === (tab === 'Browser'), panel }
+}
+
+/** The Browser panel's owner badge reads `text`. */
+function badgeIs(_h, text) {
+  const badge = document.querySelector('section.bp [role="status"][aria-label="Browser owner"]')?.textContent.trim() ?? null
+  return { ok: badge === text, badge }
+}
+
+/** The shown chat's newest Bash cards, one per op of `ops`, each Done and naming its op in order; opens folded work. */
+function browserCards(_h, ops) {
+  const section = document.querySelector('section.agent-chat')
+  if (!section) return { ok: false, section: false }
+  const cards = [...section.querySelectorAll('.chat-transcript li.chat-tool[aria-label="Tool call: Bash"]')].slice(-ops.length).map((card) => ({
+    summary: card.querySelector('.chat-tool-summary')?.textContent ?? '',
+    state: card.querySelector('[data-state]')?.getAttribute('data-state') ?? null
+  }))
+  const ok = cards.length === ops.length && cards.every((card, index) => card.state === 'accepted' && card.summary.startsWith(`dm call ${ops[index]} `))
+  if (!ok) [...section.querySelectorAll('.chat-work-toggle[aria-expanded="false"]')].at(-1)?.click()
+  return { ok, cards }
+}
+
+/** Sets the folder's default agent, as the person does in its settings; ok once main stored it. */
+async function folderDefault(_h, folder, agentId) {
+  const stored = await window.dm.setFolderDefaultAgent({ folder, agentId })
+  return { ok: stored === agentId, stored }
+}
+
+/** The chat's browser state (`browser:state`), as its panel reads it; ok once its agent tab exists. */
+async function browserState(_h, folder, chatId) {
+  const result = await window.dm.browser.state({ folder, chatId })
+  return result.ok ? { ok: result.data.tab !== null, state: result.data } : { ok: false, error: result.error.message }
+}
+
+/** The chat's Private tab shows `url`. */
+async function privateTabAt(_h, folder, chatId, url) {
+  const result = await window.dm.browser.state({ folder, chatId })
+  return { ok: result.ok && result.data.signIn?.url === url, signIn: result.ok ? result.data.signIn : null }
+}
+
+/** Types `text` into the input `selector`, then (on a later poll) focuses it for a real Enter; ok once it is focused. */
+function focusInput(h, selector, text) {
+  const input = document.querySelector(selector)
+  if (!input || input.disabled) return { ok: false, found: !!input }
+  if (input.value !== text) {
+    h.setValue(input, text)
+    return { ok: false, phase: 'typed' }
+  }
+  input.focus()
+  return { ok: document.activeElement === input }
+}
+
+/** The camera popover shows its capture, loaded. */
+function captureShown(_h) {
+  const thumb = document.querySelector('div.bp-camera-popover[aria-label="Captured page"] img.bp-camera-thumb')
+  return { ok: thumb?.complete === true && thumb.naturalWidth > 0, alt: thumb?.alt ?? null }
+}
+
+async function listTargets(session, signal) {
+  assertRunning(session)
+  return fetch(`http://127.0.0.1:${session.port}/json/list`, { signal }).then((response) => response.json())
+}
+
+/**
+ * Connects to the browser view `match` names (`viewTarget`) once it is listed: its target and DevTools connection.
+ * With `loaded`, also waits until its document at that URL has loaded: a page a navigation just swapped in answers
+ * nothing ("Not attached to an active page") before it commits.
+ */
+async function connectView(session, signal, match, loaded) {
+  const target = await waitFor(async () => viewTarget(await listTargets(session, signal), match), signal)
+  const view = await connect(target.webSocketDebuggerUrl)
+  if (loaded !== undefined) {
+    await waitFor(async () => (await evaluateOn(view, `document.readyState === 'complete' && location.href`).catch(() => null)) === loaded, signal)
+  }
+  return { target, view }
+}
+
+/** Saves the view's own page, which the renderer capture never holds, as `<out>/<name>`. */
+async function captureView(session, view, name) {
+  const { data } = await view.call('Page.captureScreenshot', { format: 'png' })
+  const bytes = Buffer.from(data, 'base64')
+  writeFileSync(join(session.out, name), bytes)
+  const png = pngSize(bytes)
+  return { file: name, png: `${png.width}x${png.height}` }
+}
+
+/** Connects to the view `match` names (once its document at `loaded` loaded, when given), saves it as `<out>/<name>`, disconnects. */
+async function snapView(session, signal, { match, loaded, name }) {
+  const { target, view } = await connectView(session, signal, match, loaded)
+  try {
+    return { target: { id: target.id, url: target.url }, viewScreenshot: await captureView(session, view, name) }
+  } finally {
+    view.socket.close()
+  }
+}
+
+/** A new folder GUI chat with `prompt`, named by its fake (the name its badge shows), its rail on Browser. */
+async function openBrowserChat(session, signal, prompt) {
+  const chat = await openFolderChat(session, signal, prompt)
+  await until(session, signal, chatNamed, session.folderPath, chat.id, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  return chat
+}
+
+/**
+ * The chat's fake runs `[browser url=<a>/]` through its instructions' `dm` line: navigate, a tree read, a click, `Ada`
+ * typed into the Name box, a text read showing both, and a screenshot staged as an `im_` evidence attachment. Its Bash
+ * cards are all Done, the badge names the chat (no ticket of the callsign is bound to it), and the view's own page
+ * shows `Clicked` and `Ada`, captured as `<out>/<viewFile>`.
+ */
+async function driveFixture(session, signal, chat, viewFile) {
+  const url = `${session.browser.servers.a.origin}/`
+  const text = `[browser url=${url}]`
+  const turn = await browserTurn(session, signal, chat.id, text)
+  assertReply(text, turn, 'browser done')
+  assertCalls(text, turn.calls, BROWSER_SCENARIO_OPS.map((op) => [op, true]))
+  const read = turn.calls[4].reply.data.content
+  if (!read.includes('Clicked') || !read.includes(BROWSER_TYPED)) throw new Error(`The text read shows ${JSON.stringify(read)}, not Clicked and ${BROWSER_TYPED}.`)
+  const shot = turn.calls[5].reply.data
+  if (!/^im_[a-z0-9]+$/.test(shot.id) || shot.purpose !== 'evidence') throw new Error(`The screenshot is not an evidence attachment: ${JSON.stringify(shot)}`)
+  const cards = await until(session, signal, browserCards, BROWSER_SCENARIO_OPS)
+  const badge = await until(session, signal, badgeIs, `Driven by: ${FAKE_CHAT_TITLE}`)
+  const { target, view } = await connectView(session, signal, { url })
+  try {
+    const page = await waitFor(async () => {
+      const state = await evaluateOn(view, FIXTURE_STATE)
+      session.lastProbe = { view: state }
+      return state.status === 'Clicked' && state.echo === BROWSER_TYPED && state
+    }, signal)
+    return {
+      calls: turn.calls.map(({ op, args }) => ({ op, args })), textRead: read, shot, cards: cards.cards, badge: badge.badge,
+      target: { id: target.id, url: target.url }, page, viewScreenshot: await captureView(session, view, viewFile)
+    }
+  } finally {
+    view.socket.close()
+  }
+}
+
+/**
+ * Browser 1: a Claude GUI chat's fake drives the Browser tab (`driveFixture`). With the rail on Agents (the view
+ * hidden) it reads and clicks, and its screenshot is refused with `view_hidden`; then it reads `<a>/inject`, whose
+ * text asks it to go elsewhere, as untrusted text, and makes no call the page asked for.
+ */
+async function browserDrive(session, signal) {
+  const { servers } = session.browser
+  const chat = await openBrowserChat(session, signal, BROWSER_CHAT_PROMPT)
+  session.chat ??= { chatId: chat.id, sessionId: chat.sessionId }
+  const driven = await driveFixture(session, signal, chat, 'e2e-browser-drive-view.png')
+  session.browser.drive = { chatId: chat.id, targetId: driven.target.id, shot: driven.shot, page: driven.page }
+  const screenshot = await capture(session, 'e2e-browser-drive.png', WINDOW)
+  await until(session, signal, railTab, 'Agents')
+  const hidden = await browserTurn(session, signal, chat.id, '[browser-hidden]')
+  assertCalls('[browser-hidden]', hidden.calls, [['browser_read', true], ['browser_click', true], ['browser_screenshot', false]])
+  const refusal = hidden.calls[2].reply?.error ?? null
+  if (refusal?.code !== 'view_hidden') throw new Error(`The hidden view's screenshot answered ${JSON.stringify(hidden.calls[2].reply)}, not view_hidden.`)
+  assertReply('[browser-hidden]', hidden, `browser failed: browser_screenshot view_hidden: ${refusal.message}`)
+  await until(session, signal, railTab, 'Browser')
+  const inject = `[browser-read url=${servers.a.origin}/inject]`
+  const injected = await browserTurn(session, signal, chat.id, inject)
+  assertReply(inject, injected, 'browser done')
+  assertCalls(inject, injected.calls, [['browser_navigate', true], ['browser_read', true]])
+  const untrusted = injected.calls[1].reply.data
+  if (untrusted.untrusted !== true) throw new Error(`The /inject read is not marked untrusted: ${JSON.stringify(untrusted)}`)
+  return {
+    chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, ...driven, screenshot,
+    hidden: { calls: hidden.calls.map(({ op, reply }) => ({ op, ok: reply?.ok === true, code: reply?.error?.code ?? null })), reply: hidden.reply },
+    inject: { calls: injected.calls.map(({ op, args }) => ({ op, args })), untrusted: true, content: untrusted.content }
+  }
+}
+
+/**
+ * Browser 2: a Skitarii (omp-kind) GUI chat, started with the folder's default switched to the omp fake, drives the
+ * Browser tab with its own grant and browser pipe (`driveFixture`); the default is the claude fake again after it.
+ */
+async function browserSkitarii(session, signal) {
+  await until(session, signal, folderDefault, session.folderPath, 'omp')
+  const chat = await openBrowserChat(session, signal, SKITARII_CHAT_PROMPT)
+  if (chat.agent !== 'omp') throw new Error(`The Skitarii browser chat runs ${chat.agent}, not omp.`)
+  const driven = await driveFixture(session, signal, chat, 'e2e-browser-skitarii-view.png')
+  const screenshot = await capture(session, 'e2e-browser-skitarii.png', WINDOW)
+  const launches = coordLaunches(readLog(session), chat.id).filter((launch) => launch.mode === 'omp' && isAlive(launch.pid))
+  if (launches.length !== 1) throw new Error(`The Skitarii chat has ${launches.length} live omp fakes, not one.`)
+  await until(session, signal, folderDefault, session.folderPath, 'claude')
+  return { chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, launch: launches[0], ...driven, screenshot }
+}
+
+/**
+ * Browser 3: the screenshot of browser-drive is an evidence attachment (`get_attachment` as the reader) whose size is
+ * the view's DIP size times its scale; then the camera's capture, added to the message, reaches the fake with `[tool]`.
+ */
+async function browserShot(session, signal) {
+  const { drive } = session.browser
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const metadata = await dmCall(session, { repo: session.folderPath, command: 'get_attachment', args: { attachmentId: drive.shot.id, as: 'metadata' } }, signal)
+  if (!metadata.ok) throw new Error(`get_attachment failed: ${JSON.stringify(metadata)}`)
+  const { id, purpose, mime, width, height } = metadata.data
+  const expected = { width: Math.round(drive.page.width * drive.page.dpr), height: Math.round(drive.page.height * drive.page.dpr) }
+  if (purpose !== 'evidence' || Math.abs(width - expected.width) > 1 || Math.abs(height - expected.height) > 1) {
+    throw new Error(`The screenshot attachment is ${purpose} ${width}x${height}, not evidence at ${expected.width}x${expected.height} (±1).`)
+  }
+  await until(session, signal, clickSelector, 'section.bp button[aria-label="Capture the agent tab"]')
+  const captured = await until(session, signal, captureShown)
+  await until(session, signal, clickButton, 'div.bp-camera-popover[aria-label="Captured page"]', 'Add to message')
+  const chips = await until(session, signal, composerChips, drive.chatId, 1)
+  await until(session, signal, composeAndSend, drive.chatId, '[tool]')
+  await until(session, signal, turnDone, session.folderPath, drive.chatId, { text: '[tool]' })
+  const turn = await until(session, signal, turnItems, session.folderPath, drive.chatId, '[tool]')
+  if (!turn.reply?.startsWith('received image image/png ')) throw new Error(`The [tool] reply starts ${JSON.stringify(turn.reply?.split('\n')[0] ?? null)}, not received image image/png.`)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: drive.targetId }, name: 'e2e-browser-shot-view.png' })
+  return {
+    attachment: { id, purpose, mime, width, height }, view: { dip: `${drive.page.width}x${drive.page.height}`, scaleFactor: drive.page.dpr, expected: `${expected.width}x${expected.height}` },
+    camera: { capture: captured.alt, chips: chips.chips, echo: turn.reply.split('\n')[0] }, viewScreenshot, screenshot: await capture(session, 'e2e-browser-shot.png', WINDOW)
+  }
+}
+
+/** The targets `after` lists that `before` did not, each as `<type> <url>`. */
+export function newTargets(before, after) {
+  const known = new Set(before.map((target) => target.id))
+  return after.filter((target) => !known.has(target.id)).map((target) => `${target.type} ${target.url}`)
+}
+
+/** How many lines of `log` contain `line`. */
+export function countLines(log, line) {
+  return log.split(/\r?\n/).filter((entry) => entry.includes(line)).length
+}
+
+/** The view's document URL over a fresh connection (a navigation may have swapped the page an older one spoke to); null while unreadable. */
+async function viewHref(session, signal, targetId) {
+  const target = viewTarget(await listTargets(session, signal), { id: targetId })
+  if (target === null) return null
+  const view = await connect(target.webSocketDebuggerUrl)
+  try {
+    return await evaluateOn(view, 'location.href').catch(() => null)
+  } finally {
+    view.socket.close()
+  }
+}
+
+/**
+ * Clicks the fixture link `#<link>` in the view and waits, under the step's deadline, until `settled` holds: the app's
+ * own proof that it refused the click, given the view's document URL and the paths requested since. Answers every
+ * URL the view (`targetId`) showed meanwhile (its target's and its document's) and the DevTools targets added. The
+ * click runs after the evaluation answers: a navigation it starts may swap the page before an answer would arrive.
+ */
+async function guardClick(session, signal, { view, targetId, link, settled }) {
+  const { requests } = session.browser.servers
+  const from = requests.length
+  const before = await listTargets(session, signal)
+  const href = await evaluateOn(view, `(() => { const link = document.getElementById(${JSON.stringify(link)}); setTimeout(() => link.click()); return link.href })()`)
+  const urls = new Set()
+  await waitFor(async () => {
+    urls.add(viewTarget(await listTargets(session, signal), { id: targetId })?.url ?? '(no target)')
+    const document = await viewHref(session, signal, targetId)
+    if (document !== null) urls.add(document)
+    return settled({ document, requested: requests.slice(from) })
+  }, signal)
+  return { link, href, requested: requests.slice(from), urls: [...urls], newTargets: newTargets(before, await listTargets(session, signal)) }
+}
+
+/** Files named like the fixture's download in the person's Downloads folder, the isolated home's, and anywhere in the isolated root. */
+function downloadedFiles(session, name) {
+  const found = []
+  for (const directory of [join(homedir(), 'Downloads'), join(session.env.HOME, 'Downloads')]) {
+    if (existsSync(directory)) found.push(...readdirSync(directory).filter((entry) => entry.startsWith(name)).map((entry) => join(directory, entry)))
+  }
+  const inRoot = readdirSync(session.root, { recursive: true }).filter((entry) => basename(entry).startsWith(name))
+  return [...found, ...inRoot.map((entry) => join(session.root, entry))]
+}
+
+/** The app's own log lines: its output and its log file under the isolated profile. */
+function appLog(session) {
+  const file = join(session.userData, 'logs', 'main.log')
+  return `${session.stdout}\n${session.stderr}\n${existsSync(file) ? readFileSync(file, 'utf8') : ''}`
+}
+
+/**
+ * Browser 4: with the agent back on `<a>/`, the view's `target=_blank` link is blocked (the app logs it) and adds no
+ * window or DevTools target; `/download` is requested, cancelled (the app logs it) and lands in no Downloads folder nor
+ * the isolated root; the `/to-file` link's redirect is refused (ERR_UNSAFE_REDIRECT, the view on Chromium's error
+ * page) and no file: URL ever shows (last: the error page has no links). Then the person opens `<b>/` from the
+ * address bar and allows it once.
+ */
+async function browserGuard(session, signal) {
+  const { drive, servers } = session.browser
+  const home = `${servers.a.origin}/`
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const text = `[browser-origin url=${home}]`
+  const back = await browserTurn(session, signal, drive.chatId, text)
+  assertReply(text, back, 'browser done')
+  assertCalls(text, back.calls, [['browser_navigate', true], ['browser_status', true]])
+  const downloadsBefore = downloadedFiles(session, servers.downloadName)
+  const popupLine = `browser popup blocked ${servers.b.origin}`
+  const cancelLine = `browser download cancelled ${servers.a.origin}`
+  const unsafeLine = `${servers.a.origin}/to-file with error: ERR_UNSAFE_REDIRECT`
+  const logged = (line) => countLines(appLog(session), line)
+  const connection = await connectView(session, signal, { id: drive.targetId })
+  const watch = { view: connection.view, targetId: drive.targetId }
+  let toFile, newWindow, download
+  try {
+    await waitFor(async () => (await evaluateOn(connection.view, 'location.href')) === home, signal)
+    const popups = logged(popupLine)
+    newWindow = await guardClick(session, signal, { ...watch, link: 'new-window', settled: () => logged(popupLine) > popups })
+    if (newWindow.newTargets.length > 0) throw new Error(`The target=_blank link opened ${newWindow.newTargets.join(', ')}.`)
+    const cancels = logged(cancelLine)
+    download = await guardClick(session, signal, { ...watch, link: 'download', settled: ({ requested }) => requested.includes('/download') && logged(cancelLine) > cancels })
+    if (download.newTargets.length > 0) throw new Error(`The download opened ${download.newTargets.join(', ')}.`)
+    const refusals = logged(unsafeLine)
+    toFile = await guardClick(session, signal, {
+      ...watch, link: 'to-file', settled: ({ document, requested }) => requested.includes('/to-file') && document === ERROR_PAGE && logged(unsafeLine) > refusals
+    })
+    if (toFile.urls.some((url) => url.startsWith('file:')) || toFile.newTargets.length > 0) throw new Error(`The /to-file link loaded a file: URL or a target: ${JSON.stringify(toFile)}`)
+  } finally {
+    connection.view.socket.close()
+  }
+  const downloadsAfter = downloadedFiles(session, servers.downloadName)
+  if (downloadsBefore.length > 0 || downloadsAfter.length > 0) throw new Error(`The download left ${[...downloadsBefore, ...downloadsAfter].join(', ')}.`)
+  const other = `${servers.b.origin}/`
+  await until(session, signal, focusInput, 'section.bp input.bp-address[aria-label="Address"]', other)
+  await pressEnter(session)
+  await until(session, signal, clickButton, `section.agent-prompt.origin-prompt[aria-label="${servers.b.origin}"]`, 'Allow once')
+  await waitFor(async () => viewTarget(await listTargets(session, signal), { id: drive.targetId })?.url === other, signal)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: drive.targetId }, loaded: other, name: 'e2e-browser-guard-view.png' })
+  return {
+    toFile: { ...toFile, refusedLine: unsafeLine }, newWindow: { ...newWindow, blockedLine: popupLine },
+    download: { ...download, cancelLine, downloadName: servers.downloadName, before: downloadsBefore, after: downloadsAfter },
+    allowedOnce: other, requests: [...servers.requests],
+    beacon: 'Both fixtures are loopback, so a non-loopback page reaching a loopback subresource cannot occur here: unit-covered by originPolicy.test.ts (decideSubresource denies) and browserSession.test.ts (cancels a subresource of a public page served from a loopback or private address).',
+    viewScreenshot, screenshot: await capture(session, 'e2e-browser-guard.png', WINDOW)
+  }
+}
+
+/** Throws when browser_status (`data`) shows anything of the Private tab, or the agent tab anywhere but `agentUrl`. */
+function assertStatusHidesSignIn(data, agentUrl) {
+  const shown = JSON.stringify(data)
+  if (shown.includes('/inject') || shown.includes('Fixture injection')) throw new Error(`browser_status shows the Private tab: ${shown}`)
+  if (data.tab?.url !== agentUrl) throw new Error(`browser_status shows the agent tab at ${data.tab?.url}, not ${agentUrl}.`)
+}
+
+/**
+ * Browser 5: Private tab opens `<a>/inject` from its inline address field; `[browser-status]` shows neither it nor
+ * anything of it, its own DevTools target exists, and the agent tab's URL is unchanged.
+ */
+async function browserSignin(session, signal) {
+  const { drive, servers } = session.browser
+  const signIn = `${servers.a.origin}/inject`
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const { state: before } = await until(session, signal, browserState, session.folderPath, drive.chatId)
+  const agentUrl = before.tab.url
+  await until(session, signal, clickButton, 'section.bp [role="toolbar"][aria-label="Browser controls"]', 'Private tab')
+  await until(session, signal, focusInput, 'section.bp input.bp-private-address[aria-label="Private tab address"]', signIn)
+  await pressEnter(session)
+  await until(session, signal, privateTabAt, session.folderPath, drive.chatId, signIn)
+  const opened = await snapView(session, signal, { match: { url: signIn }, loaded: signIn, name: 'e2e-browser-signin-view.png' })
+  const status = await browserTurn(session, signal, drive.chatId, '[browser-status]')
+  assertReply('[browser-status]', status, 'browser done')
+  assertCalls('[browser-status]', status.calls, [['browser_status', true]])
+  const { data } = status.calls[0].reply
+  assertStatusHidesSignIn(data, agentUrl)
+  const { state: after } = await until(session, signal, browserState, session.folderPath, drive.chatId)
+  const agentTarget = viewTarget(await listTargets(session, signal), { id: drive.targetId })?.url ?? null
+  if (after.tab.url !== agentUrl || agentTarget !== agentUrl) {
+    throw new Error(`The agent tab moved from ${agentUrl}: its state shows ${after.tab.url}, its target ${agentTarget}.`)
+  }
+  return {
+    agentTab: before.tab, signIn: after.signIn, signInTarget: opened.target, agentTarget: { id: drive.targetId, url: agentTarget },
+    status: data, viewScreenshot: opened.viewScreenshot, screenshot: await capture(session, 'e2e-browser-signin.png', WINDOW)
+  }
+}
+
+/** The first prompts of the chats browser-origin (two), browser-stop and browser-take open. */
+const ORIGIN_CHAT_PROMPT = 'hello origin'
+const ALWAYS_CHAT_PROMPT = 'hello always allow'
+const STOP_CHAT_PROMPT = 'hello stop'
+const TAKE_CHAT_PROMPT = 'hello take control'
+/** The Browser panel's Stop agent and Take control / Hand back buttons. */
+const BROWSER_ACTIONS = 'section.bp .bp-actions'
+/** Stop agent shows its stopped tool card and the Stopped badge within this long. */
+const STOP_SHOWN_MS = 2_000
+const ORIGIN_DECISIONS = ['Allow once', 'Always allow', 'Deny']
+
+const originCardSelector = (origin) => `section.agent-prompt.origin-prompt[aria-label="${origin}"]`
+
+/** The shown chat's site card for `origin`: its heading and buttons; ok once it shows. */
+function originCard(_h, selector) {
+  const card = document.querySelector(selector)
+  if (!card) return { ok: false, card: false }
+  return { ok: true, heading: card.querySelector('h3')?.textContent.trim() ?? null, buttons: [...card.querySelectorAll('button')].map((button) => button.textContent.trim()) }
+}
+
+/** No site card matches `selector`. */
+function originCardGone(_h, selector) {
+  return { ok: document.querySelector(selector) === null }
+}
+
+/**
+ * Opens the Browser panel's Sites popover; ok once it lists the always-allowed origins (site `a` always is, so a loaded
+ * list is never empty here; a load error stays not ok and shows in the popover's text).
+ */
+function sitesListed(_h) {
+  const trigger = document.querySelector('section.bp button.bp-sites-trigger')
+  if (trigger?.getAttribute('aria-expanded') !== 'true') {
+    trigger?.click()
+    return { ok: false, opened: false }
+  }
+  // The popover renders with the trigger's expanded state.
+  const popover = document.querySelector('section.bp div.bp-sites-popover[role="dialog"]')
+  const sites = [...popover.querySelectorAll('ul.bp-sites-list .bp-sites-origin')].map((origin) => origin.textContent)
+  return { ok: sites.length > 0, sites, text: popover.textContent }
+}
+
+/** Closes the Sites popover; ok once it is gone. */
+function sitesClosed(_h) {
+  const trigger = document.querySelector('section.bp button.bp-sites-trigger')
+  if (trigger?.getAttribute('aria-expanded') === 'true') trigger.click()
+  return { ok: document.querySelector('section.bp div.bp-sites-popover') === null }
+}
+
+/** The chat's newest `dm call browser_read` Bash card in pill state `state`; ok once it shows (folded work is opened). */
+function readCard(h, chatId, state) {
+  return { ok: h.toolCard(h.chatSection(chatId), 'dm call browser_read ', state) !== null }
+}
+
+/** Opens the chat's newest `dm call browser_read` card in pill state `state`; ok once its result is the CLI's refusal `code`. */
+function readCardCode(h, chatId, state, code) {
+  const card = h.toolCard(h.chatSection(chatId), 'dm call browser_read ', state)
+  const head = card?.querySelector('button.chat-tool-head')
+  if (head?.getAttribute('aria-expanded') !== 'true') {
+    head?.click()
+    return { ok: false, opened: false }
+  }
+  const result = card.querySelector('.chat-tool-result').textContent
+  let shown = null
+  try {
+    shown = JSON.parse(result).error?.code ?? null
+  } catch {
+    // Not the CLI's JSON: no code shows.
+  }
+  return { ok: shown === code, code: shown, result }
+}
+
+/** Reads in order, every one but the last succeeded, and the last was refused. */
+const refusedLast = (reads) => reads.length > 1 && reads.every((call) => call.op === 'browser_read') &&
+  reads.slice(0, -1).every((call) => call.reply?.ok === true) && reads.at(-1).reply?.ok === false
+
+/** Each call as `[op, ok, error code]`, for a refusal's message. */
+const callsShown = (calls) => JSON.stringify(calls.map((call) => [call.op, call.reply?.ok ?? null, call.reply?.error?.code ?? null]))
+
+/**
+ * A `[browser-loop]` turn's calls (`browserToolCalls`): a navigate, reads, and the last read refused. Answers how many
+ * reads succeeded and the refusal's code; throws on any other shape.
+ */
+export function loopEnd(calls) {
+  const [navigate, ...reads] = calls
+  if (navigate?.op !== 'browser_navigate' || navigate.reply?.ok !== true || !refusedLast(reads)) {
+    throw new Error(`The loop's calls were ${callsShown(calls)}, not a navigate, reads and one refused read.`)
+  }
+  return { reads: reads.length - 1, code: reads.at(-1).reply.error?.code ?? null }
+}
+
+/** Throws unless a browser_status reply (`data`) shows owner `owner` and, with `url`, the agent tab at `url`. */
+export function assertStatus(data, { owner, url }) {
+  if (data?.owner !== owner) throw new Error(`browser_status shows owner ${data?.owner}, not ${owner}.`)
+  if (url !== undefined && data.tab?.url !== url) throw new Error(`browser_status shows the agent tab at ${data.tab?.url}, not ${url}.`)
+}
+
+/** Sends `[browser-status]` in the chat and answers its browser_status reply's data. */
+async function statusTurn(session, signal, chatId) {
+  const text = '[browser-status]'
+  const turn = await browserTurn(session, signal, chatId, text)
+  assertReply(text, turn, 'browser done')
+  assertCalls(text, turn.calls, [['browser_status', true]])
+  return turn.calls[0].reply.data
+}
+
+/** The view `targetId` and the chat's agent tab state both show `url`. */
+async function viewShows(session, signal, { chatId, targetId, url }) {
+  const { state } = await until(session, signal, browserState, session.folderPath, chatId)
+  const target = viewTarget(await listTargets(session, signal), { id: targetId })?.url ?? null
+  if (state.tab.url !== url || target !== url) throw new Error(`The view left ${url}: its state shows ${state.tab.url}, its target ${target}.`)
+  return { state: state.tab.url, target }
+}
+
+/** Waits until the DevTools target of view `targetId` shows `url`. */
+function viewReaches(session, signal, targetId, url) {
+  return waitFor(async () => viewTarget(await listTargets(session, signal), { id: targetId })?.url === url, signal)
+}
+
+/**
+ * Sends `text` (`[browser-origin url=<b>/]`): its navigate answers `origin_blocked`, and the chat's site card shows,
+ * headed by the chat's name asking for `origin`, with Allow once, Always allow and Deny.
+ */
+async function askOrigin(session, signal, { chatId, text, origin }) {
+  const turn = await browserTurn(session, signal, chatId, text)
+  assertCalls(text, turn.calls, [['browser_navigate', false]])
+  const { error } = turn.calls[0].reply
+  if (error?.code !== 'origin_blocked') throw new Error(`${text}: the navigate answered ${JSON.stringify(turn.calls[0].reply)}, not origin_blocked.`)
+  assertReply(text, turn, `browser failed: browser_navigate origin_blocked: ${error.message}`)
+  const card = await until(session, signal, originCard, originCardSelector(origin))
+  const heading = `${FAKE_CHAT_TITLE} wants to open ${origin}`
+  if (card.heading !== heading || JSON.stringify(card.buttons) !== JSON.stringify(ORIGIN_DECISIONS)) {
+    throw new Error(`The site card reads ${JSON.stringify(card.heading)} with ${JSON.stringify(card.buttons)}, not ${JSON.stringify(heading)} with ${JSON.stringify(ORIGIN_DECISIONS)}.`)
+  }
+  return { code: error.code, reply: turn.reply, heading: card.heading, buttons: card.buttons }
+}
+
+/** Clicks `decision` on the site card for `origin`; ok once the card is gone. */
+async function decideCard(session, signal, origin, decision) {
+  await until(session, signal, clickButton, originCardSelector(origin), decision)
+  await until(session, signal, originCardGone, originCardSelector(origin))
+}
+
+/** Opens the Sites popover, reads its list and closes it again; throws unless it lists `listed` and not `unlisted`. */
+async function checkSites(session, signal, { listed, unlisted = [] }, screenshotName) {
+  const { sites } = await until(session, signal, sitesListed)
+  if (!listed.every((origin) => sites.includes(origin)) || unlisted.some((origin) => sites.includes(origin))) {
+    throw new Error(`Sites lists ${JSON.stringify(sites)}: not ${JSON.stringify(listed)} without ${JSON.stringify(unlisted)}.`)
+  }
+  const screenshot = screenshotName === undefined ? undefined : await capture(session, screenshotName, WINDOW)
+  await until(session, signal, sitesClosed)
+  return { sites, screenshot }
+}
+
+/**
+ * Browser 6: a new chat's agent opens `<a>/` (always allowed), then asks for `<b>/`: Deny keeps the view on `<a>/`;
+ * asked again, Allow once loads `<b>/` and the next `[browser-origin]` shows it, while Sites does not list `b`. Allow
+ * once allowed `b` in that chat's tab only, so a second new chat asks again: Always allow loads `<b>/` there and lists
+ * `b` in Sites and the folder's site file.
+ */
+async function browserOrigin(session, signal) {
+  const { servers, sitePath } = session.browser
+  const home = `${servers.a.origin}/`
+  const other = `${servers.b.origin}/`
+  const ask = `[browser-origin url=${other}]`
+  const before = await listTargets(session, signal)
+  const chat = await openBrowserChat(session, signal, ORIGIN_CHAT_PROMPT)
+  const homeText = `[browser-origin url=${home}]`
+  const opened = await browserTurn(session, signal, chat.id, homeText)
+  assertReply(homeText, opened, 'browser done')
+  assertCalls(homeText, opened.calls, [['browser_navigate', true], ['browser_status', true]])
+  const target = await waitFor(async () => addedView(before, await listTargets(session, signal)), signal)
+  await viewReaches(session, signal, target.id, home)
+  const denyCard = await askOrigin(session, signal, { chatId: chat.id, text: ask, origin: servers.b.origin })
+  const cardScreenshot = await capture(session, 'e2e-browser-origin-card.png', WINDOW)
+  await decideCard(session, signal, servers.b.origin, 'Deny')
+  const deniedAt = await viewShows(session, signal, { chatId: chat.id, targetId: target.id, url: home })
+  const deniedView = await snapView(session, signal, { match: { id: target.id }, loaded: home, name: 'e2e-browser-origin-deny-view.png' })
+  const onceCard = await askOrigin(session, signal, { chatId: chat.id, text: ask, origin: servers.b.origin })
+  const stillAt = await viewShows(session, signal, { chatId: chat.id, targetId: target.id, url: home })
+  await decideCard(session, signal, servers.b.origin, 'Allow once')
+  await viewReaches(session, signal, target.id, other)
+  const loaded = await browserTurn(session, signal, chat.id, ask)
+  assertReply(ask, loaded, 'browser done')
+  assertCalls(ask, loaded.calls, [['browser_navigate', true], ['browser_status', true]])
+  assertStatus(loaded.calls[1].reply.data, { owner: 'agent', url: other })
+  const onceSites = await checkSites(session, signal, { listed: [servers.a.origin], unlisted: [servers.b.origin] })
+  const freshBefore = await listTargets(session, signal)
+  const fresh = await openBrowserChat(session, signal, ALWAYS_CHAT_PROMPT)
+  const alwaysCard = await askOrigin(session, signal, { chatId: fresh.id, text: ask, origin: servers.b.origin })
+  const freshTarget = await waitFor(async () => addedView(freshBefore, await listTargets(session, signal)), signal)
+  await decideCard(session, signal, servers.b.origin, 'Always allow')
+  await viewReaches(session, signal, freshTarget.id, other)
+  const alwaysSites = await checkSites(session, signal, { listed: [servers.a.origin, servers.b.origin] }, 'e2e-browser-origin.png')
+  const file = JSON.parse(readFileSync(sitePath, 'utf8'))
+  if (!file.origins?.includes(servers.b.origin)) throw new Error(`The site file ${sitePath} holds ${JSON.stringify(file)}, not ${servers.b.origin}.`)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: freshTarget.id }, loaded: other, name: 'e2e-browser-origin-view.png' })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id }, deny: { ...denyCard, viewAfter: deniedAt, viewScreenshot: deniedView.viewScreenshot, cardScreenshot },
+    allowOnce: { ...onceCard, viewBefore: stillAt, status: loaded.calls[1].reply.data, sites: onceSites.sites },
+    alwaysAllow: { chat: { id: fresh.id, agent: fresh.agent }, target: { id: freshTarget.id }, ...alwaysCard, sites: alwaysSites.sites, siteFile: { path: sitePath, ...file } },
+    viewScreenshot, screenshot: alwaysSites.screenshot
+  }
+}
+
+/**
+ * Starts `[browser-loop url=<url>]` in a new chat (`prompt`) and waits for its first read card, Done. Answers the
+ * chat, the loop's text and its view's DevTools target.
+ */
+async function startLoop(session, signal, prompt, url) {
+  const before = await listTargets(session, signal)
+  const chat = await openBrowserChat(session, signal, prompt)
+  const text = `[browser-loop url=${url}]`
+  await until(session, signal, composeAndSend, chat.id, text)
+  await until(session, signal, readCard, chat.id, 'accepted')
+  const target = await waitFor(async () => addedView(before, await listTargets(session, signal)), signal)
+  return { chat, text, target }
+}
+
+/** Waits for the loop turn `text` to end and checks how it ended: refused with `code`, as its reply says. */
+async function loopEnded(session, signal, { chatId, text, code }) {
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnTools, session.folderPath, chatId, text)
+  const end = loopEnd(browserToolCalls(turn.tools))
+  if (end.code !== code) throw new Error(`The loop ended with ${end.code}, not ${code}.`)
+  assertReply(text, turn, `browser loop stopped: browser_read ${code}\nbrowser done`)
+  return { ...end, reply: turn.reply }
+}
+
+/**
+ * Browser 7: Stop agent during a `[browser-loop]` on `<a>/slow`: within STOP_SHOWN_MS a read card shows `stopped` and
+ * the badge reads Stopped, and `[browser-status]` shows owner `stopped`; after Hand back it shows `none`.
+ */
+async function browserStop(session, signal) {
+  const slow = `${session.browser.servers.a.origin}/slow`
+  const { chat, text, target } = await startLoop(session, signal, STOP_CHAT_PROMPT, slow)
+  const clicked = performance.now()
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Stop agent')
+  const card = await until(session, signal, readCardCode, chat.id, 'failed', 'stopped')
+  const cardMs = elapsed(clicked)
+  const badge = await until(session, signal, badgeIs, 'Stopped')
+  const badgeMs = elapsed(clicked)
+  if (cardMs > STOP_SHOWN_MS || badgeMs > STOP_SHOWN_MS) {
+    throw new Error(`Stop agent showed the stopped card after ${cardMs} ms and the Stopped badge after ${badgeMs} ms, past ${STOP_SHOWN_MS} ms.`)
+  }
+  const loop = await loopEnded(session, signal, { chatId: chat.id, text, code: 'stopped' })
+  const screenshot = await capture(session, 'e2e-browser-stop.png', WINDOW)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: target.id }, loaded: slow, name: 'e2e-browser-stop-view.png' })
+  const stopped = await statusTurn(session, signal, chat.id)
+  assertStatus(stopped, { owner: 'stopped' })
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Hand back')
+  const idle = await until(session, signal, badgeIs, 'Idle')
+  const handedBack = await statusTurn(session, signal, chat.id)
+  assertStatus(handedBack, { owner: 'none' })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id, url: slow }, loop, card: { code: card.code, result: card.result },
+    cardMs, badgeMs, boundMs: STOP_SHOWN_MS, badge: badge.badge, ownerStopped: stopped.owner, badgeAfterHandBack: idle.badge,
+    ownerAfterHandBack: handedBack.owner, viewScreenshot, screenshot
+  }
+}
+
+/** Clicks the view's Name box and types `text` with CDP Input events on the view's own target; answers the page once `#echo` reads it. */
+async function typeInView(view, signal, text) {
+  const box = await evaluateOn(view, `(() => { const input = document.querySelector('#name'); input.scrollIntoView({ block: 'center' });
+    const { left, top, width, height } = input.getBoundingClientRect(); return { x: left + width / 2, y: top + height / 2 } })()`)
+  for (const type of ['mousePressed', 'mouseReleased']) await view.call('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 })
+  for (const key of text) {
+    await view.call('Input.dispatchKeyEvent', { type: 'keyDown', key, text: key })
+    await view.call('Input.dispatchKeyEvent', { type: 'keyUp', key })
+  }
+  return waitFor(async () => {
+    const state = await evaluateOn(view, FIXTURE_STATE)
+    return state.echo === text && state
+  }, signal)
+}
+
+/**
+ * Browser 8: Take control during a `[browser-loop]` on `<a>/` ends the loop with `paused_by_person`; the person types
+ * `Ada` into the page through the view's own target and `#echo` reads it; after Hand back, `[browser-status]` shows
+ * owner `agent`.
+ */
+async function browserTake(session, signal) {
+  const home = `${session.browser.servers.a.origin}/`
+  const { chat, text, target } = await startLoop(session, signal, TAKE_CHAT_PROMPT, home)
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Take control')
+  const badge = await until(session, signal, badgeIs, 'You have control')
+  const loop = await loopEnded(session, signal, { chatId: chat.id, text, code: 'paused_by_person' })
+  const { view } = await connectView(session, signal, { id: target.id }, home)
+  let typed, viewScreenshot
+  try {
+    typed = await typeInView(view, signal, BROWSER_TYPED)
+    viewScreenshot = await captureView(session, view, 'e2e-browser-take-view.png')
+  } finally {
+    view.socket.close()
+  }
+  const screenshot = await capture(session, 'e2e-browser-take.png', WINDOW)
+  await until(session, signal, clickButton, BROWSER_ACTIONS, 'Hand back')
+  const driven = await until(session, signal, badgeIs, `Driven by: ${FAKE_CHAT_TITLE}`)
+  const status = await statusTurn(session, signal, chat.id)
+  assertStatus(status, { owner: 'agent', url: home })
+  return {
+    chat: { id: chat.id, agent: chat.agent }, target: { id: target.id, url: home }, loop, badge: badge.badge, typed,
+    badgeAfterHandBack: driven.badge, ownerAfterHandBack: status.owner, viewScreenshot, screenshot
+  }
+}
+
+/** The screenshot copies the run left in the temp folder; none may remain once the app quit. */
+function leftShotCopies(session) {
+  const left = shotDirectories().filter((name) => !session.browser.shotsBefore.includes(name))
+  if (left.length > 0) throw new Error(`Screenshot copies remain in ${tmpdir()}: ${left.join(', ')}.`)
+  return { directory: tmpdir(), prefix: SHOT_PREFIX, left }
 }
 
 const STEPS = {
@@ -2774,11 +3830,24 @@ const STEPS = {
       { name: 'model-restart launch', run: appReady },
       { name: 'model-restart resumed', run: modelRestartResumed }
     ]
-  }
+  },
+  'polish-multiquestion': { name: 'polish-multiquestion', run: polishMultiquestion, polish: true, skitarii: true },
+  // The browser steps' deadlines are fixed bounds, never raised after a failure.
+  'browser-drive': { name: 'browser-drive', run: browserDrive, browser: true, deadlineMs: 60_000 },
+  'browser-skitarii': { name: 'browser-skitarii', run: browserSkitarii, browser: true, skitarii: true, deadlineMs: 60_000 },
+  'browser-shot': { name: 'browser-shot', run: browserShot, browser: true, deadlineMs: 30_000 },
+  'browser-guard': { name: 'browser-guard', run: browserGuard, browser: true, deadlineMs: 30_000 },
+  'browser-signin': { name: 'browser-signin', run: browserSignin, browser: true, deadlineMs: 20_000 },
+  'browser-origin': { name: 'browser-origin', run: browserOrigin, browser: true, deadlineMs: 45_000 },
+  'browser-stop': { name: 'browser-stop', run: browserStop, browser: true, deadlineMs: 30_000 },
+  'browser-take': { name: 'browser-take', run: browserTake, browser: true, deadlineMs: 30_000 }
 }
 
 async function captureFailure(session, step) {
-  const detail = { stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe, refusedImages: refusedImages(session.console) }
+  const detail = {
+    stderrTail: session.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES), lastProbe: session.lastProbe,
+    refusedImages: refusedImages(session.console), marks: session.marks.slice(-MARKS_SHOWN)
+  }
   if (session.page?.socket.readyState !== WebSocket.OPEN) return { ...detail, screenshot: null, screenshotSkipped: 'no renderer connection' }
   const bound = delay(SCREENSHOT_BOUND_MS).then(() => { throw new Error('screenshot timed out') })
   const { data } = await Promise.race([cdp(session, 'Page.captureScreenshot', { format: 'png' }), bound])
@@ -2798,13 +3867,14 @@ async function runSteps(session, keys, steps) {
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
   for (const phase of prepared.ok ? stepPhases(keys) : []) {
-    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
+    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { deadlineMs: phase.deadlineMs, onFailure })
     steps.push(result)
     if (!result.ok) break
   }
   // Whatever stopped before the quit step still ends the app and checks its fakes.
   if (session.child === null || isRunning(session.child)) {
-    steps.push(await runStep('quit (cleanup)', (signal) => quit(session, signal), { onFailure }))
+    const cleanup = canAskToQuit(session.child, session.exe) ? quit : killAndWait
+    steps.push(await runStep('quit (cleanup)', (signal) => cleanup(session, signal), { onFailure }))
     steps.push(await runStep('fake processes exited (cleanup)', (signal) => fakeProcessesExited(session, signal), {
       onFailure: async () => ({ alive: session.fakePids.filter((pid) => isAlive(pid)) })
     }))
@@ -2825,31 +3895,36 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
-/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude fake. */
+/**
+ * Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude
+ * fake. Browser steps run on the claude default (browser-skitarii starts its own Skitarii chat), so never with `--agent omp`.
+ */
 function refuseOtherKind(keys, agent) {
-  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii)]
+  const browser = agent === 'omp' ? keys.filter((key) => STEPS[key].browser) : []
+  if (browser.length > 0) throw new Error(`${browser.join(', ')} run on the claude default: leave out --agent omp.`)
+  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii && !STEPS[key].browser)]
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
   if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
-  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii) : []
+  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii && !STEPS[key].browser) : []
   if (skitarii.length > 0) throw new Error(`${skitarii.join(', ')} drive the omp fake: leave out --agent claude.`)
 }
 
 /**
- * The steps to run: `--steps`, else every step but the polish, image, coord and model ones (only OMP_STEPS for `--agent
- * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
- * nor names `ready` gets `ready` first.
+ * The steps to run: `--steps`, else every step but the polish, image, coord, model and browser ones (only OMP_STEPS
+ * for `--agent omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither
+ * starts the app nor names `ready` gets `ready` first.
  */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii && !STEPS[key].browser))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
   refuseOtherKind(keys, agent)
   return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
 }
 
-/** `--agent`, else `omp` when a coord or model step is named (they run Skitarii chats), else `claude`. */
+/** `--agent`, else `omp` when a coord, model or other Skitarii step is named (they run Skitarii chats), else `claude`. */
 function agentOf(argv, requested) {
-  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii) ?? false
+  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii && !STEPS[key].browser) ?? false
   const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : skitarii ? 'omp' : 'claude'
   if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
   return agent
@@ -2875,12 +3950,16 @@ async function main(argv) {
   const steps = []
   try {
     await runSteps(session, keys, steps)
+  } catch (error) {
+    // A harness error outside any step still ends in a verdict that names it.
+    steps.push({ name: 'harness', ok: false, ms: 0, detail: { error: messageOf(error) } })
   } finally {
     forceKill(session.child)
     closeSocket(session)
     session.main?.socket.close()
     stopDialogHelper(session)
     preserveLogs(session)
+    await session.browser?.servers?.close()
   }
   steps.push(await runStep('isolated state removed', async () => removeIsolatedState(session)))
   const result = verdict(steps)

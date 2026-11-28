@@ -28,7 +28,8 @@ import {
   shell,
   type IpcMain,
   type OpenDialogOptions,
-  type WebContents
+  type WebContents,
+  WebContentsView
 } from 'electron'
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
@@ -141,6 +142,10 @@ import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { createChatImages, type ChatImages } from '../agentChat/chatImages'
 import { createChatImageLookup, registerChatImageProtocol } from '../agentChat/chatImageProtocol'
+import { createBrowserPush } from '../browser/browserIpc'
+import { startBrowser, type BrowserWiring } from '../browser/browserWiring'
+import { ticketKeyOfAttempt } from '../magos/arbiterContext'
+import { resolveAppUrl } from './navigation'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
@@ -473,6 +478,8 @@ interface ChatProcessOptions {
   assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
   /** The chats' images (`userData/agents/chat-images`): deleting a chat removes its images with its transcript. */
   chatImages: ChatImages
+  /** The sender-guarded registrar (`guardIpc`) the browser panel's `browser:*` channels are registered on. */
+  ipc: Pick<IpcMain, 'handle'>
 }
 interface ChatQuitOptions {
   grants: ChatGrants
@@ -482,13 +489,15 @@ interface ChatQuitOptions {
   /** The chat terminals and GUI chat processes together (`wireAgentChats`). */
   owners: Pick<ChatProcesses['quit'], 'busy' | 'dispose'>
   logins: ChatProcesses['logins']
+  /** The agent browser: its pipe and every view close with the chats. */
+  browser: Pick<BrowserWiring, 'dispose'>
 }
-function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuitOptions): ChatProcesses['quit'] {
+function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins, browser }: ChatQuitOptions): ChatProcesses['quit'] {
   return {
     busy: () => owners.busy() || logins.busy(),
     dispose: async () => {
       await Promise.all([
-        grants.dispose(), yoloRuntime.dispose(), owners.dispose(), logins.dispose(),
+        grants.dispose(), yoloRuntime.dispose(), owners.dispose(), logins.dispose(), browser.dispose(),
         ready.catch(() => {}).then(() => pipe()?.close())
       ])
     }
@@ -515,16 +524,46 @@ function listenControlPipe(grants: ChatGrants, dispatch: NamingDispatcher, liste
 }
 
 /**
+ * The agent browser (`browserWiring.ts`) over the main window found at each use, and its pipe, which the chats' live
+ * grants authorize; the chat store, the grants and the chat owners are created after it, so they are reached lazily.
+ * Each chat's pending origin prompt goes to the owners' needs-you items and the OS notifier. The panel's `browser:*`
+ * channels are registered on `ipc`.
+ */
+function createChatBrowser(
+  { folders, workspaces, activity, chatImages, ipc }: Pick<ChatProcessOptions, 'folders' | 'workspaces' | 'activity' | 'chatImages' | 'ipc'>,
+  late: { store: () => ChatStore; grants: () => ChatGrants; owners: () => Pick<AgentChatWiring<TerminalSessions>, 'sitePrompt'> }
+): BrowserWiring {
+  const browser = startBrowser<WebContentsView>({
+    root: join(app.getPath('userData'), 'browser'),
+    appUrl: resolveAppUrl(process.env['ELECTRON_RENDERER_URL'], join(__dirname, '../renderer/index.html')),
+    registry: folders,
+    windows: () => BrowserWindow.getAllWindows(),
+    createView: (webPreferences) => new WebContentsView({ webPreferences }),
+    authorize: (token) => late.grants().authorizeBrowser(token),
+    images: chatImages,
+    chatFor: (ref) => late.store().getChat({ folder: ref.folder, id: ref.chatId }),
+    bindings: activity,
+    ticketKeyOfAttempt: (folder, attemptId) => ticketKeyOfAttempt(desktopWorkspace(folders, workspaces, folder), attemptId),
+    push: createBrowserPush(() => BrowserWindow.getAllWindows()),
+    onSitePrompt: (event) => late.owners().sitePrompt(event),
+    log: (line) => logger.warn(line)
+  })
+  browser.registerIpc(ipc)
+  return browser
+}
+
+/**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
  * `signed_out` through the folder's own desktop workspace: the only session that may give that reason. The chat
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, sanctums, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, sanctums, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages, ipc }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
+  const browser = createChatBrowser({ folders, workspaces, activity, chatImages, ipc }, { store: () => store, grants: () => grants, owners: () => owners })
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
-  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages })
+  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages, browser: browser.host })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
   const push = createChatPush(() => BrowserWindow.getAllWindows())
   let namingPipe: ControlPipe | null = null
@@ -537,11 +576,10 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
     minutes: CHAT_GRANT_MINUTES,
     desktopAddress: () => namingPipe?.address,
     desktopReady: () => namingReady,
+    browserAddress: () => browser.address(),
     desktopFence: yoloRuntime.fence,
     yoloReady: () => yoloRuntime.ready,
-    log: (line) => {
-      logger.warn(line)
-    }
+    log: (line) => logger.warn(line)
   })
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
@@ -561,7 +599,7 @@ function createChatProcesses({ folders, sanctums, agents, workspaces, activity, 
   })
   let cults: NamingDispatcher | null = null
   namingReady = listenControlPipe(grants, pipeDispatcher(createNamingDispatcher({ store, push }), () => recovery, () => cults), pipe => { namingPipe = pipe })
-  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins })
+  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins, browser })
   const chats = endingAgentChats(records, terminals, owners.agentChats)
   let cultWake: CultWake | null = null
   const mail = createChatMail({ folders, sanctums, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery,
@@ -1530,7 +1568,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
   const chatImages = createChatImages({ root: join(app.getPath('userData'), 'agents', 'chat-images') })
   const { chats, quit, store, terminals, agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, endAgent, suspendChatMail, setCultDispatcher, setCultWake } = createChatProcesses({
-    folders: gates, sanctums, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages,
+    folders: gates, sanctums, agents, workspaces: pool, activity, settings, notify: event => notifier.notify(event), sourceCheckouts, chatImages, ipc,
     assertForgeSetupLaunch: (chat, authorization) => {
       if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
       return verifySetup(chat, authorization)

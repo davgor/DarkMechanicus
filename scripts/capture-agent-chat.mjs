@@ -24,16 +24,28 @@ export const STATES = Object.freeze([
   'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
   'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
   'agent-planners', 'chat-rail-legacy',
-  'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
-  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript', 'agent-worked-for', 'image-result', 'agent-image-viewer',
+  'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024', 'epic-agent-glass-1440',
+  'agent-composer-1024', 'agent-composer-1440', 'chat-images', 'agent-role-picker-1024', 'agent-role-picker-1440',
+  'epic-agent-picker', 'new-chat-picker', 'question-multi', 'question-form-1024', 'question-form-1440', 'agent-transcript',
+  'agent-worked-for', 'image-result', 'agent-image-viewer',
   'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic',
   'new-chat-model', 'start-run-model', 'lexmechanic-model',
-  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
+  'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint',
+  'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
+  'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
+  'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
+  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
+  'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440',
+  'browser-agent', 'browser-person', 'browser-origin'
 ])
 
-/** The Sprint 3 image and polish states every capture run must write, as the review asks for them. */
+/**
+ * The Sprint 3 image and polish states every capture run must write, as the review asks for them. Sprint 3's
+ * agent-glass (the epic stage's glass) is captured as epic-agent-glass-1440 since the folder chat took that name.
+ */
 export const S3_STATES = Object.freeze([
-  'chat-images', 'image-result', 'agent-glass', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript', 'agent-worked-for',
+  'chat-images', 'image-result', 'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript',
+  'agent-worked-for',
   'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'mail-card',
   'model-picker', 'epic-agent-tabs-1024', 'epic-agent-tabs-1440'
 ])
@@ -46,8 +58,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 49 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 750_000
+/** A declared bound once the preview is built: 81 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 1_230_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -65,8 +77,16 @@ export function viewportOf(state, viewport = DEFAULT_VIEWPORT) {
   return match === null ? viewport : SIZED[match[1]]
 }
 
+/**
+ * The CSS media features a state is captured under, for CDP `Emulation.setEmulatedMedia`: a `-solid` state emulates
+ * reduced transparency, every other none.
+ */
+export function mediaOf(state) {
+  return state.endsWith('-solid') ? [{ name: 'prefers-reduced-transparency', value: 'reduce' }] : []
+}
+
 /** Inherited variables that would change how Electron starts: `ELECTRON_RUN_AS_NODE=1` alone runs it as plain Node. */
-const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE)$/i
+const STRIPPED_ENV = /^(?:ELECTRON_.*|NODE_OPTIONS|DM_SESSION_TOKEN|DM_DESKTOP_PIPE|DM_BROWSER_PIPE)$/i
 
 /** The window's content size when `--viewport` is not given: the ticket's 1280×800. */
 export const DEFAULT_VIEWPORT = Object.freeze({ width: 1280, height: 800 })
@@ -102,14 +122,14 @@ const BASE_FIELDS = [
   'treeRows', 'finishedExpandedAtStart', 'todosHeader', 'todoRows', 'todoListScrolls', 'activeRowVisible', 'activityLine',
   'changesHeader', 'cardHeading', 'needsYouHeader', 'badgedRows', 'ticketPanel', 'settingsControls', 'agentsPressed',
   'sprintDeliveryRegion', 'deliveryLine', 'deliveryApproval', 'previousDelivery', 'firstFailedCheck',
-  'imageChips', 'thumbnails', 'composerHeights', 'copyButtons', 'workedForRows', 'roleNames', 'checkedCount', 'errors'
+  'imageChips', 'thumbnails', 'composerHeights', 'copyButtons', 'workedForRows', 'roleNames', 'checkedCount', 'browserPanel', 'errors'
 ]
 const VIEW_BUTTONS = ['Agent', 'Graph', 'List', 'Scorecard']
 /** States outside the epic workspace: the standalone chats, the settings form, the role picker and the New chat dialog. */
 const CHAT_STATES = new Set([
   'chat-rail', 'chat-rail-collapsed', 'chat-rail-legacy', 'agent-composer', 'chat-images', 'agent-transcript', 'agent-worked-for',
   'image-result', 'agent-image-viewer', 'mail-card', 'settings-notifications', 'agent-role-picker', 'new-chat-picker', 'model-picker',
-  'new-chat-model'
+  'new-chat-model', 'agent-glass', 'agent-glass-solid'
 ])
 const EPIC_STATES = new Set(STATES.filter((state) => !CHAT_STATES.has(baseState(state))))
 /** Epic states over the plan, the draft editor or the checkpoint rather than the Agent tab. */
@@ -129,6 +149,21 @@ const alphaOf = (color) => {
 /** A frosted surface: a translucent background (at most 0.72 alpha) under a backdrop blur. */
 const frosted = (surface) => matches(surface?.backdropFilter, /blur\(\d+px\)/) && alphaOf(surface?.background) > 0
   && alphaOf(surface?.background) <= 0.72
+/** A solid surface, as the glass fallbacks paint it: an opaque background and no backdrop filter. */
+const solid = (surface) => alphaOf(surface?.background) === 1 && surface?.backdropFilter === 'none'
+/** The panes every glass state measures, by their key in the glass observations. */
+const GLASS_PANES = [['header', 'the chat header'], ['rail', 'the agent rail'], ['transcript', 'the transcript pane']]
+/** A pane's surface carries the alpha the page read off its computed background. */
+const reportsAlpha = (surface) => typeof surface?.alpha === 'number' && surface.alpha === alphaOf(surface.background)
+/** The backdrop glows behind the glass, with transparency as the person left it. */
+const GLASS_STAGE_CHECKS = [
+  ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
+  ['transparency is not reduced', (o) => o.glass?.reducedTransparency === false, (o) => JSON.stringify(o.glass?.reducedTransparency)],
+  ['the rail is open at 280 px right of the chat', (o) => near(o.railWidth, 280) && o.railRightOfStage === true,
+    (o) => JSON.stringify([o.railWidth, o.railRightOfStage])],
+  ...GLASS_PANES.map(([key, name]) => [`${name} is frosted glass (a blur, alpha 0.72 or less) and reports its alpha`,
+    (o) => frosted(o.glass?.[key]) && reportsAlpha(o.glass[key]), (o) => JSON.stringify(o.glass?.[key])])
+]
 /** A role-picker state's cards as the page measured them; empty when it reported none. */
 const roleCards = (o) => Array.isArray(o.rolePicker?.cards) ? o.rolePicker.cards : []
 /** Each role card as [name, checked, disabled reason], for the epic Agent tab's picker states. */
@@ -172,6 +207,14 @@ const IMAGE_RESULT_CHECKS = [
   ['no Attach as evidence outside an epic', (o) => Array.isArray(o.chatImages?.evidence) && o.chatImages.evidence.length === 0,
     (o) => JSON.stringify(o.chatImages?.evidence)]
 ]
+/** The question-form state's questions as the card heads them: the checkbox group and the text field are optional. */
+const FORM_LEGENDS = ['Which databases? (optional)', 'Which region?', 'Anything else? (optional)']
+/** At 1440 the form shows every question and checked default without scrolling. */
+const formAllInView = (card) => JSON.stringify(card?.legendsInView) === JSON.stringify(FORM_LEGENDS) && card.fieldsScroll === false
+  && JSON.stringify(card.checkedInView) === '["SQLite","Postgres","US"]'
+/** At 1024 the fields scroll inside the card, the first question and its two defaults in view. */
+const formScrollsInCard = (card) => card?.legendsInView?.[0] === FORM_LEGENDS[0] && card.fieldsScroll === true
+  && JSON.stringify(card.checkedInView?.slice(0, 2)) === '["SQLite","Postgres"]'
 
 /**
  * The agent-tree state's shipped tree in document order, as [name, level, parent]: the Magos root, its live workers
@@ -248,6 +291,68 @@ function startModelChecks(label, dialog, model, effort) {
   ]
 }
 
+/** The agent tab's fixture page title, and the private tab's label (red-team Fix 55) beside it. */
+const BROWSER_TAB = 'Getting started · Fixture docs'
+const PRIVATE_TAB = "Private tab (agents can't see this; sign-ins here don't carry over)"
+/** The preview's own label over an empty page area: no native view exists there, so a capture proves the chrome only. */
+const PAGE_STAND_IN = 'Preview only: the agent’s page is drawn here by the native browser view'
+/**
+ * What every Browser state shows: the rail widened to max(420 px, 45% of the stage) from its narrower Agents width, the
+ * ownership badge, Stop agent enabled only while an agent drives, the toggle reading Take control or Hand back beside
+ * it, and the preview-only label wherever the page area holds no note of its own.
+ */
+function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
+  const panel = (o) => o.browserPanel ?? {}
+  const controls = ['Stop agent', toggle]
+  return [
+    ['the rail is open at max(420 px, 45% of the stage)', (o) => typeof panel(o).stageWidth === 'number'
+      && near(o.railWidth, Math.max(420, 0.45 * panel(o).stageWidth)), (o) => JSON.stringify([o.railWidth, panel(o).stageWidth])],
+    ['the Browser rail is wider than the rail was on its Agents tab', (o) => matches(panel(o).agentsRail?.tab, /^Agents\b/)
+      && typeof panel(o).agentsRail.width === 'number' && panel(o).agentsRail.width + 1 < o.railWidth,
+      (o) => JSON.stringify([panel(o).agentsRail ?? null, o.railWidth])],
+    [`the badge reads ${badge}`, (o) => panel(o).badge === badge, (o) => JSON.stringify(panel(o).badge)],
+    [`Stop agent is ${stop ? 'enabled' : 'disabled'}`, (o) => panel(o).stopEnabled === stop, (o) => JSON.stringify(panel(o).stopEnabled)],
+    [`the toggle reads ${toggle}`, (o) => panel(o).toggle === toggle, (o) => JSON.stringify(panel(o).toggle)],
+    [`the controls are ${JSON.stringify(controls)}`, (o) => JSON.stringify(panel(o).controls) === JSON.stringify(controls),
+      (o) => JSON.stringify(panel(o).controls)],
+    [`the tab strip reads ${JSON.stringify(tabs)}`, (o) => JSON.stringify(panel(o).tabs) === JSON.stringify(tabs), (o) => JSON.stringify(panel(o).tabs)],
+    ['an empty page area carries the preview-only label, and a page note replaces it',
+      (o) => panel(o).pageStandIn === (panel(o).page === '' ? PAGE_STAND_IN : null), (o) => JSON.stringify([panel(o).page, panel(o).pageStandIn])]
+  ]
+}
+
+/** The folder's always-allowed sites the Sites state seeds, and the page area's note while the popover hides the view. */
+const BROWSER_SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
+const BROWSER_HIDDEN = 'Browser hidden while Sites is open'
+const SITE_BUTTONS = ['Allow once', 'Always allow', 'Deny']
+
+/** The page area's note while the camera's popover hides the view, and why a chat with no composer cannot add. */
+const CAMERA_HIDDEN = 'Browser hidden while the capture is open'
+const CAMERA_NO_COMPOSER = 'No message is open for this chat here. Open its chat to add the capture to a message.'
+
+/** The camera's popover inside the panel over the hidden page area: its loaded thumbnail, both actions and its notes. */
+function cameraCheck({ add, notes }) {
+  const buttons = [{ text: 'Add to message', enabled: add }, { text: 'Attach as evidence', enabled: true }]
+  const camera = (o) => o.browserPanel?.camera ?? null
+  return [`the capture popover shows its thumbnail, ${JSON.stringify(buttons)} and ${JSON.stringify(notes)} inside the panel over the hidden page area`,
+    (o) => camera(o)?.thumbLoaded === true && JSON.stringify(camera(o).buttons) === JSON.stringify(buttons)
+      && JSON.stringify(camera(o).notes) === JSON.stringify(notes) && camera(o).inPanel === true && o.browserPanel.page === CAMERA_HIDDEN,
+    (o) => JSON.stringify([camera(o), o.browserPanel?.page])]
+}
+
+/**
+ * The site card headed by who asked, labelled by the origin, with its three answers, docked in one place only: above a
+ * GUI chat's composer, or (a terminal chat) in the Browser panel above the page area the native view covers.
+ */
+function siteCardCheck(heading, origin, where = 'chat') {
+  const [key, other, place] = where === 'chat' ? ['siteCard', 'panelSiteCard', 'the chat docks'] : ['panelSiteCard', 'siteCard', 'the Browser panel docks']
+  const card = (o) => o.browserPanel?.[key] ?? null
+  return [`${place} the site card "${heading}" above ${where === 'chat' ? 'the composer' : 'the page area'}, and only there`,
+    (o) => card(o)?.heading === heading && card(o).label === origin && JSON.stringify(card(o).buttons) === JSON.stringify(SITE_BUTTONS)
+      && card(o).above === true && (o.browserPanel?.[other] ?? null) === null,
+    (o) => JSON.stringify([card(o), o.browserPanel?.[other] ?? null])]
+}
+
 /** What each state must show, beyond the fields every state reports: [description, check, observed?]. */
 const STATE_CHECKS = {
   graph: [['the Plan graph is present', (o) => o.planGraph === true], ['no Agent chat region', (o) => o.agentChatRegion === false]],
@@ -321,13 +426,20 @@ const STATE_CHECKS = {
     ['the card is headed Acolyte:DM-442 wants to run: npm test', (o) => o.cardHeading === 'Acolyte:DM-442 wants to run: npm test'],
     ['the card says The Magos asks you', (o) => matches(o.cardArbitration, /^The Magos asks you: \S/)]
   ],
-  'agent-glass': [
-    ['the stage paints the brass and crimson radial glows', (o) => matches(o.glass?.backdrop, /radial-gradient.*radial-gradient/), (o) => o.glass?.backdrop],
-    ['the open rail is frosted glass', (o) => near(o.railWidth, 280) && frosted(o.glass?.rail), (o) => JSON.stringify(o.glass?.rail)],
+  'agent-glass': GLASS_STAGE_CHECKS,
+  'epic-agent-glass': [
+    ...GLASS_STAGE_CHECKS,
+    ['the Magos tab is selected and joined to the glass header', (o) => matches(o.agentTabs?.tabs?.find((tab) => tab.selected)?.name, /^Magos(?:,|$)/)
+      && o.agentTabs.activeJoined === true, (o) => JSON.stringify(o.agentTabs)],
     ['the docked approval card is frosted glass', (o) => matches(o.cardHeading, /wants to run/) && frosted(o.glass?.card),
-      (o) => JSON.stringify(o.glass?.card)],
-    ['the transcript sits on a near-solid surface (alpha 0.9 or more)', (o) => alphaOf(o.glass?.transcript?.background) >= 0.9,
-      (o) => JSON.stringify(o.glass?.transcript)]
+      (o) => JSON.stringify(o.glass?.card)]
+  ],
+  'agent-glass-solid': [
+    ['the page matches reduced transparency', (o) => o.glass?.reducedTransparency === true, (o) => JSON.stringify(o.glass?.reducedTransparency)],
+    ['the rail is open at 280 px right of the chat', (o) => near(o.railWidth, 280) && o.railRightOfStage === true,
+      (o) => JSON.stringify([o.railWidth, o.railRightOfStage])],
+    ...GLASS_PANES.map(([key, name]) => [`${name} is a solid panel (alpha 1, no backdrop filter) and reports its alpha`,
+      (o) => solid(o.glass?.[key]) && reportsAlpha(o.glass[key]), (o) => JSON.stringify(o.glass?.[key])])
   ],
   'agent-role-picker': ROLE_PICKER_CHECKS,
   'new-chat-picker': [
@@ -342,8 +454,8 @@ const STATE_CHECKS = {
         && matches(o.approvalRecord, /The Magos decided: \S/)]
   ],
   'agent-needs-you': [
-    ['the header reads 3 needs you', (o) => matches(o.needsYouHeader, /^3 needs you/)],
-    ['three badged rows, the unwatched planner’s among them', (o) => o.badgedRows === 3]
+    ['the header reads 4 needs you, the Magos’s browser site among them', (o) => matches(o.needsYouHeader, /^4 needs you/)],
+    ['four badged rows, the unwatched planner’s and the Magos’s among them', (o) => o.badgedRows === 4]
   ],
   'agent-composer': [
     ['two composers: the idle one with Send and no Stop, the busy one with Stop and no Send',
@@ -378,7 +490,7 @@ const STATE_CHECKS = {
       (o) => JSON.stringify(composersOf(o)[0]?.images?.alert)]
   ],
   'question-multi': [
-    ['a docked multi-select question headed Question 1 of 2 with its legend', (o) => o.questionCard?.progress === 'Question 1 of 2'
+    ['a docked multi-select question with its legend and no step counter', (o) => o.questionCard?.progress === null
       && matches(o.questionCard?.legend, /\S/), (o) => JSON.stringify(o.questionCard)],
     ['Lint and Unit tests checked among the checkboxes, reading 2 selected', (o) => o.questionCard?.checkboxes >= 2
       && JSON.stringify(o.questionCard?.checked) === '["Lint","Unit tests"]' && o.questionCard?.count === '2 selected',
@@ -390,6 +502,23 @@ const STATE_CHECKS = {
     ['Submit in view', (o) => o.questionCard?.submitInView === true, (o) => JSON.stringify(o.questionCard)],
     ['the transcript keeps at least its declared minimum height beside the card', (o) => o.questionCard?.transcriptMin > 0
       && o.questionCard?.transcriptHeight >= o.questionCard?.transcriptMin, (o) => JSON.stringify(o.questionCard)]
+  ],
+  'question-form': [
+    ['one docked glass-strong card headed Answer 3 questions', (o) => o.formCard?.cards === 1 && o.formCard.glassStrong === true
+      && o.formCard.heading === 'Answer 3 questions', (o) => JSON.stringify(o.formCard)],
+    ['every question at once: a checkbox group, a radio group and a text field under their legends', (o) =>
+      JSON.stringify(o.formCard?.legends) === JSON.stringify(FORM_LEGENDS) && JSON.stringify(o.formCard?.kinds) === '["checkbox","radio","text"]',
+    (o) => JSON.stringify([o.formCard?.legends, o.formCard?.kinds])],
+    ['the defaults checked: SQLite and Postgres, and US', (o) => JSON.stringify(o.formCard?.checked) === '[["SQLite","Postgres"],["US"],[]]',
+      (o) => JSON.stringify(o.formCard?.checked)],
+    ['one enabled Submit, reading 3 of 3 answered', (o) => o.formCard?.submits === 1 && o.formCard.submitEnabled === true
+      && o.formCard.count === '3 of 3 answered', (o) => JSON.stringify(o.formCard)],
+    ['at 1440 every question and checked default in view without scrolling; at 1024 the fields scroll inside the card with the first question and its defaults in view',
+      (o) => o.state?.endsWith('-1440') ? formAllInView(o.formCard) : formScrollsInCard(o.formCard),
+      (o) => JSON.stringify([o.formCard?.legendsInView, o.formCard?.fieldsScroll, o.formCard?.checkedInView])],
+    ['Submit in view', (o) => o.formCard?.submitInView === true, (o) => JSON.stringify(o.formCard)],
+    ['the transcript keeps at least its declared minimum height beside the card', (o) => o.formCard?.transcriptMin > 0
+      && o.formCard?.transcriptHeight >= o.formCard?.transcriptMin, (o) => JSON.stringify(o.formCard)]
   ],
   'model-picker': [
     ...MODEL_PICKER_CHECKS,
@@ -497,6 +626,52 @@ const STATE_CHECKS = {
     ['the gate’s Delivery on approval note holds Sprint 3', (o) => matches(o.deliveryApproval, /^After approval, Sprint 3 claims wait /)],
     ['the Previous sprint delivery region', (o) => o.previousDelivery === true],
     [`the first failed check reads ${STALE_INSTALL}`, (o) => o.firstFailedCheck === STALE_INSTALL, (o) => JSON.stringify(o.firstFailedCheck)]
+  ],
+  'browser-empty': [
+    ...browserChecks('Idle', { stop: false, toggle: 'Take control', tabs: ['Agent tab'] }),
+    ['agents are not let use the browser and the page area shows the empty state',
+      (o) => o.browserPanel?.enabled === false && o.browserPanel.page === 'Agents open pages here. You will be asked before any new site loads.',
+      (o) => JSON.stringify([o.browserPanel?.enabled, o.browserPanel?.page])]
+  ],
+  'browser-agent': browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+  'browser-person': browserChecks('You have control', { stop: false, toggle: 'Hand back' }),
+  'browser-stopped': browserChecks('Stopped', { stop: false, toggle: 'Hand back' }),
+  'browser-private': [
+    ...browserChecks('Idle', { stop: false, toggle: 'Take control', tabs: [BROWSER_TAB, PRIVATE_TAB] }),
+    ['Private tab’s inline address field holds the typed address', (o) => o.browserPanel?.privateAddress === 'https://accounts.example.com/login',
+      (o) => JSON.stringify(o.browserPanel?.privateAddress)]
+  ],
+  'browser-origin': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com')
+  ],
+  'browser-origin-page': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('This page wants to open http://127.0.0.1:5173', 'http://127.0.0.1:5173')
+  ],
+  'browser-origin-person': [
+    ...browserChecks('You have control', { stop: false, toggle: 'Hand back' }),
+    siteCardCheck('You asked to open https://example.com', 'https://example.com')
+  ],
+  'browser-sites': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    [`the Sites popover lists ${JSON.stringify(BROWSER_SITES)} over the hidden page area`,
+      (o) => JSON.stringify(o.browserPanel?.sites) === JSON.stringify(BROWSER_SITES) && o.browserPanel.page === BROWSER_HIDDEN,
+      (o) => JSON.stringify([o.browserPanel?.sites, o.browserPanel?.page])],
+    ['the Sites popover stays inside the Browser panel', (o) => o.browserPanel?.sitesInPanel === true,
+      (o) => JSON.stringify(o.browserPanel?.sitesInPanel)]
+  ],
+  'browser-origin-terminal': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    siteCardCheck('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com', 'panel')
+  ],
+  'browser-camera': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    cameraCheck({ add: true, notes: ['Evidence goes to the epic.'] })
+  ],
+  'browser-camera-terminal': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    cameraCheck({ add: false, notes: [CAMERA_NO_COMPOSER, 'Evidence goes to the epic.'] })
   ]
 }
 
@@ -618,7 +793,7 @@ async function servePreview(outDir) {
  */
 function runElectron({ base, out, userData, session, viewport }) {
   const { promise, resolve: done, reject } = Promise.withResolvers()
-  const states = STATES.map((state) => ({ state, viewport: viewportOf(state, viewport) }))
+  const states = STATES.map((state) => ({ state, viewport: viewportOf(state, viewport), media: mediaOf(state) }))
   const config = Buffer.from(JSON.stringify({ base, states, out, deadlineMs: STATE_DEADLINE_MS })).toString('base64')
   const electron = createRequire(import.meta.url)('electron')
   const child = spawn(electron, [ELECTRON_ENTRY, `--user-data-dir=${userData}`, `--capture-config=${config}`],
