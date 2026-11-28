@@ -126,8 +126,8 @@ interface LearningIntegrationCallbacks {
 
 /**
  * DM-952: the untracked paths a clean checkout may hold: the current operation's portable record, written into the
- * registered root checkout by the repo-mode flush, and (DM-982) the current record files of the approvals this machine
- * already published there. Only main's operation-record binding issues one; a copy made elsewhere (JSON, IPC, a
+ * registered root checkout by the repo-mode flush, and (DM-982) the current record files of this machine's learning
+ * approvals there (`learningApprovalFiles`). Only main's operation-record binding issues one; a copy made elsewhere (JSON, IPC, a
  * persisted plan) grants nothing and is refused.
  */
 export interface OwnedRecordAllowance {
@@ -136,10 +136,11 @@ export interface OwnedRecordAllowance {
   /** Repository-relative, forward-slash path of the record. */
   readonly path: string
   /**
-   * DM-982: repository-relative, forward-slash paths of the record files of this machine's published approvals whose
-   * text is still what this machine exported. Each is kept only while it is untracked and the prepared tree leaves it.
+   * DM-982: repository-relative, forward-slash paths of the card records of this approval and the integration,
+   * learning and card records of this machine's published approvals, each still exactly what this machine exported.
+   * Each is kept only while it is untracked and the prepared tree leaves it.
    */
-  readonly published: readonly string[]
+  readonly records: readonly string[]
 }
 
 export interface CleanCheckoutRequirement {

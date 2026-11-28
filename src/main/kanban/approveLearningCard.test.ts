@@ -457,3 +457,52 @@ describe('DM-982: consecutive approvals in repository storage mode', () => {
     expect([lane(p.ctx, second.cardId), publications(p.ctx).length]).toEqual(['ready_for_review', 1])
   })
 })
+
+/** DM-982: a repo-storage project whose own records are committed once, before any learning card exists. */
+async function committedProject(): Promise<{ p: Project; root: GitRepo }> {
+  const p = await project([null])
+  await commitRecords(p)
+  const root = (p.repos[0] as Repo).repo
+  expect(status(root)).toEqual([])
+  return { p, root }
+}
+
+/** A learning card linked, claimed, codified and submitted now: the card the next checkpoint advance generates. */
+async function reviewedNow(p: Project): Promise<ApproveLearningCardRequest> {
+  const packet = linkedCard(p)
+  return submit(p, packet, codify(p, packet))
+}
+
+describe('DM-982: a learning card created and submitted after the previous approval', () => {
+  it('approves card 1, then card 2 created and submitted afterwards, both to Done with no commit at all', async () => {
+    const { p, root } = await committedProject()
+    const commits = Number(root.git('rev-list', '--count', '--all'))
+    const first = await reviewedNow(p)
+    expect((await coordinator(p).approve(p.root, first)).lane).toBe('done')
+    const second = await reviewedNow(p)
+    expect((await coordinator(p).approve(p.root, second)).lane).toBe('done')
+    expect([lane(p.ctx, first.cardId), lane(p.ctx, second.cardId), publications(p.ctx).length]).toEqual(['done', 'done', 2])
+    // Two guardrail commits on the isolated branches and the two integrations' merges: nothing was committed for the person.
+    expect(Number(root.git('rev-list', '--count', '--all')) - commits).toBe(4)
+    expect(status(root).every((line) => line.startsWith('?? .darkmechanicus/'))).toBe(true)
+    expect(status(root).filter((line) => line.includes(`/kanban/${second.cardId}/card.json`))).toHaveLength(1)
+    expect(root.git('stash', 'list')).toBe('')
+  })
+
+  it.each<[string, (root: GitRepo, cardDir: string) => string]>([
+    ['its card record changed by hand', (root, dir) => (put(root.root, `${dir}/card.json`, '{"edited":true}\n'), `${dir}/card.json`)],
+    ['its card record staged', (root, dir) => (root.git('add', '--', `${dir}/card.json`), `${dir}/card.json`)],
+    ['a foreign event beside it', (root, dir) => (put(root.root, `${dir}/events/ke_0000000000000000000000zz01.json`, '{}\n'), `${dir}/events/ke_0000000000000000000000zz01.json`)]
+  ])('still refuses the approval of a card with %s, changing nothing', async (_name, make) => {
+    const { p, root } = await committedProject()
+    await coordinator(p).approve(p.root, await reviewedNow(p))
+    const second = await reviewedNow(p)
+    await p.workspace.flushPortableState()
+    const blocker = make(root, `.darkmechanicus/kanban/${second.cardId}`)
+    const head = root.rev(EPIC)
+    const error = await refusal(coordinator(p).approve(p.root, second))
+    expect([error.code, error.details?.reason]).toEqual(['conflict', 'dirty_worktree'])
+    expect(error.message).toContain(`is not clean: ${blocker}. Nothing was changed`)
+    expect([root.rev(EPIC), lane(p.ctx, second.cardId), publications(p.ctx).length]).toEqual([head, 'ready_for_review', 1])
+  })
+})

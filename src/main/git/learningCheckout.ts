@@ -4,10 +4,11 @@
  * With a `CleanCheckoutRequirement`, apply and recovery refuse (`dirty_worktree`, nothing changed) any staged,
  * modified, conflicting or untracked path in a target's canonical checkout before its canonical change. In repo storage
  * mode the core writes the current operation's portable record into the registered root checkout before native
- * apply runs, so the requirement may carry an `OwnedRecordAllowance` for exactly that one path. DM-982: publishing an
- * approval leaves its record files (the integration record, the published learnings, the card's approval event)
- * uncommitted there too, so the allowance also names the ones this machine exported and still holds unchanged; each is
- * kept only while it is untracked, so the next approval proceeds without a manual commit. Only
+ * apply runs, so the requirement may carry an `OwnedRecordAllowance` for exactly that one path. DM-982: repo storage
+ * commits none of the records it writes, so the card records of the approval and, for each approval this machine
+ * already published, its integration record, published learnings and card records stay uncommitted there too. The
+ * allowance also names those this machine exported and still holds unchanged; each is kept only while it is
+ * untracked, so consecutive approvals proceed without a manual commit. Only
  * `mintOwnedRecordAllowance` (called by main's operation-record binding) creates one, held in a module-private set:
  * a copy that went through JSON, IPC or a persisted plan grants nothing and is refused. The allowance keeps a path
  * only while it is untracked and unstaged, and only when the prepared tree has no entry at that path or a non-folder
@@ -29,13 +30,13 @@ function assertRecordPath(checkout: string, path: string): void {
 }
 
 /**
- * Issues the allowance for the current operation's record `path` and the `published` record files of completed
- * approvals, each repository-relative (forward-slash), in one absolute checkout. Main-only.
+ * Issues the allowance for the current operation's record `path` and the other owned `records` of this machine's
+ * learning approvals, each repository-relative (forward-slash), in one absolute checkout. Main-only.
  */
-export function mintOwnedRecordAllowance(checkout: string, path: string, published: readonly string[] = []): OwnedRecordAllowance {
+export function mintOwnedRecordAllowance(checkout: string, path: string, records: readonly string[] = []): OwnedRecordAllowance {
   if (!isAbsolute(checkout)) fail('unsafe_path', `"${path}" in ${checkout} cannot be an owned record path.`)
-  for (const one of [path, ...published]) assertRecordPath(checkout, one)
-  const allowance = Object.freeze({ checkout, path, published: Object.freeze([...published]) })
+  for (const one of [path, ...records]) assertRecordPath(checkout, one)
+  const allowance = Object.freeze({ checkout, path, records: Object.freeze([...records]) })
   minted.add(allowance)
   return allowance
 }
@@ -49,8 +50,8 @@ export function assertTrustedRequirement(requirement: CleanCheckoutRequirement |
 
 interface Owned {
   path: string
-  /** The folded published record paths. */
-  published: ReadonlySet<string>
+  /** The folded paths of the other owned records. */
+  records: ReadonlySet<string>
   fold: (path: string) => string
 }
 
@@ -60,7 +61,7 @@ function ownedIn(deps: LearningIntegrationDeps, target: PreparedTarget, requirem
   const record = requirement.record
   if (record === null || canonical(record.checkout, platform) !== canonical(target.checkout, platform)) return null
   const fold = (path: string): string => (platform === 'win32' ? path.toLowerCase() : path)
-  return { path: record.path, published: new Set(record.published.map(fold)), fold }
+  return { path: record.path, records: new Set(record.records.map(fold)), fold }
 }
 
 /** `git status` entries (`XY path`) of the checkout, untracked files listed one by one, renames split. */
@@ -129,16 +130,16 @@ export async function assertCleanCheckout(deps: LearningIntegrationDeps, target:
   }
   const untracked = (entry: string): string | null => (entry.startsWith('?? ') ? owned?.fold(entry.slice(3)) ?? null : null)
   const current = (entry: string): boolean => owned !== null && untracked(entry) === owned.fold(owned.path)
-  const published = (entry: string): boolean => owned !== null && owned.published.has(untracked(entry) ?? '')
+  const kept = (entry: string): boolean => owned !== null && owned.records.has(untracked(entry) ?? '')
   const entries = await statusEntries(deps, target.checkout)
-  const dirty = entries.filter((entry) => !current(entry) && !published(entry))
+  const dirty = entries.filter((entry) => !current(entry) && !kept(entry))
   if (dirty.length > 0) {
     fail(
       'dirty_worktree',
       `${target.checkout} (${label(target.repository)}) is not clean: ${dirty.map((entry) => entry.slice(3)).join(', ')}. Nothing was changed; commit, stash or discard them yourself, then approve again.`
     )
   }
-  for (const entry of entries.filter((one) => published(one) && !current(one))) {
-    await assertTreeLeavesRecord(deps, target, owned as Owned, { path: entry.slice(3), what: 'published record' })
+  for (const entry of entries.filter((one) => kept(one) && !current(one))) {
+    await assertTreeLeavesRecord(deps, target, owned as Owned, { path: entry.slice(3), what: 'owned record' })
   }
 }

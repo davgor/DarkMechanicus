@@ -21,7 +21,7 @@ import type { Ctx } from '../context'
 import { parseJson } from '../db/database'
 import { DomainError, fail } from '../errors'
 import { ownedPaths } from '../repo/paths'
-import { readOwnedText, trackedKanbanEventHash, trackedLearningIntegrationHash, trackedLearningRecordHash } from '../repo/portable'
+import { readOwnedText, trackedKanbanCardHash, trackedKanbanEventHash, trackedLearningIntegrationHash, trackedLearningRecordHash } from '../repo/portable'
 import type { FsAdapter, RepoLayout } from '../repo/types'
 import { approveKanbanCard } from './kanban/attempts'
 import { cardView, loadSummaryRow, recordCardEvent } from './kanban/cards'
@@ -202,7 +202,7 @@ export function finishLearningApproval(ctx: Ctx, integrationId: string): KanbanC
 }
 
 interface OwnedFile {
-  kind: 'learning_integration' | 'learning_record' | 'kanban_event'
+  kind: 'learning_integration' | 'learning_record' | 'kanban_card' | 'kanban_event'
   entityId: string
   file: string
   hashOf: (text: string) => string
@@ -223,36 +223,48 @@ function ownedText(env: RecordFiles, file: string): string | null {
   }
 }
 
-/** The record files one published integration wrote: its own record, the learnings it published and the approval event. */
-function filesOf(ctx: Ctx, env: RecordFiles, operation: { id: string; card_id: string; attempt_id: string }): OwnedFile[] {
+/** A Kanban card's record files: its card record and every event of it. */
+function cardFiles(ctx: Ctx, env: RecordFiles, cardId: string): OwnedFile[] {
   const paths = ownedPaths(env.layout)
-  const { id, card_id: cardId, attempt_id: attemptId } = operation
-  const publication = ctx.db.get<{ record_ids_json: string }>('SELECT record_ids_json FROM learning_publications WHERE attempt_id = ? AND card_id = ?', attemptId, cardId)
-  const events = ctx.db.all<{ id: string }>("SELECT id FROM kanban_events WHERE card_id = ? AND attempt_id = ? AND kind = 'approved'", cardId, attemptId)
+  const events = ctx.db.all<{ id: string }>('SELECT id FROM kanban_events WHERE card_id = ? ORDER BY created_at, id', cardId)
   return [
-    { kind: 'learning_integration', entityId: id, file: paths.learningIntegrationFile(id), hashOf: trackedLearningIntegrationHash },
-    ...parseJson<string[]>(publication?.record_ids_json, []).map((learningId): OwnedFile =>
-      ({ kind: 'learning_record', entityId: learningId, file: paths.learningRecordFile(learningId), hashOf: trackedLearningRecordHash })),
+    { kind: 'kanban_card', entityId: cardId, file: paths.kanbanCardFile(cardId), hashOf: trackedKanbanCardHash },
     ...events.map(({ id: eventId }): OwnedFile =>
       ({ kind: 'kanban_event', entityId: eventId, file: paths.kanbanEventFile(cardId, eventId), hashOf: trackedKanbanEventHash }))
   ]
 }
 
+/** The record files one published integration wrote: its own record, the learnings it published and its card's records. */
+function publishedFiles(ctx: Ctx, env: RecordFiles, operation: { id: string; card_id: string; attempt_id: string }): OwnedFile[] {
+  const paths = ownedPaths(env.layout)
+  const { id, card_id: cardId, attempt_id: attemptId } = operation
+  const publication = ctx.db.get<{ record_ids_json: string }>('SELECT record_ids_json FROM learning_publications WHERE attempt_id = ? AND card_id = ?', attemptId, cardId)
+  return [
+    { kind: 'learning_integration', entityId: id, file: paths.learningIntegrationFile(id), hashOf: trackedLearningIntegrationHash },
+    ...parseJson<string[]>(publication?.record_ids_json, []).map((learningId): OwnedFile =>
+      ({ kind: 'learning_record', entityId: learningId, file: paths.learningRecordFile(learningId), hashOf: trackedLearningRecordHash })),
+    ...cardFiles(ctx, env, cardId)
+  ]
+}
+
 /**
- * DM-982: the portable record files the published learning approvals this machine prepared wrote into the checkout
- * of `env.layout`: each integration's record, the learnings it published and its card's approval event. Repo-mode
- * publication leaves them uncommitted, so the next approval's clean-checkout preflight may keep them while they stay
- * untracked. A file is listed only while its text is exactly what this machine last exported for that record: one
- * changed by hand or written by another machine is not, and stays refused. Paths are relative to the layout's root,
- * with forward slashes.
+ * DM-982: the portable record files of learning approvals this machine owns that the next approval's clean-checkout
+ * preflight may keep while they stay untracked, in the checkout of `env.layout`. They are the card records of the
+ * approval `integrationId` (when this machine prepared it), and for each published approval this machine prepared, its
+ * integration record, the learnings it published and its card records. Repo storage writes them all but commits none,
+ * so without this every approval waited for the person to commit by hand. A file is listed only while its text is
+ * exactly what this machine last exported for that record: one changed by hand or written by another machine is not,
+ * and stays refused. Paths are relative to the layout's root, with forward slashes.
  */
-export function publishedLearningApprovalFiles(ctx: Ctx, env: RecordFiles): string[] {
+export function learningApprovalFiles(ctx: Ctx, env: RecordFiles, integrationId: string): string[] {
   requireCapability(ctx.session, 'read')
-  const operations = ctx.db.all<{ id: string; card_id: string; attempt_id: string }>(
+  const current = ctx.db.get<{ card_id: string }>('SELECT card_id FROM learning_integrations WHERE id = ? AND owner_machine_id = ?', integrationId, ctx.machineId)
+  const published = ctx.db.all<{ id: string; card_id: string; attempt_id: string }>(
     "SELECT id, card_id, attempt_id FROM learning_integrations WHERE state = 'published' AND owner_machine_id = ? ORDER BY created_at, id",
     ctx.machineId
   )
-  return operations.flatMap((operation) => filesOf(ctx, env, operation)).flatMap(({ kind, entityId, file, hashOf }) => {
+  const files = [...(current === undefined ? [] : cardFiles(ctx, env, current.card_id)), ...published.flatMap((operation) => publishedFiles(ctx, env, operation))]
+  return files.flatMap(({ kind, entityId, file, hashOf }) => {
     const text = ownedText(env, file)
     const exported = ctx.db.get<{ exported_hash: string | null }>('SELECT exported_hash FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)?.exported_hash
     return text !== null && exported != null && hashOf(text) === exported ? [relative(env.layout.root, file).split(sep).join('/')] : []

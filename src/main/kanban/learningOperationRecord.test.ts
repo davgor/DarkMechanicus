@@ -188,7 +188,7 @@ describe('repo-mode approval on the registered root checkout', () => {
     expect(a.repo.git('status', '--porcelain=v1', '--untracked-files=all')).toBe(`?? ${recordPath(id)}`)
     expect(readRecord(a, id)).toMatchObject({ id, state: 'prepared', revision: 1 })
     const requirement = await learningOperationRecord(a.workspace, id)
-    expect(requirement.record).toEqual({ checkout: a.workspace.repoRoot, path: recordPath(id), published: [] })
+    expect(requirement.record).toEqual({ checkout: a.workspace.repoRoot, path: recordPath(id), records: expect.any(Array) })
     const seen: string[] = []
     const result = await applyLearningIntegration(deps(), applyRequest(a, requirement, durableProgress(a, id, seen)))
     expect(seen).toEqual(['prepared integrating', 'receipt integrated'])
@@ -280,7 +280,7 @@ describe('default repo-mode approval consumer: prepare, apply, receipt crash and
     expect(a.repo.git('for-each-ref', '--format=%(objectname)', 'refs/darkmechanicus/learning-prep')).toBe(target?.newHead)
 
     const requirement = await learningOperationRecord(a.workspace, id)
-    expect(requirement.record).toEqual({ checkout: a.workspace.repoRoot, path: recordPath(id), published: [] })
+    expect(requirement.record).toEqual({ checkout: a.workspace.repoRoot, path: recordPath(id), records: expect.any(Array) })
     const receipts: LearningIntegrationReceipt[] = []
     const recovered = await recoverLearningIntegration(d, { attemptId: a.attemptId, plan, cleanCheckout: requirement, onApplied: async (receipt) => void receipts.push(receipt) })
     expect(recovered.state).toBe('applied')

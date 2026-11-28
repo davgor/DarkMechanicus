@@ -240,7 +240,7 @@ describe('DM-982: the record files of published approvals', () => {
     const before = untouched(f)
     const error = await refusal(applyLearningIntegration(deps(), request(f, withPublished(f))))
     expect(error.code).toBe('unsafe_path')
-    expect(error.message).toContain(`has ${PUBLISHED}, which would own or replace the published record ${PUBLISHED}`)
+    expect(error.message).toContain(`has ${PUBLISHED}, which would own or replace the owned record ${PUBLISHED}`)
     expect(untouched(f)).toBe(before)
   })
 
@@ -260,7 +260,7 @@ describe('who may grant the allowance', () => {
     const calls: string[] = []
     const counting: GitRunner = { run: (r) => (calls.push(r.args.join(' ')), runner.run(r)) }
     const minted = mintOwnedRecordAllowance(f.repo.root, RECORD)
-    const copies = [{ checkout: f.repo.root, path: RECORD, published: [] }, JSON.parse(JSON.stringify(minted)) as typeof minted, { ...minted }]
+    const copies = [{ checkout: f.repo.root, path: RECORD, records: [] }, JSON.parse(JSON.stringify(minted)) as typeof minted, { ...minted }]
     for (const record of copies) {
       const applied = await refusal(applyLearningIntegration(deps(undefined, counting), request(f, { record })))
       const recovered = await refusal(recoverLearningIntegration(deps(undefined, counting), { attemptId: ATTEMPT, plan: saved.plan as LearningIntegrationPlan, onApplied: async () => undefined, cleanCheckout: { record } }))
