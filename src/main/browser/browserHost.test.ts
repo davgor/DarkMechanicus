@@ -431,12 +431,11 @@ describe('createBrowserHost lifecycle', () => {
     expect(fake.detach).toHaveBeenCalledTimes(3)
     expect(() => fake.host.ensureAgentTab(OTHER)).toThrow('disposed')
   })
-
-  it("accepts Electron's own WebContentsView", () => {
-    expectTypeOf<WebContentsView>().toExtend<HostView>()
-    expectTypeOf<WebContentsView['webContents']>().toExtend<HostContents>()
-  })
 })
+
+// Compile-time only (`npm run typecheck`): Electron's own view and contents satisfy what the host drives.
+expectTypeOf<WebContentsView>().toExtend<HostView>()
+expectTypeOf<WebContentsView['webContents']>().toExtend<HostContents>()
 
 describe('createBrowserHost frame decisions (R19-3)', () => {
   it("allows an agent tab's frames only to its folder's always list, read fresh, plus that tab's once set", async () => {

@@ -496,12 +496,11 @@ describe('partitions and web preferences', () => {
     expect(BROWSER_WEB_PREFERENCES).not.toHaveProperty('preload')
     expect(Object.isFrozen(BROWSER_WEB_PREFERENCES)).toBe(true)
   })
-
-  it("accepts Electron's own Session and WebContents", () => {
-    expectTypeOf<Session>().toExtend<Parameters<typeof hardenBrowserSession>[0]>()
-    expectTypeOf<WebContents>().toExtend<Parameters<typeof hardenBrowserContents>[0]>()
-  })
 })
+
+// Compile-time only (`npm run typecheck`): Electron's own Session and WebContents satisfy what the hardeners lock down.
+expectTypeOf<Session>().toExtend<Parameters<typeof hardenBrowserSession>[0]>()
+expectTypeOf<WebContents>().toExtend<Parameters<typeof hardenBrowserContents>[0]>()
 
 describe('hardenBrowserSession frame gate (R19-3)', () => {
   const dns = { 'a.example': ['93.184.216.34'], 'b.example': ['93.184.216.35'] }
