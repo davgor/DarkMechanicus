@@ -1,0 +1,4 @@
+Red border shown on 1 display(s). Hook helper pid 6040, stand-in agent tree pid 16520.
+{"selfTest":true,"electronRunAsNodeInParent":true,"electronRunAsNodeStripped":true,"overlayWindows":1,"displays":1,"escapesSeen":[{"injected":true,"own":true,"kind":2,"lagMs":0},{"injected":true,"own":true,"kind":2,"lagMs":0}],"injectToCallbackMs":4.0682,"helperEscapeInjected":true,"killFired":false,"maxHeartbeatGapMs":260.5972,"pass":true}
+SELF-TEST PASS: injected ESC seen as injected, no kill.
+exit code: 0
