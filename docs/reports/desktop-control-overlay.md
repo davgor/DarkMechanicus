@@ -27,7 +27,8 @@ proposal. It changes no product code: everything lives under `scripts/spike/desk
 | Last observation (end of the third hook-endurance run) | 2026-11-28T18:56:39Z |
 | Observation clock **end** | **2026-11-28T18:57:00Z**, so **48 min 23 s** of the 90-minute hard limit |
 | Clock **reopened** after review (rerun of the helper-killed measurement only) | **2026-11-28T19:05:09Z** to **19:07:47Z** (2 min 38 s; drawn-desktop check `ok nonblack=1363` at 19:07:18Z) |
-| Total observation time | **51 min 01 s** of 90 |
+| Clock reopened again (one `esc-probe --self-test` on the fixed script, 99c830fb) | **2026-11-28T19:10:29Z** (drawn-desktop check `ok nonblack=1363`) to **19:10:35Z** |
+| Total observation time | **51 min 07 s** of 90 |
 | Host | Windows 11 `10.0.26200`, RDP session 2, one monitor 2560×1600 physical at 150 % (Electron: one display, 1707×1067 DIP, `scaleFactor` 1.5), 16 logical CPUs |
 | Electron | 42.11.18 (the repo's `node_modules/electron`) |
 | omp | the `%LOCALAPPDATA%\omp\omp.exe` DM-1041 used; `/computer status` → `Computer use: enabled · prelude: active · configured: display=all, maxWidth=3840, maxHeight=2400, backgroundFallback=takeover` |
@@ -52,6 +53,9 @@ that would have seen them was gone.
 - `esc-probe.mjs --self-test` at 18:15Z, 18:31Z, 18:38Z and 18:43Z: it stopped the hook before ending the stand-in,
   so for up to about 2.5 s (the helper's exit wait plus `taskkill`), at one pair per 50 ms, roughly 50 pairs per run
   ([INFERENCE]). The 18:14Z attempt crashed and the OS ended hook and stand-in together.
+- Every hook-helper exit: `Quit()` unhooks before `Environment.Exit`, and the helper's ping thread (one tagged VK
+  0xE8 pair per second) could fire in that gap, which lasts milliseconds. A ping sent there would reach the foreground
+  window. Not observed and not ruled out ([INFERENCE]); the build helper should stop its ping thread before unhooking.
 
 Fixed in the scripts: every `measureKill` now launches a probe fixture, waits past its re-raises, checks it is in
 front at the start and again just before the trigger (and otherwise ends the stand-in before the hook and skips), and
@@ -223,11 +227,11 @@ cd C:\Users\davgo\dmwork\s5-accept
 node scripts/spike/desktop/esc-probe.mjs --self-test
 ```
 
-It must print `SELF-TEST PASS` and exit 0. On this branch it did at 18:43:16Z (see
-`desktop-control-overlay/esc-probe-self-test.txt`: overlay shown on 1 display, two injected Escapes seen as injected,
-no kill, `electronRunAsNodeInParent: true`, `electronRunAsNodeStripped: true`, exit code 0). That run predates the
-fix above (its stand-in still injected); the self-test has not been rerun on the fixed script, so the pre-check is its
-first run.
+It must print `SELF-TEST PASS` and exit 0. On this branch, on the fixed script (commit 99c830fb, stand-in sending no
+input), it did at 2026-11-28T19:10:34Z (see `desktop-control-overlay/esc-probe-self-test.txt`: overlay shown on 1
+display, two injected Escapes seen as injected, no kill, `electronRunAsNodeInParent: true`,
+`electronRunAsNodeStripped: true`, exit code 0). The earlier passing runs (18:15Z–18:43Z) used the injecting stand-in
+described under the host-hygiene deviation.
 
 The person's one step, on the Windows host with the desktop in view:
 
