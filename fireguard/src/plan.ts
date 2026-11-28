@@ -72,6 +72,10 @@ export function planGrading(work: GradingWork, runnerBudget = MAX_GRADING_SHARDS
   const limit = Math.min(maxShards, Math.max(1, work.flakeRuns, work.mutants));
   let count = 1;
   while (count < limit && estimateShardSeconds(work, { index: 1, count }) > GRADING_TARGET_SECONDS) count += 1;
+  // A capped plan drops shards that would not shorten its longest one (100 runs over 21 or 20 shards
+  // both leave 5 on the first), so it holds no runner it does not need.
+  const longest = estimateShardSeconds(work, { index: 1, count });
+  while (count > 1 && estimateShardSeconds(work, { index: 1, count: count - 1 }) === longest) count -= 1;
   const include = Array.from({ length: count }, (_, i) => ({ index: i + 1, count }));
   return {
     work,

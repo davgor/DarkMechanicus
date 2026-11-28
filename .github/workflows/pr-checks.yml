@@ -139,6 +139,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # History for the merge base without every blob; git fetches the few it diffs on demand.
+          filter: blob:none
       - name: Pin base ref for every grading job
         id: scope
         run: |
@@ -194,13 +196,12 @@ jobs:
     env:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
       FIREGUARD_CONCURRENCY: '1'
-      # ubuntu-latest has 4 CPUs; at 2 workers a 9-file flake run left half of them idle (run
-      # 46182113492: 12-16 s per run).
-      VITEST_MAX_WORKERS: '4'
+      VITEST_MAX_WORKERS: '2'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -242,6 +243,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

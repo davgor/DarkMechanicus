@@ -80,19 +80,24 @@ describe('grading plan sizing', () => {
     expect(planGrading(work(400, 3, 0)).count).toBe(3);
     expect(planGrading(work(1, 1, 0)).count).toBe(1);
   });
+});
 
+describe('grading plan runner budget', () => {
   it('never plans more shards than the runner budget lets start at once', () => {
     const unbounded = planGrading(work(9, 100, 11));
     expect(unbounded.count).toBeGreaterThan(21);
     const budgeted = planGrading(work(9, 100, 11), 21);
-    expect(budgeted).toMatchObject({ count: 21, maxShards: 21 });
-    expect(budgeted.matrix.include).toEqual(positions(21));
+    // 21 shards would leave 5 flake runs and a mutant on the first, as 20 do: the plan takes 20.
+    expect(budgeted).toMatchObject({ count: 20, maxShards: 21 });
+    expect(budgeted.matrix.include).toEqual(positions(20));
     expect(budgeted.estimatedShardSeconds).toBeGreaterThan(unbounded.estimatedShardSeconds);
     // A budget past the cap keeps the cap; an exhausted budget still grades on one shard.
     expect(planGrading(work(79, 100, 1700), 90).count).toBe(MAX_GRADING_SHARDS);
     expect(planGrading(work(9, 100, 11), 0)).toMatchObject({ count: 1, maxShards: 1 });
   });
+});
 
+describe('grading plan partition', () => {
   it('assigns every flake run and mutant of the plan to exactly one shard', () => {
     const plan = planGrading(work(30, 100, 301));
     const shards = positions(plan.count);
