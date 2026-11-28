@@ -4,6 +4,7 @@ import { eligibleRun, planShards, readLiveHistory, timingSample } from './ciShar
 const start = Date.parse('2026-01-01T00:00:00Z')
 const iso = (seconds) => new Date(start + seconds * 1000).toISOString()
 const unitStep = 'Run disjoint Vitest shard'
+const coverageStep = 'Run disjoint Vitest shard with coverage'
 const gradeStep = 'Grade disjoint flake runs and production modules'
 const activeStep = 'Record active Fireguard timing sample'
 
@@ -39,10 +40,11 @@ describe('execution-time CI shard planning', () => {
     const fireguardUnit = sample('fireguard-unit', unitJobs('fireguard-unit', [7, 19]))
     const fireguard = sample('fireguard', [job('fireguard-shards (1/2)', 225, gradeStep), job('fireguard-shards (2/2)', 136, gradeStep)])
     const plan = planShards({ app, 'fireguard-unit': fireguardUnit, fireguard })
-    expect(counts(plan)).toEqual({ app: 10, 'fireguard-unit': 1, fireguard: 4 })
-    expect(plan.suites.app).toMatchObject({ source: 'history', runId: 15, seconds: [509, 599], totalSeconds: 1108 })
+    expect(counts(plan)).toEqual({ app: 11, 'fireguard-unit': 1, fireguard: 4 })
+    // A legacy app shard ran without coverage: its time carries the coverage overhead (x1.1, rounded).
+    expect(plan.suites.app).toMatchObject({ source: 'history', runId: 15, seconds: [560, 659], totalSeconds: 1219 })
     expect(plan.unit.include.filter((entry) => entry.suite === 'app'))
-      .toEqual(Array.from({ length: 10 }, (_, i) => ({ suite: 'app', config: 'vitest.config.ts', index: i + 1, count: 10 })))
+      .toEqual(Array.from({ length: 11 }, (_, i) => ({ suite: 'app', config: 'vitest.config.ts', index: i + 1, count: 11 })))
     expect(plan.unit.include.at(-1)).toEqual({ suite: 'fireguard-unit', config: 'fireguard/vitest.config.ts', index: 1, count: 1 })
     expect(plan.grading.include).toEqual([1, 2, 3, 4].map((index) => ({ index, count: 4 })))
   })
@@ -51,9 +53,19 @@ describe('execution-time CI shard planning', () => {
     const fireguard = sample('fireguard', [job('fireguard-shards (1/1)', 120, gradeStep)])
     const plan = planShards({ app: sample('app', unitJobs('app', [2000, 2000])), fireguard })
     expect(counts(plan)).toEqual({ app: 16, 'fireguard-unit': 2, fireguard: 1 })
-    expect(plan.suites.app).toMatchObject({ limit: 16, estimatedSecondsPerShard: 250 })
+    expect(plan.suites.app).toMatchObject({ limit: 16, estimatedSecondsPerShard: 275 })
     expect(plan.targetSeconds).toBe(120)
     expect(plan.unit.include).toHaveLength(18)
+  })
+
+  it('times app shards from their coverage step as is, and only legacy app samples carry the overhead', () => {
+    const covered = (times) => times.map((seconds, i) => job(`test-shards (app, ${i + 1}/${times.length})`, seconds, coverageStep))
+    expect(sample('app', covered([300, 241]))).toEqual({ runId: 15, seconds: [300, 241] })
+    expect(sample('app', unitJobs('app', [300, 241]))).toEqual({ runId: 15, seconds: [330, 265] })
+    expect(sample('fireguard-unit', unitJobs('fireguard-unit', [300, 241]))).toEqual({ runId: 15, seconds: [300, 241] })
+    // The fireguard unit suite collects no coverage, so a coverage step never times it.
+    expect(sample('fireguard-unit', [job('test-shards (fireguard-unit, 1/1)', 300, coverageStep)])).toBeUndefined()
+    expect(counts(planShards({ app: sample('app', covered([300, 241])) })).app).toBe(5)
   })
 
   it('cold-starts independently when history is absent, partial, invalid or a skipped grade', () => {

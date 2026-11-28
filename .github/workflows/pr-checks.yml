@@ -58,15 +58,67 @@ jobs:
         if: matrix.config == 'vitest.config.ts'
         run: node scripts/prepareInstallerTests.mjs
       - name: Run disjoint Vitest shard
+        if: matrix.suite != 'app'
         env:
           TEST_CONFIG: ${{ matrix.config }}
           SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
         run: node node_modules/vitest/vitest.mjs run --config "$env:TEST_CONFIG" --shard "$env:SHARD_POSITION" --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
+      # The app shards are the coverage run: each writes its share of coverage into a blob, and the coverage job merges
+      # the blobs and judges the vitest.config.ts thresholds once. One shard covers only part of the suite, so the
+      # thresholds are off here.
+      - name: Run disjoint Vitest shard with coverage
+        if: matrix.suite == 'app'
+        env:
+          TEST_CONFIG: ${{ matrix.config }}
+          SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
+        run: node node_modules/vitest/vitest.mjs run --config "$env:TEST_CONFIG" --shard "$env:SHARD_POSITION" --maxWorkers 2 --reporter default --reporter json --reporter blob --outputFile.json="${{ github.workspace }}/test-shard.json" --outputFile.blob="${{ github.workspace }}/coverage-blob/blob-${{ matrix.index }}-${{ matrix.count }}.json" --coverage.enabled --coverage.reporter=text-summary --coverage.thresholds.lines=0 --coverage.thresholds.branches=0 --coverage.thresholds.functions=0 --coverage.thresholds.statements=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-shard-${{ strategy.job-index }}
           path: ${{ github.workspace }}/test-shard.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: matrix.suite == 'app'
+        with:
+          name: coverage-blob-${{ strategy.job-index }}
+          path: ${{ github.workspace }}/coverage-blob/
+          if-no-files-found: error
+
+  coverage:
+    if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]')) }}
+    needs: [shard-plan, test-shards]
+    # Same OS and workspace path as the shards: the blobs key coverage by absolute Windows source paths.
+    runs-on: windows-latest
+    steps:
+      - name: Require every test shard
+        shell: bash
+        env:
+          PLAN_RESULT: ${{ needs.shard-plan.result }}
+          SHARD_RESULT: ${{ needs.test-shards.result }}
+        run: test "$PLAN_RESULT" = success && test "$SHARD_RESULT" = success
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Merge shard coverage against the vitest.config.ts thresholds
+        id: merge
+        run: node node_modules/vitest/vitest.mjs run --merge-reports .vitest-reports --coverage.enabled --reporter default
+      - name: Publish merged coverage summary
+        if: always() && steps.merge.outcome != 'skipped'
+        run: node scripts/coverageSummary.mjs --summary coverage/coverage-summary.json --markdown-out "$env:GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.merge.outcome != 'skipped'
+        with:
+          name: coverage-summary
+          path: coverage/coverage-summary.json
           if-no-files-found: error
 
   test:
