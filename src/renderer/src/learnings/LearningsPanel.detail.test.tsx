@@ -71,6 +71,20 @@ describe('Learning detail applicability and history links', () => {
   })
 })
 
+describe('Learning detail evidence', () => {
+  it('shows each evidence item with its content hash (DM-983)', async () => {
+    const hashes = [`sha256:${'c'.repeat(64)}`, `sha256:${'d'.repeat(64)}`]
+    store.learnings = [learningView({ evidence: [
+      { kind: 'rejected_attempt', sourceId: 'at_rejected', contentHash: hashes[0]! },
+      { kind: 'retro_action', sourceId: 'rp_report/action-1', contentHash: hashes[1]! }
+    ] })]
+    await renderPanel('lr_1')
+    const items = within(within(detail()).getByRole('list', { name: 'Evidence' })).getAllByRole('listitem')
+    expect(items.map((item) => within(item).getByTitle('Content hash').textContent)).toEqual(hashes)
+    expect(items[0]!.textContent).toBe(`rejected_attempt at_rejected${hashes[0]!}`)
+  })
+})
+
 describe('Learning detail integration', () => {
   it('says no integration is recorded when the source card has none on this clone', async () => {
     store.learnings = [learningView()]

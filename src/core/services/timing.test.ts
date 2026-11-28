@@ -37,7 +37,7 @@ describe('DM-172 c1: lifecycle records through the real services', () => {
   it('a lease expiry reconciled by resubmit ends the attempt at its deadline; the gap waits for reconciliation', () => {
     const { clock, ctx, worker } = world(T('10:00'))
     const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]]) })
-    const c = claim(ctx, runId, 1)
+    const c = claim(ctx, runId, 1, { leaseSeconds: 900 })
     clock.set(T('10:05'))
     heartbeatAttempt(worker, { attemptId: c.attempt.id, claimToken: c.packet.claimToken })
     clock.set(T('12:00'))
@@ -219,7 +219,7 @@ function firstHour(run: Driven): void {
   goTo('10:00')
   claimAs(run, 'A1', 1, { leaseSeconds: 7200 })
   goTo('10:05')
-  claimAs(run, 'A4', 3)
+  claimAs(run, 'A4', 3, { leaseSeconds: 900 })
   goTo('10:10')
   heartbeatAttempt(worker, { attemptId: held(run, 'A4').attempt.id, claimToken: held(run, 'A4').packet.claimToken })
   activity(run, 'A4', '10:05-10:10')
@@ -446,8 +446,8 @@ describe('DM-172: the run timing read', () => {
     const { clock, ctx } = world(T('10:00'))
     const read = startedRun(ctx, { bundle: makeBundle([[1]]) })
     const other = startedRun(ctx, { bundle: makeBundle([[2]]) })
-    const mine = claim(ctx, read.runId, 1)
-    const theirs = claim(ctx, other.runId, 2)
+    const mine = claim(ctx, read.runId, 1, { leaseSeconds: 900 })
+    const theirs = claim(ctx, other.runId, 2, { leaseSeconds: 900 })
     const theirLease = attemptRow(ctx, theirs.attempt.id).lease_expires_at
     clock.set(T('11:00'))
     const timing = getRunTiming(ctx, { runId: read.runId })

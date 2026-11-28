@@ -9,7 +9,12 @@ export const TOOLCHAIN_METADATA = join(dirname(fileURLToPath(import.meta.url)), 
 
 /** Download (or reuse electron-builder's cached) pinned NSIS and record it in `out/installer-test-toolchain.json`. */
 export async function prepareInstallerToolchain() {
-  const compiler = await getMakeNsisPath()
+  let compiler
+  try {
+    compiler = await getMakeNsisPath()
+  } catch (error) {
+    throw new Error(`Pinned NSIS toolchain unavailable: electron-builder could not provide its checksum-pinned makensis (${error instanceof Error ? error.message : String(error)}). Check network access to the electron-builder binaries mirror or its cache, then rerun.`, { cause: error })
+  }
   mkdirSync(dirname(TOOLCHAIN_METADATA), { recursive: true })
   writeFileSync(TOOLCHAIN_METADATA, JSON.stringify(compiler))
   return compiler

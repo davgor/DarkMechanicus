@@ -122,4 +122,39 @@ export function add(a: number, b: number): number {
     });
     expect(report).toMatchObject({ revision, skipped: true, grade: { letter: 'A' } });
   });
+
+  it('runs only the AST gate with astOnly, never opening lanes', async () => {
+    const openLanes = vi.fn(killAll);
+    const solid = "import { it, expect } from 'vitest';\nit('adds', () => { expect(1 + 1).toBe(2); });\n";
+    const report = await runFireguard({
+      config: DEFAULT_CONFIG,
+      revision,
+      astOnly: true,
+      getDiffEntries: async () => [
+        { status: 'M', path: 'src/add.test.ts' },
+        { status: 'M', path: 'src/add.ts' },
+      ],
+      readFile: async () => solid,
+      openLanes,
+    });
+    expect(openLanes).not.toHaveBeenCalled();
+    expect(report.astOnly).toBe(true);
+    expect(report.gates.ast?.pass).toBe(true);
+    expect(report.gates.flake).toBeUndefined();
+    expect(report.gates.mutation).toBeUndefined();
+    expect(report.grade.letter).not.toBe('F');
+    expect(report.grade.reasons).toEqual(['ast gate passed; flake and mutation gates not run (--ast-only)']);
+  });
+
+  it('still fails closed with astOnly when modules change without graded tests', async () => {
+    const report = await runFireguard({
+      config: DEFAULT_CONFIG,
+      revision,
+      astOnly: true,
+      getDiffEntries: async () => [{ status: 'M', path: 'src/add.ts' }],
+      readFile: async () => '',
+      openLanes: killAll,
+    });
+    expect(report).toMatchObject({ astOnly: true, grade: { letter: 'F' } });
+  });
 });

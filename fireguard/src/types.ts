@@ -89,6 +89,11 @@ export interface MutationGateResult {
    * were limited to the changed lines of each module.
    */
   unchangedLineMutants?: number;
+  /**
+   * On a shard's result only: the mutants the whole (unsharded) run executes. The shard ran its
+   * round-robin share of them; the merge checks every share against this count.
+   */
+  planned?: number;
 }
 
 /** Where and how the flake and mutation gates ran their tests. */
@@ -140,6 +145,8 @@ export interface FireguardReport {
   execution?: Execution;
   skipped: boolean;
   skipReason?: string;
+  /** Only gate 1 ran (`--ast-only`, a row check's early signal); the flake and mutation gates did not. */
+  astOnly?: true;
   /** Partial CI workload; only mergeShards may issue the final combined grade. */
   shard?: ShardIdentity & { config: FireguardConfig };
 }

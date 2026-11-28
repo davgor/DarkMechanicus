@@ -140,13 +140,16 @@ interface Classified {
   align: string[]
 }
 
-/** Classifies the holder worktree against the range, by content; every read runs without optional locks. */
+/**
+ * Classifies the holder worktree against the range, by content; every read runs without optional locks, and with
+ * `--ignore-submodules=none` so a user's `diff.ignoreSubmodules` or `submodule.<name>.ignore` never hides a dirty submodule.
+ */
 async function classify(ctx: TransitionContext, worktree: string): Promise<Classified> {
   const { runner } = ctx.deps
   const range = await rangePaths(ctx)
   const inRange = new Set(range.map((path) => path.path))
-  const staged = parseRaw((await read(runner, worktree, ['diff-index', '--cached', '-z', '--no-renames', '--raw', ctx.target.oldHead, '--'])).out)
-  const modified = (await read(runner, worktree, ['diff', '-z', '--name-only', '--no-renames', '--'])).out.split('\0').filter((path) => path !== '')
+  const staged = parseRaw((await read(runner, worktree, ['diff-index', '--cached', '-z', '--no-renames', '--ignore-submodules=none', '--raw', ctx.target.oldHead, '--'])).out)
+  const modified = (await read(runner, worktree, ['diff', '-z', '--name-only', '--no-renames', '--ignore-submodules=none', '--'])).out.split('\0').filter((path) => path !== '')
   const blocking = [...new Set([...staged.keys(), ...modified])].filter((path) => !inRange.has(path))
   const files = await fileBlobs(
     ctx,
@@ -169,14 +172,17 @@ const entry = (found: Side | null, path: string): string => (found === null ? `0
 
 /**
  * Runs an owned worktree write to its end and resolves (or rejects) only once git has actually exited, so the held
- * refs are never released while it may still be writing. A cancel does not kill it (see the header): it is refused
- * just before git would start and honoured once git has exited. Only the deadline kills a hung write.
+ * refs are never released while it may still be writing. Each write first re-checks the live identity (DM-983), so a
+ * checkout path rebound to another repository between two held writes is refused before git touches it. A cancel does
+ * not kill it (see the header): it is refused just before git would start and honoured once git has exited. Only the
+ * deadline kills a hung write.
  */
 async function ownedWrite(ctx: TransitionContext, worktree: string, write: { args: string[]; deadline: AbortSignal; stdin?: string }): Promise<void> {
   const { args, deadline, stdin } = write
   const halt = (): void => {
     if (ctx.signal?.aborted === true || deadline.aborted) throw interrupted(ctx.target, `while ${worktree} was being updated`)
   }
+  await ctx.verify()
   let markGone: () => void = () => undefined
   const gone = new Promise<void>((resolve) => (markGone = resolve))
   const request = { cwd: worktree, args, kind: 'write' as const, timeoutMs: null, signal: deadline, stdin, beforeStart: halt, onExit: () => markGone() }

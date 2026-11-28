@@ -67,8 +67,11 @@ function Provenance({ learning, run, card, onOpenSource }: ProvenanceProps): JSX
       <ul className="learnings-evidence" aria-label="Evidence">
         {learning.evidence.map((item) => (
           <li key={`${item.kind}:${item.sourceId}`}>
-            <span className="mono muted">{item.kind}</span>{' '}
-            <LinkValue link={{ ...evidenceLink(item.sourceId, run), id: item.sourceId }} onOpen={onOpenSource} />
+            <span>
+              <span className="mono muted">{item.kind}</span>{' '}
+              <LinkValue link={{ ...evidenceLink(item.sourceId, run), id: item.sourceId }} onOpen={onOpenSource} />
+            </span>
+            <span className="mono muted" title="Content hash">{item.contentHash}</span>
           </li>
         ))}
       </ul>

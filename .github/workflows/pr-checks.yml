@@ -5,10 +5,22 @@ on:
     branches: [main]
   pull_request:
     branches: [main, 'feature/**']
+  # `npm run verify:ci` (scripts/verifyCi.mjs): the full Definition of Done for a pushed branch head, on these runners.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA every job checks out (default the dispatched branch head)
+        required: false
+        default: ''
+        type: string
+      base:
+        description: Branch Fireguard grades the head against (git diff base...head)
+        required: false
+        default: main
+        type: string
 
 jobs:
   shard-plan:
-    needs: [fireguard-scope]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
     permissions:
@@ -16,10 +28,10 @@ jobs:
       actions: read
     outputs:
       unit: ${{ steps.plan.outputs.unit }}
-      grading: ${{ steps.plan.outputs.grading }}
-      grading-count: ${{ steps.plan.outputs.grading_count }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -28,10 +40,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          # Grading history comes only from this pull request's branch (never a fork's): another
-          # diff's grading time does not size this one.
-          CI_HISTORY_PR_BRANCH: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
-          CI_GRADED_DIFF_FILES: ${{ needs.fireguard-scope.outputs.files }}
         run: node scripts/ciShardPlan.mjs > ci-shard-plan.json
       - uses: actions/upload-artifact@v4
         with:
@@ -49,6 +57,8 @@ jobs:
       matrix: ${{ fromJSON(needs.shard-plan.outputs.unit) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -58,15 +68,69 @@ jobs:
         if: matrix.config == 'vitest.config.ts'
         run: node scripts/prepareInstallerTests.mjs
       - name: Run disjoint Vitest shard
+        if: matrix.suite != 'app'
         env:
           TEST_CONFIG: ${{ matrix.config }}
           SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
         run: node node_modules/vitest/vitest.mjs run --config "$env:TEST_CONFIG" --shard "$env:SHARD_POSITION" --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
+      # The app shards are the coverage run: each writes its share of coverage into a blob, and the coverage job merges
+      # the blobs and judges the vitest.config.ts thresholds once. One shard covers only part of the suite, so the
+      # thresholds are off here.
+      - name: Run disjoint Vitest shard with coverage
+        if: matrix.suite == 'app'
+        env:
+          TEST_CONFIG: ${{ matrix.config }}
+          SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
+        run: node node_modules/vitest/vitest.mjs run --config "$env:TEST_CONFIG" --shard "$env:SHARD_POSITION" --maxWorkers 2 --reporter default --reporter json --reporter blob --outputFile.json="${{ github.workspace }}/test-shard.json" --outputFile.blob="${{ github.workspace }}/coverage-blob/blob-${{ matrix.index }}-${{ matrix.count }}.json" --coverage.enabled --coverage.reporter=text-summary --coverage.thresholds.lines=0 --coverage.thresholds.branches=0 --coverage.thresholds.functions=0 --coverage.thresholds.statements=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-shard-${{ strategy.job-index }}
           path: ${{ github.workspace }}/test-shard.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: matrix.suite == 'app'
+        with:
+          name: coverage-blob-${{ strategy.job-index }}
+          path: ${{ github.workspace }}/coverage-blob/
+          if-no-files-found: error
+
+  coverage:
+    if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]')) }}
+    needs: [shard-plan, test-shards]
+    # Same OS and workspace path as the shards: the blobs key coverage by absolute Windows source paths.
+    runs-on: windows-latest
+    steps:
+      - name: Require every test shard
+        shell: bash
+        env:
+          PLAN_RESULT: ${{ needs.shard-plan.result }}
+          SHARD_RESULT: ${{ needs.test-shards.result }}
+        run: test "$PLAN_RESULT" = success && test "$SHARD_RESULT" = success
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Merge shard coverage against the vitest.config.ts thresholds
+        id: merge
+        run: node node_modules/vitest/vitest.mjs run --merge-reports .vitest-reports --coverage.enabled --reporter default
+      - name: Publish merged coverage summary
+        if: always() && steps.merge.outcome != 'skipped'
+        run: node scripts/coverageSummary.mjs --summary coverage/coverage-summary.json --markdown-out "$env:GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.merge.outcome != 'skipped'
+        with:
+          name: coverage-summary
+          path: coverage/coverage-summary.json
           if-no-files-found: error
 
   test:
@@ -83,32 +147,75 @@ jobs:
   fireguard-scope:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       base: ${{ steps.scope.outputs.base }}
-      files: ${{ steps.scope.outputs.files }}
+      grading: ${{ steps.plan.outputs.grading }}
+      grading-count: ${{ steps.plan.outputs.count }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
+          # History for the merge base without every blob; git fetches the few it diffs on demand.
+          filter: blob:none
       - name: Pin base ref for every grading job
         id: scope
+        env:
+          BASE: ${{ inputs.base || github.base_ref || 'main' }}
         run: |
-          BASE="${{ github.base_ref || 'main' }}"
           git fetch --no-tags origin "$BASE:refs/remotes/origin/$BASE" || git fetch --no-tags origin "$BASE"
-          BASE_SHA="$(git rev-parse "origin/$BASE^{commit}")"
-          echo "base=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          # Files Fireguard can grade (its src, lib and app roots) that the diff adds or changes: the shard floor.
-          git diff --name-only --no-renames --diff-filter=AM "$BASE_SHA...HEAD" -- src lib app > graded-diff.txt
-          echo "files=$(wc -l < graded-diff.txt)" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse "origin/$BASE^{commit}")" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # One installed node_modules per lockfile, saved here and restored by every grading job instead
+      # of each running npm ci (about 14 s apiece on the Fireguard critical path).
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
+      # Sizes the grading matrix from this diff's own work (flake runs, graded test files, mutants
+      # on changed lines) so a typical PR grades in about 2 minutes, up to 40 shards. Runs no test.
+      # The account starts at most CI_RUNNER_LIMIT jobs at once (a quiet run peaked at 40 with 14
+      # grading shards queued, run 46181503154): the plan leaves room for the Vitest shards (the same
+      # history plan as shard-plan) plus lint, build, deadcode on a dispatch and one hand-off job, so no
+      # shard waits a wave.
+      - name: Plan grading shards from the diff
+        id: plan
+        env:
+          FIREGUARD_BASE_REF: ${{ steps.scope.outputs.base }}
+          CI_RUNNER_LIMIT: '40'
+          OTHER_JOBS: ${{ github.event_name == 'workflow_dispatch' && '4' || '3' }}
+          GH_TOKEN: ${{ github.token }}
+          CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          UNIT_JOBS="$(GITHUB_OUTPUT= node scripts/ciShardPlan.mjs 2>/dev/null | jq '.unit.include | length')"
+          BUDGET=$(( CI_RUNNER_LIMIT - UNIT_JOBS - OTHER_JOBS ))
+          if [ "$BUDGET" -lt 1 ]; then BUDGET=1; fi
+          npm run --silent fireguard -- --plan --runner-budget "$BUDGET" --json-out fireguard-plan.json
+          echo "grading=$(jq -c .matrix fireguard-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq .count fireguard-plan.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fireguard-plan
+          path: fireguard-plan.json
+          if-no-files-found: error
 
   fireguard-shards:
     name: fireguard-shards (${{ matrix.index }}/${{ matrix.count }})
-    needs: [shard-plan, fireguard-scope]
+    needs: [fireguard-scope]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.shard-plan.outputs.grading) }}
+      matrix: ${{ fromJSON(needs.fireguard-scope.outputs.grading) }}
     env:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
       FIREGUARD_CONCURRENCY: '1'
@@ -116,27 +223,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Grade disjoint flake runs and production modules
-        id: grade
         env:
           SHARD_INDEX: ${{ matrix.index }}
           SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
-        run: |
-          npm run fireguard -- --shard "$SHARD_POSITION" --json-out "shard-$SHARD_INDEX.json"
-          node -e 'const { readFileSync, appendFileSync } = require("node:fs");
-            const report = JSON.parse(readFileSync(`shard-${process.env.SHARD_INDEX}.json`, "utf8"));
-            const flake = report.gates?.flake;
-            if (!report.skipped && flake?.pass && flake.runs > 0 && flake.runs === flake.configuredRuns)
-              appendFileSync(process.env.GITHUB_OUTPUT, "active=true\n");'
-      - name: Record active Fireguard timing sample
-        if: steps.grade.outputs.active == 'true' && github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository
-        run: echo "Completed scoped grading; execution step is eligible as a future timing sample."
+        run: npm run fireguard -- --shard "$SHARD_POSITION" --json-out "shard-$SHARD_INDEX.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -146,7 +251,7 @@ jobs:
 
   fireguard:
     if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]')) }}
-    needs: [shard-plan, fireguard-scope, fireguard-shards]
+    needs: [fireguard-scope, fireguard-shards]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -155,19 +260,26 @@ jobs:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
       FIREGUARD_CONCURRENCY: '1'
     steps:
-      - name: Require a successful plan and pinned scope
+      - name: Require a pinned scope and grading plan
         env:
-          PLAN_RESULT: ${{ needs.shard-plan.result }}
           SCOPE_RESULT: ${{ needs.fireguard-scope.result }}
-        run: test "$PLAN_RESULT" = success && test "$SCOPE_RESULT" = success
+        run: test "$SCOPE_RESULT" = success
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: fireguard-node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'scripts/ptyHelperMode.mjs', 'scripts/xtermGraphemesPatch.mjs') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
       - uses: actions/download-artifact@v4
         with:
           pattern: fireguard-shard-*
@@ -176,7 +288,7 @@ jobs:
       - name: Combine raw counts, grade once and update one PR comment
         run: npm run fireguard -- --merge-shards fireguard-shards --shard-count "$SHARD_COUNT" --comment-pr --markdown-out fireguard-pr.md --json-out fireguard-report.json
         env:
-          SHARD_COUNT: ${{ needs.shard-plan.outputs.grading-count }}
+          SHARD_COUNT: ${{ needs.fireguard-scope.outputs.grading-count }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Require every grading job
         if: always()
@@ -197,6 +309,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -209,13 +323,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+      # Step names are the Definition of Done check names that `npm run verify:ci` reports.
+      - name: typecheck
+        run: npm run typecheck
+      - name: build
+        run: npm run build
       - name: Exercise delivery standards in the built desktop
         if: github.event_name == 'pull_request'
         run: node --import tsx scripts/native/deliveryStandardsEvidence.mjs
@@ -225,3 +344,18 @@ jobs:
           name: delivery-standards-desktop
           path: out/standards-evidence/*.png
           if-no-files-found: error
+
+  # Pull requests and main pushes run deadcode in deadcode.yml; a dispatch runs it here so one run holds every check.
+  deadcode:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run deadcode

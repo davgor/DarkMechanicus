@@ -1,6 +1,6 @@
 /** DM-949: the held target transition's refusals, cancellations and index alignment, driven through recovery on real repositories. */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VerifiedLearningManifest } from '../../shared/domain/kanban'
@@ -45,11 +45,13 @@ interface Fixture {
 
 /**
  * `sprint` at `base`, the guardrail branch one commit on adding `GUARDRAILS.md`, and a persisted plan to fast-forward
- * `sprint` to it whose apply died before the first canonical change. With `checkedOut`, the canonical checkout has `sprint`.
+ * `sprint` to it whose apply died before the first canonical change. With `checkedOut`, the canonical checkout has
+ * `sprint`; `prepare` stages more of `base` first.
  */
-async function fixture(checkedOut: boolean): Promise<Fixture> {
+async function fixture(checkedOut: boolean, prepare?: (repo: GitRepo) => void): Promise<Fixture> {
   const repo = createGitRepo()
   cleanups.push(repo.cleanup)
+  prepare?.(repo)
   put(repo.root, 'shared.txt', 'one\n')
   repo.git('add', '--', 'shared.txt')
   repo.git('commit', '-q', '-m', 'base')
@@ -301,5 +303,90 @@ describe('learning transition: classifying the holder worktree', () => {
     expect(f.repo.rev('sprint')).toBe(f.source)
     expect(readFileSync(join(f.repo.root, 'GUARDRAILS.md'), 'utf8')).toBe('never guess\n')
     expect(f.repo.git('status', '--porcelain=v1')).toBe('')
+  })
+})
+
+/** `base` with the submodule `mod` (a repository of its own) checked out at its first commit. */
+function withSubmodule(repo: GitRepo): void {
+  const sub = createGitRepo()
+  cleanups.push(sub.cleanup)
+  repo.git('-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub.root, 'mod')
+}
+
+describe('learning transition: submodules the user ignores (DM-983)', () => {
+  it('refuses a moved submodule that diff.ignoreSubmodules hides, and one staged that submodule.<name>.ignore hides', async () => {
+    const f = await fixture(true, withSubmodule)
+    gitIn(join(f.repo.root, 'mod'), 'commit', '-q', '--allow-empty', '-m', 'someone else\'s work')
+    f.repo.git('config', 'diff.ignoreSubmodules', 'all')
+    const moved = await refused(recover(deps(), f))
+    expect(moved.code).toBe('dirty_worktree')
+    expect(moved.message).toContain(`nor the integration's exact ${f.source.slice(0, 7)}: mod. Nothing was changed;`)
+
+    f.repo.git('config', '--unset', 'diff.ignoreSubmodules')
+    f.repo.git('config', 'submodule.mod.ignore', 'all')
+    f.repo.git('update-index', '--cacheinfo', `160000,${gitIn(join(f.repo.root, 'mod'), 'rev-parse', 'HEAD').trim()},mod`)
+    const staged = await refused(recover(deps(), f))
+    expect(staged.code).toBe('dirty_worktree')
+    expect(staged.message).toContain(': mod. Nothing was changed;')
+    expect(f.repo.rev('sprint')).toBe(f.base)
+    expect(existsSync(join(f.repo.root, 'GUARDRAILS.md'))).toBe(false)
+  })
+})
+
+/**
+ * Moves the checkout away and puts another repository at its path: a copy holding the same objects, refs and
+ * prepared ref, but not this integration's identity, as a clone would. Returns the original's new path.
+ */
+function rebind(f: Fixture): string {
+  const away = scratchDir('dm-learning-rebound-')
+  cleanups.push(away.cleanup)
+  const original = join(away.path, 'original')
+  renameSync(f.repo.root, original)
+  cpSync(original, f.repo.root, { recursive: true })
+  rmSync(join(f.repo.root, '.git', 'darkmechanicus', 'learning-prep', `${CARD}.identity`))
+  return original
+}
+
+const preparedRefs = (cwd: string): string => gitIn(cwd, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/darkmechanicus').trim()
+
+describe('learning transition: a checkout path rebound while held (DM-983)', () => {
+  it('refuses the next held write once the path is rebound after the first, and leaves the copy unmoved', async () => {
+    const f = await fixture(true)
+    put(f.repo.root, 'GUARDRAILS.md', 'never guess\n')
+    f.repo.git('add', '--', 'GUARDRAILS.md')
+    rmSync(join(f.repo.root, 'GUARDRAILS.md'))
+    const writes: string[] = []
+    const d = intercepting((request) => {
+      if (request.kind !== 'write' || isTransaction(request)) return null
+      writes.push(request.args.join(' '))
+      return writes.length === 1 ? runner.run(request).then((result) => (rebind(f), result)) : null
+    })
+    const error = await refused(recover(d, f))
+    expect(error.code).toBe('foreign_repository')
+    expect(error.message).toContain('its Git folder does not hold the identity this integration was prepared with')
+    expect(writes).toEqual(['update-index -z --index-info'])
+    expect(gitIn(f.repo.root, 'rev-parse', 'sprint').trim()).toBe(f.base)
+    expect(existsSync(join(f.repo.root, 'GUARDRAILS.md'))).toBe(false)
+  })
+
+  it('refuses to clean up a prepared ref once the path was rebound after the move, deleting nothing in the copy', async () => {
+    const f = await fixture(false)
+    let original = ''
+    const receipts: LearningIntegrationReceipt[] = []
+    const error = await refused(recoverLearningIntegration(deps(), {
+      attemptId: 'ka_01recovery',
+      plan: f.plan,
+      onApplied: async (receipt) => {
+        receipts.push(receipt)
+        original = rebind(f)
+      }
+    }))
+    expect(error.code).toBe('foreign_repository')
+    expect(error.message).toContain('its Git folder does not hold the identity this integration was prepared with. Nothing there was changed;')
+    expect(receipts).toEqual([{ repository: null, oldHead: f.base, newHead: f.source }])
+    const held = `refs/darkmechanicus/learning-prep/${CARD}/root ${f.source}`
+    expect(preparedRefs(f.repo.root)).toBe(held)
+    expect(preparedRefs(original)).toBe(held)
+    expect(gitIn(original, 'rev-parse', 'sprint').trim()).toBe(f.source)
   })
 })

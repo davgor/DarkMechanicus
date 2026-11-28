@@ -85,7 +85,10 @@ const answers = {
   get_capabilities: { role: 'worker', capabilities: ['ticket.claim'], note: 'grant ' + process.env.DM_SESSION_TOKEN, [process.env.DM_SESSION_TOKEN]: [process.env.DM_SESSION_TOKEN] },
   claim_ticket: { claimed: input, by: hostileName }
 }
-if (process.env.DM_SESSION_TOKEN.startsWith('revoked')) {
+if (process.env.DM_SESSION_TOKEN.startsWith('busy')) {
+  process.stdout.write(JSON.stringify({ ok: false, error: { code: 'busy', message: 'The project database is busy while opening the command session. Let the current write finish before trying again.', details: { stage: 'open' } } }))
+  process.exit(1)
+} else if (process.env.DM_SESSION_TOKEN.startsWith('revoked')) {
   process.stdout.write(JSON.stringify({ ok: false, error: { code: 'unauthorized', message: 'This grant was withdrawn: ' + process.env.DM_SESSION_TOKEN } }))
   process.exit(1)
 } else if (mode === 'garbage') {
@@ -1046,6 +1049,18 @@ describe('dm_call: refusals and failures', () => {
       expect(spy).not.toHaveBeenCalled()
       spy.mockRestore()
     }
+  })
+})
+
+describe('dm_call: busy refusals', () => {
+  it('reports a busy refusal by its machine-readable code, and a success that mentions busy as a success', async () => {
+    const busy = await toolsOver(createDmClient(realDeps('busy-grant-975'))).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'heartbeat_attempt', args: {} })
+    expect(busy.isError).toBe(true)
+    expect(JSON.parse(textOf(busy).split('\n').slice(1).join('\n'))).toMatchObject({ ok: false, error: { code: 'busy' } })
+    // A body that only says "busy" is data, never a refusal: clients key retries on error.code alone.
+    const claimed = await toolsOver(createDmClient(realDeps())).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'claim_ticket', args: { note: 'busy' } })
+    expect(claimed.isError).not.toBe(true)
+    expect(textOf(claimed)).toContain('busy')
   })
 })
 

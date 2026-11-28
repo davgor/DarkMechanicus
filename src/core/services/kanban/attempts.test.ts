@@ -342,11 +342,11 @@ describe('the claim packet', () => {
 })
 
 describe('claim leases and replays', () => {
-  it('uses the plan default lease of 900 seconds, and a null branch outside Git', () => {
+  it('uses the plan default lease of 3,600 seconds, and a null branch outside Git', () => {
     const ctx = board({ branch: null })
     ctx.desktop.clock.set('2026-10-31T09:00:00.000Z')
     const packet = claimedCard(ctx)
-    expect([packet.leaseExpiresAt, packet.heartbeatIntervalSeconds, packet.branch]).toEqual(['2026-10-31T09:15:00.000Z', 300, null])
+    expect([packet.leaseExpiresAt, packet.heartbeatIntervalSeconds, packet.branch]).toEqual(['2026-10-31T10:00:00.000Z', 1200, null])
   })
 
   it('replays a claim with the same idempotency key as the same packet without its token, and makes no second attempt', () => {
@@ -520,7 +520,7 @@ describe('heartbeat notes and lease lengths', () => {
     expect(kanbanEvents(ctx.desktop).map(([kind]) => kind)).toEqual(['created', 'played', 'claimed', 'running'])
   })
 
-  it('extends a claim that holds no lease length by the default 900 seconds', () => {
+  it('extends a claim that holds no lease length by the default 3,600 seconds', () => {
     const ctx = board()
     ctx.desktop.clock.set('2026-10-31T09:00:00.000Z')
     const packet = claimedCard(ctx, 120)
@@ -529,10 +529,10 @@ describe('heartbeat notes and lease lengths', () => {
 
     const view = heartbeatKanbanCard(ctx.worker, { attemptId: packet.attemptId, claimToken: token(packet) })
 
-    expect([view.state, view.leaseExpiresAt]).toEqual(['running', '2026-10-31T09:16:00.000Z'])
+    expect([view.state, view.leaseExpiresAt]).toEqual(['running', '2026-10-31T10:01:00.000Z'])
   })
 
-  it('extends by the default 900 seconds when the held lease had already ended as it was granted', () => {
+  it('extends by the default 3,600 seconds when the held lease had already ended as it was granted', () => {
     const ctx = board()
     ctx.desktop.clock.set('2026-10-31T09:00:00.000Z')
     const packet = claimedCard(ctx, 120)
@@ -540,7 +540,7 @@ describe('heartbeat notes and lease lengths', () => {
 
     const view = heartbeatKanbanCard(ctx.worker, { attemptId: packet.attemptId, claimToken: token(packet) })
 
-    expect(view.leaseExpiresAt).toBe('2026-10-31T09:15:00.000Z')
+    expect(view.leaseExpiresAt).toBe('2026-10-31T10:00:00.000Z')
   })
 
   it('masks the claim token and its bare secret wherever the agent pasted them', () => {

@@ -55,7 +55,7 @@ describe('claimTicket — a successful claim', () => {
       state: 'claimed',
       revisionId,
       ticketContentHash: contentHash(bundle.tickets[0]),
-      leaseExpiresAt: '2026-01-01T00:15:00.000Z',
+      leaseExpiresAt: '2026-01-01T01:00:00.000Z',
       decidedAt: null,
       worker: { sessionId: ctx.session.id, label: 'impl-1', modelId: null, hostId: null, catalogRevision: null, rationale: 'small change' }
     })
@@ -73,8 +73,8 @@ describe('claimTicket — a successful claim', () => {
       attemptId: attempt.id,
       claimToken: `${attempt.id}.secret-1`,
       fencingToken: 1,
-      leaseExpiresAt: '2026-01-01T00:15:00.000Z',
-      heartbeatIntervalSeconds: 300,
+      leaseExpiresAt: '2026-01-01T01:00:00.000Z',
+      heartbeatIntervalSeconds: 1200,
       epic: { id: epicId, title: 'Test epic', branch: { repository: null, name: 'main', startCommit: '0123456789abcdef0123456789abcdef01234567' } },
       revisionId,
       sprint: { id: sid(1), ordinal: 1, goal: 'Sprint 1 goal' },
@@ -418,7 +418,7 @@ describe('heartbeatAttempt', () => {
     const worker = withRole(ctx, 'worker')
     ctx.clock.advanceSeconds(100)
     const first = heartbeatAttempt(worker, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
-    expect(first).toMatchObject({ state: 'running', heartbeatAt: '2026-01-01T00:01:40.000Z', leaseExpiresAt: '2026-01-01T00:16:40.000Z' })
+    expect(first).toMatchObject({ state: 'running', heartbeatAt: '2026-01-01T00:01:40.000Z', leaseExpiresAt: '2026-01-01T01:01:40.000Z' })
     expect(eventKinds(ctx, 'attempt.')).toEqual(['attempt.claimed', 'attempt.running'])
     ctx.clock.advanceSeconds(100)
     const second = heartbeatAttempt(worker, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken, leaseSeconds: 60 })
@@ -472,8 +472,8 @@ describe('heartbeatAttempt — the length of the extended lease', () => {
     const claimed = claim(ctx, runId, 1)
     ctx.clock.advanceSeconds(300)
     const beat = heartbeatAttempt(withRole(ctx, 'worker'), { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
-    expect(bundle.policies.leaseSeconds).toBe(900)
-    expect(beat.leaseExpiresAt).toBe('2026-01-01T00:20:00.000Z')
+    expect(bundle.policies.leaseSeconds).toBe(3600)
+    expect(beat.leaseExpiresAt).toBe('2026-01-01T01:05:00.000Z')
   })
 
   it('keeps the length the last heartbeat named, and a length named again replaces it', () => {
@@ -511,7 +511,7 @@ describe('heartbeatAttempt — progress notes', () => {
     ctx.clock.advanceSeconds(100)
     const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
     const view = heartbeatAttempt(worker, { ...token, progress: { note: 'schema is in, wiring the service', step: 'coding' } })
-    expect(view).toMatchObject({ state: 'running', heartbeatAt: '2026-01-01T00:01:40.000Z', leaseExpiresAt: '2026-01-01T00:16:40.000Z' })
+    expect(view).toMatchObject({ state: 'running', heartbeatAt: '2026-01-01T00:01:40.000Z', leaseExpiresAt: '2026-01-01T01:01:40.000Z' })
     const [event, ...rest] = progressNotes(ctx, runId)
     expect(rest).toEqual([])
     expect(event).toMatchObject({
@@ -966,7 +966,7 @@ describe('claimedAttemptOf — a read-only claim check', () => {
     const ctx = createTestCtx()
     const { runId } = startedRun(ctx)
     const claimed = claim(ctx, runId, 1)
-    ctx.clock.advanceSeconds(3600)
+    ctx.clock.advanceSeconds(3601)
     const before = counts(ctx)
     expect(claimedAttemptOf(ctx, claimed.packet.claimToken)).toBeNull()
     expect(counts(ctx)).toEqual(before)

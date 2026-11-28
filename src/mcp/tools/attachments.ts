@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { attachmentPurpose, attachmentRef, LIMITS } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
+import { claimToken } from './params'
 import { defineTool, registerTools } from './define'
 
 const ATTACHMENT_TOOLS = [
@@ -13,7 +14,8 @@ const ATTACHMENT_TOOLS = [
     input: {
       path: z.string().min(1).max(4096).describe('Absolute path to the image file, or relative to the working folder.'),
       label: z.string().max(LIMITS.label).describe('A short label shown with the image.'),
-      purpose: attachmentPurpose.describe('evidence (proof of a result) or reference (a mockup or design to match).')
+      purpose: attachmentPurpose.describe('evidence (proof of a result) or reference (a mockup or design to match).'),
+      claimToken: claimToken.optional().describe('Your claim token while you hold a claim: the call also renews that lease.')
     },
     run: (api, input) => api.addAttachment(input)
   }),
