@@ -3,7 +3,7 @@
  * registered root checkout) and native apply then integrates that checkout with only that record kept; db mode and
  * operations this machine does not own stay strict. Real `RepositoryWorkspace.execute`, real Git.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { COMMAND_SCHEMAS } from '../../core/commandSchemas'
@@ -223,6 +223,27 @@ describe('repo-mode approval on the registered root checkout', () => {
     a.workspace.ctx().db.run('UPDATE learning_integrations SET owner_machine_id = NULL WHERE id = ?', id)
     expect(await learningOperationRecord(a.workspace, id)).toEqual({ record: null })
     expect(await learningOperationRecord(a.workspace, 'li_0000000000000000000000ff01')).toEqual({ record: null })
+  })
+})
+
+describe('DM-982: the owned record files an approval may keep', () => {
+  it('names exactly the current card records this machine exported, dropping missing, changed and foreign ones', async () => {
+    const a = await approvedCard('repo')
+    const id = await prepare(a)
+    const ctx = a.workspace.ctx()
+    const cardDir = `.darkmechanicus/kanban/${a.cardId}`
+    const events = ctx.db.all<{ id: string }>('SELECT id FROM kanban_events WHERE card_id = ? ORDER BY created_at, id', a.cardId).map((row) => `${cardDir}/events/${row.id}.json`)
+    expect(events.length).toBeGreaterThan(2)
+    const files = () => a.workspace.call('learningApprovalFiles', id)
+    expect(await files()).toEqual([`${cardDir}/card.json`, ...events])
+    expect((await learningOperationRecord(a.workspace, id)).record?.records).toEqual([`${cardDir}/card.json`, ...events])
+    put(a.repo.root, events[0] as string, '{"edited":true}\n')
+    rmSync(join(a.repo.root, `${cardDir}/card.json`))
+    // An unreadable owned file (empty: refused unread) is simply not named; it never fails the approval's derivation.
+    put(a.repo.root, events[1] as string, '')
+    expect(await files()).toEqual(events.slice(2))
+    ctx.db.run('UPDATE learning_integrations SET owner_machine_id = NULL WHERE id = ?', id)
+    expect(await files()).toEqual([])
   })
 })
 
