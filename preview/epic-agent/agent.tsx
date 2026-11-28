@@ -732,7 +732,8 @@ function browserState(scenario: BrowserScenarioName, after?: () => Promise<void>
 
 /**
  * The Browser tab's states: no tab with agents off, an Acolyte driving, the person in control, stopped, a private tab,
- * a site card per asker (agent, page, person) docked in the chat beside the panel, and the open Sites popover.
+ * a site card per asker (agent, page, person) docked in the chat beside the panel, the open Sites popover, and the
+ * camera's capture popover for a GUI chat and for a terminal one.
  */
 const browserStates: Record<string, StateDef> = {
   'browser-empty': browserState('browser-empty'),
@@ -768,12 +769,32 @@ const browserStates: Record<string, StateDef> = {
       context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
       context.backend.browser.current = browserScenarios['browser-origin']
     }
+  },
+  // The camera's capture of the agent tab in its popover over the hidden page area: Add to message for the Magos's
+  // composer, and Attach as evidence to the epic (the badge's DM-442 is not one of the plan's tickets).
+  'browser-camera': browserState('browser-agent', capture),
+  // The Magos runs in a terminal, whose view has no composer: Add to message is off and says why.
+  'browser-camera-terminal': {
+    ...browserState('browser-agent', capture),
+    seed: (context) => {
+      context.chats = context.chats.map((chat) => chat.id === ORCHESTRATOR.id ? { ...chat, surface: 'terminal' } : chat)
+      context.backend.browser.current = browserScenarios['browser-agent']
+    }
   }
 }
 
 /** The chat's site card for the seeded pending origin, docked above the composer. */
 async function siteCard(): Promise<void> {
   await until(() => $('section.agent-chat .origin-prompt h3'), 'the chat’s site card')
+}
+
+/** Captures the agent tab with the toolbar's camera, real clicks only, and waits for the popover's loaded thumbnail. */
+async function capture(): Promise<void> {
+  await clickWhenPresent(() => buttonNamed('Capture the agent tab', $('.bp') ?? document), 'the camera button')
+  await until(() => {
+    const thumb = $('.bp-camera-popover img.bp-camera-thumb')
+    return thumb instanceof HTMLImageElement && thumb.complete && thumb.naturalWidth > 0
+  }, 'the capture popover’s thumbnail')
 }
 
 /** The delivery seeds: a plan whose Sprint 1 declares delivery to main, as a draft, a held run and a checkpoint. */
@@ -1521,6 +1542,7 @@ function browserObservations(): Record<string, unknown> | null {
   const enabled = $('input[role="switch"]', panel)
   const address = $('input[aria-label="Private tab address"]', panel)
   const sites = $('.bp-sites-popover', panel)
+  const shot = $('.bp-camera-popover', panel)
   return {
     badge: text($('[aria-label="Browser owner"]', panel)),
     tabs: [...panel.querySelectorAll('.bp-tab-title')].map(text),
@@ -1533,7 +1555,20 @@ function browserObservations(): Record<string, unknown> | null {
     siteCard: siteCardObservations($('section.agent-chat .origin-prompt'), $('section.agent-chat .chat-composer')),
     panelSiteCard: siteCardObservations($('.origin-prompt', panel), $('.bp-content', panel)),
     sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
-    sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect())
+    sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect()),
+    camera: cameraObservations(shot, panel)
+  }
+}
+
+/** The camera's popover: its thumbnail loaded, each button and whether it is on, its notes, and that it stays in the panel. */
+function cameraObservations(shot: HTMLElement | null, panel: HTMLElement): Record<string, unknown> | null {
+  if (shot === null) return null
+  const thumb = $('img.bp-camera-thumb', shot)
+  return {
+    thumbLoaded: thumb instanceof HTMLImageElement && thumb.complete && thumb.naturalWidth > 0,
+    buttons: [...shot.querySelectorAll('button')].map((button) => ({ text: text(button), enabled: !button.disabled })),
+    notes: [...shot.querySelectorAll('.bp-camera-note')].map(text),
+    inPanel: boxInside(shot.getBoundingClientRect(), panel.getBoundingClientRect())
   }
 }
 
@@ -1704,7 +1739,7 @@ const SIZED_STATES: Record<string, true> = {
   'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
   'question-form': true, 'browser-empty': true, 'browser-agent': true, 'browser-person': true, 'browser-stopped': true,
   'browser-private': true, 'browser-origin': true, 'browser-origin-page': true, 'browser-origin-person': true, 'browser-sites': true,
-  'browser-origin-terminal': true
+  'browser-origin-terminal': true, 'browser-camera': true, 'browser-camera-terminal': true
 }
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */

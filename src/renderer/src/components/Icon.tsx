@@ -36,6 +36,8 @@ const ICON_PATHS = {
   lock: 'M4 7.5h8v6H4zM5.5 7.5v-2a2.5 2.5 0 0 1 5 0v2',
   /** A framed picture: a model that reads images. */
   image: 'M2.5 3.5h11v9h-11zM2.5 10.5l3-3 3 3 2-2 3 3M10.5 6.5h.01',
+  /** A camera: the Browser panel's capture of the agent tab. */
+  camera: 'M2 5h3l1.25-1.5h3.5L11 5h3v8H2zM8 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   /** A bar chart: the Metrics dashboard. */
   chart: 'M2.5 13.5h11M4.5 11V8.5M8 11V4M11.5 11V6.5',
   /** A gear (eight closed teeth round a hub, not loose rays that read as a sun): the app Settings screen. */

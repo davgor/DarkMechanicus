@@ -233,7 +233,7 @@ export function startBrowser<View extends WiredView>(deps: BrowserWiringDeps<Vie
       await shots.dispose()
     },
     registerIpc: (ipc) => registerBrowserIpc(ipc, createBrowserIpcHandlers({
-      registry: deps.registry, host, ownership, settings, sites, driverFor: views.driverFor, contentsFor: views.contentsFor,
+      registry: deps.registry, host, ownership, settings, sites, images: deps.images, driverFor: views.driverFor, contentsFor: views.contentsFor,
       onUnexpectedError: (error) => deps.log(`Browser request failed: ${error instanceof Error ? error.message : String(error)}`)
     }))
   }

@@ -34,7 +34,8 @@ export const STATES = Object.freeze([
   'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024', 'browser-person-1440',
   'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
   'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
-  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024'
+  'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
+  'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440'
 ])
 
 /**
@@ -56,8 +57,8 @@ export const STATE_DEADLINE_MS = 15_000
  * built page is one bundled script. The build took about 4 s on a quiet Windows host; the bound allows 15 times that.
  */
 export const BUILD_LIMIT_MS = 60_000
-/** A declared bound once the preview is built: 74 states at up to 15 s each, plus the preview server and Electron start. */
-export const OVERALL_LIMIT_MS = 1_125_000
+/** A declared bound once the preview is built: 78 states at up to 15 s each, plus the preview server and Electron start. */
+export const OVERALL_LIMIT_MS = 1_185_000
 export const MIN_PNG_BYTES = 10 * 1024
 /** Fewer distinct colours than this among a capture's sampled pixels is a blank page. */
 export const MIN_COLORS = 16
@@ -312,6 +313,20 @@ function browserChecks(badge, { stop, toggle, tabs = [BROWSER_TAB] }) {
 const BROWSER_SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0.1:4173']
 const BROWSER_HIDDEN = 'Browser hidden while Sites is open'
 const SITE_BUTTONS = ['Allow once', 'Always allow', 'Deny']
+
+/** The page area's note while the camera's popover hides the view, and why a chat with no composer cannot add. */
+const CAMERA_HIDDEN = 'Browser hidden while the capture is open'
+const CAMERA_NO_COMPOSER = 'No message is open for this chat here. Open its chat to add the capture to a message.'
+
+/** The camera's popover inside the panel over the hidden page area: its loaded thumbnail, both actions and its notes. */
+function cameraCheck({ add, notes }) {
+  const buttons = [{ text: 'Add to message', enabled: add }, { text: 'Attach as evidence', enabled: true }]
+  const camera = (o) => o.browserPanel?.camera ?? null
+  return [`the capture popover shows its thumbnail, ${JSON.stringify(buttons)} and ${JSON.stringify(notes)} inside the panel over the hidden page area`,
+    (o) => camera(o)?.thumbLoaded === true && JSON.stringify(camera(o).buttons) === JSON.stringify(buttons)
+      && JSON.stringify(camera(o).notes) === JSON.stringify(notes) && camera(o).inPanel === true && o.browserPanel.page === CAMERA_HIDDEN,
+    (o) => JSON.stringify([camera(o), o.browserPanel?.page])]
+}
 
 /**
  * The site card headed by who asked, labelled by the origin, with its three answers, docked in one place only: above a
@@ -637,6 +652,14 @@ const STATE_CHECKS = {
   'browser-origin-terminal': [
     ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
     siteCardCheck('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com', 'panel')
+  ],
+  'browser-camera': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    cameraCheck({ add: true, notes: ['Evidence goes to the epic.'] })
+  ],
+  'browser-camera-terminal': [
+    ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
+    cameraCheck({ add: false, notes: [CAMERA_NO_COMPOSER, 'Evidence goes to the epic.'] })
   ]
 }
 

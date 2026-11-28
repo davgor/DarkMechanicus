@@ -2,7 +2,7 @@
  * The `browser:*` IPC channels behind `window.dm.browser`: each takes one untrusted payload, validated by the strict
  * contract schemas (`shared/browser/browserApi.ts`), resolves the chat's folder through the folder registry
  * (`chatFolder`, as `agentChat:*` does) and answers a `CommandResult`. Register through the sender guard (`guardIpc`),
- * like every other channel; `browser:capture` is registered by the camera ticket, not here.
+ * like every other channel.
  *
  * - Stop, Take control and Hand back go through ownership and apply its effects on the chat's agent tab in the same
  *   tick: the debugger is detached and loading stopped before the handler first awaits anything.
@@ -11,12 +11,17 @@
  *   `removeSite` say, is opened through `host.navigate` instead, which raises the origin card; the tab never moves in
  *   history. The session's frame gate stays the backstop.
  * - A person's navigation the origin policy holds for a decision answers ok: the card is the answer.
+ * - Capture (the panel's camera) keeps a PNG of the chat's agent tab in the chat's image store and answers its ref:
+ *   `no_tab` without an agent tab, and `view_hidden` unless that tab is the one shown on the window. The Sign-in tab
+ *   draws over the agent tab while it is open, so nothing is captured then: the private tab never is. The capture
+ *   reads the page with `capturePage`, never through the debugger, so it leaves the person's control as it was.
  * - State reaches the windows on `browser:event`, validated; never a browser view.
  */
 import type { IpcMain } from 'electron'
 import type { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
+import type { ChatImageRef } from '../../shared/agents/chat'
 import {
   BROWSER_CHANNELS,
   browserChatSchema,
@@ -30,18 +35,19 @@ import {
   browserStateSchema,
   type BrowserState
 } from '../../shared/browser/browserApi'
-import { BrowserControlError } from '../../shared/browser/browserControl'
+import { BrowserControlError, type BrowserErrorCode } from '../../shared/browser/browserControl'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { ChatImages } from '../agentChat/chatImages'
 import { answer, chatFolder } from '../agents/chatHandlers'
 import { sendToWindows, type ChatWindow } from '../agents/chatIpc'
 import type { FolderRegistry } from '../desktop/folderRegistry'
-import type { BrowserDriver } from './browserDriver'
+import { OP_DEADLINE_MS, type BrowserDriver, type DriverContents } from './browserDriver'
 import type { AgentTab, BrowserChatRef, BrowserHost, NavigateResult } from './browserHost'
 import type { BrowserOwnership, BrowserOwnershipEffect } from './browserOwnership'
 import type { BrowserSettings } from './browserSettings'
 import type { SiteStore } from './siteStore'
 
-/** An agent tab's history and loading controls; Electron's `WebContents` satisfies it. */
+/** An agent tab's history, loading and capture controls; Electron's `WebContents` satisfies it. */
 export interface PanelContents {
   readonly id: number
   readonly navigationHistory: {
@@ -53,14 +59,17 @@ export interface PanelContents {
   }
   reload(): void
   stop(): void
+  capturePage: DriverContents['capturePage']
 }
 
 interface BrowserIpcDeps {
   registry: Pick<FolderRegistry, 'resolve'>
-  host: Pick<BrowserHost, 'state' | 'setView' | 'navigate' | 'agentTab' | 'frameAllowed' | 'decideOrigin' | 'openSignIn' | 'closeSignIn' | 'refresh'>
+  host: Pick<BrowserHost, 'state' | 'setView' | 'navigate' | 'agentTab' | 'isShown' | 'frameAllowed' | 'decideOrigin' | 'openSignIn' | 'closeSignIn' | 'refresh'>
   ownership: Pick<BrowserOwnership, 'stop' | 'takeControl' | 'handBack'>
   settings: Pick<BrowserSettings, 'setEnabled'>
   sites: Pick<SiteStore, 'list' | 'remove'>
+  /** The chats' image store, which keeps each capture for the chat. */
+  images: Pick<ChatImages, 'put'>
   /** The tab's driver, which holds its debugger session. */
   driverFor(tab: AgentTab): Pick<BrowserDriver, 'detach'>
   /** The tab's own contents, for its history and loading. */
@@ -82,6 +91,7 @@ export interface BrowserIpcHandlers {
   handBack: Handler<null>
   decideOrigin: Handler<null>
   openSignIn: Handler<null>
+  capture: Handler<{ image: ChatImageRef }>
   closeSignIn: Handler<null>
   sites: Handler<string[]>
   removeSite: Handler<null>
@@ -98,9 +108,14 @@ function chatRequest<T extends { folder: string | null; chatId: string }>(regist
   return { ref: { folder: folderOf(registry, request.folder), chatId: request.chatId }, request }
 }
 
+/** A browser refusal as the panel's error: its code and the contract's message. */
+function refusal(code: BrowserErrorCode): DomainError {
+  return new DomainError(code, new BrowserControlError(code).message)
+}
+
 /** A person's navigation: one waiting for the origin card is answered; any other refusal is the error. */
 function personNavigation(result: NavigateResult): null {
-  if (!result.ok && result.code !== 'origin_blocked') throw new DomainError(result.code, new BrowserControlError(result.code).message)
+  if (!result.ok && result.code !== 'origin_blocked') throw refusal(result.code)
   return null
 }
 
@@ -145,9 +160,26 @@ async function moveInHistory(deps: BrowserIpcDeps, ref: BrowserChatRef, step: -1
   return null
 }
 
-type PageHandlers = Pick<BrowserIpcHandlers, 'state' | 'setView' | 'navigate' | 'back' | 'forward' | 'reload' | 'decideOrigin' | 'openSignIn' | 'closeSignIn'>
+/**
+ * The chat's agent tab as a PNG in the chat's image store. The tab must be the one shown on the window before and after
+ * the capture (a Sign-in tab over it, or a tab replaced meanwhile, refuses); it waits for the page's first paint
+ * within the browser op deadline, and an empty or failed capture is `navigation_failed`, as the agent's screenshot.
+ */
+async function captureAgentTab(deps: BrowserIpcDeps, ref: BrowserChatRef): Promise<{ image: ChatImageRef }> {
+  const tab = deps.host.agentTab(ref)
+  if (tab === null) throw refusal('no_tab')
+  const shown = (): boolean => deps.host.isShown(ref) && deps.host.agentTab(ref)?.contents === tab.contents
+  if (!shown()) throw refusal('view_hidden')
+  await tab.whenReady(AbortSignal.timeout(OP_DEADLINE_MS)).catch(() => { throw refusal('timeout') })
+  const page = await deps.contentsFor(tab).capturePage().catch(() => { throw refusal('navigation_failed') })
+  if (page.isEmpty()) throw refusal('navigation_failed')
+  if (!shown()) throw refusal('view_hidden')
+  return { image: await deps.images.put(ref, page.toPNG()) }
+}
 
-/** What the panel shows and where it goes: the state, the view's placement, navigation, history and the origin card. */
+type PageHandlers = Pick<BrowserIpcHandlers, 'state' | 'setView' | 'navigate' | 'back' | 'forward' | 'reload' | 'decideOrigin' | 'openSignIn' | 'closeSignIn' | 'capture'>
+
+/** What the panel shows and where it goes: the state, the view's placement, navigation, history, the origin card and the camera. */
 function pageHandlers(deps: BrowserIpcDeps): PageHandlers {
   const { registry, host } = deps
   const chat = (input: unknown) => chatRequest(registry, browserChatSchema, input).ref
@@ -179,7 +211,8 @@ function pageHandlers(deps: BrowserIpcDeps): PageHandlers {
     closeSignIn: input => answer(deps, () => {
       host.closeSignIn(chat(input))
       return null
-    })
+    }),
+    capture: input => answer(deps, () => captureAgentTab(deps, chat(input)))
   }
 }
 
@@ -227,6 +260,7 @@ export function registerBrowserIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: B
   ipcMain.handle(BROWSER_CHANNELS.handBack, (_event, request: unknown) => handlers.handBack(request))
   ipcMain.handle(BROWSER_CHANNELS.decideOrigin, (_event, request: unknown) => handlers.decideOrigin(request))
   ipcMain.handle(BROWSER_CHANNELS.openSignIn, (_event, request: unknown) => handlers.openSignIn(request))
+  ipcMain.handle(BROWSER_CHANNELS.capture, (_event, request: unknown) => handlers.capture(request))
   ipcMain.handle(BROWSER_CHANNELS.closeSignIn, (_event, request: unknown) => handlers.closeSignIn(request))
   ipcMain.handle(BROWSER_CHANNELS.sites, (_event, request: unknown) => handlers.sites(request))
   ipcMain.handle(BROWSER_CHANNELS.removeSite, (_event, request: unknown) => handlers.removeSite(request))

@@ -1,9 +1,9 @@
 /**
- * The `browser:*` panel channels: exactly the contract's (capture aside), every one behind the sender guard, each
- * payload validated by the strict schemas and its folder resolved through the registry before the host is reached.
- * Stop, Take control and Hand back apply ownership's effects on the tab in the same tick. Back, Forward and Reload
- * run against the real host and a real site list: a target the folder no longer allows raises the origin card and the
- * tab never moves in history (R19-1).
+ * The `browser:*` panel channels: exactly the contract's, every one behind the sender guard, each payload validated by
+ * the strict schemas and its folder resolved through the registry before the host is reached. Stop, Take control and
+ * Hand back apply ownership's effects on the tab in the same tick. Back, Forward and Reload run against the real host
+ * and a real site list: a target the folder no longer allows raises the origin card and the tab never moves in history
+ * (R19-1). Capture keeps the shown agent tab's PNG in a real chat image store, and never captures a Sign-in tab.
  */
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { BROWSER_CHANNELS, type BrowserState } from '../../shared/browser/browserApi'
 import type { CommandResult } from '../../shared/desktop/api'
+import { pngBytes } from '../../test/images'
+import { createChatImages } from '../agentChat/chatImages'
 import type { ChatWindow } from '../agents/chatIpc'
 import { guardIpc } from '../ipcGuard'
 import { createBrowserHost, type AgentTab, type BrowserHost, type HostContents } from './browserHost'
@@ -25,7 +27,8 @@ const APP_URL = 'http://localhost:5173'
 const REPO = '/work/repo'
 const CHAT = { folder: REPO, chatId: 'chat_1' }
 const REF = { folder: REPO, chatId: 'chat_1' }
-const INVOKED = Object.values(BROWSER_CHANNELS).filter((channel) => channel !== BROWSER_CHANNELS.event && channel !== BROWSER_CHANNELS.capture).sort()
+const INVOKED = Object.values(BROWSER_CHANNELS).filter((channel) => channel !== BROWSER_CHANNELS.event).sort()
+const PNG = pngBytes(4, 3)
 const frame = (url: string, parent: object | null = null) => ({ url, parent, detached: false, isDestroyed: () => false })
 const TRUSTED = { sender: {}, senderFrame: frame(`${APP_URL}/`) } as unknown as IpcMainInvokeEvent
 const STATE: BrowserState = { ...CHAT, enabled: true, owner: 'none', ownerLabel: null, tab: null, signIn: null, pendingOrigin: null }
@@ -46,7 +49,8 @@ const REQUESTS: Record<string, Record<string, unknown>> = {
   [BROWSER_CHANNELS.closeSignIn]: CHAT,
   [BROWSER_CHANNELS.sites]: { folder: REPO },
   [BROWSER_CHANNELS.removeSite]: { folder: REPO, origin: 'https://a.example' },
-  [BROWSER_CHANNELS.setEnabled]: { enabled: false }
+  [BROWSER_CHANNELS.setEnabled]: { enabled: false },
+  [BROWSER_CHANNELS.capture]: CHAT
 }
 
 const codeOf = (result: CommandResult<unknown>) => (result.ok ? 'ok' : result.error.code)
@@ -76,7 +80,8 @@ function historyContents() {
       goForward: vi.fn(() => { active += 1 })
     },
     reload: vi.fn(),
-    stop: vi.fn()
+    stop: vi.fn(),
+    capturePage: vi.fn(async (): Promise<{ isEmpty(): boolean; toPNG(): Buffer }> => ({ isEmpty: () => false, toPNG: () => PNG }))
   }
   return contents
 }
@@ -105,17 +110,18 @@ function rig() {
   const driver = { detach: vi.fn() }
   const host = {
     state: record('state', STATE), setView: record('setView', undefined),
-    navigate: record('navigate', Promise.resolve({ ok: true })), agentTab: vi.fn(() => tab as AgentTab | null),
+    navigate: record('navigate', Promise.resolve({ ok: true })), agentTab: vi.fn(() => tab as AgentTab | null), isShown: vi.fn(() => true),
     frameAllowed: record('frameAllowed', Promise.resolve(true)), decideOrigin: record('decideOrigin', Promise.resolve({ ok: true })),
     openSignIn: record('openSignIn', Promise.resolve({ ok: true })), closeSignIn: record('closeSignIn', undefined), refresh: record('refresh', undefined)
-  } as unknown as Pick<BrowserHost, 'state' | 'setView' | 'navigate' | 'agentTab' | 'frameAllowed' | 'decideOrigin' | 'openSignIn' | 'closeSignIn' | 'refresh'>
+  } as unknown as Pick<BrowserHost, 'state' | 'setView' | 'navigate' | 'agentTab' | 'isShown' | 'frameAllowed' | 'decideOrigin' | 'openSignIn' | 'closeSignIn' | 'refresh'>
   const ownership = createBrowserOwnership()
   const settings = { setEnabled: record('setEnabled', Promise.resolve()) }
   const sites = { list: record('list', Promise.resolve(['https://a.example'])), remove: record('remove', Promise.resolve([])) }
+  const images = { put: record('put', Promise.resolve({ id: 'ci_00000000000000000000000000', mime: 'image/png' as const, width: 4, height: 3, bytes: PNG.length })) }
   const { ipc, listeners, refused, invoke } = guarded()
   const onUnexpectedError = vi.fn()
   registerBrowserIpc(ipc, createBrowserIpcHandlers({
-    registry: { resolve: (path) => (path === REPO ? REPO : null) }, host, ownership, settings, sites,
+    registry: { resolve: (path) => (path === REPO ? REPO : null) }, host, ownership, settings, sites, images,
     driverFor: (handle) => { calls.push(['driverFor', handle === tab]); return driver },
     contentsFor: (handle) => { calls.push(['contentsFor', handle === tab]); return contents as PanelContents },
     onUnexpectedError
@@ -124,7 +130,7 @@ function rig() {
 }
 
 describe('browser panel IPC registration (c1)', () => {
-  it('registers exactly the panel channels, each once: never capture or the event channel', () => {
+  it('registers exactly the panel channels, each once, capture included: never the event channel', () => {
     expect([...rig().listeners.keys()].sort()).toEqual(INVOKED)
   })
 
@@ -266,12 +272,13 @@ describe('browser panel ownership effects (c2)', () => {
   })
 })
 
-/** The real host over one fake tab, a real site list in a temp folder and the panel channels on top. */
+/** The real host over fake tabs, a real site list and chat image store in a temp folder, and the panel channels on top. */
 function hostRig(options: { sites?: (store: SiteStore) => SiteStore } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dm-browser-ipc-'))
   roots.push(root)
   const store = createSiteStore({ root, log: () => undefined })
   const sites = options.sites?.(store) ?? store
+  const images = createChatImages({ root: join(root, 'chat-images') })
   const ownership: BrowserOwnership = createBrowserOwnership()
   const tabs: HistoryContents[] = []
   const pushed: BrowserState[] = []
@@ -286,13 +293,15 @@ function hostRig(options: { sites?: (store: SiteStore) => SiteStore } = {}) {
     push: (state) => pushed.push(state), log: () => undefined
   })
   const { ipc, invoke } = guarded()
+  const onUnexpectedError = vi.fn()
   registerBrowserIpc(ipc, createBrowserIpcHandlers({
     registry: { resolve: (path) => (path === REPO ? REPO : null) }, host, ownership, settings: { setEnabled: async () => undefined }, sites,
-    driverFor: () => ({ detach: vi.fn() }),
-    contentsFor: (tab) => tab.contents as unknown as PanelContents
+    images, driverFor: () => ({ detach: vi.fn() }),
+    contentsFor: (tab) => tab.contents as unknown as PanelContents,
+    onUnexpectedError
   }))
   const tab = (): HistoryContents => tabs[0]!
-  return { host, store, invoke, tab, pushed }
+  return { host, store, images, invoke, tab, tabs, pushed, onUnexpectedError }
 }
 
 /** The tab, with both origins always allowed, went a → b. */
@@ -373,6 +382,92 @@ describe('browser panel origin decisions', () => {
     expect(result).toEqual({ ok: false, error: { code: 'capacity_exceeded', message: 'A folder can always allow at most 200 sites.' } })
     expect(state.host.state(REF).pendingOrigin).toBeNull()
     expect(state.tab().loadURL).not.toHaveBeenCalled()
+  })
+})
+
+const BOUNDS = { x: 0, y: 0, width: 400, height: 300 }
+
+/** The agent tab on an always-allowed page, placed on the window. */
+async function shownAgentTab(state: ReturnType<typeof hostRig>): Promise<HistoryContents> {
+  await state.store.add(REPO, 'https://a.example')
+  expect(await state.invoke(BROWSER_CHANNELS.navigate, { ...CHAT, url: 'https://a.example/' })).toEqual({ ok: true, data: null })
+  expect(await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: BOUNDS })).toEqual({ ok: true, data: null })
+  return state.tab()
+}
+
+describe('browser panel camera: the stored capture and no_tab (DM-873 c1)', () => {
+  it('stores one PNG of the shown agent tab in the chat image store and answers its ref', async () => {
+    const state = hostRig()
+    const tab = await shownAgentTab(state)
+    const put = vi.spyOn(state.images, 'put')
+    const result = await state.invoke(BROWSER_CHANNELS.capture, CHAT)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledWith(REF, PNG)
+    const image = await put.mock.results[0]!.value
+    expect(image).toEqual({ id: expect.stringMatching(/^ci_/), mime: 'image/png', width: 4, height: 3, bytes: PNG.length })
+    expect(result).toEqual({ ok: true, data: { image } })
+    expect(tab.capturePage).toHaveBeenCalledTimes(1)
+    const stored = await state.images.read(REF, image.id)
+    expect(stored === null ? null : Buffer.from(stored.bytes).equals(PNG)).toBe(true)
+    // The image is the chat's own: another chat of the folder cannot read it.
+    expect(await state.images.read({ ...REF, chatId: 'chat_2' }, image.id)).toBeNull()
+    expect(state.onUnexpectedError).not.toHaveBeenCalled()
+  })
+
+  it('refuses with no_tab when the chat has no tab, or only a Sign-in tab, and captures nothing', async () => {
+    const state = hostRig()
+    expect(await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: BOUNDS })).toEqual({ ok: true, data: null })
+    expect(await state.invoke(BROWSER_CHANNELS.capture, CHAT)).toEqual({ ok: false, error: { code: 'no_tab', message: 'No browser tab is open.' } })
+    await state.store.add(REPO, 'https://login.example')
+    expect(await state.invoke(BROWSER_CHANNELS.openSignIn, { ...CHAT, url: 'https://login.example/' })).toEqual({ ok: true, data: null })
+    expect(state.tabs).toHaveLength(1)
+    expect(state.host.agentTab(REF)).toBeNull()
+    expect(codeOf(await state.invoke(BROWSER_CHANNELS.capture, CHAT))).toBe('no_tab')
+    expect(state.tab().capturePage).not.toHaveBeenCalled()
+    expect(state.onUnexpectedError).not.toHaveBeenCalled()
+  })
+})
+
+describe('browser panel camera: hidden views and failed captures (DM-873 c1)', () => {
+  it('never captures a Sign-in tab open over the agent tab: view_hidden, and neither page is read', async () => {
+    const state = hostRig()
+    const agent = await shownAgentTab(state)
+    await state.store.add(REPO, 'https://login.example')
+    expect(await state.invoke(BROWSER_CHANNELS.openSignIn, { ...CHAT, url: 'https://login.example/' })).toEqual({ ok: true, data: null })
+    const signIn = state.tabs[1]!
+    expect(await state.invoke(BROWSER_CHANNELS.capture, CHAT)).toEqual({
+      ok: false, error: { code: 'view_hidden', message: 'The screenshot was refused: browser view not visible.' }
+    })
+    expect(agent.capturePage).not.toHaveBeenCalled()
+    expect(signIn.capturePage).not.toHaveBeenCalled()
+  })
+
+  it('refuses a hidden view with view_hidden, and an empty or failed capture with navigation_failed, storing nothing', async () => {
+    const state = hostRig()
+    const tab = await shownAgentTab(state)
+    const put = vi.spyOn(state.images, 'put')
+    expect(await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: null })).toEqual({ ok: true, data: null })
+    expect(codeOf(await state.invoke(BROWSER_CHANNELS.capture, CHAT))).toBe('view_hidden')
+    expect(tab.capturePage).not.toHaveBeenCalled()
+    await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: BOUNDS })
+    tab.capturePage.mockResolvedValueOnce({ isEmpty: () => true, toPNG: () => PNG })
+    expect(codeOf(await state.invoke(BROWSER_CHANNELS.capture, CHAT))).toBe('navigation_failed')
+    tab.capturePage.mockRejectedValueOnce(new Error('UnknownVizError'))
+    expect(codeOf(await state.invoke(BROWSER_CHANNELS.capture, CHAT))).toBe('navigation_failed')
+    expect(put).not.toHaveBeenCalled()
+    expect(state.onUnexpectedError).not.toHaveBeenCalled()
+  })
+
+  it('refuses a view hidden while the page was being read, storing nothing', async () => {
+    const state = hostRig()
+    const tab = await shownAgentTab(state)
+    const put = vi.spyOn(state.images, 'put')
+    tab.capturePage.mockImplementationOnce(async () => {
+      state.host.setView(REF, null)
+      return { isEmpty: () => false, toPNG: () => PNG }
+    })
+    expect(codeOf(await state.invoke(BROWSER_CHANNELS.capture, CHAT))).toBe('view_hidden')
+    expect(put).not.toHaveBeenCalled()
   })
 })
 

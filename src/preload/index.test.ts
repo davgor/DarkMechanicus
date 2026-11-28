@@ -115,11 +115,10 @@ const wireArgs: Record<string, (args: unknown[]) => unknown[]> = {
 
 /**
  * Bridged methods whose channel main does not register here, so the invoke reaches no handler: the agent-chat contract
- * landed before its main handlers (DM-770), and `browser:capture` is registered by the camera ticket.
+ * landed before its main handlers (DM-770).
  */
 function unregisteredChannel(path: string): string | undefined {
-  if (path.startsWith('dm.agentChat.')) return AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>]
-  return path === 'dm.browser.capture' ? BROWSER_CHANNELS.capture : undefined
+  return path.startsWith('dm.agentChat.') ? AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>] : undefined
 }
 
 /** The payload each subscription's push carries when it must be valid to be forwarded; `{ payload: path }` otherwise. */

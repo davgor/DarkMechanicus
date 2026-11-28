@@ -1,4 +1,4 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import type { AgentChatAnswer, AgentChatApi } from '../../../shared/agents/agentChat'
 import type { BrowserApi } from '../../../shared/browser/browserApi'
@@ -18,7 +18,7 @@ import { TurnActivityLine } from './TurnActivityLine'
 import { ChatAgentsRail, useChatRail, useThreadReveal, type RailChat } from './ChatAgentsRail'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat, useMailTranscript, type TranscriptLine } from './useAgentChat'
-import { ChatImagesContext, useChatImages, type ChatImages } from './useChatImages'
+import { ChatImagesContext, useChatImages, type ChatImages, type ChatImagesHandle, type StageImage } from './useChatImages'
 import '../agents/chatView.css'
 import './agentChat.css'
 import '../agents/chatThreads.css'
@@ -49,6 +49,11 @@ interface Props {
   skitarii?: boolean
   /** The in-app browser (`window.dm.browser`): its pending site prompt docks above the composer. None shows no site card. */
   browser?: BrowserApi
+  /**
+   * Hands the composer's images to a panel outside the chat (the epic's Browser rail, whose camera adds captures as
+   * chips); called with null once the chat closes. The chat's own rail gets them from context without it.
+   */
+  shareImages?(images: ChatImagesHandle | null): void
 }
 
 /** Key local drafts and in-flight UI state to the chat, just like the model subscription. */
@@ -89,13 +94,25 @@ function useChatCommand(): ChatCommand {
 
 const ORDINARY_CHAT: RailChat = { role: 'worker' }
 
+/** The composer's images, handed to `shareImages` (see `Props.shareImages`) while the chat is open, and null after. */
+function useComposerImages(stage: StageImage, shareImages: Props['shareImages']): ChatImages {
+  const images = useChatImages(stage)
+  const { addStaged } = images
+  useEffect(() => {
+    if (shareImages === undefined) return undefined
+    shareImages({ addStaged })
+    return () => shareImages(null)
+  }, [shareImages, addStaged])
+  return images
+}
+
 function ChatView({
   folder, folderKey = null, chatId, agentLabel, agentChip, context, api, scheduler, rail = 'none', chat = ORDINARY_CHAT, revealThreadId, onRevealed,
-  epic, skitarii, browser
+  epic, skitarii, browser, shareImages
 }: Props): JSX.Element {
   const { state, send, stageImage, interrupt, setSurface, answer, models, setModel } = useAgentChat({ folder, chatId, api, scheduler })
   const transcript = useMailTranscript(folder, chatId, state.items)
-  const images = useChatImages(stageImage)
+  const images = useComposerImages(stageImage, shareImages)
   const evidence = useChatEvidence({ folder, chatId, api, items: state.items, epic })
   const command = useChatCommand()
   const agents = useChatRail(chatId)
@@ -132,7 +149,7 @@ function ChatView({
             model={skitarii ? <ModelPicker state={state} load={models} choose={setModel} /> : null} />
         </div>
         {showRail && <div id={railId} className="agent-chat-rail">
-          <ChatAgentsRail folder={folder} chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents}
+          <ChatAgentsRail folder={folder} folderKey={folderKey} chatId={chatId} chat={chat} agentLabel={agentLabel} state={state} rail={agents}
             selected={reveal.target} select={show} />
         </div>}
       </div></ChatImagesContext.Provider>

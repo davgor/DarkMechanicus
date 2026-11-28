@@ -368,6 +368,12 @@ const SITES = ['https://docs.example.com', 'https://github.com', 'http://127.0.0
 function siteCard(heading, label) {
   return { heading, label, buttons: ['Allow once', 'Always allow', 'Deny'], above: true }
 }
+const EVIDENCE_NOTE = 'Evidence goes to the epic.'
+const NO_COMPOSER = 'No message is open for this chat here. Open its chat to add the capture to a message.'
+/** The camera's popover as the capture reads it: thumbnail loaded, inside the panel, Add to message on or off. */
+function cameraPopover(add, notes) {
+  return { thumbLoaded: true, buttons: [{ text: 'Add to message', enabled: add }, { text: 'Attach as evidence', enabled: true }], notes, inPanel: true }
+}
 const BROWSER_PANELS = {
   'browser-empty': {
     badge: 'Idle', tabs: ['Agent tab'], stopEnabled: false, toggle: 'Take control', enabled: false,
@@ -387,7 +393,9 @@ const BROWSER_PANELS = {
     siteCard: siteCard('You asked to open https://example.com', 'https://example.com')
   },
   'browser-sites': { ...DRIVEN, page: 'Browser hidden while Sites is open', sites: SITES, sitesInPanel: true },
-  'browser-origin-terminal': { ...DRIVEN, panelSiteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') }
+  'browser-origin-terminal': { ...DRIVEN, panelSiteCard: siteCard('Acolyte:DM-442 wants to open https://api.github.com', 'https://api.github.com') },
+  'browser-camera': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(true, [EVIDENCE_NOTE]) },
+  'browser-camera-terminal': { ...DRIVEN, page: 'Browser hidden while the capture is open', camera: cameraPopover(false, [NO_COMPOSER, EVIDENCE_NOTE]) }
 }
 /** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
 function browserRecord(state, patch = {}) {
@@ -431,7 +439,7 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 74 states once each, in capture order', () => {
+  it('lists the 78 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
@@ -446,11 +454,14 @@ describe('capture-agent-chat: state list and bounds', () => {
       'browser-empty-1024', 'browser-empty-1440', 'browser-agent-1024', 'browser-agent-1440', 'browser-person-1024',
       'browser-person-1440', 'browser-stopped-1024', 'browser-stopped-1440', 'browser-private-1024', 'browser-private-1440',
       'browser-origin-1024', 'browser-origin-1440', 'browser-origin-page-1024', 'browser-origin-page-1440',
-      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024'
+      'browser-origin-person-1024', 'browser-origin-person-1440', 'browser-sites-1024', 'browser-sites-1440', 'browser-origin-terminal-1024',
+      'browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440'
     ])
-    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([74, true])
+    expect([new Set(STATES).size, Object.isFrozen(STATES)]).toEqual([78, true])
   })
+})
 
+describe('capture-agent-chat: Sprint 3 states and bounds', () => {
   it('captures the full Sprint 3 image and polish set, each state once', () => {
     expect(S3_STATES).toEqual([
       'chat-images', 'image-result', 'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'agent-transcript',
@@ -468,9 +479,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 1125 s overall bound: 74 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 1185 s overall bound: 78 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(1_125_000)
+    expect(OVERALL_LIMIT_MS).toBe(1_185_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -562,6 +573,29 @@ describe('capture-agent-chat: Browser site card and Sites states', () => {
         + `got ${JSON.stringify([SITES, ''])}`])
     expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sitesInPanel: false })))
       .toEqual(['browser-sites-1024: expected the Sites popover stays inside the Browser panel; got false'])
+  })
+})
+
+describe('capture-agent-chat: Browser camera states', () => {
+  it('passes the capture popover for a GUI chat and for a terminal one', () => {
+    for (const state of ['browser-camera-1024', 'browser-camera-1440', 'browser-camera-terminal-1024', 'browser-camera-terminal-1440']) {
+      expect(validateObservations(state, browserRecord(state))).toEqual([])
+    }
+  })
+
+  it('fails a popover with no loaded thumbnail, Add to message on for a terminal chat, or the page area shown', () => {
+    const popover = BROWSER_PANELS['browser-camera'].camera
+    const expected = (state, buttons, notes) => `${state}: expected the capture popover shows its thumbnail, ${JSON.stringify(buttons)} and `
+      + `${JSON.stringify(notes)} inside the panel over the hidden page area; got `
+    const gui = expected('browser-camera-1024', popover.buttons, popover.notes)
+    expect(validateObservations('browser-camera-1024', browserRecord('browser-camera-1024', { camera: { ...popover, thumbLoaded: false } })))
+      .toEqual([`${gui}${JSON.stringify([{ ...popover, thumbLoaded: false }, 'Browser hidden while the capture is open'])}`])
+    expect(validateObservations('browser-camera-1440', browserRecord('browser-camera-1440', { page: '' })))
+      .toEqual([`${expected('browser-camera-1440', popover.buttons, popover.notes)}${JSON.stringify([popover, ''])}`])
+    const terminal = BROWSER_PANELS['browser-camera-terminal'].camera
+    const wrong = { ...terminal, buttons: popover.buttons }
+    expect(validateObservations('browser-camera-terminal-1024', browserRecord('browser-camera-terminal-1024', { camera: wrong })))
+      .toEqual([`${expected('browser-camera-terminal-1024', terminal.buttons, terminal.notes)}${JSON.stringify([wrong, 'Browser hidden while the capture is open'])}`])
   })
 })
 
