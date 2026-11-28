@@ -92,11 +92,12 @@ describe("server a's redirect, download and slow responses", () => {
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('serves /download as an attachment', async () => {
-    const { a } = await start()
+  it('serves /download as an attachment named uniquely for the run', async () => {
+    const { a, downloadName } = await start()
     const res = await get(a.origin, '/download')
     expect(res.status).toBe(200)
-    expect(res.headers.get('content-disposition')).toMatch(/^attachment\b/)
+    expect(downloadName).toMatch(/^dm-e2e-[0-9a-f-]{36}\.bin$/)
+    expect(res.headers.get('content-disposition')).toBe(`attachment; filename="${downloadName}"`)
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(res.text.length).toBeGreaterThan(0)
   })

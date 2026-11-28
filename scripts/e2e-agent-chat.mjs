@@ -2,7 +2,7 @@
  * Built-app e2e harness for agent chats. Launches the built Electron app (run `npm run build` first) with an isolated
  * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent (`fake-claude`) and, with
  * `--agent omp`, also as the built-in `omp` (Skitarii) agent (`fake-omp`), drives it over CDP and runs named steps, each
- * exactly once under a 10 s condition-based deadline with no retries.
+ * exactly once under a 10 s condition-based deadline (or the longer one a step declares) with no retries.
  *
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
@@ -10,6 +10,7 @@
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps browser-drive,browser-skitarii,browser-shot,browser-guard,browser-signin,quit
  *
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
  * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
@@ -38,7 +39,17 @@
  * turn, and `model-restart` relaunches the app and checks the chat starts again on that model and effort. The fake
  * logs each session control it receives to `<out>/fake-controls.jsonl`.
  *
- * Without `--steps` every step but the polish, image, coord and model ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
+ * The `browser-*` steps (agents driving the in-app browser) also run only when named, each under its own deadline. The
+ * harness starts the two fixture servers (`browser-fixture-server.mjs`) and, before launch, always allows site `a` for
+ * the fixture folder by writing its site file (`<userData>/browser/sites/<folderStoreId>.json`); `b` is not allowed.
+ * `browser-drive` has a Claude chat's fake drive the Browser tab through its instructions' `dm` line, `browser-skitarii`
+ * the same from a Skitarii (omp-kind) chat (the omp fake is connected too, and the folder's default switched to it for
+ * that chat), `browser-shot` checks the screenshot attachment and the camera, `browser-guard` the file:, popup and
+ * download guards and a site the person allows once, and `browser-signin` the Private tab. They run on the claude
+ * default (`--agent omp` is refused). Each also saves `e2e-<step>-view.png` from the view's own DevTools target, which
+ * the renderer capture never contains.
+ *
+ * Without `--steps` every step but the polish, image, coord, model and browser ones runs. Writes `<out>/verdict.json` ({steps: [{name, ok, ms, detail}], ok}), a
  * `<out>/e2e-<step>.png` per passed scenario step (size-checked), the main-process output and the fake agent's
  * invocation log; a failed step leaves `<out>/e2e-<step>-failed.png`. Exits 1 unless every step passed. The `toggle`
  * step answers the app's real native terminal-stop dialog through Windows UI Automation (`e2e-native-dialog.ps1`),
@@ -60,13 +71,14 @@ import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
-import { tmpdir } from 'node:os'
-import { dirname, join, posix, resolve, win32 } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
 import { createInterface } from 'node:readline'
 import { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { buildSync } from 'esbuild'
+import { startFixtureServers } from './browser-fixture-server.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -182,10 +194,13 @@ export function writeShim(directory, fixture, platform = process.platform, kind 
   return join(directory, files[0].name)
 }
 
-/** The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP. */
-export function seededAgents(shims, agent) {
+/**
+ * The connected agents a run seeds: always the claude fake, and the omp fake when the fixture chats use OMP or a step
+ * starts a Skitarii chat beside the claude default (`omp`).
+ */
+export function seededAgents(shims, agent, omp = agent === 'omp') {
   const claude = { kind: 'claude', executablePath: shims.claude, version: FAKE_VERSION }
-  return agent === 'omp' ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
+  return omp ? [claude, { kind: 'omp', executablePath: shims.omp, version: FAKE_OMP_VERSION }] : [claude]
 }
 
 /** The fake agent's invocation log, one entry per launch, in launch order. */
@@ -366,7 +381,8 @@ export function withNodeFirst(env, nodePath = process.execPath, platform = proce
 
 /**
  * A run's state. With a coord step the fakes deliver their inbox at startup (`FAKE_AGENT_DELIVER_MAIL`), as the
- * Skitarii extension delivers mail; other runs never make that `dm` call.
+ * Skitarii extension delivers mail; other runs never make that `dm` call. With a browser step `browser` holds the
+ * fixture servers and what the browser steps share; a Skitarii browser step connects the omp fake as well (`omp`).
  */
 function createSession(out, exe, agent = 'claude', keys = []) {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), ROOT_PREFIX)))
@@ -379,13 +395,14 @@ function createSession(out, exe, agent = 'claude', keys = []) {
       FAKE_AGENT_CONTROL_LOG: join(root, 'fake-controls.jsonl'), FAKE_AGENT_SLOW_MS: String(MODEL_SLOW_MS)
     })
   }
+  const browser = keys.some((key) => STEPS[key].browser)
   return {
-    out, root, exe, agent, env,
+    out, root, exe, agent, env, omp: agent === 'omp' || keys.some((key) => STEPS[key].browser && STEPS[key].skitarii),
     userData: join(root, 'user-data'), folder: join(root, FOLDER_NAME), wrapper: join(root, 'app.cjs'),
     second: keys.includes('polish-untrack') ? join(root, SECOND_FOLDER_NAME) : null,
     shims: null, child: null, exited: null, port: null, inspectorPort: null, page: null, main: null, version: null,
     stdout: '', stderr: '', lastProbe: null, fakePids: [], dialogs: null, epicId: null, folderPath: null, chat: null,
-    store: null, restart: null, console: [], coord: null, model: null
+    store: null, restart: null, console: [], coord: null, model: null, browser: browser ? { servers: null } : null
   }
 }
 
@@ -471,7 +488,7 @@ function seedStores(session) {
     bundle: true, platform: 'node', format: 'cjs', target: 'node24', logLevel: 'warning'
   })
   const seed = {
-    userData: session.userData, agents: seededAgents(session.shims, session.agent), defaultAgent: session.agent,
+    userData: session.userData, agents: seededAgents(session.shims, session.agent, session.omp), defaultAgent: session.agent,
     folders: join(session.userData, 'folders.json'), home: session.env.HOME, dmHome: session.env.DARKMECHANICUS_HOME,
     folder: session.folder, second: session.second, epicTitle: EPIC_TITLE
   }
@@ -552,7 +569,7 @@ function stopDialogHelper(session) {
   session.dialogs = null
 }
 
-function setup(session) {
+async function setup(session) {
   if (session.exe === null && !existsSync(BUILT_MAIN)) throw new Error('out/main/index.js is missing: run `npm run build` first.')
   if (session.exe !== null && !existsSync(session.exe)) throw new Error(`The packaged app ${session.exe} does not exist.`)
   const { env } = session
@@ -569,9 +586,10 @@ function setup(session) {
     writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME, version }))
   }
   if (process.platform === 'win32') startDialogHelper(session)
+  const browser = await setupBrowser(session)
   return {
     shims: session.shims, agent: session.agent, folder: session.folder, second: session.second, userData: session.userData, epicId: session.epicId, home: session.env.HOME,
-    app: session.exe ?? BUILT_MAIN
+    app: session.exe ?? BUILT_MAIN, ...browser
   }
 }
 
@@ -948,7 +966,7 @@ async function appReady(session, signal) {
   await attach(session, signal)
   const probe = await waitFor(async () => {
     assertRunning(session)
-    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent), session.agent))
+    session.lastProbe = await evaluate(session, readyProbe(seededAgents(session.shims, session.agent, session.omp), session.agent))
     return session.lastProbe.ready && session.lastProbe
   }, signal)
   session.folderPath = probe.folder.path
@@ -1448,14 +1466,16 @@ async function fakeProcessesExited(session, signal) {
 }
 
 /**
- * Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone. The capture is the last state before it,
- * once the new chat (when the run made one) carries the title the fake named it with.
+ * Step 7: quit the app; every protocol-mode and TUI-mode fake agent is gone, and after browser steps no screenshot
+ * copy is left in the temp folder. The capture is the last state before it, once the new chat (when the run made one)
+ * carries the title the fake named it with.
  */
 async function quitApp(session, signal) {
   const named = session.chat === null ? null : await until(session, signal, chatNamed, session.folderPath, session.chat.chatId, FAKE_CHAT_TITLE)
   const screenshot = await capture(session, 'e2e-quit.png', WINDOW)
   const exited = await quit(session, signal)
-  return { ...exited, ...await fakeProcessesExited(session, signal), newChatTitle: named?.title ?? null, screenshot }
+  const shots = session.browser === null ? {} : { shotCopies: leftShotCopies(session) }
+  return { ...exited, ...await fakeProcessesExited(session, signal), newChatTitle: named?.title ?? null, ...shots, screenshot }
 }
 
 /** The fixed session id of the seeded Magos chat, and the version its restart marker says the app was updated from. */
@@ -2219,14 +2239,14 @@ function sentImage(_h, chatId) {
   return { ok: img.complete && img.naturalWidth > 0 && chips === 0, naturalWidth: img.naturalWidth, scheme: img.src.split(':')[0], chips }
 }
 
-/** A new folder GUI chat from the New chat popup, its first turn done. */
-async function openImageChat(session, signal) {
+/** A new folder GUI chat from the New chat popup with `prompt`, its first turn done. */
+async function openFolderChat(session, signal, prompt) {
   await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
-  await until(session, signal, fill, '.dialog[role="dialog"] textarea', IMAGE_CHAT_PROMPT)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', prompt)
   await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
-  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: IMAGE_CHAT_PROMPT })
-  if (chat.surface !== 'gui') throw new Error(`The image chat runs on ${chat.surface}, not gui.`)
-  await until(session, signal, turnDone, session.folderPath, chat.id, { text: IMAGE_CHAT_PROMPT })
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: prompt })
+  if (chat.surface !== 'gui') throw new Error(`The chat "${prompt}" runs on ${chat.surface}, not gui.`)
+  await until(session, signal, turnDone, session.folderPath, chat.id, { text: prompt })
   return chat
 }
 
@@ -2237,7 +2257,7 @@ async function openImageChat(session, signal) {
  */
 async function imageSend(session, signal) {
   const bytes = readFileSync(SWATCH)
-  const chat = await openImageChat(session, signal)
+  const chat = await openFolderChat(session, signal, IMAGE_CHAT_PROMPT)
   const input = await until(session, signal, fileInput, chat.id)
   await setComposerFile(session, chat.id, SWATCH)
   const chips = await until(session, signal, composerChips, chat.id, 1)
@@ -2814,10 +2834,14 @@ async function modelRestartQuit(session, signal) {
   return { record: { model: record.model, thinking: record.thinking }, ...exited, ...fakes }
 }
 
-/** Shows the chat: its composer, else a click on its sidebar row (by `title`). */
+/**
+ * Shows the chat: its composer, else a click on its sidebar row (by `title`). The row of the chat shown now is never
+ * the one clicked, so of two chats with the same title the other one opens.
+ */
 function showChat(_h, chatId, title) {
   if (document.getElementById(`agent-message-${chatId}`)) return { ok: true }
-  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')].find((button) => button.querySelector('.chat-row-title')?.textContent === title)
+  const row = [...document.querySelectorAll('.chat-row button.chat-row-main')]
+    .find((button) => button.querySelector('.chat-row-title')?.textContent === title && button.getAttribute('aria-current') !== 'true')
   row?.click()
   return { ok: false, row: !!row }
 }
@@ -2843,6 +2867,486 @@ async function modelRestartResumed(session, signal) {
     launch: { pid: entry.pid, argv: entry.argv }, flags, snapshot: { model: state.model, thinking: state.thinking }, chip: chip.label,
     screenshot: await capture(session, 'e2e-model-restart.png', WINDOW)
   }
+}
+
+/** The first prompts of the browser steps' chats: the Claude chat browser-drive opens, the Skitarii one browser-skitarii opens. */
+const BROWSER_CHAT_PROMPT = 'hello browser'
+const SKITARII_CHAT_PROMPT = 'hello skitarii'
+/** The fake's `[browser]` scenario (`fakeAgentCli.mjs`, BROWSER_STEPS), and what it types into the fixture's Name box. */
+const BROWSER_SCENARIO_OPS = ['browser_navigate', 'browser_read', 'browser_click', 'browser_type', 'browser_read', 'browser_screenshot']
+const BROWSER_TYPED = 'Ada'
+/** How long browser-guard watches the view after a click it must refuse: the refusal leaves nothing to wait for. */
+const GUARD_WATCH_MS = 1_000
+/** Main's screenshot copies for the CLI (`dm-browser-shot-<random>` in the temp folder), removed once collected. */
+const SHOT_PREFIX = 'dm-browser-shot-'
+/** The fixture page's state, read in a browser view: its URL, `#status`, `#echo` and its size in DIP with the scale. */
+const FIXTURE_STATE = `({ href: location.href, status: document.querySelector('#status')?.textContent ?? null,
+  echo: document.querySelector('#echo')?.textContent ?? null, width: innerWidth, height: innerHeight, dpr: devicePixelRatio })`
+
+/** A folder's durable store id (`src/main/agentChat/folderStoreId.ts`); scripts cannot import TypeScript. */
+function folderStoreId(canonicalPath, platform) {
+  const identity = platform === 'win32' ? canonicalPath.toLowerCase() : canonicalPath
+  return createHash('sha256').update(identity).digest('hex').slice(0, 32)
+}
+
+/** The site file (`siteStore.ts`) that always allows `origins` in the folder at `canonicalPath`: its path and text. */
+export function siteFile(userData, canonicalPath, origins, platform = process.platform) {
+  return {
+    path: join(userData, 'browser', 'sites', `${folderStoreId(canonicalPath, platform)}.json`),
+    text: `${JSON.stringify({ version: 1, origins }, null, 2)}\n`
+  }
+}
+
+/**
+ * The DevTools page target of an in-app browser view: the one listed with `id`, else the one whose URL is `url`
+ * exactly, never the app's own page. Null while there is none; several with the URL throw, as the harness could not
+ * tell which view it drives.
+ */
+export function viewTarget(targets, { url, id }) {
+  const views = targets.filter((target) => target.type === 'page' && !target.url.includes('/renderer/index.html'))
+  const matches = views.filter((target) => (id === undefined ? target.url === url : target.id === id))
+  if (matches.length > 1) throw new Error(`${matches.length} browser views show ${url}: ${matches.map((target) => target.id).join(', ')}.`)
+  return matches[0] ?? null
+}
+
+/**
+ * A turn's `dm call browser_*` Bash calls (the fake's browser steps), in order: the op, its arguments, the call's
+ * status and the CLI's JSON reply as the tool result holds it (null when it is not JSON).
+ */
+export function browserToolCalls(tools) {
+  return tools.flatMap((tool) => {
+    const command = tool.name === 'Bash' && typeof tool.input?.command === 'string' ? tool.input.command : ''
+    const [, op, args] = command.match(/^dm call (browser_[a-z]+) (\{.*\})$/s) ?? []
+    if (op === undefined) return []
+    let reply = null
+    try {
+      reply = JSON.parse(tool.resultSummary ?? '')
+    } catch {
+      // Not the CLI's JSON: the call shows as unreadable.
+    }
+    return [{ op, args: JSON.parse(args), status: tool.status, reply }]
+  })
+}
+
+/** Throws unless the turn `turn` made exactly the `expected` browser calls, each `[op, ok]`. */
+function assertCalls(turn, calls, expected) {
+  const actual = calls.map((call) => [call.op, call.status === 'completed' && call.reply?.ok === true])
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${turn}: the fake's browser calls were ${JSON.stringify(actual)}, not ${JSON.stringify(expected)}.`)
+  }
+}
+
+const shotDirectories = () => readdirSync(tmpdir()).filter((name) => name.startsWith(SHOT_PREFIX))
+
+/**
+ * With browser steps, starts the fixture servers and always allows site `a` in the fixture folder before launch (its
+ * site file, named by the folder's durable store id), and notes the screenshot copies already in the temp folder,
+ * which quit compares with. Answers the setup step's `browser` detail (none without browser steps).
+ */
+async function setupBrowser(session) {
+  if (session.browser === null) return {}
+  const servers = await startFixtureServers()
+  session.browser.servers = servers
+  const site = siteFile(session.userData, realpathSync.native(session.folder), [servers.a.origin])
+  mkdirSync(dirname(site.path), { recursive: true })
+  writeFileSync(site.path, site.text)
+  session.browser.shotsBefore = shotDirectories()
+  return { browser: { a: servers.a.origin, b: servers.b.origin, siteFile: site.path, allowed: [servers.a.origin], downloadName: servers.downloadName } }
+}
+
+/** The tool calls and the last reply of the turn the user message `text` started, from the stored transcript. */
+async function turnTools(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return {
+    ok: sent >= 0,
+    tools: after.filter((item) => item.kind === 'tool_call').map(({ name, input, status, resultSummary }) => ({ name, input, status, resultSummary })),
+    reply: after.findLast((item) => item.kind === 'assistant_text')?.text ?? null
+  }
+}
+
+/** Sends `text` in the chat and waits for its turn to end: the fake's reply and its browser calls. */
+async function browserTurn(session, signal, chatId, text) {
+  await until(session, signal, composeAndSend, chatId, text)
+  await until(session, signal, turnDone, session.folderPath, chatId, { text })
+  const turn = await until(session, signal, turnTools, session.folderPath, chatId, text)
+  return { reply: turn.reply, calls: browserToolCalls(turn.tools) }
+}
+
+/** Throws unless the turn `text` replied `expected`. */
+function assertReply(text, turn, expected) {
+  if (turn.reply !== expected) throw new Error(`${text}: the fake replied ${JSON.stringify(turn.reply)}, not ${JSON.stringify(expected)}.`)
+}
+
+/**
+ * The shown chat's rail on `tab` (Agents or Browser), opening the collapsed rail first; ok once the tab is selected and
+ * the Browser panel shows exactly when it is Browser (the Agents tab unmounts it, which hides the view).
+ */
+function railTab(_h, tab) {
+  const rail = document.querySelector('aside[aria-label="Chat agents"]')
+  if (!rail) {
+    const toggle = document.querySelector('button.agent-chat-agents')
+    if (toggle && toggle.getAttribute('aria-pressed') !== 'true') toggle.click()
+    return { ok: false, rail: false, toggle: !!toggle }
+  }
+  const button = rail.querySelector(`button[role="tab"][aria-label="${tab}"]`)
+  if (!button) return { ok: false, tab: false }
+  if (button.getAttribute('aria-selected') !== 'true') {
+    button.click()
+    return { ok: false, selected: false }
+  }
+  const panel = document.querySelector('section.bp[aria-label="Browser"]') !== null
+  return { ok: panel === (tab === 'Browser'), panel }
+}
+
+/** The Browser panel's owner badge reads `text`. */
+function badgeIs(_h, text) {
+  const badge = document.querySelector('section.bp [role="status"][aria-label="Browser owner"]')?.textContent.trim() ?? null
+  return { ok: badge === text, badge }
+}
+
+/** The shown chat's newest Bash cards, one per op of `ops`, each Done and naming its op in order; opens folded work. */
+function browserCards(_h, ops) {
+  const section = document.querySelector('section.agent-chat')
+  if (!section) return { ok: false, section: false }
+  const cards = [...section.querySelectorAll('.chat-transcript li.chat-tool[aria-label="Tool call: Bash"]')].slice(-ops.length).map((card) => ({
+    summary: card.querySelector('.chat-tool-summary')?.textContent ?? '',
+    state: card.querySelector('[data-state]')?.getAttribute('data-state') ?? null
+  }))
+  const ok = cards.length === ops.length && cards.every((card, index) => card.state === 'accepted' && card.summary.startsWith(`dm call ${ops[index]} `))
+  if (!ok) [...section.querySelectorAll('.chat-work-toggle[aria-expanded="false"]')].at(-1)?.click()
+  return { ok, cards }
+}
+
+/** Sets the folder's default agent, as the person does in its settings; ok once main stored it. */
+async function folderDefault(_h, folder, agentId) {
+  const stored = await window.dm.setFolderDefaultAgent({ folder, agentId })
+  return { ok: stored === agentId, stored }
+}
+
+/** The chat's browser state (`browser:state`), as its panel reads it; ok once its agent tab exists. */
+async function browserState(_h, folder, chatId) {
+  const result = await window.dm.browser.state({ folder, chatId })
+  return result.ok ? { ok: result.data.tab !== null, state: result.data } : { ok: false, error: result.error.message }
+}
+
+/** The chat's Private tab shows `url`. */
+async function privateTabAt(_h, folder, chatId, url) {
+  const result = await window.dm.browser.state({ folder, chatId })
+  return { ok: result.ok && result.data.signIn?.url === url, signIn: result.ok ? result.data.signIn : null }
+}
+
+/** Types `text` into the input `selector`, then (on a later poll) focuses it for a real Enter; ok once it is focused. */
+function focusInput(h, selector, text) {
+  const input = document.querySelector(selector)
+  if (!input || input.disabled) return { ok: false, found: !!input }
+  if (input.value !== text) {
+    h.setValue(input, text)
+    return { ok: false, phase: 'typed' }
+  }
+  input.focus()
+  return { ok: document.activeElement === input }
+}
+
+/** The camera popover shows its capture, loaded. */
+function captureShown(_h) {
+  const thumb = document.querySelector('div.bp-camera-popover[aria-label="Captured page"] img.bp-camera-thumb')
+  return { ok: thumb?.complete === true && thumb.naturalWidth > 0, alt: thumb?.alt ?? null }
+}
+
+async function listTargets(session, signal) {
+  assertRunning(session)
+  return fetch(`http://127.0.0.1:${session.port}/json/list`, { signal }).then((response) => response.json())
+}
+
+/**
+ * Connects to the browser view `match` names (`viewTarget`) once it is listed: its target and DevTools connection.
+ * With `loaded`, also waits until its document at that URL has loaded: a page a navigation just swapped in answers
+ * nothing ("Not attached to an active page") before it commits.
+ */
+async function connectView(session, signal, match, loaded) {
+  const target = await waitFor(async () => viewTarget(await listTargets(session, signal), match), signal)
+  const view = await connect(target.webSocketDebuggerUrl)
+  if (loaded !== undefined) {
+    await waitFor(async () => (await evaluateOn(view, `document.readyState === 'complete' && location.href`).catch(() => null)) === loaded, signal)
+  }
+  return { target, view }
+}
+
+/** Saves the view's own page, which the renderer capture never holds, as `<out>/<name>`. */
+async function captureView(session, view, name) {
+  const { data } = await view.call('Page.captureScreenshot', { format: 'png' })
+  const bytes = Buffer.from(data, 'base64')
+  writeFileSync(join(session.out, name), bytes)
+  const png = pngSize(bytes)
+  return { file: name, png: `${png.width}x${png.height}` }
+}
+
+/** Connects to the view `match` names (once its document at `loaded` loaded, when given), saves it as `<out>/<name>`, disconnects. */
+async function snapView(session, signal, { match, loaded, name }) {
+  const { target, view } = await connectView(session, signal, match, loaded)
+  try {
+    return { target: { id: target.id, url: target.url }, viewScreenshot: await captureView(session, view, name) }
+  } finally {
+    view.socket.close()
+  }
+}
+
+/** A new folder GUI chat with `prompt`, named by its fake (the name its badge shows), its rail on Browser. */
+async function openBrowserChat(session, signal, prompt) {
+  const chat = await openFolderChat(session, signal, prompt)
+  await until(session, signal, chatNamed, session.folderPath, chat.id, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  return chat
+}
+
+/**
+ * The chat's fake runs `[browser url=<a>/]` through its instructions' `dm` line: navigate, a tree read, a click, `Ada`
+ * typed into the Name box, a text read showing both, and a screenshot staged as an `im_` evidence attachment. Its Bash
+ * cards are all Done, the badge names the chat (no ticket of the callsign is bound to it), and the view's own page
+ * shows `Clicked` and `Ada`, captured as `<out>/<viewFile>`.
+ */
+async function driveFixture(session, signal, chat, viewFile) {
+  const url = `${session.browser.servers.a.origin}/`
+  const text = `[browser url=${url}]`
+  const turn = await browserTurn(session, signal, chat.id, text)
+  assertReply(text, turn, 'browser done')
+  assertCalls(text, turn.calls, BROWSER_SCENARIO_OPS.map((op) => [op, true]))
+  const read = turn.calls[4].reply.data.content
+  if (!read.includes('Clicked') || !read.includes(BROWSER_TYPED)) throw new Error(`The text read shows ${JSON.stringify(read)}, not Clicked and ${BROWSER_TYPED}.`)
+  const shot = turn.calls[5].reply.data
+  if (!/^im_[a-z0-9]+$/.test(shot.id) || shot.purpose !== 'evidence') throw new Error(`The screenshot is not an evidence attachment: ${JSON.stringify(shot)}`)
+  const cards = await until(session, signal, browserCards, BROWSER_SCENARIO_OPS)
+  const badge = await until(session, signal, badgeIs, `Driven by: ${FAKE_CHAT_TITLE}`)
+  const { target, view } = await connectView(session, signal, { url })
+  try {
+    const page = await waitFor(async () => {
+      const state = await evaluateOn(view, FIXTURE_STATE)
+      session.lastProbe = { view: state }
+      return state.status === 'Clicked' && state.echo === BROWSER_TYPED && state
+    }, signal)
+    return {
+      calls: turn.calls.map(({ op, args }) => ({ op, args })), textRead: read, shot, cards: cards.cards, badge: badge.badge,
+      target: { id: target.id, url: target.url }, page, viewScreenshot: await captureView(session, view, viewFile)
+    }
+  } finally {
+    view.socket.close()
+  }
+}
+
+/**
+ * Browser 1: a Claude GUI chat's fake drives the Browser tab (`driveFixture`). With the rail on Agents (the view
+ * hidden) it reads and clicks, and its screenshot is refused with `view_hidden`; then it reads `<a>/inject`, whose
+ * text asks it to go elsewhere, as untrusted text, and makes no call the page asked for.
+ */
+async function browserDrive(session, signal) {
+  const { servers } = session.browser
+  const chat = await openBrowserChat(session, signal, BROWSER_CHAT_PROMPT)
+  session.chat ??= { chatId: chat.id, sessionId: chat.sessionId }
+  const driven = await driveFixture(session, signal, chat, 'e2e-browser-drive-view.png')
+  session.browser.drive = { chatId: chat.id, targetId: driven.target.id, shot: driven.shot, page: driven.page }
+  const screenshot = await capture(session, 'e2e-browser-drive.png', WINDOW)
+  await until(session, signal, railTab, 'Agents')
+  const hidden = await browserTurn(session, signal, chat.id, '[browser-hidden]')
+  assertCalls('[browser-hidden]', hidden.calls, [['browser_read', true], ['browser_click', true], ['browser_screenshot', false]])
+  const refusal = hidden.calls[2].reply?.error ?? null
+  if (refusal?.code !== 'view_hidden') throw new Error(`The hidden view's screenshot answered ${JSON.stringify(hidden.calls[2].reply)}, not view_hidden.`)
+  assertReply('[browser-hidden]', hidden, `browser failed: browser_screenshot view_hidden: ${refusal.message}`)
+  await until(session, signal, railTab, 'Browser')
+  const inject = `[browser-read url=${servers.a.origin}/inject]`
+  const injected = await browserTurn(session, signal, chat.id, inject)
+  assertReply(inject, injected, 'browser done')
+  assertCalls(inject, injected.calls, [['browser_navigate', true], ['browser_read', true]])
+  const untrusted = injected.calls[1].reply.data
+  if (untrusted.untrusted !== true) throw new Error(`The /inject read is not marked untrusted: ${JSON.stringify(untrusted)}`)
+  return {
+    chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, ...driven, screenshot,
+    hidden: { calls: hidden.calls.map(({ op, reply }) => ({ op, ok: reply?.ok === true, code: reply?.error?.code ?? null })), reply: hidden.reply },
+    inject: { calls: injected.calls.map(({ op, args }) => ({ op, args })), untrusted: true, content: untrusted.content }
+  }
+}
+
+/**
+ * Browser 2: a Skitarii (omp-kind) GUI chat, started with the folder's default switched to the omp fake, drives the
+ * Browser tab with its own grant and browser pipe (`driveFixture`); the default is the claude fake again after it.
+ */
+async function browserSkitarii(session, signal) {
+  await until(session, signal, folderDefault, session.folderPath, 'omp')
+  const chat = await openBrowserChat(session, signal, SKITARII_CHAT_PROMPT)
+  if (chat.agent !== 'omp') throw new Error(`The Skitarii browser chat runs ${chat.agent}, not omp.`)
+  const driven = await driveFixture(session, signal, chat, 'e2e-browser-skitarii-view.png')
+  const screenshot = await capture(session, 'e2e-browser-skitarii.png', WINDOW)
+  const launches = coordLaunches(readLog(session), chat.id).filter((launch) => launch.mode === 'omp' && isAlive(launch.pid))
+  if (launches.length !== 1) throw new Error(`The Skitarii chat has ${launches.length} live omp fakes, not one.`)
+  await until(session, signal, folderDefault, session.folderPath, 'claude')
+  return { chat: { id: chat.id, agent: chat.agent, surface: chat.surface }, launch: launches[0], ...driven, screenshot }
+}
+
+/**
+ * Browser 3: the screenshot of browser-drive is an evidence attachment (`get_attachment` as the reader) whose size is
+ * the view's DIP size times its scale; then the camera's capture, added to the message, reaches the fake with `[tool]`.
+ */
+async function browserShot(session, signal) {
+  const { drive } = session.browser
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const metadata = await dmCall(session, { repo: session.folderPath, command: 'get_attachment', args: { attachmentId: drive.shot.id, as: 'metadata' } }, signal)
+  if (!metadata.ok) throw new Error(`get_attachment failed: ${JSON.stringify(metadata)}`)
+  const { id, purpose, mime, width, height } = metadata.data
+  const expected = { width: Math.round(drive.page.width * drive.page.dpr), height: Math.round(drive.page.height * drive.page.dpr) }
+  if (purpose !== 'evidence' || Math.abs(width - expected.width) > 1 || Math.abs(height - expected.height) > 1) {
+    throw new Error(`The screenshot attachment is ${purpose} ${width}x${height}, not evidence at ${expected.width}x${expected.height} (±1).`)
+  }
+  await until(session, signal, clickSelector, 'section.bp button[aria-label="Capture the agent tab"]')
+  const captured = await until(session, signal, captureShown)
+  await until(session, signal, clickButton, 'div.bp-camera-popover[aria-label="Captured page"]', 'Add to message')
+  const chips = await until(session, signal, composerChips, drive.chatId, 1)
+  await until(session, signal, composeAndSend, drive.chatId, '[tool]')
+  await until(session, signal, turnDone, session.folderPath, drive.chatId, { text: '[tool]' })
+  const turn = await until(session, signal, turnItems, session.folderPath, drive.chatId, '[tool]')
+  if (!turn.reply?.startsWith('received image image/png ')) throw new Error(`The [tool] reply starts ${JSON.stringify(turn.reply?.split('\n')[0] ?? null)}, not received image image/png.`)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: drive.targetId }, name: 'e2e-browser-shot-view.png' })
+  return {
+    attachment: { id, purpose, mime, width, height }, view: { dip: `${drive.page.width}x${drive.page.height}`, scaleFactor: drive.page.dpr, expected: `${expected.width}x${expected.height}` },
+    camera: { capture: captured.alt, chips: chips.chips, echo: turn.reply.split('\n')[0] }, viewScreenshot, screenshot: await capture(session, 'e2e-browser-shot.png', WINDOW)
+  }
+}
+
+/**
+ * Clicks the fixture link `#<link>` in the view, waits for `path` (when given) to reach the fixture servers, then
+ * watches for GUARD_WATCH_MS: every URL the view (`targetId`) showed (its target's and its document's) and every new
+ * DevTools target. The click runs after the evaluation answers: a navigation it starts may swap the page before an
+ * answer would arrive.
+ */
+async function clickAndWatch(session, signal, { view, targetId, link, path }) {
+  const { requests } = session.browser.servers
+  const from = requests.length
+  const before = new Set((await listTargets(session, signal)).map((target) => target.id))
+  const anchor = await evaluateOn(view, `(() => { const link = document.getElementById(${JSON.stringify(link)}); setTimeout(() => link.click()); return link.href })()`)
+  if (path !== null) await waitFor(() => requests.slice(from).includes(path), signal)
+  const urls = new Set()
+  const added = new Set()
+  const end = performance.now() + GUARD_WATCH_MS
+  while (performance.now() < end) {
+    const listed = await listTargets(session, signal)
+    for (const target of listed) if (!before.has(target.id)) added.add(`${target.type} ${target.url}`)
+    urls.add(viewTarget(listed, { id: targetId })?.url ?? '(no target)')
+    urls.add(await evaluateOn(view, 'location.href').catch((error) => `(unreadable: ${messageOf(error)})`))
+    await delay(POLL_MS, undefined, { signal })
+  }
+  return { link, href: anchor, requested: requests.slice(from), urls: [...urls], newTargets: [...added] }
+}
+
+/** Files named like the fixture's download in the person's Downloads folder, the isolated home's, and anywhere in the isolated root. */
+function downloadedFiles(session, name) {
+  const found = []
+  for (const directory of [join(homedir(), 'Downloads'), join(session.env.HOME, 'Downloads')]) {
+    if (existsSync(directory)) found.push(...readdirSync(directory).filter((entry) => entry.startsWith(name)).map((entry) => join(directory, entry)))
+  }
+  const inRoot = readdirSync(session.root, { recursive: true }).filter((entry) => basename(entry).startsWith(name))
+  return [...found, ...inRoot.map((entry) => join(session.root, entry))]
+}
+
+/** The app's own log lines: its output and its log file under the isolated profile. */
+function appLog(session) {
+  const file = join(session.userData, 'logs', 'main.log')
+  return `${session.stdout}\n${session.stderr}\n${existsSync(file) ? readFileSync(file, 'utf8') : ''}`
+}
+
+/**
+ * Browser 4: with the agent back on `<a>/`, the view's `target=_blank` link opens no window or DevTools target,
+ * `/download` is requested, cancelled (the app logs it) and lands in no Downloads folder nor the isolated root, and
+ * the `/to-file` link never loads a file: URL (last: its refused redirect leaves the view on an error page). Then the
+ * person opens `<b>/` from the address bar and allows it once.
+ */
+async function browserGuard(session, signal) {
+  const { drive, servers } = session.browser
+  const home = `${servers.a.origin}/`
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const text = `[browser-origin url=${home}]`
+  const back = await browserTurn(session, signal, drive.chatId, text)
+  assertReply(text, back, 'browser done')
+  assertCalls(text, back.calls, [['browser_navigate', true], ['browser_status', true]])
+  const downloadsBefore = downloadedFiles(session, servers.downloadName)
+  const cancelLine = `browser download cancelled ${servers.a.origin}`
+  const connection = await connectView(session, signal, { id: drive.targetId })
+  const watch = { view: connection.view, targetId: drive.targetId }
+  let toFile, newWindow, download
+  try {
+    await waitFor(async () => (await evaluateOn(connection.view, 'location.href')) === home, signal)
+    newWindow = await clickAndWatch(session, signal, { ...watch, link: 'new-window', path: null })
+    if (newWindow.newTargets.length > 0) throw new Error(`The target=_blank link opened ${newWindow.newTargets.join(', ')}.`)
+    download = await clickAndWatch(session, signal, { ...watch, link: 'download', path: '/download' })
+    await waitFor(() => appLog(session).includes(cancelLine), signal)
+    toFile = await clickAndWatch(session, signal, { ...watch, link: 'to-file', path: '/to-file' })
+    if (toFile.urls.some((url) => url.startsWith('file:')) || toFile.newTargets.length > 0) throw new Error(`The /to-file link loaded a file: URL or a target: ${JSON.stringify(toFile)}`)
+  } finally {
+    connection.view.socket.close()
+  }
+  const downloadsAfter = downloadedFiles(session, servers.downloadName)
+  if (downloadsBefore.length > 0 || downloadsAfter.length > 0) throw new Error(`The download left ${[...downloadsBefore, ...downloadsAfter].join(', ')}.`)
+  const other = `${servers.b.origin}/`
+  await until(session, signal, focusInput, 'section.bp input.bp-address[aria-label="Address"]', other)
+  await pressEnter(session)
+  await until(session, signal, clickButton, `section.agent-prompt.origin-prompt[aria-label="${servers.b.origin}"]`, 'Allow once')
+  await waitFor(async () => viewTarget(await listTargets(session, signal), { id: drive.targetId })?.url === other, signal)
+  const { viewScreenshot } = await snapView(session, signal, { match: { id: drive.targetId }, loaded: other, name: 'e2e-browser-guard-view.png' })
+  return {
+    toFile, newWindow, download: { ...download, cancelLine, downloadName: servers.downloadName, before: downloadsBefore, after: downloadsAfter },
+    allowedOnce: other, requests: [...servers.requests],
+    beacon: 'Both fixtures are loopback, so a non-loopback page reaching a loopback subresource cannot occur here: unit-covered by originPolicy.test.ts (decideSubresource denies) and browserSession.test.ts (cancels a subresource of a public page served from a loopback or private address).',
+    viewScreenshot, screenshot: await capture(session, 'e2e-browser-guard.png', WINDOW)
+  }
+}
+
+/** Throws when browser_status (`data`) shows anything of the Private tab, or the agent tab anywhere but `agentUrl`. */
+function assertStatusHidesSignIn(data, agentUrl) {
+  const shown = JSON.stringify(data)
+  if (shown.includes('/inject') || shown.includes('Fixture injection')) throw new Error(`browser_status shows the Private tab: ${shown}`)
+  if (data.tab?.url !== agentUrl) throw new Error(`browser_status shows the agent tab at ${data.tab?.url}, not ${agentUrl}.`)
+}
+
+/**
+ * Browser 5: Private tab opens `<a>/inject` from its inline address field; `[browser-status]` shows neither it nor
+ * anything of it, its own DevTools target exists, and the agent tab's URL is unchanged.
+ */
+async function browserSignin(session, signal) {
+  const { drive, servers } = session.browser
+  const signIn = `${servers.a.origin}/inject`
+  await until(session, signal, showChat, drive.chatId, FAKE_CHAT_TITLE)
+  await until(session, signal, railTab, 'Browser')
+  const { state: before } = await until(session, signal, browserState, session.folderPath, drive.chatId)
+  const agentUrl = before.tab.url
+  await until(session, signal, clickButton, 'section.bp [role="toolbar"][aria-label="Browser controls"]', 'Private tab')
+  await until(session, signal, focusInput, 'section.bp input.bp-private-address[aria-label="Private tab address"]', signIn)
+  await pressEnter(session)
+  await until(session, signal, privateTabAt, session.folderPath, drive.chatId, signIn)
+  const opened = await snapView(session, signal, { match: { url: signIn }, loaded: signIn, name: 'e2e-browser-signin-view.png' })
+  const status = await browserTurn(session, signal, drive.chatId, '[browser-status]')
+  assertReply('[browser-status]', status, 'browser done')
+  assertCalls('[browser-status]', status.calls, [['browser_status', true]])
+  const { data } = status.calls[0].reply
+  assertStatusHidesSignIn(data, agentUrl)
+  const { state: after } = await until(session, signal, browserState, session.folderPath, drive.chatId)
+  const agentTarget = viewTarget(await listTargets(session, signal), { id: drive.targetId })?.url ?? null
+  if (after.tab.url !== agentUrl || agentTarget !== agentUrl) {
+    throw new Error(`The agent tab moved from ${agentUrl}: its state shows ${after.tab.url}, its target ${agentTarget}.`)
+  }
+  return {
+    agentTab: before.tab, signIn: after.signIn, signInTarget: opened.target, agentTarget: { id: drive.targetId, url: agentTarget },
+    status: data, viewScreenshot: opened.viewScreenshot, screenshot: await capture(session, 'e2e-browser-signin.png', WINDOW)
+  }
+}
+
+/** The screenshot copies the run left in the temp folder; none may remain once the app quit. */
+function leftShotCopies(session) {
+  const left = shotDirectories().filter((name) => !session.browser.shotsBefore.includes(name))
+  if (left.length > 0) throw new Error(`Screenshot copies remain in ${tmpdir()}: ${left.join(', ')}.`)
+  return { directory: tmpdir(), prefix: SHOT_PREFIX, left }
 }
 
 const STEPS = {
@@ -2888,7 +3392,13 @@ const STEPS = {
       { name: 'model-restart resumed', run: modelRestartResumed }
     ]
   },
-  'polish-multiquestion': { name: 'polish-multiquestion', run: polishMultiquestion, polish: true, skitarii: true }
+  'polish-multiquestion': { name: 'polish-multiquestion', run: polishMultiquestion, polish: true, skitarii: true },
+  // The browser steps' deadlines are fixed bounds, never raised after a failure.
+  'browser-drive': { name: 'browser-drive', run: browserDrive, browser: true, deadlineMs: 60_000 },
+  'browser-skitarii': { name: 'browser-skitarii', run: browserSkitarii, browser: true, skitarii: true, deadlineMs: 60_000 },
+  'browser-shot': { name: 'browser-shot', run: browserShot, browser: true, deadlineMs: 30_000 },
+  'browser-guard': { name: 'browser-guard', run: browserGuard, browser: true, deadlineMs: 30_000 },
+  'browser-signin': { name: 'browser-signin', run: browserSignin, browser: true, deadlineMs: 20_000 }
 }
 
 async function captureFailure(session, step) {
@@ -2912,7 +3422,7 @@ async function runSteps(session, keys, steps) {
   const prepared = await runStep('setup', async () => setup(session), { onFailure })
   steps.push(prepared)
   for (const phase of prepared.ok ? stepPhases(keys) : []) {
-    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { onFailure })
+    const result = await runStep(phase.name, (signal) => phase.run(session, signal), { deadlineMs: phase.deadlineMs, onFailure })
     steps.push(result)
     if (!result.ok) break
   }
@@ -2939,31 +3449,36 @@ function removeIsolatedState(session) {
   return { removed: session.root }
 }
 
-/** Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude fake. */
+/**
+ * Refuses the steps the selected fake cannot drive: Claude-only ones with the omp fake, Skitarii ones with the claude
+ * fake. Browser steps run on the claude default (browser-skitarii starts its own Skitarii chat), so never with `--agent omp`.
+ */
 function refuseOtherKind(keys, agent) {
-  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii)]
+  const browser = agent === 'omp' ? keys.filter((key) => STEPS[key].browser) : []
+  if (browser.length > 0) throw new Error(`${browser.join(', ')} run on the claude default: leave out --agent omp.`)
+  const ompSteps = [...OMP_STEPS, ...Object.keys(STEPS).filter((key) => STEPS[key].skitarii && !STEPS[key].browser)]
   const claudeOnly = agent === 'omp' ? keys.filter((key) => !ompSteps.includes(key)) : []
   if (claudeOnly.length > 0) throw new Error(`--agent omp runs only ${ompSteps.join(', ')}; ${claudeOnly.join(', ')} drive the claude fake.`)
-  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii) : []
+  const skitarii = agent === 'claude' ? keys.filter((key) => STEPS[key].skitarii && !STEPS[key].browser) : []
   if (skitarii.length > 0) throw new Error(`${skitarii.join(', ')} drive the omp fake: leave out --agent claude.`)
 }
 
 /**
- * The steps to run: `--steps`, else every step but the polish, image, coord and model ones (only OMP_STEPS for `--agent
- * omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither starts the app
- * nor names `ready` gets `ready` first.
+ * The steps to run: `--steps`, else every step but the polish, image, coord, model and browser ones (only OMP_STEPS
+ * for `--agent omp`); unknown ones are refused, as are those the selected fake cannot drive. A list that neither
+ * starts the app nor names `ready` gets `ready` first.
  */
 function stepKeys(requested, agent) {
-  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii))
+  const keys = requested?.split(',') ?? (agent === 'omp' ? OMP_STEPS : Object.keys(STEPS).filter((key) => !STEPS[key].polish && !STEPS[key].image && !STEPS[key].skitarii && !STEPS[key].browser))
   const unknown = keys.filter((key) => !Object.hasOwn(STEPS, key))
   if (unknown.length > 0) throw new Error(`Unknown step(s) ${unknown.join(', ')}; known: ${Object.keys(STEPS).join(', ')}`)
   refuseOtherKind(keys, agent)
   return APP_STARTING_STEPS.includes(keys[0]) || keys.includes('ready') ? keys : ['ready', ...keys]
 }
 
-/** `--agent`, else `omp` when a coord or model step is named (they run Skitarii chats), else `claude`. */
+/** `--agent`, else `omp` when a coord, model or other Skitarii step is named (they run Skitarii chats), else `claude`. */
 function agentOf(argv, requested) {
-  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii) ?? false
+  const skitarii = requested?.split(',').some((key) => STEPS[key]?.skitarii && !STEPS[key].browser) ?? false
   const agent = argv.includes('--agent') ? argv[argv.indexOf('--agent') + 1] : skitarii ? 'omp' : 'claude'
   if (!AGENT_KINDS.includes(agent)) throw new Error(`--agent takes ${AGENT_KINDS.join(' or ')}, not ${agent ?? 'nothing'}.`)
   return agent
@@ -2995,6 +3510,7 @@ async function main(argv) {
     session.main?.socket.close()
     stopDialogHelper(session)
     preserveLogs(session)
+    await session.browser?.servers?.close()
   }
   steps.push(await runStep('isolated state removed', async () => removeIsolatedState(session)))
   const result = verdict(steps)
