@@ -195,8 +195,10 @@ jobs:
       matrix: ${{ fromJSON(needs.fireguard-scope.outputs.grading) }}
     env:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
-      FIREGUARD_CONCURRENCY: '1'
-      VITEST_MAX_WORKERS: '2'
+      # Two lanes (isolated snapshots, one Vitest worker each on the 4-CPU runner) overlap flake runs:
+      # a run lasts as long as its slowest graded file, so more workers per run did not help
+      # (VITEST_MAX_WORKERS 4: longest grading 78 s vs 79 s, runs 46182438344 and 46182113492).
+      FIREGUARD_CONCURRENCY: '2'
     steps:
       - uses: actions/checkout@v4
         with:
