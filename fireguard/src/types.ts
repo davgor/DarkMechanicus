@@ -145,6 +145,8 @@ export interface FireguardReport {
   execution?: Execution;
   skipped: boolean;
   skipReason?: string;
+  /** Only gate 1 ran (`--ast-only`, a row check's early signal); the flake and mutation gates did not. */
+  astOnly?: true;
   /** Partial CI workload; only mergeShards may issue the final combined grade. */
   shard?: ShardIdentity & { config: FireguardConfig };
 }

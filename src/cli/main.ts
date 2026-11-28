@@ -17,6 +17,7 @@ import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
 import { isBusyError } from '../core/db/database'
 import { MAIL_POLL_COMMANDS } from '../core/services/agentMail'
+import { LEASE_COMMANDS } from '../core/services/claimRenewal'
 import { DomainError, toErrorShape } from '../core/errors'
 import { isPackagedScript, readPackageVersion } from '../core/packageInfo'
 import type { CommandName } from '../shared/domain/api'
@@ -209,9 +210,10 @@ function cliServerInfo(host: CliHost): NonNullable<OpenWorkspaceOptions['serverI
 
 /**
  * Opens the workspace with the caller's grant. Mail status/wake uses its restricted poll mode; peer discovery
- * uses a non-persistent read-only session so an unrelated writer cannot consume the native tool's deadline.
+ * uses a non-persistent read-only session so an unrelated writer cannot consume the native tool's deadline; a heartbeat
+ * (`lease`) opens without reconcile or flush work, so keeping a live lease waits on nothing but its own write.
  */
-async function runGranted(host: CliHost, options: CliOptions, mailMode: 'poll' | 'read' | undefined, action: (workspace: Workspace) => Promise<unknown>): Promise<number> {
+async function runGranted(host: CliHost, options: CliOptions, mode: 'poll' | 'read' | 'lease' | undefined, action: (workspace: Workspace) => Promise<unknown>): Promise<number> {
   const token = readToken(host, options)
   let workspace: Workspace | null = null
   let outcome: GrantedOutcome
@@ -226,12 +228,13 @@ async function runGranted(host: CliHost, options: CliOptions, mailMode: 'poll' |
       pid: process.pid,
       serverInfo: cliServerInfo(host),
       ...(token === null ? {} : { grantToken: token }),
-      ...(mailMode === 'poll' ? { mailPoll: true } : {}),
-      ...(mailMode === 'read' ? { mailRead: true } : {})
+      ...(mode === 'poll' ? { mailPoll: true } : {}),
+      ...(mode === 'read' ? { mailRead: true } : {}),
+      ...(mode === 'lease' ? { leaseOnly: true } : {})
     })
     outcome = { ok: true, data: await action(workspace) }
   } catch (error) {
-    outcome = { ok: false, error: mailMode === undefined ? grantedError(error, workspace === null ? 'open' : 'command') : error }
+    outcome = { ok: false, error: mode === 'poll' || mode === 'read' ? error : grantedError(error, workspace === null ? 'open' : 'command') }
   }
   closeGranted(host, workspace, outcome)
   if (outcome.ok) {
@@ -249,8 +252,8 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
     host.writeStderr(`dm: unknown command "${requested}". Use --list to see them all.\n`)
     return EXIT_USAGE
   }
-  const mailMode = name === 'listAgentPeers' ? 'read' : MAIL_POLL_COMMANDS.includes(name) ? 'poll' : undefined
-  return runGranted(host, options, mailMode, async (workspace) => workspace.execute(name, parseInputJson(readInput(host, source))))
+  const mode = name === 'listAgentPeers' ? 'read' : MAIL_POLL_COMMANDS.includes(name) ? 'poll' : LEASE_COMMANDS.includes(name) ? 'lease' : undefined
+  return runGranted(host, options, mode, async (workspace) => workspace.execute(name, parseInputJson(readInput(host, source))))
 }
 
 /** How many issues the packet summary lists before it only counts the rest. */

@@ -38,6 +38,7 @@ npm run fireguard
 npm run fireguard -- --json
 npm run fireguard -- --comment-pr
 npm run fireguard -- --plan     # size CI grading shards for this diff; runs no test
+npm run fireguard -- --ast-only
 npm run fireguard -- --help
 ```
 
@@ -46,6 +47,10 @@ npm run fireguard -- --help
 | 0 | Pass (grade A–D) |
 | 1 | Quality failure (grade **F**) |
 | 2 | Tool error |
+
+### AST gate only (row checks)
+
+`--ast-only` runs gate 1 on the committed diff's graded tests and stops: no snapshots, no flake runs, no mutants, so it takes seconds. The scope rules are the same, so production modules changed without graded test updates still grade **F**. The report carries `astOnly: true` and its reason says the other gates did not run. It cannot be combined with `--shard`, `--merge-shards` or `--comment-pr`. It is the early signal `npm run check:row -- --base <ref>` runs at each row check (with `deadcode` and `npm run coverage:changed -- --base <ref>`); it is not a grade, and the full run at acceptance and in PR CI is unchanged.
 
 ### PR grade comments
 

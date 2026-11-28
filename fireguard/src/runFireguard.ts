@@ -35,6 +35,8 @@ export interface RunFireguardDeps {
    * and always closed before `runFireguard` returns.
    */
   openLanes: () => Promise<Lanes>;
+  /** Run gate 1 only (a row check's early signal): never open lanes, never run flake or mutation. */
+  astOnly?: boolean;
 }
 
 /** Lookup from a changed module to the graded tests that can kill its mutants, if scopable. */
@@ -169,10 +171,12 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
   if (!ast) return untestedReport(scope, scopePayload, deps.revision);
 
   const gates: FireguardReport['gates'] = { ast };
-  if (!ast.pass) {
+  if (!ast.pass || deps.astOnly) {
+    const grade = computeGrade(gates);
+    if (ast.pass) grade.reasons = ['ast gate passed; flake and mutation gates not run (--ast-only)'];
     return {
       revision: deps.revision,
-      grade: computeGrade(gates),
+      grade,
       gates,
       scope: scopePayload,
       skipped: false,
@@ -193,5 +197,6 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
 export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {
   const report = await run(deps);
   if (deps.shard) report.shard = { ...deps.shard, config: deps.config };
+  if (deps.astOnly) report.astOnly = true;
   return report;
 }

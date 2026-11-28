@@ -41,7 +41,7 @@ import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
-import { itemWorkflow } from './workflowPolicy'
+import { claimWorkflow, itemWorkflow } from './workflowPolicy'
 import { isAcceptanceTicket } from '../plan/acceptance'
 import { matchProfile } from '../plan/capabilities'
 import { LIMITS } from '../schemas'
@@ -457,7 +457,8 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
   const applied = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
   const ticket = effectiveTicket(ticketOf(context.bundle, row.ticket_id), applied)
   const sprintRule = rules.find(s => s.kind === 'sprint' && s.id === view.sprintId)
-  const deliveryStandards = isAcceptanceTicket(ticket) ? sprintRule : applied
+  const deliveryStandards = isAcceptanceTicket(ticket) ? claimWorkflow(ctx, context.run.epic_id, 'sprint', view.sprintId)
+    : claimWorkflow(ctx, context.run.epic_id, 'ticket', row.ticket_id)
   return {
     ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
     runId: context.run.id,
@@ -694,6 +695,27 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
     const rule = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
     return rule ? { ...result, deliveryRequirements: rule } : result
   })
+}
+
+/**
+ * Renews the lease of the live plan claim `claimToken` proves, from now by the length the claim holds, as a heartbeat
+ * without a note or a state change would. A successful call that carried the token (a comment, an attachment, metrics)
+ * calls this, so a working holder never expires between heartbeats; a holder that stops calling still does. Returns
+ * whether the token named a plan attempt at all; a stale, expired or forged token renews nothing.
+ */
+export function renewAttemptLease(ctx: Ctx, claimToken: string): boolean {
+  const attemptId = claimToken.slice(0, Math.max(0, claimToken.indexOf('.')))
+  if (ctx.db.get('SELECT 1 FROM attempts WHERE id = ?', attemptId) === undefined) return false
+  if (claimedAttemptOf(ctx, claimToken) === null) return true
+  ctx.db.tx(() => {
+    // Checked again under the write lock: the claim may have ended or expired while this call waited for it.
+    if (claimedAttemptOf(ctx, claimToken) === null) return
+    const row = loadAttempt(ctx, attemptId)
+    const now = ctx.clock.nowIso()
+    const leaseSeconds = heldLeaseSeconds(ctx, row) ?? loadBundle(ctx, row.revision_id).policies.leaseSeconds
+    ctx.db.run('UPDATE attempts SET lease_expires_at = ?, heartbeat_at = ?, updated_at = ? WHERE id = ?', addSeconds(now, leaseSeconds), now, now, row.id)
+  })
+  return true
 }
 
 function storeSubmission(

@@ -77,7 +77,8 @@ const CARD_CONTENT_TOOLS = [
       attachments: ADD_MESSAGE.attachments.describe(
         'Staged image ids (from add_attachment) to attach to this message, at most 20. Either purpose is allowed.'
       ),
-      idempotencyKey
+      idempotencyKey,
+      claimToken: claimToken.optional().describe('Your card claim token while you hold the card: the call also renews that lease.')
     },
     run: (api, input) => api.addKanbanMessage(input)
   }),
@@ -102,7 +103,7 @@ const CARD_ATTEMPT_TOOLS = [
     name: 'claim_kanban_card',
     description: `Claims a queued card: creates an attempt with a lease, moves the card to In progress and returns the packet (card content, current branch, every earlier kick-back comment, claimToken). It needs pending desktop Play or an authorized launch_kanban_cards request; without either it fails with \`play_required\`. ${CARD_RULES} Keep the claimToken secret and give it only to the agent doing the card; it is shown once (a replay with the same idempotencyKey returns claimToken null). Fails with \`already_claimed\` while an attempt is open.`,
     kind: 'write',
-    input: { cardId, leaseSeconds: leaseSeconds.describe('Lease length in seconds, 30 to 86,400; 900 when omitted.').optional(), idempotencyKey },
+    input: { cardId, leaseSeconds: leaseSeconds.describe('Lease length in seconds, 30 to 86,400; 3,600 when omitted.').optional(), idempotencyKey },
     run: (api, input) => api.claimKanbanCard(input)
   }),
   defineTool({
