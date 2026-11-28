@@ -2875,8 +2875,8 @@ const SKITARII_CHAT_PROMPT = 'hello skitarii'
 /** The fake's `[browser]` scenario (`fakeAgentCli.mjs`, BROWSER_STEPS), and what it types into the fixture's Name box. */
 const BROWSER_SCENARIO_OPS = ['browser_navigate', 'browser_read', 'browser_click', 'browser_type', 'browser_read', 'browser_screenshot']
 const BROWSER_TYPED = 'Ada'
-/** How long browser-guard watches the view after a click it must refuse: the refusal leaves nothing to wait for. */
-const GUARD_WATCH_MS = 1_000
+/** The page a refused navigation leaves in a view: Chromium's own error page. */
+const ERROR_PAGE = 'chrome-error://chromewebdata/'
 /** Main's screenshot copies for the CLI (`dm-browser-shot-<random>` in the temp folder), removed once collected. */
 const SHOT_PREFIX = 'dm-browser-shot-'
 /** The fixture page's state, read in a browser view: its URL, `#status`, `#echo` and its size in DIP with the scale. */
@@ -3215,29 +3215,48 @@ async function browserShot(session, signal) {
   }
 }
 
+/** The targets `after` lists that `before` did not, each as `<type> <url>`. */
+export function newTargets(before, after) {
+  const known = new Set(before.map((target) => target.id))
+  return after.filter((target) => !known.has(target.id)).map((target) => `${target.type} ${target.url}`)
+}
+
+/** How many lines of `log` contain `line`. */
+export function countLines(log, line) {
+  return log.split(/\r?\n/).filter((entry) => entry.includes(line)).length
+}
+
+/** The view's document URL over a fresh connection (a navigation may have swapped the page an older one spoke to); null while unreadable. */
+async function viewHref(session, signal, targetId) {
+  const target = viewTarget(await listTargets(session, signal), { id: targetId })
+  if (target === null) return null
+  const view = await connect(target.webSocketDebuggerUrl)
+  try {
+    return await evaluateOn(view, 'location.href').catch(() => null)
+  } finally {
+    view.socket.close()
+  }
+}
+
 /**
- * Clicks the fixture link `#<link>` in the view, waits for `path` (when given) to reach the fixture servers, then
- * watches for GUARD_WATCH_MS: every URL the view (`targetId`) showed (its target's and its document's) and every new
- * DevTools target. The click runs after the evaluation answers: a navigation it starts may swap the page before an
- * answer would arrive.
+ * Clicks the fixture link `#<link>` in the view and waits, under the step's deadline, until `settled` holds: the app's
+ * own proof that it refused the click, given the view's document URL and the paths requested since. Answers every
+ * URL the view (`targetId`) showed meanwhile (its target's and its document's) and the DevTools targets added. The
+ * click runs after the evaluation answers: a navigation it starts may swap the page before an answer would arrive.
  */
-async function clickAndWatch(session, signal, { view, targetId, link, path }) {
+async function guardClick(session, signal, { view, targetId, link, settled }) {
   const { requests } = session.browser.servers
   const from = requests.length
-  const before = new Set((await listTargets(session, signal)).map((target) => target.id))
-  const anchor = await evaluateOn(view, `(() => { const link = document.getElementById(${JSON.stringify(link)}); setTimeout(() => link.click()); return link.href })()`)
-  if (path !== null) await waitFor(() => requests.slice(from).includes(path), signal)
+  const before = await listTargets(session, signal)
+  const href = await evaluateOn(view, `(() => { const link = document.getElementById(${JSON.stringify(link)}); setTimeout(() => link.click()); return link.href })()`)
   const urls = new Set()
-  const added = new Set()
-  const end = performance.now() + GUARD_WATCH_MS
-  while (performance.now() < end) {
-    const listed = await listTargets(session, signal)
-    for (const target of listed) if (!before.has(target.id)) added.add(`${target.type} ${target.url}`)
-    urls.add(viewTarget(listed, { id: targetId })?.url ?? '(no target)')
-    urls.add(await evaluateOn(view, 'location.href').catch((error) => `(unreadable: ${messageOf(error)})`))
-    await delay(POLL_MS, undefined, { signal })
-  }
-  return { link, href: anchor, requested: requests.slice(from), urls: [...urls], newTargets: [...added] }
+  await waitFor(async () => {
+    urls.add(viewTarget(await listTargets(session, signal), { id: targetId })?.url ?? '(no target)')
+    const document = await viewHref(session, signal, targetId)
+    if (document !== null) urls.add(document)
+    return settled({ document, requested: requests.slice(from) })
+  }, signal)
+  return { link, href, requested: requests.slice(from), urls: [...urls], newTargets: newTargets(before, await listTargets(session, signal)) }
 }
 
 /** Files named like the fixture's download in the person's Downloads folder, the isolated home's, and anywhere in the isolated root. */
@@ -3257,10 +3276,11 @@ function appLog(session) {
 }
 
 /**
- * Browser 4: with the agent back on `<a>/`, the view's `target=_blank` link opens no window or DevTools target,
- * `/download` is requested, cancelled (the app logs it) and lands in no Downloads folder nor the isolated root, and
- * the `/to-file` link never loads a file: URL (last: its refused redirect leaves the view on an error page). Then the
- * person opens `<b>/` from the address bar and allows it once.
+ * Browser 4: with the agent back on `<a>/`, the view's `target=_blank` link is blocked (the app logs it) and adds no
+ * window or DevTools target; `/download` is requested, cancelled (the app logs it) and lands in no Downloads folder nor
+ * the isolated root; the `/to-file` link's redirect is refused (ERR_UNSAFE_REDIRECT, the view on Chromium's error
+ * page) and no file: URL ever shows (last: the error page has no links). Then the person opens `<b>/` from the
+ * address bar and allows it once.
  */
 async function browserGuard(session, signal) {
   const { drive, servers } = session.browser
@@ -3272,17 +3292,25 @@ async function browserGuard(session, signal) {
   assertReply(text, back, 'browser done')
   assertCalls(text, back.calls, [['browser_navigate', true], ['browser_status', true]])
   const downloadsBefore = downloadedFiles(session, servers.downloadName)
+  const popupLine = `browser popup blocked ${servers.b.origin}`
   const cancelLine = `browser download cancelled ${servers.a.origin}`
+  const unsafeLine = `${servers.a.origin}/to-file with error: ERR_UNSAFE_REDIRECT`
+  const logged = (line) => countLines(appLog(session), line)
   const connection = await connectView(session, signal, { id: drive.targetId })
   const watch = { view: connection.view, targetId: drive.targetId }
   let toFile, newWindow, download
   try {
     await waitFor(async () => (await evaluateOn(connection.view, 'location.href')) === home, signal)
-    newWindow = await clickAndWatch(session, signal, { ...watch, link: 'new-window', path: null })
+    const popups = logged(popupLine)
+    newWindow = await guardClick(session, signal, { ...watch, link: 'new-window', settled: () => logged(popupLine) > popups })
     if (newWindow.newTargets.length > 0) throw new Error(`The target=_blank link opened ${newWindow.newTargets.join(', ')}.`)
-    download = await clickAndWatch(session, signal, { ...watch, link: 'download', path: '/download' })
-    await waitFor(() => appLog(session).includes(cancelLine), signal)
-    toFile = await clickAndWatch(session, signal, { ...watch, link: 'to-file', path: '/to-file' })
+    const cancels = logged(cancelLine)
+    download = await guardClick(session, signal, { ...watch, link: 'download', settled: ({ requested }) => requested.includes('/download') && logged(cancelLine) > cancels })
+    if (download.newTargets.length > 0) throw new Error(`The download opened ${download.newTargets.join(', ')}.`)
+    const refusals = logged(unsafeLine)
+    toFile = await guardClick(session, signal, {
+      ...watch, link: 'to-file', settled: ({ document, requested }) => requested.includes('/to-file') && document === ERROR_PAGE && logged(unsafeLine) > refusals
+    })
     if (toFile.urls.some((url) => url.startsWith('file:')) || toFile.newTargets.length > 0) throw new Error(`The /to-file link loaded a file: URL or a target: ${JSON.stringify(toFile)}`)
   } finally {
     connection.view.socket.close()
@@ -3296,7 +3324,8 @@ async function browserGuard(session, signal) {
   await waitFor(async () => viewTarget(await listTargets(session, signal), { id: drive.targetId })?.url === other, signal)
   const { viewScreenshot } = await snapView(session, signal, { match: { id: drive.targetId }, loaded: other, name: 'e2e-browser-guard-view.png' })
   return {
-    toFile, newWindow, download: { ...download, cancelLine, downloadName: servers.downloadName, before: downloadsBefore, after: downloadsAfter },
+    toFile: { ...toFile, refusedLine: unsafeLine }, newWindow: { ...newWindow, blockedLine: popupLine },
+    download: { ...download, cancelLine, downloadName: servers.downloadName, before: downloadsBefore, after: downloadsAfter },
     allowedOnce: other, requests: [...servers.requests],
     beacon: 'Both fixtures are loopback, so a non-loopback page reaching a loopback subresource cannot occur here: unit-covered by originPolicy.test.ts (decideSubresource denies) and browserSession.test.ts (cancels a subresource of a public page served from a loopback or private address).',
     viewScreenshot, screenshot: await capture(session, 'e2e-browser-guard.png', WINDOW)

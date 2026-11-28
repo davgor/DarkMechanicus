@@ -13,6 +13,7 @@ import {
   chatLaunches,
   claudeSessionPath,
   consoleText,
+  countLines,
   coordLaunches,
   coordMailBody,
   evidenceComment,
@@ -26,6 +27,7 @@ import {
   launchModelFlags,
   newChatLaunch,
   newerVersion,
+  newTargets,
   parseArgs,
   pngSize,
   refusedImages,
@@ -799,6 +801,22 @@ describe('siteFile', () => {
     expect(siteFile('C:\\run\\user-data', folder.toUpperCase(), [], 'win32').path).toBe(file.path)
     expect(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path).toBe(join('/run/user-data', 'browser', 'sites', `${folderStoreId('/tmp/E2E-repo', 'linux')}.json`))
     expect(siteFile('/run/user-data', '/tmp/e2e-repo', [], 'linux').path).not.toBe(siteFile('/run/user-data', '/tmp/E2E-repo', [], 'linux').path)
+  })
+})
+
+describe('browser-guard proofs', () => {
+  it('names only the DevTools targets that appeared after a click, by type and URL', () => {
+    const app = { id: 'APP', type: 'page', url: 'file:///C:/repo/out/renderer/index.html' }
+    const view = { id: 'V1', type: 'page', url: 'http://127.0.0.1:4100/' }
+    expect(newTargets([app, view], [app, { ...view, url: 'chrome-error://chromewebdata/' }])).toEqual([])
+    expect(newTargets([app, view], [app, view, { id: 'P1', type: 'page', url: 'http://127.0.0.1:4101/' }])).toEqual(['page http://127.0.0.1:4101/'])
+  })
+
+  it('counts the log lines holding a refusal, so a click waits for a new one rather than an earlier one', () => {
+    const log = '21:08:45.459 > browser popup blocked http://127.0.0.1:4101\r\nother\n21:09:01.000 > browser popup blocked http://127.0.0.1:4101\n(node:1) electron: Failed to load URL: http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT'
+    expect(countLines(log, 'browser popup blocked http://127.0.0.1:4101')).toBe(2)
+    expect(countLines(log, 'http://127.0.0.1:4100/to-file with error: ERR_UNSAFE_REDIRECT')).toBe(1)
+    expect(countLines(log, 'browser download cancelled')).toBe(0)
   })
 })
 
