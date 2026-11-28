@@ -624,7 +624,9 @@ const STATE_CHECKS = {
     ...browserChecks('Driven by: Acolyte:DM-442', { stop: true, toggle: 'Take control' }),
     [`the Sites popover lists ${JSON.stringify(BROWSER_SITES)} over the hidden page area`,
       (o) => JSON.stringify(o.browserPanel?.sites) === JSON.stringify(BROWSER_SITES) && o.browserPanel.page === BROWSER_HIDDEN,
-      (o) => JSON.stringify([o.browserPanel?.sites, o.browserPanel?.page])]
+      (o) => JSON.stringify([o.browserPanel?.sites, o.browserPanel?.page])],
+    ['the Sites popover stays inside the Browser panel', (o) => o.browserPanel?.sitesInPanel === true,
+      (o) => JSON.stringify(o.browserPanel?.sitesInPanel)]
   ]
 }
 

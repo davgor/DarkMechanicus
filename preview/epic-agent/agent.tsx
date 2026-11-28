@@ -1523,7 +1523,8 @@ function browserObservations(): Record<string, unknown> | null {
     privateAddress: address instanceof HTMLInputElement ? address.value : null,
     stageWidth: $('section.eap')?.getBoundingClientRect().width ?? null,
     siteCard: siteCardObservations(),
-    sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text)
+    sites: sites === null ? null : [...sites.querySelectorAll('.bp-sites-origin')].map(text),
+    sitesInPanel: sites === null ? null : boxInside(sites.getBoundingClientRect(), panel.getBoundingClientRect())
   }
 }
 

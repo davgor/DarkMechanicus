@@ -386,7 +386,7 @@ const BROWSER_PANELS = {
     badge: 'You have control', tabs: [BROWSER_TAB], stopEnabled: false, toggle: 'Hand back', enabled: true, page: '', privateAddress: null,
     siteCard: siteCard('You asked to open https://example.com', 'https://example.com')
   },
-  'browser-sites': { ...DRIVEN, page: 'Browser hidden while a dialog is open', sites: SITES }
+  'browser-sites': { ...DRIVEN, page: 'Browser hidden while a dialog is open', sites: SITES, sitesInPanel: true }
 }
 /** A Browser state's record at one width: the epic Agent tab with the rail widened over the panel. */
 function browserRecord(state, patch = {}) {
@@ -540,7 +540,7 @@ describe('capture-agent-chat: Browser site card and Sites states', () => {
       .toEqual(['browser-origin-1440: expected the chat docks the site card "Acolyte:DM-442 wants to open https://api.github.com" above the composer; got null'])
   })
 
-  it('fails a Sites state whose popover misses a site or leaves the page area shown', () => {
+  it('fails a Sites state whose popover misses a site, leaves the page area shown or spills out of the panel', () => {
     const missing = SITES.slice(1)
     expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sites: missing })))
       .toEqual([`browser-sites-1024: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
@@ -548,6 +548,8 @@ describe('capture-agent-chat: Browser site card and Sites states', () => {
     expect(validateObservations('browser-sites-1440', browserRecord('browser-sites-1440', { page: '' })))
       .toEqual([`browser-sites-1440: expected the Sites popover lists ${JSON.stringify(SITES)} over the hidden page area; `
         + `got ${JSON.stringify([SITES, ''])}`])
+    expect(validateObservations('browser-sites-1024', browserRecord('browser-sites-1024', { sitesInPanel: false })))
+      .toEqual(['browser-sites-1024: expected the Sites popover stays inside the Browser panel; got false'])
   })
 })
 
