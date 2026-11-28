@@ -3,6 +3,7 @@ import type { DeliveryPolicy, StoredDeliveryPolicy } from '../../shared/domain/d
 import { defaultPrompts, effectivePrompts } from '../../shared/domain/standardsPrompts'
 import type { Ctx } from '../context'
 import { toJson } from '../db/database'
+import { enqueueOutbox } from './outbox'
 import { type AppliedStandard, encodeStandards, workStandards } from './workStandards'
 
 type Kind = AppliedStandard['kind']
@@ -28,6 +29,27 @@ function creationRule(config: StoredDeliveryPolicy, item: Item): AppliedStandard
 export function itemWorkflow(ctx: Ctx, ownerId: string, kind: Kind, id: string): AppliedStandard | undefined {
   return workStandards(ctx.db, kind === 'kanban' ? 'kanban' : 'epic', ownerId)
     .find(rule => rule.kind === kind && rule.id === id)
+}
+
+/** The decision a new claim carries. A pin made at creation moves to the current saved revision, so a claim made after
+ * a standards save carries that revision and its acceptance checks follow it; an open claim's packet keeps the revision it
+ * was issued with. An explicitly standardized decision and an item without a pin are left unchanged. */
+export function claimWorkflow(ctx: Ctx, ownerId: string, kind: Kind, id: string): AppliedStandard | undefined {
+  const kanban = kind === 'kanban'
+  const rules = workStandards(ctx.db, kanban ? 'kanban' : 'epic', ownerId)
+  const index = rules.findIndex(rule => rule.kind === kind && rule.id === id)
+  const pinned = rules[index]
+  const config = ctx.deliveryStandards?.()
+  if (pinned?.source !== 'creation' || !config?.policy.prompts || pinned.revision >= config.revision) return pinned
+  rules[index] = creationRule(config, { kind, id })
+  ctx.db.run(`UPDATE ${kanban ? 'kanban_cards' : 'epics'} SET standards_json = ? WHERE id = ?`, toJson(encodeStandards(rules)), ownerId)
+  if (!kanban) enqueueSavedEpicState(ctx, ownerId)
+  return rules[index]
+}
+
+/** A saved epic's portable record carries its pins, so a changed pin rewrites it. */
+function enqueueSavedEpicState(ctx: Ctx, epicId: string): void {
+  if (ctx.db.get('SELECT id FROM epics WHERE id = ? AND current_revision_id IS NOT NULL', epicId)) enqueueOutbox(ctx, { kind: 'epic_state', epicId })
 }
 
 export function pinCardWorkflow(ctx: Ctx, id: string): void {

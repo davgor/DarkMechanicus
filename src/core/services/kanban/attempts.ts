@@ -1,5 +1,5 @@
 import { workStandards } from '../workStandards'
-import { itemWorkflow } from '../workflowPolicy'
+import { claimWorkflow, itemWorkflow } from '../workflowPolicy'
 import { checkKanbanSubmission } from '../deliveryWorkflow'
 import { toolingLeaseTimeGivenBack } from '../leaseCredits'
 /**
@@ -310,7 +310,7 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
   )
   const branch = ctx.checkout().branch
   const definitionOfDone = ctx.definitionOfDone()
-  const deliveryStandards = itemWorkflow(ctx, cardId, 'kanban', cardId)
+  const deliveryStandards = claimWorkflow(ctx, cardId, 'kanban', cardId)
   const link = learningLinkOf(ctx, cardId)
   const packet: KanbanPacket = {
     ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
