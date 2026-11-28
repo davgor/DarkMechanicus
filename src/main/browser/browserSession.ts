@@ -31,14 +31,18 @@ import {
   type HostClass
 } from './originPolicy'
 
-/** The view's web preferences: sandboxed, isolated, no Node and no preload. Main adds the tab's `partition`. */
+/**
+ * The view's web preferences: sandboxed, isolated, no Node and no preload. Main adds the tab's `partition`. Agents
+ * usually drive a hidden view (the person is on another chat), so a hidden view is never throttled.
+ */
 export const BROWSER_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
   contextIsolation: true,
   nodeIntegration: false,
   webSecurity: true,
   allowRunningInsecureContent: false,
-  spellcheck: false
+  spellcheck: false,
+  backgroundThrottling: false
 })
 
 const FOLDER_STORE_ID = /^[0-9a-f]{32}$/
@@ -73,6 +77,8 @@ interface RequestDetails {
   /** The requesting frame; null or throwing once it has navigated away or been destroyed. */
   frame?: { readonly url: string } | null
   webContents?: { getURL(): string }
+  /** The tab the request belongs to; absent for requests of no tab (a service worker). */
+  webContentsId?: number
 }
 
 interface ResponseDetails extends RequestDetails {
@@ -115,6 +121,11 @@ interface SessionDeps {
   /** Every address a host name resolves to (`dns.promises.lookup(host, { all: true })`). */
   lookup: (host: string) => Promise<readonly { address: string }[]>
   log: (line: string) => void
+  /**
+   * The tab's own origin decision for a main-frame or subframe request, because back, forward, reload and an iframe's
+   * first load fire no `will-navigate`: false cancels the request (red-team R19-3).
+   */
+  frameAllowed: (details: RequestDetails) => boolean | Promise<boolean>
 }
 
 function originOf(url: string): string | null {
@@ -213,7 +224,7 @@ export function hardenBrowserSession(session: HardenableSession, deps: SessionDe
   session.webRequest.onBeforeRequest((details, callback) => {
     // Answered asynchronously once DNS is in; any throw (an unparsable URL included) cancels.
     void Promise.resolve(details)
-      .then(async (request) => literallyAllowed(request) && (await resolvesReachable(request, deps)))
+      .then(async (request) => literallyAllowed(request) && (!isFrame(request) || (await deps.frameAllowed(request))) && (await resolvesReachable(request, deps)))
       .then(
         (allowed) => callback(allowed ? {} : { cancel: true }),
         () => callback({ cancel: true })

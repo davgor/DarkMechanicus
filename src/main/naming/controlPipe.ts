@@ -1,3 +1,4 @@
+import type { Capability } from '../../core/authz'
 import { NAMING_PROTOCOL } from '../../core/desktop/controlProtocol'
 import {
   NamingControlError, type NamingErrorCode, type NamingOperation, type NamingReply, type NamingRequest
@@ -15,7 +16,7 @@ export interface NamingControlBinding extends ControlBinding {
   readonly cardId?: string
   /** Narrow repair authority, rechecked independently of naming (not granted to workers/reviewers). */
   assertRecovery?(): void
-  verifyAuthority?(capability: 'chat.name' | 'tooling.recover'): Promise<void>
+  verifyAuthority?(capability: Capability): Promise<void>
 }
 export type NamingOperationContext = ControlOperationContext<NamingControlBinding>
 export type NamingDispatcher = ControlDispatcher<NamingOperation, NamingControlBinding>

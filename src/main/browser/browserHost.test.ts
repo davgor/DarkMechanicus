@@ -33,6 +33,8 @@ function fakeSession() {
   }
 }
 
+let nextContentsId = 1
+
 /** A recording stand-in for a view's WebContents; `emit` fires a listener the host or the hardener added. */
 function fakeContents(session: ReturnType<typeof fakeSession>) {
   const listeners = new Map<string, Listener[]>()
@@ -44,6 +46,7 @@ function fakeContents(session: ReturnType<typeof fakeSession>) {
   const nextPaint = () => new Promise<unknown>((resolve) => { paintNow = () => resolve(true) })
   let paint = nextPaint()
   const contents = {
+    id: nextContentsId++,
     session,
     loadURL: vi.fn(async (next: string) => { url = next }),
     getURL: () => url,
@@ -94,7 +97,10 @@ function setup(options: { zoom?: number; windowSize?: { width: number; height: n
   const attach = vi.fn()
   const detach = vi.fn()
   let clock = 1_000_000
-  const harden = createBrowserHardener({ appUrl: 'http://localhost:5173', log: (line) => lines.push(line), lookup: async () => [] })
+  const harden = createBrowserHardener({
+    appUrl: 'http://localhost:5173', log: (line) => lines.push(line), lookup: async () => [],
+    frameAllowed: (webContentsId, url) => host.frameAllowed(webContentsId, url)
+  })
   const hardenSpy = vi.fn(harden)
   const host = createBrowserHost({
     createView(webPreferences) {
@@ -427,5 +433,52 @@ describe('createBrowserHost lifecycle', () => {
   it("accepts Electron's own WebContentsView", () => {
     expectTypeOf<WebContentsView>().toExtend<HostView>()
     expectTypeOf<WebContentsView['webContents']>().toExtend<HostContents>()
+  })
+})
+
+describe('createBrowserHost frame decisions (R19-3)', () => {
+  it("allows an agent tab's frames only to its folder's always list, read fresh, plus that tab's once set", async () => {
+    const fake = setup()
+    const id = fake.host.ensureAgentTab(CHAT).contents.id
+    expect(await fake.host.frameAllowed(id, 'https://a.example/')).toBe(false)
+    await fake.sites.add(FOLDER, 'https://a.example')
+    expect(await fake.host.frameAllowed(id, 'https://a.example/page')).toBe(true)
+    expect(await fake.host.frameAllowed(id, 'https://b.example/')).toBe(false)
+    await fake.sites.remove(FOLDER, 'https://a.example')
+    expect(await fake.host.frameAllowed(id, 'https://a.example/page')).toBe(false)
+    await fake.host.navigate(CHAT, 'https://once.example/', 'agent')
+    await fake.host.decideOrigin(CHAT, fake.host.state(CHAT).pendingOrigin?.id ?? '', 'once')
+    expect(await fake.host.frameAllowed(id, 'https://once.example/x')).toBe(true)
+    expect(await fake.host.frameAllowed(fake.host.ensureAgentTab(OTHER).contents.id, 'https://once.example/x')).toBe(false)
+  })
+
+  it('leaves contents that are no agent tab (the Sign-in tab) to the session rules', async () => {
+    const fake = setup()
+    await fake.host.openSignIn(CHAT, 'https://login.example/')
+    expect(await fake.host.frameAllowed(fake.views[0].view.webContents.id, 'https://login.example/')).toBe(true)
+    expect(await fake.host.frameAllowed(undefined, 'https://login.example/')).toBe(true)
+  })
+})
+
+describe('createBrowserHost agent prompt and window close', () => {
+  it("reports the agent tab's pending origin, never the Sign-in tab's", async () => {
+    const fake = setup()
+    await fake.host.openSignIn(CHAT, 'https://login.example/')
+    expect(fake.host.agentPendingOrigin(CHAT)).toBeNull()
+    await fake.host.navigate(CHAT, 'https://new.example/', 'agent')
+    expect(fake.host.agentPendingOrigin(CHAT)).toBe('https://new.example')
+  })
+
+  it('closeViews closes every view but keeps ownership; the next tab is made and attached anew', () => {
+    const fake = setup()
+    fake.host.ensureAgentTab(CHAT)
+    fake.ownership.stop(CHAT.chatId)
+    fake.host.closeViews()
+    expect(fake.views[0].view.webContents.close).toHaveBeenCalledOnce()
+    expect(fake.host.agentTab(CHAT)).toBeNull()
+    expect(fake.ownership.owner(CHAT.chatId)).toBe('stopped')
+    fake.host.ensureAgentTab(CHAT)
+    expect(fake.views).toHaveLength(2)
+    expect(fake.attach).toHaveBeenLastCalledWith(fake.views[1].view)
   })
 })

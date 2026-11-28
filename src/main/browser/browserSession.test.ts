@@ -61,7 +61,7 @@ const detailsOf = ({ url, resourceType = 'xhr', page = 'https://page.example/', 
   ...(ip === undefined ? {} : { ip })
 })
 
-function hardened(dns: Record<string, readonly string[]> = {}) {
+function hardened(dns: Record<string, readonly string[]> = {}, frameAllowed: (details: { url: string; webContentsId?: number }) => boolean = () => true) {
   const fake = fakeSession()
   const log = vi.fn<(line: string) => void>()
   const lookup = vi.fn(async (host: string) => {
@@ -69,7 +69,7 @@ function hardened(dns: Record<string, readonly string[]> = {}) {
     if (addresses === undefined) throw new Error(`ENOTFOUND ${host}`)
     return addresses.map((address) => ({ address }))
   })
-  hardenBrowserSession(fake.session, { lookup, log })
+  hardenBrowserSession(fake.session, { lookup, log, frameAllowed })
   const { handlers } = fake
   return {
     ...fake,
@@ -177,7 +177,7 @@ describe('hardenBrowserSession app schemes', () => {
 
   it.each(['dm-attachment', 'dm-chat-image'])('refuses to harden a session that handles %s', (scheme) => {
     const fake = fakeSession([scheme])
-    expect(() => hardenBrowserSession(fake.session, { lookup: vi.fn(), log: vi.fn() })).toThrow(scheme)
+    expect(() => hardenBrowserSession(fake.session, { lookup: vi.fn(), log: vi.fn(), frameAllowed: vi.fn() })).toThrow(scheme)
     expect(fake.handlers.beforeRequest).toBeUndefined()
     expect(fake.handle).not.toHaveBeenCalled()
   })
@@ -481,14 +481,15 @@ describe('partitions and web preferences', () => {
     }
   })
 
-  it('locks the view down with no preload', () => {
+  it('locks the view down with no preload, and never throttles a hidden view (agents drive hidden views)', () => {
     expect(BROWSER_WEB_PREFERENCES).toEqual({
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      spellcheck: false
+      spellcheck: false,
+      backgroundThrottling: false
     })
     expect(BROWSER_WEB_PREFERENCES).not.toHaveProperty('preload')
     expect(Object.isFrozen(BROWSER_WEB_PREFERENCES)).toBe(true)
@@ -497,5 +498,31 @@ describe('partitions and web preferences', () => {
   it("accepts Electron's own Session and WebContents", () => {
     expectTypeOf<Session>().toExtend<Parameters<typeof hardenBrowserSession>[0]>()
     expectTypeOf<WebContents>().toExtend<Parameters<typeof hardenBrowserContents>[0]>()
+  })
+})
+
+describe('hardenBrowserSession frame gate (R19-3)', () => {
+  const dns = { 'a.example': ['93.184.216.34'], 'b.example': ['93.184.216.35'] }
+  const allowA = (details: { url: string }) => new URL(details.url).hostname === 'a.example'
+
+  it.each(['mainFrame', 'subFrame'])('cancels a %s request the tab does not allow, and passes one it does', async (resourceType) => {
+    const fake = hardened(dns, allowA)
+    expect(await fake.request({ url: 'https://b.example/', resourceType })).toEqual(CANCEL)
+    expect(await fake.request({ url: 'https://a.example/', resourceType })).toEqual(PASS)
+  })
+
+  it('asks with the request (its tab id and URL), and never for a subresource', async () => {
+    const frameAllowed = vi.fn(allowA)
+    const fake = hardened(dns, frameAllowed)
+    expect(await fake.requestRaw({ url: 'https://a.example/x', resourceType: 'mainFrame', webContentsId: 7 })).toEqual(PASS)
+    expect(frameAllowed).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.example/x', webContentsId: 7 }))
+    frameAllowed.mockClear()
+    expect(await fake.request({ url: 'https://b.example/script.js', resourceType: 'script' })).toEqual(PASS)
+    expect(frameAllowed).not.toHaveBeenCalled()
+  })
+
+  it('cancels a frame when the decision throws', async () => {
+    const fake = hardened(dns, () => { throw new Error('no answer') })
+    expect(await fake.request({ url: 'https://a.example/', resourceType: 'mainFrame' })).toEqual(CANCEL)
   })
 })

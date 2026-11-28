@@ -10,7 +10,7 @@ import type { YoloStatus } from '../../shared/desktop/api'
 import type { GrantView } from '../../shared/domain/views'
 import type { DesktopFence } from '../../core/services/yoloFence'
 import { DomainError } from '../../core/errors'
-import { hashToken } from '../../core/services/grants'
+import { grantedCapabilities, hashToken } from '../../core/services/grants'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
 import { writePrivateFile } from '../terminals/privateFile'
@@ -32,6 +32,11 @@ interface ChatGrantsDeps {
   log: (line: string) => void
   desktopAddress?: () => string | undefined
   desktopReady?: () => Promise<void>
+  /**
+   * The browser pipe's address once it listens; undefined when it has not (yet) or failed to start. Never awaited: a
+   * broken browser pipe never blocks a chat launch, whose `browser_*` calls then answer `desktop_unavailable`.
+   */
+  browserAddress?: () => string | undefined
   /** Main rotates this before opening any folder; absent means YOLO cannot be enabled. */
   desktopFence?: DesktopFence
   yoloReady?: () => Promise<void>
@@ -58,6 +63,8 @@ interface LiveIdentity { folder: string | null; chatId: string; generation: stri
 export interface ChatGrants {
   bindChatGrant(grantId: string, identity: LiveIdentity): Promise<void>
   authorizeNaming(token: string): NamingControlBinding
+  /** The live binding of a grant whose role holds `browser.drive`; any other token is `unauthorized`. */
+  authorizeBrowser(token: string): NamingControlBinding
   yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus>
   dispose(): Promise<void>
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
@@ -82,6 +89,8 @@ interface HeldGrant {
   lifetime: AbortController
   /** Whether it was bound to a mailbox, whose binding its revoke closes. */
   mailbox: boolean
+  /** Whether its role holds `browser.drive`: only such a grant's chat gets the browser pipe. */
+  browser: boolean
   runId?: string
   cardId?: string
 }
@@ -118,16 +127,22 @@ class ChatGrantRegistry implements ChatGrants {
   private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: ProjectWorkspace }> {
     const workspace = this.deps.workspaceFor(folder)
     const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
-    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
+    const browser = grantedCapabilities(grant.role, grant.allowSave).includes('browser.drive')
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox, browser })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }
-  /** The invocation with `token` as its grant and the naming transport's address, nothing else of either kind. */
-  private withGrant(launch: DarkMechanicusCli, token: string): DarkMechanicusCli {
+  /**
+   * The invocation with `token` as its grant, the naming transport's address and, for a role holding `browser.drive`,
+   * the browser pipe's; nothing else of any of them is inherited.
+   */
+  private withGrant(launch: DarkMechanicusCli, token: string, role: ChatRole): DarkMechanicusCli {
     const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: token }
     delete env['DM_DESKTOP_PIPE']
     delete env['DM_BROWSER_PIPE']
     const address = this.deps.desktopAddress?.()
     if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
+    const browser = grantedCapabilities(role, false).includes('browser.drive') ? this.deps.browserAddress?.() : undefined
+    if (browser !== undefined) env['DM_BROWSER_PIPE'] = browser
     return { ...launch, env }
   }
   async issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli> {
@@ -147,7 +162,7 @@ class ChatGrantRegistry implements ChatGrants {
         throw error
       }
     }
-    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token), grantId: issued.grantId, endpointId }
+    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token, grant.role), grantId: issued.grantId, endpointId }
   }
   /**
    * The environment's `DM_SESSION_TOKEN` is the first folder's token, as every chat terminal carries one; the CLI is
@@ -173,7 +188,7 @@ class ChatGrantRegistry implements ChatGrants {
       await Promise.all(issued.map(({ grantId }) => this.revokeChatGrant(grantId)))
       throw error
     }
-    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
+    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? '', grant.role), grantIds: issued.map(({ grantId }) => grantId) }
   }
   private async bindReachedMailbox(folder: string, held: { workspace: ProjectWorkspace; grantId: string }, owner: string | null, chat?: GrantChat): Promise<void> {
     if (chat === undefined) return
@@ -221,6 +236,12 @@ class ChatGrantRegistry implements ChatGrants {
     if (!binding) throw new NamingControlError('unauthorized')
     binding.assertCurrent()
     return binding
+  }
+  authorizeBrowser(token: string): NamingControlBinding {
+    const grant = this.liveByHash.get(hashToken(token))
+    if (grant?.live == null || !grant.browser) throw new NamingControlError('unauthorized')
+    grant.live.assertCurrent()
+    return grant.live
   }
   private yoloBinding(grantId: string, held: HeldGrant, binding: NamingControlBinding) {
     const fence = this.deps.desktopFence
@@ -311,6 +332,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
     renewChatGrant: (id) => registry.renewChatGrant(id),
     bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
     authorizeNaming: (token) => registry.authorizeNaming(token),
+    authorizeBrowser: (token) => registry.authorizeBrowser(token),
     yolo: (folder, grantId, action, confirm) => registry.yolo(folder, grantId, action, confirm),
     dispose: () => registry.dispose()
   }
