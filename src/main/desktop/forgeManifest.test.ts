@@ -2,7 +2,7 @@ import type { PathLike } from 'node:fs'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { refuseRenames, releaseRenames, renamesAsked } from '../../test/busyRename'
+import { refuseRenames, refuseUnlinks, releaseRenames, renamesAsked } from '../../test/busyRename'
 import { scratchDir } from '../../test/gitScratch'
 import { createForge, FORGE_FILE, updateForge } from './forgeManifest'
 
@@ -80,4 +80,18 @@ it('notes a busy publishing rename and writes the manifest once it is asked agai
   expect(notes).toEqual([['EPERM', join(fixture.path, FORGE_FILE)]])
   expect(renamesAsked()).toBe(2)
   expect(readdirSync(fixture.path)).toEqual([FORGE_FILE])
+})
+
+it('releases the writers lock when the failed write cannot delete its temporary file', () => {
+  createForge(fixture.path, 'example')
+  refuseRenames('EIO')
+  refuseUnlinks(/forge-world\.json\.[0-9a-f-]{36}$/)
+  expect(refusal(() => updateForge(fixture.path, world => { world.syncMinutes = 10 }))).toBe('EPERM')
+  const left = readdirSync(fixture.path)
+  expect(left).not.toContain(FORGE_FILE + '.lock')
+  expect(left.filter(name => name !== FORGE_FILE)).toEqual([expect.stringMatching(/^forge-world\.json\.[0-9a-f-]{36}$/)])
+
+  releaseRenames()
+  updateForge(fixture.path, world => { world.syncMinutes = 10 })
+  expect(JSON.parse(readFileSync(join(fixture.path, FORGE_FILE), 'utf8')).syncMinutes).toBe(10)
 })

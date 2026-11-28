@@ -33,7 +33,8 @@ export function forgeKickoff(member: string): string {
 
 /**
  * Runs `write` while holding the manifest writers' lock (`forge-world.json.lock`, created exclusively), with a fresh
- * temporary name beside the manifest that is removed afterwards unless `write` renamed it into place.
+ * temporary name beside the manifest that is removed afterwards unless `write` renamed it into place. The lock is
+ * released even when removing the temporary file fails, so a refused delete never blocks every later manifest write.
  */
 function underForgeLock(file: string, write: (temp: string) => void): void {
   const lock = file + '.lock'
@@ -42,8 +43,11 @@ function underForgeLock(file: string, write: (temp: string) => void): void {
   try {
     write(temp)
   } finally {
-    if (existsSync(temp)) unlinkSync(temp)
-    unlinkSync(lock)
+    try {
+      if (existsSync(temp)) unlinkSync(temp)
+    } finally {
+      unlinkSync(lock)
+    }
   }
 }
 

@@ -1,12 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { IpcMain } from 'electron'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { boundForgeRoot, forgeBindingEpoch } from '../../core/repo/forgeBinding'
 import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { scratchDir, gitIn } from '../../test/gitScratch'
+import { refuseRenames, refuseUnlinks, releaseRenames } from '../../test/busyRename'
 import { seedForgeFixture } from '../../test/forgeFixture'
 import { ForgeGit } from './forgeGit'
 import { createForge, updateForge } from './forgeManifest'
@@ -16,8 +17,13 @@ import { createFolderRegistry } from './folderRegistry'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { startForge } from './forgeService'
 
+vi.mock('node:fs', async original => (await import('../../test/busyRename')).withBusyRename(await original()))
+
 const cleanups: Array<() => void> = []
-afterEach(() => { while (cleanups.length) cleanups.pop()?.() })
+afterEach(() => {
+  releaseRenames()
+  while (cleanups.length) cleanups.pop()?.()
+})
 const git = new ForgeGit({ getAccount: () => null, getToken: () => null })
 const worldUrl = 'https://github.com/example/world.git'
 function repo(path: string, url: string) {
@@ -65,6 +71,23 @@ it('recovers a missing repository URL only from the matching portable pointer an
   const manifest = JSON.parse(readFileSync(join(f.root, 'forge-world.json'), 'utf8'))
   delete manifest.projects[0].repository
   writeFileSync(join(f.root, 'forge-world.json'), JSON.stringify(manifest))
+  await ensureForgeWorld(f.root, { git, home: f.home })
+  expect(JSON.parse(readFileSync(join(f.root, 'forge-world.json'), 'utf8')).projects).toEqual([{ folder: 'Software', repository: 'https://github.com/example/software.git' }])
+})
+
+it('releases the manifest lock when a failed repair cannot delete its temporary file', async () => {
+  const f = await fixture(); oldBinding(f)
+  const manifest = JSON.parse(readFileSync(join(f.root, 'forge-world.json'), 'utf8'))
+  delete manifest.projects[0].repository
+  writeFileSync(join(f.root, 'forge-world.json'), JSON.stringify(manifest))
+  const temporary = /^forge-world\.json\.[0-9a-f-]{36}$/
+  refuseRenames('EIO')
+  refuseUnlinks(/forge-world\.json\.[0-9a-f-]{36}$/)
+  await expect(ensureForgeWorld(f.root, { git, home: f.home })).rejects.toMatchObject({ code: 'EPERM' })
+  expect(existsSync(join(f.root, 'forge-world.json.lock'))).toBe(false)
+  expect(readdirSync(f.root).filter(name => temporary.test(name))).toHaveLength(1)
+
+  releaseRenames()
   await ensureForgeWorld(f.root, { git, home: f.home })
   expect(JSON.parse(readFileSync(join(f.root, 'forge-world.json'), 'utf8')).projects).toEqual([{ folder: 'Software', repository: 'https://github.com/example/software.git' }])
 })
