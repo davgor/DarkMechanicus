@@ -195,6 +195,7 @@ The Agent surface's frosted panels. `--agent-backdrop` lays the two glows over `
 |---|---|---|---|
 | `--glass-bg` (new) | — | `rgba(33, 27, 24, 0.7)` | Frosted panel: `--panel` at 70% |
 | `--glass-bg-strong` (new) | — | `rgba(21, 18, 17, 0.9)` | Near-solid reading surface: `--bg` at 90% |
+| `--glass-bg-pane` (new) | — | `rgba(21, 18, 17, 0.5)` | Transcript pane tint: `--bg` at 50% |
 | `--glass-edge` (new) | — | `rgba(242, 215, 174, 0.12)` | Glass 1 px light edge: `--ink-display` at 12% |
 | `--glow-brass` (new) | — | `rgba(214, 155, 74, 0.28)` | Backdrop glow: `--accent` at 28% |
 | `--glow-crimson` (new) | — | `rgba(181, 26, 31, 0.3)` | Backdrop glow: `--primary` at 30% |

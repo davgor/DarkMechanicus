@@ -11,6 +11,7 @@ import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } fr
 import { REASONING_LEVELS, RELATION_KINDS, TICKET_FAILURE_POLICIES, TOOL_CAPABILITIES, WORK_TYPES } from '../shared/domain/bundle'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { LEARNING_DISPOSITIONS } from '../shared/domain/kanban'
+import { DM_CALL_TOOL_NAME } from '../../resources/skitarii/extension/contextDelivery'
 import type { Blocker, ProjectView } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { COMMAND_NAMES, createCannedApi, createStubApi } from '../test/stubApi'
@@ -503,7 +504,8 @@ const VOCABULARY = new Set<string>([
   ...BLOCKER_KINDS,
   ...DRAFT_OPS,
   ...LEARNING_DISPOSITIONS,
-  CRITERION_NEEDS_PERSON
+  CRITERION_NEEDS_PERSON,
+  DM_CALL_TOOL_NAME
 ])
 
 const BUILTIN_FACT_BODIES = BUILTIN_KNOWLEDGE.map(({ path, source }) => {
