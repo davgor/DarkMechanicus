@@ -114,4 +114,54 @@ describe('runCli production dependencies', () => {
       expect(merged.shard).toBeUndefined();
     });
   });
+
+  it('--ast-only grades a committed TSX test with a generic arrow and opens no lanes', async () => {
+    await withTempDir(async (dir) => {
+      initRepo(dir);
+      await mkdir(join(dir, 'src'), { recursive: true });
+      await writeFile(join(dir, 'src/view.tsx'), 'export const View = () => <p>a</p>;\n');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-qm', 'base');
+      const base = git(dir, 'rev-parse', 'HEAD');
+      await writeFile(join(dir, 'src/view.tsx'), 'export const View = <T,>(p: { v: T }) => <p>{String(p.v)}</p>;\n');
+      await writeFile(join(dir, 'src/view.test.tsx'), [
+        "import { it, expect } from 'vitest';",
+        "import { View } from './view';",
+        'const id = <T,>(value: T): T => value;',
+        "it('renders', () => { expect(id(<View v={1} />).props.v).toBe(1); });",
+        '',
+      ].join('\n'));
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-qm', 'head');
+      let output = '';
+      const code = await runCli({
+        cwd: dir,
+        argv: ['--json', '--ast-only'],
+        env: { FIREGUARD_BASE_REF: base },
+        stdout: (text) => { output += text; },
+        stderr: () => undefined,
+      });
+      const report = JSON.parse(output) as FireguardReport;
+      expect(code).toBe(0);
+      expect(report).toMatchObject({
+        astOnly: true,
+        scope: { gradedTestFiles: ['src/view.test.tsx'], changedModules: ['src/view.tsx'] },
+        gates: { ast: { pass: true, assertionCount: 1 } },
+      });
+      expect(report.execution).toBeUndefined();
+      expect(report.gates.flake).toBeUndefined();
+    });
+  });
+
+  it('refuses --ast-only with sharding or PR comments', async () => {
+    let error = '';
+    const code = await runCli({
+      cwd: process.cwd(),
+      argv: ['--ast-only', '--comment-pr'],
+      stdout: () => undefined,
+      stderr: (text) => { error += text; },
+    });
+    expect(code).toBe(2);
+    expect(error).toContain('--ast-only cannot shard, merge or post PR comments');
+  });
 });
