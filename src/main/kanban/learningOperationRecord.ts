@@ -9,6 +9,13 @@
  * the renderer or a persisted plan, and the requirement is derived again for every apply or recovery, never stored.
  * DM-956: the workspace is the desktop's own project workspace (`ProjectWorkspace`), whose store lives in its utility
  * process; whether this machine owns the operation is asked of it (`learningApprovalOwned`).
+ *
+ * DM-982: a published approval leaves its record files (integration record, published learnings, the card's approval
+ * event) uncommitted in that checkout, which refused every later approval until the person committed them by hand.
+ * The allowance therefore also names the record files of this machine's published approvals whose text is still
+ * exactly what this machine exported (`publishedLearningApprovalFiles`), asked of the workspace at the same moment.
+ * Nothing is committed, reset, stashed or ignored for the person: the native preflight keeps each of them only while
+ * it is untracked and the prepared tree leaves it, and every other path still refuses the approval.
  */
 import { relative, sep } from 'node:path'
 import { resolveLayout } from '../../core/repo/layout'
@@ -24,5 +31,6 @@ export async function learningOperationRecord(workspace: OperationRecordWorkspac
   const owned = await workspace.call('learningApprovalOwned', integrationId)
   if (storage.mode !== 'repo' || !owned) return { record: null }
   const file = ownedPaths(resolveLayout(workspace.repoRoot, { mode: 'repo' })).learningIntegrationFile(integrationId)
-  return { record: mintOwnedRecordAllowance(workspace.repoRoot, relative(workspace.repoRoot, file).split(sep).join('/')) }
+  const published = await workspace.call('publishedLearningApprovalFiles')
+  return { record: mintOwnedRecordAllowance(workspace.repoRoot, relative(workspace.repoRoot, file).split(sep).join('/'), published) }
 }

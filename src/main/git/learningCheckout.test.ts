@@ -20,6 +20,7 @@ const CARD = 'kc_01card'
 const ATTEMPT = 'ka_01attempt'
 const RECORD = '.darkmechanicus/learnings/integrations/li_01record.json'
 const RECORD_TEXT = '{\n  "state": "prepared"\n}\n'
+const PUBLISHED = '.darkmechanicus/learnings/records/lr_01published.json'
 
 beforeEach(() => isolateGitConfig(cleanups))
 
@@ -43,7 +44,8 @@ const GUARDRAILS: ReadonlyArray<Record<string, string>> = [
   { 'GUARDRAILS.md': 'never guess\n' },
   ...[RECORD, '.darkmechanicus/learnings', '.darkmechanicus'].map((path) => ({ [path]: 'theirs\n' })),
   ...['.DarkMechanicus/learnings', '.darkmechanicus/LEARNINGS/Integrations', '.DARKMECHANICUS/Learnings/Integrations/LI_01RECORD.JSON'].map((path) => ({ [path]: 'theirs\n' })),
-  { '.darkmechanicus/learnings/integrations/li_02other.json': '{}\n', '.darkmechanicus/project.json': '{}\n' }
+  { '.darkmechanicus/learnings/integrations/li_02other.json': '{}\n', '.darkmechanicus/project.json': '{}\n' },
+  { [PUBLISHED]: 'theirs\n' }
 ]
 
 /** One fast-import commit of `files` on top of `base`, marked `:<index + 1>` under a ref outside refs/heads. */
@@ -207,6 +209,48 @@ describe('prepared trees that would own the record', () => {
   })
 })
 
+describe('DM-982: the record files of published approvals', () => {
+  const withPublished = (f: Fixture): CleanCheckoutRequirement => ({ record: mintOwnedRecordAllowance(f.repo.root, RECORD, [PUBLISHED]) })
+
+  it('keeps an untracked published record beside the current record while the target moves', async () => {
+    const f = fixture()
+    put(f.repo.root, PUBLISHED, '{}\n')
+    expect((await applyLearningIntegration(deps(), request(f, withPublished(f)))).state).toBe('applied')
+    expect(f.repo.rev('sprint')).toBe(f.source)
+    expect(f.repo.git('status', '--porcelain=v1', '--untracked-files=all').split('\n')).toEqual([`?? ${RECORD}`, `?? ${PUBLISHED}`])
+  })
+
+  it.each<[string, (f: Fixture) => void, string]>([
+    ['staged', (f) => (put(f.repo.root, PUBLISHED, '{}\n'), f.repo.git('add', '--', PUBLISHED)), PUBLISHED],
+    ['foreign beside it', (f) => (put(f.repo.root, PUBLISHED, '{}\n'), put(f.repo.root, '.darkmechanicus/learnings/records/lr_02foreign.json', '{}\n')), '.darkmechanicus/learnings/records/lr_02foreign.json'],
+    ['unrelated beside it', (f) => (put(f.repo.root, PUBLISHED, '{}\n'), put(f.repo.root, 'notes.txt', 'mine\n')), 'notes.txt']
+  ])('still refuses a staged published record and every path the allowance does not name: %s', async (name, make, listed) => {
+    const f = fixture()
+    make(f)
+    const before = untouched(f)
+    const error = await refusal(applyLearningIntegration(deps(), request(f, withPublished(f))))
+    expect([name, error.code]).toEqual([name, 'dirty_worktree'])
+    expect(error.message).toContain(`is not clean: ${listed}. Nothing was changed`)
+    expect(untouched(f)).toBe(before)
+  })
+
+  it('refuses a prepared tree that would own an untracked published record, changing nothing', async () => {
+    const f = fixture({ [PUBLISHED]: 'theirs\n' })
+    put(f.repo.root, PUBLISHED, '{}\n')
+    const before = untouched(f)
+    const error = await refusal(applyLearningIntegration(deps(), request(f, withPublished(f))))
+    expect(error.code).toBe('unsafe_path')
+    expect(error.message).toContain(`has ${PUBLISHED}, which would own or replace the published record ${PUBLISHED}`)
+    expect(untouched(f)).toBe(before)
+  })
+
+  it('refuses unsafe published paths when the allowance is issued', () => {
+    for (const path of ['../outside.json', '/abs.json', 'a//b.json', 'a\\b.json']) {
+      expect(() => mintOwnedRecordAllowance(join(__dirname), RECORD, [path])).toThrow(LearningIntegrationError)
+    }
+  })
+})
+
 describe('who may grant the allowance', () => {
   it('refuses a forged or serialized allowance before any Git command, for apply and recovery', async () => {
     const f = fixture()
@@ -216,7 +260,7 @@ describe('who may grant the allowance', () => {
     const calls: string[] = []
     const counting: GitRunner = { run: (r) => (calls.push(r.args.join(' ')), runner.run(r)) }
     const minted = mintOwnedRecordAllowance(f.repo.root, RECORD)
-    const copies = [{ checkout: f.repo.root, path: RECORD }, JSON.parse(JSON.stringify(minted)) as typeof minted, { ...minted }]
+    const copies = [{ checkout: f.repo.root, path: RECORD, published: [] }, JSON.parse(JSON.stringify(minted)) as typeof minted, { ...minted }]
     for (const record of copies) {
       const applied = await refusal(applyLearningIntegration(deps(undefined, counting), request(f, { record })))
       const recovered = await refusal(recoverLearningIntegration(deps(undefined, counting), { attemptId: ATTEMPT, plan: saved.plan as LearningIntegrationPlan, onApplied: async () => undefined, cleanCheckout: { record } }))

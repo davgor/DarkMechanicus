@@ -11,6 +11,7 @@
  * target's state and result commit. Finishing approves the card to Done, publishes the approved drafts and marks the
  * integration published in one transaction, so a failure leaves the card Ready for review with nothing published.
  */
+import { relative, sep } from 'node:path'
 import type { KanbanCardView, LearningSubmissionEvidence, VerifiedLearningManifest } from '../../shared/domain/kanban'
 import { type LearningIntegrationManifest, learningIntegrationFailureSchema } from '../../shared/domain/learnings'
 import type { LearningIntegrationConflict, LearningIntegrationPlan, LearningIntegrationReceipt } from '../../shared/git/learningIntegration'
@@ -18,7 +19,10 @@ import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { parseJson } from '../db/database'
-import { fail } from '../errors'
+import { DomainError, fail } from '../errors'
+import { ownedPaths } from '../repo/paths'
+import { readOwnedText, trackedKanbanEventHash, trackedLearningIntegrationHash, trackedLearningRecordHash } from '../repo/portable'
+import type { FsAdapter, RepoLayout } from '../repo/types'
 import { approveKanbanCard } from './kanban/attempts'
 import { cardView, loadSummaryRow, recordCardEvent } from './kanban/cards'
 import { requireLocalIntegrationAuthority } from './learningIntegrations'
@@ -194,5 +198,63 @@ export function finishLearningApproval(ctx: Ctx, integrationId: string): KanbanC
     store(ctx, integrationId, { state: 'published', manifest: integration.manifest, failure: null })
     ctx.db.run('DELETE FROM meta WHERE key = ?', planKey(integrationId))
     return cardView(ctx, cardId)
+  })
+}
+
+interface OwnedFile {
+  kind: 'learning_integration' | 'learning_record' | 'kanban_event'
+  entityId: string
+  file: string
+  hashOf: (text: string) => string
+}
+
+interface RecordFiles {
+  layout: RepoLayout
+  fs: FsAdapter
+}
+
+/** The file's text when it is a readable owned record (contained, no link, within the size limits); null otherwise. */
+function ownedText(env: RecordFiles, file: string): string | null {
+  try {
+    return readOwnedText(env, file)
+  } catch (error) {
+    if (error instanceof DomainError) return null
+    throw error
+  }
+}
+
+/** The record files one published integration wrote: its own record, the learnings it published and the approval event. */
+function filesOf(ctx: Ctx, env: RecordFiles, operation: { id: string; card_id: string; attempt_id: string }): OwnedFile[] {
+  const paths = ownedPaths(env.layout)
+  const { id, card_id: cardId, attempt_id: attemptId } = operation
+  const publication = ctx.db.get<{ record_ids_json: string }>('SELECT record_ids_json FROM learning_publications WHERE attempt_id = ? AND card_id = ?', attemptId, cardId)
+  const events = ctx.db.all<{ id: string }>("SELECT id FROM kanban_events WHERE card_id = ? AND attempt_id = ? AND kind = 'approved'", cardId, attemptId)
+  return [
+    { kind: 'learning_integration', entityId: id, file: paths.learningIntegrationFile(id), hashOf: trackedLearningIntegrationHash },
+    ...parseJson<string[]>(publication?.record_ids_json, []).map((learningId): OwnedFile =>
+      ({ kind: 'learning_record', entityId: learningId, file: paths.learningRecordFile(learningId), hashOf: trackedLearningRecordHash })),
+    ...events.map(({ id: eventId }): OwnedFile =>
+      ({ kind: 'kanban_event', entityId: eventId, file: paths.kanbanEventFile(cardId, eventId), hashOf: trackedKanbanEventHash }))
+  ]
+}
+
+/**
+ * DM-982: the portable record files the published learning approvals this machine prepared wrote into the checkout
+ * of `env.layout`: each integration's record, the learnings it published and its card's approval event. Repo-mode
+ * publication leaves them uncommitted, so the next approval's clean-checkout preflight may keep them while they stay
+ * untracked. A file is listed only while its text is exactly what this machine last exported for that record: one
+ * changed by hand or written by another machine is not, and stays refused. Paths are relative to the layout's root,
+ * with forward slashes.
+ */
+export function publishedLearningApprovalFiles(ctx: Ctx, env: RecordFiles): string[] {
+  requireCapability(ctx.session, 'read')
+  const operations = ctx.db.all<{ id: string; card_id: string; attempt_id: string }>(
+    "SELECT id, card_id, attempt_id FROM learning_integrations WHERE state = 'published' AND owner_machine_id = ? ORDER BY created_at, id",
+    ctx.machineId
+  )
+  return operations.flatMap((operation) => filesOf(ctx, env, operation)).flatMap(({ kind, entityId, file, hashOf }) => {
+    const text = ownedText(env, file)
+    const exported = ctx.db.get<{ exported_hash: string | null }>('SELECT exported_hash FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)?.exported_hash
+    return text !== null && exported != null && hashOf(text) === exported ? [relative(env.layout.root, file).split(sep).join('/')] : []
   })
 }

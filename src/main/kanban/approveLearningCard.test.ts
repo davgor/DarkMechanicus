@@ -394,3 +394,66 @@ describe('conflicts and ordinary cards', () => {
     expect([integrations(p.ctx), publications(p.ctx)]).toEqual([[], []])
   })
 })
+
+const status = (repo: GitRepo): string[] => repo.git('status', '--porcelain=v1', '--untracked-files=all').split('\n').filter((line) => line !== '')
+
+/** DM-982: two learning cards in Ready for review on one repository (repo storage), every record so far committed once. */
+async function twoReviewed(): Promise<{ p: Project; root: GitRepo; inputs: ApproveLearningCardRequest[] }> {
+  const p = await project([null])
+  const inputs: ApproveLearningCardRequest[] = []
+  for (const packet of [linkedCard(p), linkedCard(p)]) inputs.push(await submit(p, packet, codify(p, packet)))
+  await commitRecords(p)
+  const root = (p.repos[0] as Repo).repo
+  expect(status(root)).toEqual([])
+  return { p, root, inputs }
+}
+
+/** The record files the published approval of `input` left in the checkout: its integration, learning and approval event. */
+function publishedFiles(p: Project, input: ApproveLearningCardRequest): string[] {
+  const operation = p.ctx.db.get<{ id: string }>("SELECT id FROM learning_integrations WHERE attempt_id = ? AND state = 'published'", input.attemptId)
+  const learning = p.ctx.db.get<{ id: string }>('SELECT id FROM learning_records WHERE attempt_id = ?', input.attemptId)
+  const event = p.ctx.db.get<{ id: string }>("SELECT id FROM kanban_events WHERE card_id = ? AND kind = 'approved'", input.cardId)
+  return [
+    `.darkmechanicus/kanban/${input.cardId}/events/${event?.id}.json`,
+    `.darkmechanicus/learnings/integrations/${operation?.id}.json`,
+    `.darkmechanicus/learnings/records/${learning?.id}.json`
+  ]
+}
+
+describe('DM-982: consecutive approvals in repository storage mode', () => {
+  it('approves two cards in a row to Done with no commit between them, keeping only the untracked published records', async () => {
+    const { p, root, inputs } = await twoReviewed()
+    const [first, second] = inputs as [ApproveLearningCardRequest, ApproveLearningCardRequest]
+    const commits = root.git('rev-list', '--count', '--all')
+    expect((await coordinator(p).approve(p.root, first)).lane).toBe('done')
+    const firstFiles = publishedFiles(p, first)
+    expect(status(root)).toEqual(firstFiles.map((path) => `?? ${path}`))
+    expect((await coordinator(p).approve(p.root, second)).lane).toBe('done')
+    expect([lane(p.ctx, first.cardId), lane(p.ctx, second.cardId), publications(p.ctx).length, activeLearnings(p.ctx).length]).toEqual(['done', 'done', 2, 2])
+    expect(status(root)).toEqual([...firstFiles, ...publishedFiles(p, second)].sort().map((path) => `?? ${path}`))
+    // The only new commits are the two integrations' (each a guardrail merged into the epic branch): nothing was committed for the person.
+    expect(Number(root.git('rev-list', '--count', '--all')) - Number(commits)).toBe(2)
+    expect(root.git('stash', 'list')).toBe('')
+  })
+
+  it.each<[string, (root: GitRepo, files: string[]) => string]>([
+    ['an unrelated untracked file', (root) => (put(root.root, 'notes.txt', 'mine\n'), 'notes.txt')],
+    ['a foreign learning record', (root) => (put(root.root, '.darkmechanicus/learnings/records/lr_0000000000000000000000zz01.json', '{}\n'), '.darkmechanicus/learnings/records/lr_0000000000000000000000zz01.json')],
+    ['a published record changed by hand', (root, files) => (put(root.root, files[2] as string, '{"edited":true}\n'), files[2] as string)],
+    ['a staged published record', (root, files) => (root.git('add', '--', files[1] as string), files[1] as string)]
+  ])('still refuses the next approval beside %s, changing nothing', async (_name, make) => {
+    const { p, root, inputs } = await twoReviewed()
+    const [first, second] = inputs as [ApproveLearningCardRequest, ApproveLearningCardRequest]
+    await coordinator(p).approve(p.root, first)
+    const blocker = make(root, publishedFiles(p, first))
+    const [head, stage, dirty] = [root.rev(EPIC), root.git('ls-files', '--stage'), status(root)]
+    const error = await refusal(coordinator(p).approve(p.root, second))
+    expect([error.code, error.details?.reason]).toEqual(['conflict', 'dirty_worktree'])
+    expect(error.message).toContain(`is not clean: ${blocker}. Nothing was changed`)
+    // The refused approval's own prepared record is the only addition (DM-952: written by the flush before native apply).
+    const prepared = p.ctx.db.get<{ id: string }>('SELECT id FROM learning_integrations WHERE attempt_id = ?', second.attemptId)?.id
+    const untracked = [...dirty.filter((line) => line.startsWith('?? ')), `?? .darkmechanicus/learnings/integrations/${prepared}.json`].sort()
+    expect([root.rev(EPIC), root.git('ls-files', '--stage'), status(root)]).toEqual([head, stage, [...dirty.filter((line) => !line.startsWith('?? ')), ...untracked]])
+    expect([lane(p.ctx, second.cardId), publications(p.ctx).length]).toEqual(['ready_for_review', 1])
+  })
+})

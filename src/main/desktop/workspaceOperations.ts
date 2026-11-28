@@ -29,6 +29,7 @@ import { bindChatMailbox, deleteChatMailbox, hasMailbox, provisionAll, renameCha
 import {
   finishLearningApproval,
   learningApprovalState,
+  publishedLearningApprovalFiles,
   recordLearningIntegrationConflict,
   recordLearningIntegrationPlan,
   recordLearningIntegrationReceipt
@@ -281,6 +282,8 @@ function learningApprovalOperations(workspace: Workspace, ctx: Context) {
       return flushed(learningApprovalState(ctx(), prepared.id))
     },
     learningApprovalOwned: (integrationId: string) => listLocalPendingLearningIntegrations(ctx()).some(operation => operation.id === integrationId),
+    // DM-982: asked by main's operation-record binding only in repo storage mode, so the layout is the repo-mode one.
+    publishedLearningApprovalFiles: () => publishedLearningApprovalFiles(ctx(), { layout: resolveLayout(workspace.repoRoot, { mode: 'repo' }), fs: nodeFs }),
     pendingLearningApprovals: () => listLocalPendingLearningIntegrations(ctx()).map(operation => learningApprovalState(ctx(), operation.id)),
     recordLearningPlan: (integrationId: string, plan: LearningIntegrationPlan) => flushed(recordLearningIntegrationPlan(ctx(), integrationId, plan)),
     recordLearningReceipt: (integrationId: string, receipt: LearningIntegrationReceipt) =>

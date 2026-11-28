@@ -1,14 +1,17 @@
 /**
- * DM-952: the clean-checkout preflight of a learning approval, and the one owned untracked file it keeps.
+ * DM-952: the clean-checkout preflight of a learning approval, and the owned untracked files it keeps.
  *
  * With a `CleanCheckoutRequirement`, apply and recovery refuse (`dirty_worktree`, nothing changed) any staged,
  * modified, conflicting or untracked path in a target's canonical checkout before its canonical change. In repo storage
  * mode the core writes the current operation's portable record into the registered root checkout before native
- * apply runs, so the requirement may carry an `OwnedRecordAllowance` for exactly that one path. Only
+ * apply runs, so the requirement may carry an `OwnedRecordAllowance` for exactly that one path. DM-982: publishing an
+ * approval leaves its record files (the integration record, the published learnings, the card's approval event)
+ * uncommitted there too, so the allowance also names the ones this machine exported and still holds unchanged; each is
+ * kept only while it is untracked, so the next approval proceeds without a manual commit. Only
  * `mintOwnedRecordAllowance` (called by main's operation-record binding) creates one, held in a module-private set:
- * a copy that went through JSON, IPC or a persisted plan grants nothing and is refused. The allowance keeps the path
+ * a copy that went through JSON, IPC or a persisted plan grants nothing and is refused. The allowance keeps a path
  * only while it is untracked and unstaged, and only when the prepared tree has no entry at that path or a non-folder
- * entry at one of its folders (case-folded on Windows), so the integration can never own or overwrite the record.
+ * entry at one of its folders (case-folded on Windows), so the integration can never own or overwrite a record.
  */
 import { isAbsolute } from 'node:path'
 import type { CleanCheckoutRequirement, OwnedRecordAllowance, PreparedTarget } from '../../shared/git/learningIntegration'
@@ -17,13 +20,22 @@ import { canonical } from './runner'
 
 const minted = new WeakSet<OwnedRecordAllowance>()
 
-/** Issues the allowance for one repository-relative (forward-slash) path in one absolute checkout. Main-only. */
-export function mintOwnedRecordAllowance(checkout: string, path: string): OwnedRecordAllowance {
+/** Refuses a path that is not repository-relative with forward slashes and plain segments. */
+function assertRecordPath(checkout: string, path: string): void {
   const segments = path.split('/')
-  if (!isAbsolute(checkout) || segments.some((part) => part === '' || part === '.' || part === '..' || /[\\:\0]/.test(part))) {
+  if (segments.some((part) => part === '' || part === '.' || part === '..' || /[\\:\0]/.test(part))) {
     fail('unsafe_path', `"${path}" in ${checkout} cannot be an owned record path.`)
   }
-  const allowance = Object.freeze({ checkout, path })
+}
+
+/**
+ * Issues the allowance for the current operation's record `path` and the `published` record files of completed
+ * approvals, each repository-relative (forward-slash), in one absolute checkout. Main-only.
+ */
+export function mintOwnedRecordAllowance(checkout: string, path: string, published: readonly string[] = []): OwnedRecordAllowance {
+  if (!isAbsolute(checkout)) fail('unsafe_path', `"${path}" in ${checkout} cannot be an owned record path.`)
+  for (const one of [path, ...published]) assertRecordPath(checkout, one)
+  const allowance = Object.freeze({ checkout, path, published: Object.freeze([...published]) })
   minted.add(allowance)
   return allowance
 }
@@ -37,15 +49,18 @@ export function assertTrustedRequirement(requirement: CleanCheckoutRequirement |
 
 interface Owned {
   path: string
+  /** The folded published record paths. */
+  published: ReadonlySet<string>
   fold: (path: string) => string
 }
 
-/** The allowed path when the requirement's allowance names this target's checkout; otherwise every path is strict. */
+/** The allowed paths when the requirement's allowance names this target's checkout; otherwise every path is strict. */
 function ownedIn(deps: LearningIntegrationDeps, target: PreparedTarget, requirement: CleanCheckoutRequirement): Owned | null {
   const platform = deps.platform ?? process.platform
   const record = requirement.record
   if (record === null || canonical(record.checkout, platform) !== canonical(target.checkout, platform)) return null
-  return { path: record.path, fold: (path) => (platform === 'win32' ? path.toLowerCase() : path) }
+  const fold = (path: string): string => (platform === 'win32' ? path.toLowerCase() : path)
+  return { path: record.path, published: new Set(record.published.map(fold)), fold }
 }
 
 /** `git status` entries (`XY path`) of the checkout, untracked files listed one by one, renames split. */
@@ -80,9 +95,13 @@ async function matching(deps: LearningIntegrationDeps, target: PreparedTarget, t
   })
 }
 
-/** The prepared tree has no entry at the record path and only folders at its ancestors, under every case alias. */
-async function assertTreeLeavesRecord(deps: LearningIntegrationDeps, target: PreparedTarget, owned: Owned): Promise<void> {
-  const segments = owned.path.split('/')
+/**
+ * The prepared tree has no entry at the record `path` and only folders at its ancestors, under every case alias.
+ * `what` names the record in the refusal: the current operation record or a published record.
+ */
+async function assertTreeLeavesRecord(deps: LearningIntegrationDeps, target: PreparedTarget, owned: Owned, record: { path: string; what: string }): Promise<void> {
+  const { path, what } = record
+  const segments = path.split('/')
   let trees: TreeEntry[] = [{ oid: target.newHead, path: '' }]
   for (const [depth, name] of segments.entries()) {
     const wanted = (entry: string): boolean => owned.fold(entry) === owned.fold(name)
@@ -91,7 +110,7 @@ async function assertTreeLeavesRecord(deps: LearningIntegrationDeps, target: Pre
     if (owner !== undefined) {
       fail(
         'unsafe_path',
-        `The prepared ${short(target.newHead)} of ${label(target.repository)} has ${owner.path}, which would own or replace the current operation record ${owned.path}. Nothing was changed.`
+        `The prepared ${short(target.newHead)} of ${label(target.repository)} has ${owner.path}, which would own or replace the ${what} ${path}. Nothing was changed.`
       )
     }
     trees = found
@@ -100,20 +119,26 @@ async function assertTreeLeavesRecord(deps: LearningIntegrationDeps, target: Pre
 
 /**
  * Refuses, before the target's canonical change, every staged, modified, conflicting or untracked path in its
- * checkout except the allowed untracked record, and a prepared tree that would own or replace that record.
+ * checkout except the allowed untracked records, and a prepared tree that would own or replace one of them.
  */
 export async function assertCleanCheckout(deps: LearningIntegrationDeps, target: PreparedTarget, requirement: CleanCheckoutRequirement): Promise<void> {
   const owned = ownedIn(deps, target, requirement)
   if (owned !== null) {
     await assertUntracked(deps, target, owned)
-    await assertTreeLeavesRecord(deps, target, owned)
+    await assertTreeLeavesRecord(deps, target, owned, { path: owned.path, what: 'current operation record' })
   }
-  const kept = (entry: string): boolean => owned !== null && entry.startsWith('?? ') && owned.fold(entry.slice(3)) === owned.fold(owned.path)
-  const dirty = (await statusEntries(deps, target.checkout)).filter((entry) => !kept(entry))
+  const untracked = (entry: string): string | null => (entry.startsWith('?? ') ? owned?.fold(entry.slice(3)) ?? null : null)
+  const current = (entry: string): boolean => owned !== null && untracked(entry) === owned.fold(owned.path)
+  const published = (entry: string): boolean => owned !== null && owned.published.has(untracked(entry) ?? '')
+  const entries = await statusEntries(deps, target.checkout)
+  const dirty = entries.filter((entry) => !current(entry) && !published(entry))
   if (dirty.length > 0) {
     fail(
       'dirty_worktree',
       `${target.checkout} (${label(target.repository)}) is not clean: ${dirty.map((entry) => entry.slice(3)).join(', ')}. Nothing was changed; commit, stash or discard them yourself, then approve again.`
     )
+  }
+  for (const entry of entries.filter((one) => published(one) && !current(one))) {
+    await assertTreeLeavesRecord(deps, target, owned as Owned, { path: entry.slice(3), what: 'published record' })
   }
 }
