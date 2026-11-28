@@ -108,7 +108,7 @@ PR integration:
   --merge-shards  Directory of shard JSON reports; validate and issue the combined grade
   --shard-count n Expected report count when merging (required)
   --plan          Size the CI grade of this diff (flake runs, mutants, estimated seconds) into
-                  grading shards of about 2 minutes each, at most 40; runs no test
+                  grading shards (a typical PR in about 2 minutes, at most 40); runs no test
 
 Exit codes:
   0  pass (grade not F)

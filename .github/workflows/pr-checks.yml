@@ -105,7 +105,7 @@ jobs:
       - if: steps.deps.outputs.cache-hit != 'true'
         run: npm ci
       # Sizes the grading matrix from this diff's own work (flake runs, graded test files, mutants
-      # on changed lines) at about 2 minutes per shard, up to 40 shards. Runs no test.
+      # on changed lines) so a typical PR grades in about 2 minutes, up to 40 shards. Runs no test.
       - name: Plan grading shards from the diff
         id: plan
         env:

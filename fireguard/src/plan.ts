@@ -2,8 +2,12 @@ import { countMutants } from './gates/mutationGate.js';
 import { requireCount, shardRunCount, type Position } from './partition.js';
 import { scopeAndAst, type RunFireguardDeps } from './runFireguard.js';
 
-/** Wall time each CI grading shard aims for: a typical pull request's grade in about 2 minutes. */
-export const GRADING_TARGET_SECONDS = 120;
+/**
+ * Grading seconds each CI shard aims for. A shard job adds about 12 s of setup, and the scope/plan
+ * and merge jobs about 45 s more, so a typical pull request's Fireguard returns in about 2 minutes
+ * (PR replay of #110 at 120 s per shard: 134 s grading step, 145 s shard job, run 46179646792).
+ */
+export const GRADING_TARGET_SECONDS = 75;
 /** Most grading shards one pull request may start; past it, shards run over the target. */
 export const MAX_GRADING_SHARDS = 40;
 
