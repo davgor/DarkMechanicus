@@ -13,6 +13,7 @@ import type { ChatEpic } from '../agentChat/ChatImages'
 import { ChatComposer } from '../agentChat/ChatComposer'
 import { todoProgress, todoProgressLabel, withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
+import { ChatImagesContext, type ChatImagesHandle } from '../agentChat/useChatImages'
 import { useNeedsYou } from '../agentChat/useNeedsYou'
 import { AgentTree, type NeedsYouControls } from '../agentTree/AgentTree'
 import { buildAgentTree, type AgentTreeNode, type AgentTreeNodeInput } from '../agentTree/agentTreeModel'
@@ -20,6 +21,7 @@ import { ChatTranscript } from '../agents/ChatTranscript'
 import { agentName } from '../agents/agentText'
 import { withLegacyNames } from '../agents/threadModel'
 import { errorMessage } from '../api/dm'
+import { BrowserEpicContext } from '../browser/BrowserCamera'
 import { browserRailTab } from '../browser/BrowserPanel'
 import { RightRail, type RailReveal, type RailTab } from '../components/RightRail'
 import { EpicRolePicker } from './AgentPickerDialog'
@@ -214,19 +216,16 @@ function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, chan
   }, browser]
 }
 
-/** The selected root's chat (GUI or terminal), or one of its threads. */
-function CentrePane({ ws, chat, threadId, nodes, items }: {
+/** The selected root's chat (GUI or terminal), or one of its threads; a GUI chat shares its composer's images. */
+function CentrePane({ ws, chat, threadId, nodes, items, epic, shareImages }: {
   ws: WorkspaceHandle
   chat: ChatRecord
   threadId: string | null
   nodes: readonly AgentTreeNodeInput[]
   items: readonly ChatItem[]
+  epic: ChatEpic
+  shareImages(images: ChatImagesHandle | null): void
 }): JSX.Element {
-  const { dispatch, epicId } = ws
-  const savedTickets = ws.data.savedTickets
-  // A chat's images go to the epic or, from a thread bound to one, its ticket; the toast confirms where.
-  const epic = useMemo<ChatEpic>(() => ({ epicId, tickets: savedTickets, confirm: (text) => dispatch({ type: 'toast', text }) }),
-    [epicId, savedTickets, dispatch])
   const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
   const name = named(chat.id) ?? chat.title
   if (threadId !== null) {
@@ -235,7 +234,8 @@ function CentrePane({ ws, chat, threadId, nodes, items }: {
   if (chat.surface === 'gui') {
     return <AgentChat folder={ws.folder.path} folderKey={ws.folder.attachmentKey} chatId={chat.id} agentLabel={name}
       agentChip={`${name} · ${agentName(chat.agent, ws.orchestration.agents)}`} context={ws.data.epic.title} epic={epic}
-      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} browser={window.dm.browser} />
+      skitarii={ws.orchestration.agents.find((agent) => agent.id === chat.agent)?.kind === 'omp'} browser={window.dm.browser}
+      shareImages={shareImages} />
   }
   return <TerminalChat ws={ws} chat={chat} name={name} />
 }
@@ -303,8 +303,31 @@ function tabInputs(nodes: readonly AgentTreeNodeInput[], counts: ReadonlyMap<str
  * The selected chat's Browser rail tab. A GUI chat shown in the centre docks its site prompt above its composer; a
  * terminal chat, or a thread shown in its place, has no such slot, so the prompt docks in the Browser panel instead.
  */
-function browserTab(folder: string, chat: ChatRecord, threadId: string | null): RailTab {
-  return browserRailTab(folder, chat.id, chat.surface !== 'gui' || threadId !== null)
+function browserTab(ws: WorkspaceHandle, chat: ChatRecord, threadId: string | null): RailTab {
+  return browserRailTab({
+    folder: ws.folder.path, folderKey: ws.folder.attachmentKey, chatId: chat.id, siteCard: chat.surface !== 'gui' || threadId !== null
+  })
+}
+
+/** The epic a chat's images, and the Browser camera's captures, go to as evidence; the toast confirms where. */
+function useChatEpic(ws: WorkspaceHandle): ChatEpic {
+  const { dispatch, epicId } = ws
+  const savedTickets = ws.data.savedTickets
+  return useMemo<ChatEpic>(() => ({ epicId, tickets: savedTickets, confirm: (text) => dispatch({ type: 'toast', text }) }),
+    [epicId, savedTickets, dispatch])
+}
+
+/** The tree's needs-you dots: the counts below each row, the deciding rows, and a dot's click selecting the owning chat. */
+function needsYouControls(ws: WorkspaceHandle, nodes: readonly AgentTreeNodeInput[], counts: ReadonlyMap<string, NeedsYouCount>): NeedsYouControls {
+  return {
+    below: new Map([...counts].map(([id, count]) => [id, count.descendants])),
+    deciding: new Set([...counts].filter(([, count]) => count.deciding > 0).map(([id]) => id)),
+    // The card waits in the owning chat's own view, so the dot selects that chat rather than the thread.
+    select: (id) => {
+      const owner = owningChatId(nodes, id)
+      if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner })
+    }
+  }
 }
 
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
@@ -321,6 +344,10 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     chats, run, epicId: ws.epicId, transcripts: watched, savedTickets: ws.data.savedTickets
   })
   const reveal = useRailReveal(ws)
+  const epic = useChatEpic(ws)
+  // The selected GUI chat's composer images, which the rail's camera adds captures to; none for a terminal chat or a
+  // thread, whose view has no composer that takes images.
+  const [composerImages, setComposerImages] = useState<ChatImagesHandle | null>(null)
   if (chat === undefined) {
     return <section aria-label="Agent chat" className="eap"><NoAgents ws={ws} /></section>
   }
@@ -329,15 +356,7 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     const owner = owningChatId(nodes, id)
     if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner, threadId: owner === id ? null : id })
   }
-  const needsYou: NeedsYouControls = {
-    below: new Map([...counts].map(([id, count]) => [id, count.descendants])),
-    deciding: new Set([...counts].filter(([, count]) => count.deciding > 0).map(([id]) => id)),
-    // The card waits in the owning chat's own view, so the dot selects that chat rather than the thread.
-    select: (id) => {
-      const owner = owningChatId(nodes, id)
-      if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner })
-    }
-  }
+  const needsYou = needsYouControls(ws, nodes, counts)
   const progress = rowTodos(folder, chats, nodes, watched)
   const { names, waiting } = tabInputs(nodes, counts)
   return (
@@ -346,14 +365,17 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       {chat.id !== lead && <TranscriptFeed folder={folder} chatId={chat.id} onLoaded={onLoaded} />}
       <div className="eap-centre">
         <AgentTabStrip ws={ws} chats={chats} run={run} selectedId={chat.id} names={names} needsYou={waiting} />
-        <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
+        <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} epic={epic}
+          shareImages={setComposerImages} />
       </div>
-      <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}
-        tabs={railTabs(nodes, {
-          selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress, browser: browserTab(folder, chat, threadId),
-          changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
-            onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
-        })} />
+      <ChatImagesContext.Provider value={composerImages}><BrowserEpicContext.Provider value={epic}>
+        <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`} reveal={reveal}
+          tabs={railTabs(nodes, {
+            selectedId: threadId ?? chat.id, onSelect, now: ws.now, needsYou, progress, browser: browserTab(ws, chat, threadId),
+            changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
+              onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
+          })} />
+      </BrowserEpicContext.Provider></ChatImagesContext.Provider>
     </section>
   )
 }

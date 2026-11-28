@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, type RenderResult } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within, type RenderResult } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chatImageUrl } from '../../../shared/agents/chatImageUrl'
 import { browserSetViewSchema, type BrowserState } from '../../../shared/browser/browserApi'
+import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { FakeBrowser } from '../__mocks__/fakeBrowser'
+import { AgentChat } from '../agentChat/AgentChat'
+import type { ChatEpic } from '../agentChat/ChatImages'
+import { ChatImagesContext, type ChatImagesHandle } from '../agentChat/useChatImages'
 import { Lightbox } from '../attachments/Lightbox'
 import { Dialog } from '../components/Dialog'
 import { RightRail } from '../components/RightRail'
+import { BrowserEpicContext } from './BrowserCamera'
 import { BrowserPanel, browserRailTab } from './BrowserPanel'
 import { browserScenarios, type BrowserScenarioName } from './__mocks__/browserScenario'
 
@@ -278,7 +284,7 @@ describe('Browser rail tab', () => {
     vi.stubGlobal('dm', { browser })
     stored.set('dm.browserRail', JSON.stringify({ collapsed: false, tab: 'browser', cards: {} }))
     return render(<RightRail label={RAIL} storageKey="dm.browserRail"
-      tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content: 'Agent tree' }, browserRailTab(null, CHAT)]} />)
+      tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content: 'Agent tree' }, browserRailTab({ folder: null, folderKey: null, chatId: CHAT })]} />)
   }
   const rail = (): HTMLElement => screen.getByRole('complementary', { name: RAIL })
 
@@ -329,7 +335,132 @@ describe('BrowserPanel site card for a chat without its GUI column (terminal or 
     browser.current = browserScenarios['browser-origin']
     vi.stubGlobal('dm', { browser })
     stored.set('dm.siteRail', JSON.stringify({ collapsed: false, tab: 'browser', cards: {} }))
-    render(<RightRail label="Epic agents" storageKey="dm.siteRail" tabs={[browserRailTab(null, CHAT, true)]} />)
+    render(<RightRail label="Epic agents" storageKey="dm.siteRail" tabs={[browserRailTab({ folder: null, folderKey: null, chatId: CHAT, siteCard: true })]} />)
     expect(await screen.findByRole('alertdialog', { name: 'https://api.github.com' })).toBeTruthy()
+  })
+})
+
+const FOLDER = '/work/repo'
+const FOLDER_KEY = 'f00d'
+const IMAGE = { id: 'ci_0123456789abcdefghjkmnpqrs', mime: 'image/png' as const, width: 1280, height: 800, bytes: 4096 }
+const EPIC: ChatEpic = { epicId: 'ep_1', tickets: [{ id: 'tk_442', key: 'DM-442' }, { id: 'tk_7', key: 'DM-7' }], confirm: vi.fn() }
+const camera = (): HTMLButtonElement => button('Capture the agent tab')
+const popover = (): HTMLElement => screen.getByRole('dialog', { name: 'Captured page' })
+
+/** The panel in a hand-wrapped chat: `composer` as the chat's images, `epic` as its epic, each optional. */
+async function mountCamera(scenario: BrowserScenarioName, { composer, epic }: { composer?: ChatImagesHandle; epic?: ChatEpic } = {}): Promise<{
+  agentChat: FakeAgentChat
+}> {
+  browser.current = browserScenarios[scenario]
+  browser.captureResult = { ok: true, data: { image: IMAGE } }
+  const agentChat = new FakeAgentChat()
+  vi.stubGlobal('dm', { browser, agentChat })
+  render(<ChatImagesContext.Provider value={composer ?? null}><BrowserEpicContext.Provider value={epic ?? null}>
+    <BrowserPanel folder={FOLDER} folderKey={FOLDER_KEY} chatId={CHAT} api={browser} />
+  </BrowserEpicContext.Provider></ChatImagesContext.Provider>)
+  await waitFor(() => expect(badge()).not.toBe('Loading…'))
+  return { agentChat }
+}
+
+async function snap(): Promise<HTMLElement> {
+  fireEvent.click(camera())
+  return screen.findByRole('dialog', { name: 'Captured page' })
+}
+
+describe('BrowserPanel camera popover (DM-873 c2)', () => {
+  it('captures the chat, shows the thumbnail and hides the native view while the popover is open', async () => {
+    await mountCamera('browser-agent', { composer: { addStaged: vi.fn(() => true) } })
+    const shown = await snap()
+    expect(browser.callsOf('capture')).toEqual([[{ folder: FOLDER, chatId: CHAT }]])
+    expect(within(shown).getByRole('img').getAttribute('src')).toBe(chatImageUrl(FOLDER_KEY, CHAT, IMAGE.id))
+    expect(setViews().at(-1)).toBeNull()
+    expect(screen.getByRole('region', { name: 'Browser page' }).textContent).toBe('Browser hidden while the capture is open')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Captured page' })).toBeNull()
+    expect(setViews().at(-1)).toEqual(box)
+    expect(document.activeElement).toBe(camera())
+  })
+
+  it('shows a refused capture in the popover with no actions', async () => {
+    browser.failures.capture = { code: 'view_hidden', message: 'The screenshot was refused: browser view not visible.' }
+    await mountCamera('browser-agent', { composer: { addStaged: vi.fn(() => true) }, epic: EPIC })
+    const shown = await snap()
+    expect(within(shown).getByRole('alert').textContent).toBe('The screenshot was refused: browser view not visible.')
+    expect(within(shown).queryByRole('button')).toBeNull()
+  })
+
+  it.each<[BrowserScenarioName, string]>([
+    ['browser-empty', 'Capture the agent tab (no page open yet)'],
+    ['browser-private', 'The private tab is never captured']
+  ])('is off in %s: "%s"', async (scenario, title) => {
+    await mountCamera(scenario)
+    expect(camera().disabled).toBe(true)
+    expect(camera().title).toBe(title)
+  })
+})
+
+describe('BrowserPanel camera Add to message (DM-873 c2)', () => {
+  it('adds the capture through the chat images context and closes; outside an epic only Add shows', async () => {
+    const addStaged = vi.fn(() => true)
+    await mountCamera('browser-agent', { composer: { addStaged } })
+    const shown = await snap()
+    expect(within(shown).getAllByRole('button').map((node) => node.textContent)).toEqual(['Add to message'])
+    fireEvent.click(within(shown).getByRole('button', { name: 'Add to message' }))
+    expect(addStaged).toHaveBeenCalledWith(IMAGE)
+    expect(screen.queryByRole('dialog', { name: 'Captured page' })).toBeNull()
+  })
+
+  it('keeps the popover open with the reason when the message is already full', async () => {
+    await mountCamera('browser-agent', { composer: { addStaged: () => false } })
+    fireEvent.click(within(await snap()).getByRole('button', { name: 'Add to message' }))
+    expect(within(popover()).getByRole('alert').textContent).toBe('The message already has as many images as it can take.')
+  })
+
+  it('turns Add to message off, saying why, when no composer is open for the chat', async () => {
+    await mountCamera('browser-agent', { epic: EPIC })
+    const shown = await snap()
+    const add = within(shown).getByRole('button', { name: 'Add to message' }) as HTMLButtonElement
+    expect(add.disabled).toBe(true)
+    expect(shown.textContent).toContain('No message is open for this chat here. Open its chat to add the capture to a message.')
+  })
+})
+
+describe('BrowserPanel camera Attach as evidence (DM-873 c2)', () => {
+  it("attaches as evidence to the driving agent's bound ticket in an epic, and confirms where", async () => {
+    const { agentChat } = await mountCamera('browser-agent', { composer: { addStaged: vi.fn(() => true) }, epic: EPIC })
+    const shown = await snap()
+    expect(shown.textContent).toContain('Evidence goes to DM-442.')
+    fireEvent.click(within(shown).getByRole('button', { name: 'Attach as evidence' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Captured page' })).toBeNull())
+    expect(agentChat.callsOf('attachEvidence')).toEqual([[{ folder: FOLDER, chatId: CHAT, imageId: IMAGE.id, epicId: 'ep_1', ticketId: 'tk_442' }]])
+    expect(EPIC.confirm).toHaveBeenCalledWith('Attached the capture to DM-442 as evidence.')
+  })
+
+  it('attaches to the epic when no bound agent drives the browser, and shows a refused attach inline', async () => {
+    const { agentChat } = await mountCamera('browser-person', { epic: EPIC })
+    agentChat.attachEvidenceResult = { ok: false, error: { code: 'unauthorized', message: 'This chat is not bound to the epic.' } }
+    const shown = await snap()
+    expect(shown.textContent).toContain('Evidence goes to the epic.')
+    fireEvent.click(within(shown).getByRole('button', { name: 'Attach as evidence' }))
+    expect((await within(popover()).findByRole('alert')).textContent).toBe('This chat is not bound to the epic.')
+    expect(agentChat.callsOf('attachEvidence')).toEqual([[{ folder: FOLDER, chatId: CHAT, imageId: IMAGE.id, epicId: 'ep_1' }]])
+  })
+})
+
+describe('BrowserPanel camera in a folder chat (DM-873 c2)', () => {
+  it("adds the capture to the chat's own composer as a chip from the chat's rail", async () => {
+    stored.set('dm.chatRail.v1:fixture-chat', JSON.stringify({ collapsed: false, tab: 'browser', cards: {} }))
+    browser.current = browserScenarios['browser-agent']
+    browser.captureResult = { ok: true, data: { image: IMAGE } }
+    const agentChat = new FakeAgentChat()
+    vi.stubGlobal('dm', { browser, agentChat })
+    render(<AgentChat folder={null} folderKey={null} chatId={CHAT} agentLabel="Claude Code" api={agentChat} rail="toggle" />)
+    await waitFor(() => expect(badge()).toBe('Driven by: Acolyte:DM-442'))
+    fireEvent.click(button('Capture the agent tab'))
+    const shown = await screen.findByRole('dialog', { name: 'Captured page' })
+    expect(within(shown).queryByRole('button', { name: 'Attach as evidence' })).toBeNull()
+    fireEvent.click(within(shown).getByRole('button', { name: 'Add to message' }))
+    const chips = screen.getByRole('list', { name: 'Attached images' })
+    expect(within(chips).getAllByRole('img').map((node) => node.getAttribute('src'))).toEqual([chatImageUrl(null, CHAT, IMAGE.id)])
   })
 })

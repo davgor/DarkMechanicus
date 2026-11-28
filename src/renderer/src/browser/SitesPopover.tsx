@@ -1,30 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { RefObject } from 'react'
 import type { BrowserApi } from '../../../shared/browser/browserApi'
 import { Icon } from '../components/Icon'
+import { usePopoverDismiss } from './usePopoverDismiss'
 
 const EMPTY_TEXT = 'No sites are always allowed yet. Choose Always allow on a site prompt to add one.'
-
-/** Closes the popover on Escape (focus back on its button) or a press outside it, only while it is open. */
-function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, close: () => void): void {
-  useEffect(() => {
-    if (!open) return undefined
-    const onPress = (event: MouseEvent): void => {
-      if (!(event.target instanceof Node && anchor.current?.contains(event.target))) close()
-    }
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      close()
-      anchor.current?.querySelector<HTMLElement>('.bp-sites-trigger')?.focus()
-    }
-    document.addEventListener('mousedown', onPress)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onPress)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open, anchor, close])
-}
 
 /**
  * The Browser panel's Sites button and popover: the folder's always-allowed origins from `browser.sites`, each with
@@ -39,7 +18,7 @@ export function SitesPopover({ folder, api, open, onOpenChange }: {
 }): JSX.Element {
   const anchor = useRef<HTMLDivElement>(null)
   const close = useCallback(() => onOpenChange(false), [onOpenChange])
-  useDismiss(open, anchor, close)
+  usePopoverDismiss(open, anchor, close)
   return (
     <div className="bp-sites" ref={anchor}>
       <button type="button" className="btn btn-ghost btn-sm bp-sites-trigger" aria-haspopup="dialog" aria-expanded={open}

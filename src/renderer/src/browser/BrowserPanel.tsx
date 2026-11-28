@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
 import type { BrowserApi, BrowserState } from '../../../shared/browser/browserApi'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
 import { useAnyOverlayOpen } from '../components/overlays'
 import type { RailTab } from '../components/RightRail'
+import { BrowserCamera } from './BrowserCamera'
 import { OriginPromptCard } from './OriginPromptCard'
 import { SitesPopover } from './SitesPopover'
 import { useBrowser, type BrowserHandle } from './useBrowser'
@@ -17,6 +18,7 @@ const PRIVATE_TAB_LABEL = "Private tab (agents can't see this; sign-ins here don
 const EMPTY_TEXT = 'Agents open pages here. You will be asked before any new site loads.'
 const HIDDEN_TEXT = 'Browser hidden while a dialog is open'
 const SITES_HIDDEN_TEXT = 'Browser hidden while Sites is open'
+const CAMERA_HIDDEN_TEXT = 'Browser hidden while the capture is open'
 
 /** The ownership badge: who drives the chat's browser now. */
 function ownerBadge(owner: BrowserState['owner'], ownerLabel: string | null): string {
@@ -139,7 +141,12 @@ function PrivateTabButton({ state, browser }: { state: BrowserState | null; brow
   )
 }
 
-function Toolbar({ state, browser, sites }: { state: BrowserState | null; browser: BrowserHandle; sites: JSX.Element }): JSX.Element {
+function Toolbar({ state, browser, camera, sites }: {
+  state: BrowserState | null
+  browser: BrowserHandle
+  camera: JSX.Element
+  sites: JSX.Element
+}): JSX.Element {
   // Back, Forward and Reload act on the agent tab, so they wait for it and stand down while the private tab is shown.
   const navigable = state?.tab != null && state.signIn === null
   return (
@@ -156,6 +163,7 @@ function Toolbar({ state, browser, sites }: { state: BrowserState | null; browse
       </button>
       <AddressBar key={state?.tab?.url ?? ''} state={state} browser={browser} />
       <PrivateTabButton state={state} browser={browser} />
+      {camera}
       {sites}
     </div>
   )
@@ -190,38 +198,54 @@ function Controls({ state, browser }: { state: BrowserState | null; browser: Bro
 }
 
 /** The page area's own text: why the view is hidden, or the empty state while no page is shown; none over a page. */
-function pageNote({ overlay, sitesOpen, blank }: { overlay: boolean; sitesOpen: boolean; blank: boolean }): string | null {
+function pageNote({ overlay, popover, state }: { overlay: boolean; popover: string | null; state: BrowserState | null }): string | null {
   if (overlay) return HIDDEN_TEXT
-  if (sitesOpen) return SITES_HIDDEN_TEXT
-  return blank ? EMPTY_TEXT : null
+  return popover ?? (state !== null && state.tab === null && state.signIn === null ? EMPTY_TEXT : null)
+}
+
+/**
+ * The toolbar popovers' open state, and the page note naming the one open: either hides the native view, which would
+ * draw over it. The camera's popover belongs to the chat it captured; another chat selected in this panel shows none.
+ */
+function useToolbarPopovers(chatId: string) {
+  const [sitesOpen, setSitesOpen] = useState(false)
+  const [cameraChat, setCameraChat] = useState<string | null>(null)
+  const cameraOpen = cameraChat === chatId
+  const onCameraOpen = useCallback((open: boolean) => setCameraChat(open ? chatId : null), [chatId])
+  const popover = sitesOpen ? SITES_HIDDEN_TEXT : cameraOpen ? CAMERA_HIDDEN_TEXT : null
+  return { sitesOpen, setSitesOpen, cameraOpen, onCameraOpen, popover }
 }
 
 /**
  * The rail's Browser tab for one chat: its tab strip, toolbar, ownership badge and controls over the content area,
  * a placeholder whose rect main covers with the chat's native browser view. Menus and popovers of this panel open from
- * the toolbar; the native view draws above the page, so it is hidden while the Sites popover drops over the content.
- * With `siteCard` (a chat not showing its GUI chat column, such as a terminal one) the chat's site prompt docks here,
- * above the content area, which shrinks to make room, so the view never covers it.
+ * the toolbar; the native view draws above the page, so it is hidden while the Sites or camera popover drops over the
+ * content. With `siteCard` (a chat not showing its GUI chat column, such as a terminal one) the chat's site prompt
+ * docks here, above the content area, which shrinks to make room, so the view never covers it.
  */
-export function BrowserPanel({ folder, chatId, api = window.dm.browser, siteCard = false }: {
+export function BrowserPanel({ folder, folderKey = null, chatId, api = window.dm.browser, siteCard = false }: {
   folder: string | null
+  /** The folder's attachment key, the host of the camera thumbnail's address; null for a project-less chat. */
+  folderKey?: string | null
   chatId: string
   api?: BrowserApi
   siteCard?: boolean
 }): JSX.Element {
   const browser = useBrowser(folder, chatId, api)
   const overlay = useAnyOverlayOpen()
-  const [sitesOpen, setSitesOpen] = useState(false)
-  const hidden = overlay || sitesOpen
+  const { sitesOpen, setSitesOpen, cameraOpen, onCameraOpen, popover } = useToolbarPopovers(chatId)
+  const hidden = overlay || popover !== null
   const content = useRef<HTMLDivElement>(null)
   useViewPlacement({ api, folder, chatId, content, shown: !hidden })
   const { state } = browser
-  const note = pageNote({ overlay, sitesOpen, blank: state !== null && state.tab === null && state.signIn === null })
+  const note = pageNote({ overlay, popover, state })
   const sites = <SitesPopover folder={folder} api={api} open={sitesOpen} onOpenChange={setSitesOpen} />
+  const camera = <BrowserCamera key={chatId} folder={folder} folderKey={folderKey} chatId={chatId} state={state} api={api} open={cameraOpen}
+    onOpenChange={onCameraOpen} />
   return (
     <section className="bp" aria-label="Browser">
       <TabStrip state={state} browser={browser} />
-      <Toolbar state={state} browser={browser} sites={sites} />
+      <Toolbar state={state} browser={browser} camera={camera} sites={sites} />
       <Controls state={state} browser={browser} />
       {browser.error !== null && <p className="bp-error" role="alert">{browser.error}</p>}
       {siteCard && <OriginPromptCard folder={folder} chatId={chatId} api={api} />}
@@ -236,8 +260,14 @@ export function BrowserPanel({ folder, chatId, api = window.dm.browser, siteCard
  * The rail's Browser tab for one chat, as the epic and ordinary chat rails both offer it; it widens the rail. `siteCard`
  * docks the chat's site prompt in the panel, for a chat whose GUI chat column (and its card) is not shown.
  */
-export function browserRailTab(folder: string | null, chatId: string, siteCard = false): RailTab {
+export function browserRailTab({ folder, folderKey, chatId, siteCard = false }: {
+  folder: string | null
+  folderKey: string | null
+  chatId: string
+  siteCard?: boolean
+}): RailTab {
   return {
-    id: 'browser', label: 'Browser', icon: 'globe', wide: true, content: <BrowserPanel folder={folder} chatId={chatId} siteCard={siteCard} />
+    id: 'browser', label: 'Browser', icon: 'globe', wide: true,
+    content: <BrowserPanel folder={folder} folderKey={folderKey} chatId={chatId} siteCard={siteCard} />
   }
 }

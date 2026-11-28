@@ -81,7 +81,7 @@ function historyContents() {
     },
     reload: vi.fn(),
     stop: vi.fn(),
-    capturePage: vi.fn(async () => ({ isEmpty: () => false, toPNG: () => PNG }))
+    capturePage: vi.fn(async (): Promise<{ isEmpty(): boolean; toPNG(): Buffer }> => ({ isEmpty: () => false, toPNG: () => PNG }))
   }
   return contents
 }
@@ -385,17 +385,17 @@ describe('browser panel origin decisions', () => {
   })
 })
 
-describe('browser panel camera (DM-873 c1)', () => {
-  const BOUNDS = { x: 0, y: 0, width: 400, height: 300 }
+const BOUNDS = { x: 0, y: 0, width: 400, height: 300 }
 
-  /** The agent tab on an always-allowed page, placed on the window. */
-  async function shownAgentTab(state: ReturnType<typeof hostRig>): Promise<HistoryContents> {
-    await state.store.add(REPO, 'https://a.example')
-    expect(await state.invoke(BROWSER_CHANNELS.navigate, { ...CHAT, url: 'https://a.example/' })).toEqual({ ok: true, data: null })
-    expect(await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: BOUNDS })).toEqual({ ok: true, data: null })
-    return state.tab()
-  }
+/** The agent tab on an always-allowed page, placed on the window. */
+async function shownAgentTab(state: ReturnType<typeof hostRig>): Promise<HistoryContents> {
+  await state.store.add(REPO, 'https://a.example')
+  expect(await state.invoke(BROWSER_CHANNELS.navigate, { ...CHAT, url: 'https://a.example/' })).toEqual({ ok: true, data: null })
+  expect(await state.invoke(BROWSER_CHANNELS.setView, { ...CHAT, bounds: BOUNDS })).toEqual({ ok: true, data: null })
+  return state.tab()
+}
 
+describe('browser panel camera: the stored capture and no_tab (DM-873 c1)', () => {
   it('stores one PNG of the shown agent tab in the chat image store and answers its ref', async () => {
     const state = hostRig()
     const tab = await shownAgentTab(state)
@@ -407,7 +407,8 @@ describe('browser panel camera (DM-873 c1)', () => {
     expect(image).toEqual({ id: expect.stringMatching(/^ci_/), mime: 'image/png', width: 4, height: 3, bytes: PNG.length })
     expect(result).toEqual({ ok: true, data: { image } })
     expect(tab.capturePage).toHaveBeenCalledTimes(1)
-    expect((await state.images.read(REF, image.id))?.bytes.equals(PNG)).toBe(true)
+    const stored = await state.images.read(REF, image.id)
+    expect(stored === null ? null : Buffer.from(stored.bytes).equals(PNG)).toBe(true)
     // The image is the chat's own: another chat of the folder cannot read it.
     expect(await state.images.read({ ...REF, chatId: 'chat_2' }, image.id)).toBeNull()
     expect(state.onUnexpectedError).not.toHaveBeenCalled()
@@ -425,7 +426,9 @@ describe('browser panel camera (DM-873 c1)', () => {
     expect(state.tab().capturePage).not.toHaveBeenCalled()
     expect(state.onUnexpectedError).not.toHaveBeenCalled()
   })
+})
 
+describe('browser panel camera: hidden views and failed captures (DM-873 c1)', () => {
   it('never captures a Sign-in tab open over the agent tab: view_hidden, and neither page is read', async () => {
     const state = hostRig()
     const agent = await shownAgentTab(state)

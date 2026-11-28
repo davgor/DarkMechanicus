@@ -76,8 +76,10 @@ export function useThreadReveal(state: AgentChatState, landing: string | null | 
 }
 
 /** The rail beside an ordinary chat: its Agents tab lists the chat and the subagents it started; its Browser tab shows the chat's browser. */
-export function ChatAgentsRail({ folder, chatId, chat, agentLabel, state, rail, selected, select }: {
+export function ChatAgentsRail({ folder, folderKey, chatId, chat, agentLabel, state, rail, selected, select }: {
   folder: string | null
+  /** The folder's attachment key, the host of the chat's image addresses (the Browser camera's thumbnail). */
+  folderKey: string | null
   chatId: string
   chat: RailChat
   agentLabel: string
@@ -94,5 +96,5 @@ export function ChatAgentsRail({ folder, chatId, chat, agentLabel, state, rail, 
       onSelect={(id) => { if (id !== rootId(chatId)) select(id) }} />
   )
   return <RightRail label="Chat agents" rail={rail}
-    tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }, browserRailTab(folder, chatId)]} />
+    tabs={[{ id: 'agents', label: 'Agents', icon: 'agent', content }, browserRailTab({ folder, folderKey, chatId })]} />
 }
