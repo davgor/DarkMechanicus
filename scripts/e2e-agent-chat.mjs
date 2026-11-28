@@ -6,6 +6,7 @@
  *
  *   node scripts/e2e-agent-chat.mjs --out <dir> [--exe <packaged app exe>] [--agent claude|omp] [--steps ready,new-chat,stream,tool,approval,todo,toggle,epic-agent,quit,restart-resume]
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-picker,polish-composer,polish-copy,polish-multiselect,polish-worked-for,polish-untrack
+ *   node scripts/e2e-agent-chat.mjs --out <dir> --steps polish-multiquestion
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps image-send,image-result
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps coord-tabs,coord-mail,coord-wake,coord-close
  *   node scripts/e2e-agent-chat.mjs --out <dir> --steps model-pick,model-busy,model-restart
@@ -13,11 +14,13 @@
  * `--agent` selects the kind the fixture folder's chats use (its default agent; `claude` when omitted, `omp` when a
  * coord or model step is named). Both shims are always written, but the omp agent is only connected with `--agent omp`:
  * the app prefers a signed-in OMP for a planner, and the Claude steps after `new-chat` drive Claude-protocol scenarios.
- * So `--agent omp` runs only `ready`, `new-chat`, `quit` and the coord and model steps.
+ * So `--agent omp` runs only `ready`, `new-chat`, `quit`, the coord and model steps and `polish-multiquestion`.
  *
- * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-select questions, `Worked for`, untrack)
+ * The `polish-*` steps (the polished GUI chat: role picker, composer, Copy, multi-question forms, `Worked for`, untrack)
  * run only when named: `polish-picker` starts the chat the others drive, and `polish-untrack` seeds a second fixture
  * folder. A step list that does not start the app itself (`ready` or `restart-resume`) gets `ready` first.
+ * `polish-multiquestion` instead starts its own folder chat on the omp fake (`--agent omp` implied, `--agent claude`
+ * refused), which replays the recorded OMP 18.20.2 ask form, and answers all three questions with one Submit.
  *
  * The `image-*` steps (screenshots in GUI chats) also run only when named: `image-send` sends `swatch.png` from a new
  * folder chat's composer, and `image-result` has the seeded epic's Magos (started through Start run) return it from a
@@ -1820,54 +1823,164 @@ async function polishCopy(session, signal) {
   return { stored: stored.reply, message, code, codeExpected: MARKDOWN_CODE, screenshot: await capture(session, 'e2e-polish-copy.png', WINDOW) }
 }
 
-const MULTI_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-multi-card[role="alertdialog"]'
-const SINGLE_CARD = 'section.agent-chat section.agent-prompt[role="alertdialog"]:not(.agent-prompt-multi-card)'
+const FORM_CARD = 'section.agent-chat section.agent-prompt.agent-prompt-form-card[role="alertdialog"]'
 
-/** Checks exactly `labels` on the multi-select card, one checkbox per poll so React renders each change. */
-function checkOptions(_h, selector, labels) {
+/**
+ * The docked form: per fieldset its legend, checked option labels and free text, the answered count, and how many
+ * Submit buttons it has and whether the one is enabled; ok once the card shows.
+ */
+function formState(_h, selector) {
   const card = document.querySelector(selector)
   if (!card) return { ok: false, card: false }
-  const text = (element) => element?.textContent ?? null
-  const options = [...card.querySelectorAll('label.agent-prompt-check')].map((label) => ({
-    label: text(label.querySelector('.agent-prompt-check-label')), input: label.querySelector('input[type="checkbox"]')
+  const label = (input) => input.closest('label')?.querySelector('.agent-prompt-check-label')?.textContent ?? null
+  const fields = [...card.querySelectorAll('fieldset.agent-prompt-field')].map((fieldset) => ({
+    legend: fieldset.querySelector('legend')?.textContent ?? null,
+    checked: [...fieldset.querySelectorAll('input:checked')].map(label),
+    text: fieldset.querySelector(':scope > textarea')?.value ?? null
   }))
-  const wrong = options.find((option) => labels.includes(option.label) !== option.input.checked)
-  if (wrong) {
-    wrong.input.click()
-    return { ok: false, toggled: wrong.label }
-  }
-  const count = text(card.querySelector('.agent-prompt-count'))
+  const submits = [...card.querySelectorAll('button')].filter((button) => button.textContent === 'Submit')
   return {
-    ok: options.length > 0 && count === `${labels.length} selected`, count, legend: text(card.querySelector('legend')),
-    progress: text(card.querySelector('.agent-prompt-progress')), options: options.map((option) => option.label)
+    ok: true, heading: card.querySelector('h3')?.textContent ?? null, fields, count: card.querySelector('.agent-prompt-count')?.textContent ?? null,
+    submits: submits.length, submitEnabled: submits.length === 1 && !submits[0].disabled
   }
 }
 
-function singleQuestion(h, selector, label) {
-  const card = document.querySelector(selector)
-  if (!card) return { ok: false, card: false }
-  const progress = card.querySelector('.agent-prompt-progress')?.textContent ?? null
-  return { ok: progress === 'Question 2 of 2' && !!h.button(card, label), progress, heading: card.getAttribute('aria-label') }
+/** Polls the docked form until `test` holds for its state. */
+async function formWhere(session, signal, test) {
+  return waitFor(async () => {
+    assertRunning(session)
+    const state = session.lastProbe = await page(session, formState, FORM_CARD)
+    return state.ok && test(state) && state
+  }, signal)
+}
+
+/** Checked option labels per field, in field order, for comparing a form's state. */
+const checkedOf = (state) => JSON.stringify(state.fields.map((field) => field.checked))
+
+/**
+ * One option row of the form field `legend`: clicks its input (`via: 'input'`), its label text (`'label'`), or only
+ * focuses the input (`'focus'`) for a key press. Ok once done.
+ */
+function formOption(_h, selector, { legend, option, via }) {
+  const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
+  const row = [...(fieldset?.querySelectorAll('label.agent-prompt-check') ?? [])]
+    .find((entry) => entry.querySelector('.agent-prompt-check-label')?.textContent === option)
+  const input = row?.querySelector('input')
+  if (!input || input.disabled) return { ok: false, fieldset: !!fieldset, row: !!row }
+  if (via === 'focus') {
+    input.focus()
+    return { ok: document.activeElement === input }
+  }
+  const target = via === 'label' ? row.querySelector('.agent-prompt-check-label') : input
+  target.click()
+  return { ok: true }
+}
+
+/** Focuses the free-text box of the form field `legend`. */
+function focusFormText(_h, selector, legend) {
+  const fieldset = [...(document.querySelector(selector)?.querySelectorAll('fieldset.agent-prompt-field') ?? [])]
+    .find((entry) => entry.querySelector('legend')?.textContent.replace(/ \(optional\)$/, '') === legend)
+  const box = fieldset?.querySelector(':scope > textarea')
+  if (!box || box.disabled) return { ok: false, found: !!box }
+  box.focus()
+  return { ok: document.activeElement === box }
+}
+
+/** A real Space key press in the focused element. */
+async function pressSpace(session) {
+  const key = { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 }
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyDown', text: ' ', unmodifiedText: ' ', ...key })
+  await cdp(session, 'Input.dispatchKeyEvent', { type: 'keyUp', ...key })
 }
 
 /**
- * Polish 4: `[multiselect]` docks the multi question; two checked options and Submit bring the single second question,
- * "Question 2 of 2", and once it is answered the fake echoes the answers it received, both labels included.
+ * The chat once the turn `text` started has ended: idle, nothing pending; the user messages after it (an answered
+ * form's summary) and every assistant text after it.
+ */
+async function answeredTurn(_h, folder, chatId, text) {
+  const result = await window.dm.agentChat.snapshot({ folder, chatId })
+  if (!result.ok) return { ok: false, error: result.error.message }
+  const { items, status, pending } = result.data
+  const sent = items.findLastIndex((item) => item.kind === 'user_message' && item.text === text)
+  const after = sent < 0 ? [] : items.slice(sent + 1)
+  return {
+    ok: sent >= 0 && status === 'idle' && pending === null, status,
+    summaries: after.filter((item) => item.kind === 'user_message').map((item) => item.text),
+    replies: after.filter((item) => item.kind === 'assistant_text').map((item) => item.text)
+  }
+}
+
+/**
+ * Polish 4: `[multiselect]` (Claude Code's two questions) docks one form with both questions; checking A and C and
+ * choosing SQLite enables its one Submit, and once it is clicked the fake echoes both answers from one response.
  */
 async function polishMultiselect(session, signal) {
   const { chatId } = polishChat(session)
   await until(session, signal, composeAndSend, chatId, '[multiselect]')
-  const multi = await until(session, signal, checkOptions, MULTI_CARD, ['A', 'C'])
-  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
-  await until(session, signal, clickButton, MULTI_CARD, 'Submit')
-  const second = await until(session, signal, singleQuestion, SINGLE_CARD, 'SQLite')
-  await until(session, signal, clickButton, SINGLE_CARD, 'SQLite')
-  await until(session, signal, turnDone, session.folderPath, chatId, { text: '[multiselect]' })
-  const { reply } = await until(session, signal, turnItems, session.folderPath, chatId, '[multiselect]')
-  if (!reply?.includes('"Which letters?":"A, C"') || !reply.includes('"Which database?":"SQLite"')) {
-    throw new Error(`The fake did not echo both checked labels: ${JSON.stringify(reply)}`)
+  const shown = await formWhere(session, signal, (state) => state.fields.length === 2 && state.submits === 1 && !state.submitEnabled)
+  for (const [legend, option] of [['Which letters?', 'A'], ['Which letters?', 'C'], ['Which database?', 'SQLite']]) {
+    await until(session, signal, formOption, FORM_CARD, { legend, option, via: 'input' })
   }
-  return { multi, second, echo: reply, screenshot }
+  const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["A","C"],["SQLite"]]' && state.submitEnabled)
+  const screenshot = await capture(session, 'e2e-polish-multiselect.png', WINDOW)
+  await until(session, signal, clickButton, FORM_CARD, 'Submit')
+  const turn = await until(session, signal, answeredTurn, session.folderPath, chatId, '[multiselect]')
+  const echoes = turn.replies.filter((reply) => reply.startsWith('answers: '))
+  if (echoes.length !== 1 || !echoes[0].includes('"Which letters?":"A, C"') || !echoes[0].includes('"Which database?":"SQLite"')) {
+    throw new Error(`The fake did not echo both answers from one response: ${JSON.stringify(turn.replies)}`)
+  }
+  return { shown: shown.fields.map((field) => field.legend), form, summaries: turn.summaries, echo: echoes[0], screenshot }
+}
+
+/** The prompt of the multi-question chat: the fake replays the recorded OMP 18.20.2 ask form (`ask_multi_q`). */
+const MULTI_QUESTION_PROMPT = '[ask-multi-q]'
+/** The recorded form's defaults OMP marks checked. */
+const ASK_DEFAULTS = '[["SQLite","Postgres"],["US"],[]]'
+/** Its questions as the card heads them: the HTML marks nothing required, so the checkbox group and the text are optional. */
+const ASK_LEGENDS = '["Which databases? (optional)","Which region?","Anything else? (optional)"]'
+
+/**
+ * Polish 7, on the omp fake: a new folder chat's `[ask-multi-q]` docks one form with all three questions, SQLite and
+ * Postgres checked and US chosen, Submit enabled. Space unchecks Postgres and a click on its label checks it again
+ * (the fake replays the recorded requests, so the group goes back at its default), EU replaces US and "note" goes in
+ * the text field. One Submit answers every question: OMP takes one response per request it asks, and the fake echoes
+ * them all in one reply; the transcript's summary carries every answer, the untouched databases default included.
+ */
+async function polishMultiquestion(session, signal) {
+  await until(session, signal, clickSelector, `button[aria-label="New chat in ${FOLDER_NAME}"]`)
+  await until(session, signal, fill, '.dialog[role="dialog"] textarea', MULTI_QUESTION_PROMPT)
+  await until(session, signal, clickButton, '.dialog[role="dialog"] .dialog-actions', 'Start')
+  const { chat } = await until(session, signal, chatRecord, session.folderPath, { firstPrompt: MULTI_QUESTION_PROMPT })
+  if (chat.agent !== 'omp' || chat.surface !== 'gui') throw new Error(`The chat is ${chat.agent} on ${chat.surface}, not omp on gui.`)
+  const defaults = await formWhere(session, signal, (state) => JSON.stringify(state.fields.map((field) => field.legend)) === ASK_LEGENDS
+    && checkedOf(state) === ASK_DEFAULTS && state.submits === 1 && state.submitEnabled && state.count === '3 of 3 answered')
+  const defaultsShot = await capture(session, 'e2e-polish-multiquestion-defaults.png', WINDOW)
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'focus' })
+  await pressSpace(session)
+  const unchecked = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite"],["US"],[]]')
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which databases?', option: 'Postgres', via: 'label' })
+  await formWhere(session, signal, (state) => checkedOf(state) === ASK_DEFAULTS)
+  await until(session, signal, formOption, FORM_CARD, { legend: 'Which region?', option: 'EU', via: 'input' })
+  await until(session, signal, focusFormText, FORM_CARD, 'Anything else?')
+  await cdp(session, 'Input.insertText', { text: 'note' })
+  const form = await formWhere(session, signal, (state) => checkedOf(state) === '[["SQLite","Postgres"],["EU"],[]]'
+    && state.fields[2].text === 'note' && state.submitEnabled)
+  const screenshot = await capture(session, 'e2e-polish-multiquestion.png', WINDOW)
+  await until(session, signal, clickButton, FORM_CARD, 'Submit')
+  const turn = await until(session, signal, answeredTurn, session.folderPath, chat.id, MULTI_QUESTION_PROMPT)
+  const echoes = turn.replies.filter((reply) => reply.startsWith('answers: '))
+  const responses = echoes.length === 1 ? JSON.parse(echoes[0].slice('answers: '.length)) : null
+  const values = Array.isArray(responses) ? responses.map((response) => response.value) : null
+  if (JSON.stringify(values) !== JSON.stringify(['✔ Done selecting', 'EU', 'note'])) {
+    throw new Error(`The fake did not echo one reply with every response: ${JSON.stringify(turn.replies)}`)
+  }
+  const summary = 'Which databases?: SQLite, Postgres\nWhich region?: EU\nAnything else?: note'
+  if (JSON.stringify(turn.summaries) !== JSON.stringify([summary])) throw new Error(`The answered form reads ${JSON.stringify(turn.summaries)}, not ${JSON.stringify(summary)}.`)
+  return {
+    chat, defaults, spaceUnchecked: unchecked.fields[0].checked, form, echo: echoes[0], responses: values, summary: turn.summaries[0],
+    defaultsScreenshot: defaultsShot, screenshot
+  }
 }
 
 /** The newest `Worked for` row: its label, whether it is open, and the state of its `name` tool card (null when hidden). */
@@ -2774,7 +2887,8 @@ const STEPS = {
       { name: 'model-restart launch', run: appReady },
       { name: 'model-restart resumed', run: modelRestartResumed }
     ]
-  }
+  },
+  'polish-multiquestion': { name: 'polish-multiquestion', run: polishMultiquestion, polish: true, skitarii: true }
 }
 
 async function captureFailure(session, step) {

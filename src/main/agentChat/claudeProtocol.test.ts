@@ -257,7 +257,9 @@ function streamed(event: unknown): string { return json({ type: 'stream_event', 
   it('answers three questions, one multiSelect, in one response with the labels joined as Claude Code joins them', () => {
     const input = { questions: [multiQuestions[0], { ...multiQuestions[0], question: 'Which tags?', options: [{ label: 'x, y' }, { label: 'say "hi"' }, { label: 'plain' }] }, questions[0]] }
     const result = feed([approvalRequest('multi', 'unknown', { tool_name: 'AskUserQuestion', input })])
-    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { id: 'multi', title: 'Answer 3 questions', form: { fields: [{ multi: true }, { multi: true }, { multi: false }] } } })
+    // Claude Code takes no empty answer, so every question is required, the multiSelect ones included (valid([]) is refused below).
+    expect(result.events.at(-1)).toMatchObject({ type: 'pending', prompt: { id: 'multi', title: 'Answer 3 questions', form: { fields: [
+      { multi: true, required: true }, { multi: true, required: true }, { multi: false, required: true }] } } })
     const valid = (first: string[]) => [{ fieldId: 'field_0', optionIds: first }, { fieldId: 'field_1', optionIds: ['option_2'] }, { fieldId: 'field_2', optionIds: ['option_1'] }]
     for (const fields of [valid(['option_0', 'option_7']), valid(['option_0', 'option_0']), valid([]), [...valid(['option_0']).slice(0, 2), { fieldId: 'field_2', optionIds: ['option_0', 'option_1'] }],
       [...valid(['option_0']).slice(0, 2), { fieldId: 'field_2', optionIds: ['option_0'], text: 'also' }], valid(['option_0']).slice(0, 2)]) {

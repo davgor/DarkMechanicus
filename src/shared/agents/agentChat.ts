@@ -96,14 +96,17 @@ const promptFields = {
 /**
  * Every question of one multi-question ask, shown and answered together (`fields` answer). `text` says whether a field
  * takes free text: never, beside its options ('other'), or only text. `preselected` options and `defaultText` are the
- * agent's defaults, kept when the person leaves them untouched.
+ * agent's defaults, kept when the person leaves them untouched. `required` says whether the field must be answered:
+ * a checkbox group without it may be sent empty; absent, a checkbox group (`multi`) and a text field are optional and a
+ * radio group (one choice) is required.
  */
 const formSchema = z.strictObject({
   fields: z.array(z.strictObject({
     id: z.string().min(1).max(200), title: z.string().max(2_000), multi: z.boolean(),
     options: z.array(z.strictObject({ id: z.string().min(1), label: z.string(), description: z.string().optional(), preselected: z.boolean().optional() })).max(FORM_OPTIONS_MAX),
     text: z.enum(['none', 'other', 'only']),
-    defaultText: z.string().max(20_000).optional()
+    defaultText: z.string().max(20_000).optional(),
+    required: z.boolean().optional()
   })).min(1).max(FORM_FIELDS_MAX)
 })
 export const pendingPromptSchema = z.discriminatedUnion('kind', [

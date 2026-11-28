@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { PendingPrompt } from '../../shared/agents/agentChat'
-import { parseAskForm } from './ompAskForm'
+import { askDesired, askPromptForm, parseAskForm } from './ompAskForm'
 import { createOmpState, encodeOmpCommand, translateOmpLine, type OmpEvent } from './ompProtocol'
 import { ompAnswerForm, ompAnswerPrompt, ompHoldPrompt, type OmpHeldPrompt } from './ompPrompts'
 import type { FormFieldAnswer } from './pendingPrompts'
@@ -113,10 +113,10 @@ describe('OMP method ask with several questions (askDialog, one answers[] frame)
     const held = hold(request)
     expect(held.prompt).toMatchObject({ id: 'ui_T1_question_multi', title: 'Answer 2 questions', options: [] })
     expect(formOf(held.prompt).fields).toEqual([
-      { id: 'field_0', title: 'Which databases?', multi: true, text: 'other', options: [
+      { id: 'field_0', title: 'Which databases?', multi: true, text: 'other', required: false, options: [
         { id: 'option_0', label: 'SQLite', description: 'Local database' }, { id: 'option_1', label: 'Postgres', description: 'Server database' },
         { id: 'option_2', label: 'MySQL', description: 'Server database' }, { id: 'option_3', label: 'DuckDB', description: 'Analytics database' }] },
-      { id: 'field_1', title: 'Which region?', multi: false, text: 'other', options: [
+      { id: 'field_1', title: 'Which region?', multi: false, text: 'other', required: true, options: [
         { id: 'option_0', label: 'EU', description: 'Europe', preselected: true }, { id: 'option_1', label: 'US', description: 'United States' }] }
     ])
   })
@@ -143,6 +143,12 @@ describe('OMP method ask with several questions (askDialog, one answers[] frame)
     expect(invalid.map(fields => ompAnswerForm(held, fields))).toEqual(invalid.map(() => null))
     expect([ompAnswerPrompt(held, 'option_0'), ompAnswerPrompt(held, ['option_0'])]).toEqual([null, null])
   })
+
+  it('sends a multi question empty (it is optional) but never a single one', () => {
+    const held = hold(request)
+    expect(ompAnswerForm(held, [{ fieldId: 'field_0', optionIds: [] }, { fieldId: 'field_1', optionIds: ['option_1'] }])).toEqual(response({ answers: [
+      { id: 'q_T1_databases', selectedOptions: [] }, { id: 'q_T1_region', selectedOptions: ['US'] }] }, 'ui_T1_question_multi'))
+  })
 })
 
 describe('OMP form request with several fields (one data record)', () => {
@@ -159,6 +165,23 @@ describe('OMP form request with several fields (one data record)', () => {
     expect(ompAnswerForm(held, [{ fieldId: 'field_0', optionIds: ['option_1'], text: 'zz' }, { fieldId: 'field_1', optionIds: ['option_0'] }, { fieldId: 'field_2', optionIds: [], text: 'x' }])).toBeNull()
     expect(ompAnswerForm(held, [{ fieldId: 'field_0', optionIds: ['option_1'], text: 'zz' }, { fieldId: 'field_1', optionIds: ['option_0'] }, { fieldId: 'field_2', optionIds: [], text: '7' }]))
       .toEqual(response({ data: { tags: ['b', 'zz'], size: 's', count: 7 } }))
+  })
+})
+
+describe('OMP form request: required fields', () => {
+  it('marks a single choice and a field the form requires as required, refuses them empty, and sends an optional group empty', () => {
+    const held = form([
+      { kind: 'choice', name: 'tags', multi: true, options: [{ label: 'A', value: 'a' }] },
+      { kind: 'choice', name: 'must', multi: true, required: true, options: [{ label: 'B', value: 'b' }] },
+      { kind: 'choice', name: 'size', options: [{ label: 'Small', value: 's' }] },
+      { kind: 'text', name: 'why', required: true }
+    ])
+    expect(formOf(held.prompt).fields.map(field => field.required)).toEqual([false, true, true, true])
+    const answers = (must: string[], why: string) => [{ fieldId: 'field_0', optionIds: [] }, { fieldId: 'field_1', optionIds: must },
+      { fieldId: 'field_2', optionIds: ['option_0'] }, { fieldId: 'field_3', optionIds: [], text: why }]
+    expect(ompAnswerForm(held, answers([], 'because'))).toBeNull()
+    expect(ompAnswerForm(held, answers(['option_0'], '  '))).toBeNull()
+    expect(ompAnswerForm(held, answers(['option_0'], 'because'))).toEqual(response({ data: { tags: [], must: ['b'], size: 's', why: 'because' } }))
   })
 })
 
@@ -195,12 +218,12 @@ describe('OMP 18.20.2 ask tool goldens (HTML form, answered field by field over 
     expect(prompts).toHaveLength(1)
     expect(prompts[0]).toMatchObject({ id: 'ui_T1_ask_1', kind: 'question', title: 'Answer 3 questions', options: [] })
     expect(formOf(prompts[0]).fields).toEqual([
-      { id: 'databases', title: 'Which databases?', multi: true, text: 'other', options: [
+      { id: 'databases', title: 'Which databases?', multi: true, text: 'other', required: false, options: [
         { id: 'option_0', label: 'SQLite', preselected: true }, { id: 'option_1', label: 'Postgres', preselected: true },
         { id: 'option_2', label: 'MySQL' }, { id: 'option_3', label: 'DuckDB' }] },
-      { id: 'region', title: 'Which region?', multi: false, text: 'other', options: [
+      { id: 'region', title: 'Which region?', multi: false, text: 'other', required: true, options: [
         { id: 'option_0', label: 'EU' }, { id: 'option_1', label: 'US', preselected: true }, { id: 'option_2', label: 'APAC' }] },
-      { id: 'note', title: 'Anything else?', multi: false, text: 'only', options: [] }
+      { id: 'note', title: 'Anything else?', multi: false, text: 'only', required: false, options: [] }
     ])
   })
 
@@ -256,7 +279,7 @@ describe('OMP 18.20.2 ask tool goldens: divergence and lone checkbox selects', (
     const select = { type: 'extension_ui_request', id: 'ui_T1_lone', method: 'select', title: '(1 selected) Pick', options: ['A', 'B', '✔ Done selecting'], selectionMarker: 'checkbox', checkedIndices: [0], markableCount: 2 }
     const next = { ...select, id: 'ui_T1_lone_2', title: '(2 selected) Pick', checkedIndices: [0, 1] }
     const result = replay([JSON.stringify(select), JSON.stringify(next)], () => [{ fieldId: 'field_0', optionIds: ['option_0', 'option_1'] }])
-    expect(formOf(result.prompts[0]).fields).toEqual([{ id: 'field_0', title: 'Pick', multi: true, text: 'none', options: [{ id: 'option_0', label: 'A', preselected: true }, { id: 'option_1', label: 'B' }] }])
+    expect(formOf(result.prompts[0]).fields).toEqual([{ id: 'field_0', title: 'Pick', multi: true, text: 'none', required: false, options: [{ id: 'option_0', label: 'A', preselected: true }, { id: 'option_1', label: 'B' }] }])
     expect(result.written).toEqual([{ type: 'extension_ui_response', id: 'ui_T1_lone', value: 'B' }, { type: 'extension_ui_response', id: 'ui_T1_lone_2', value: '✔ Done selecting' }])
   })
 })
@@ -267,6 +290,17 @@ describe('parseAskForm (inert HTML form parser)', () => {
     const html = args && typeof args === 'object' && 'html' in args ? String(args.html) : ''
     expect(parseAskForm(html)?.map(field => [field.name, field.question, field.kind, field.multi, field.other, field.options.filter(option => option.checked).map(option => option.value)]))
       .toEqual([['databases', 'Which databases?', 'choice', true, true, ['sqlite', 'postgres']], ['region', 'Which region?', 'choice', false, true, ['us']], ['note', 'Anything else?', 'text', false, false, []]])
+  })
+
+  it('takes a group\'s required from any of its controls; a radio group is always required, an unmarked checkbox group optional', () => {
+    const fields = parseAskForm('<form><fieldset><legend>Tags</legend><label><input type="checkbox" name="tags" value="a"> A</label><label><input type="checkbox" name="tags" value="b" required> B</label></fieldset>'
+      + '<fieldset><legend>Extras</legend><label><input type="checkbox" name="extras" value="x"> X</label></fieldset>'
+      + '<fieldset><legend>Size</legend><label><input type="radio" name="size" value="s"> S</label></fieldset></form>')!
+    const identity = (text: string) => text
+    expect(askPromptForm(fields, identity).fields.map(field => [field.id, field.required])).toEqual([['tags', true], ['extras', false], ['size', true]])
+    const answers = (tags: string[]) => [{ fieldId: 'tags', optionIds: tags }, { fieldId: 'extras', optionIds: [] }, { fieldId: 'size', optionIds: ['option_0'] }]
+    expect(askDesired(fields, answers([]), identity)).toBeNull()
+    expect(askDesired(fields, answers(['option_1']), identity)).toEqual([{ chosen: [1] }, { chosen: [] }, { chosen: [0] }])
   })
 
   it('labels by for=, keeps select defaults and textarea values, titles an unlabelled control by its name as OMP does, ignores scripts and buttons', () => {

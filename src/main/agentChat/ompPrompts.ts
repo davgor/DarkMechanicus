@@ -12,9 +12,12 @@ const ignoredUiMethods: Record<string, true> = { notify: true, setStatus: true, 
 const dataSchema = z.record(z.string(), z.union([z.string(), z.number(), z.array(z.string())]))
 const answersSchema = z.array(z.strictObject({ id: z.string(), selectedOptions: z.array(z.string()), customInput: z.string().optional() }))
 const uiHeaderSchema = z.object({ id: z.string().min(1), method: z.string().min(1) })
-/** `text`: whether the field takes free text never, beside its options, or only text; `checked` is the agent's default. */
+/**
+ * `text`: whether the field takes free text never, beside its options, or only text; `checked` is the agent's default;
+ * `required`: the field must not be answered empty.
+ */
 type Field = {
-  id: string; title: string; multi: boolean; numeric: boolean; text: 'none' | 'other' | 'only'
+  id: string; title: string; multi: boolean; numeric: boolean; text: 'none' | 'other' | 'only'; required: boolean
   options: { label: string; value: string; description: string; checked: boolean }[]
 }
 export interface OmpHeldPrompt {
@@ -50,7 +53,7 @@ function fieldPrompt(held: OmpHeldPrompt): void {
  */
 function formPrompt(held: OmpHeldPrompt): boolean {
   const form = { fields: held.fields.map((field, index) => ({
-    id: `field_${index}`, title: safe(field.title).slice(0, 2_000), multi: field.multi, text: field.text,
+    id: `field_${index}`, title: safe(field.title).slice(0, 2_000), multi: field.multi, text: field.text, required: field.required,
     options: field.options.map((option, choice) => ({ id: `option_${choice}`, label: safe(option.label),
       ...(option.description ? { description: safe(option.description) } : {}), ...(option.checked ? { preselected: true } : {}) }))
   })) }
@@ -70,21 +73,26 @@ function promptChoices(approval: Record<string, string> | null, options: Record<
   if (approval) return { kind: 'approval', options: Object.entries(approval).map(([id, label]) => ({ id, label: safe(label) })) }
   return { kind: 'question', options: Object.entries(options).map(([id, label]) => ({ id, label: method === 'confirm' ? id === 'yes' ? 'Yes' : 'No' : safe(label) })) }
 }
-/** An ask always takes free text beside its options; a single question's `recommended` index is its default. */
+/**
+ * An ask always takes free text beside its options; a single question's `recommended` index is its default. A single
+ * question needs its one answer; a multi one, as the ask has always been answered here, may be sent empty.
+ */
 function askFields(frame: ObjectValue): Field[] {
   return array(frame.questions).map(object).map(question => {
     const multi = question.multi === true
     const recommended = !multi && Number.isInteger(question.recommended) ? Number(question.recommended) : -1
-    return { id: string(question.id), title: string(question.question), multi, numeric: false, text: 'other' as const,
+    return { id: string(question.id), title: string(question.question), multi, numeric: false, text: 'other' as const, required: !multi,
       options: array(question.options).map(object).map((option, index) => ({ label: string(option.label), value: string(option.label), description: string(option.description), checked: index === recommended })) }
   })
 }
+/** A form's fields; one is required when the form marks it so, and a single choice always is. */
 function formFields(frame: ObjectValue): Field[] {
   return array(object(frame.form).sections).flatMap(section => array(object(section).blocks)).map(object)
     .filter(field => (field.kind === 'text' || field.kind === 'choice') && string(field.name))
     .map(field => ({
       id: string(field.name), title: string(field.question) || string(field.label) || string(field.name),
       multi: field.multi === true, numeric: field.type === 'number', text: field.kind === 'text' ? 'only' as const : field.other === true ? 'other' as const : 'none' as const,
+      required: field.required === true || (field.kind === 'choice' && field.multi !== true),
       options: array(field.options).map(object).filter(option => !option.disabled).map(option => ({ label: string(option.label), value: string(option.value), description: string(option.description), checked: option.checked === true }))
     }))
 }
@@ -193,7 +201,8 @@ export function ompAnswerPrompt(held: OmpHeldPrompt, choice: string | readonly s
 /**
  * Every field of a form prompt at once, as one native frame: an ask's `answers` (labels, then `customInput`), a form's
  * `data`. Null unless each field is answered exactly once with offered options, text only where the field takes it,
- * and a single choice holding exactly one option or text (OMP refuses a single answer carrying both).
+ * a single choice holding exactly one option or text (OMP refuses a single answer carrying both), and a required field
+ * not left empty.
  */
 export function ompAnswerForm(held: OmpHeldPrompt, answers: readonly FormFieldAnswer[]): Answer {
   if (held.prompt.kind !== 'question' || !held.prompt.form || answers.length !== held.fields.length) return null
@@ -210,16 +219,21 @@ function chosenOptions(field: Field, optionIds: readonly string[]): Option[] | n
     .filter((option): option is Option => option !== undefined)
   return picked.length === optionIds.length && new Set(picked).size === picked.length ? picked : null
 }
-/** Text only where the field takes it, and a single choice holding exactly one option or text. */
+/** Text only where the field takes it, a single choice holding exactly one option or text, a required group one pick. */
 function choiceAllowed(field: Field, chosen: number, text: string | undefined): boolean {
   if (text !== undefined && field.text === 'none') return false
-  return field.multi || chosen + (text === undefined ? 0 : 1) === 1
+  const picks = chosen + (text === undefined ? 0 : 1)
+  return field.multi ? !field.required || picks > 0 : picks === 1
+}
+/** A text field's answer: no options, and nonblank text where the field is required. */
+function textAllowed(field: Field, chosen: number, text: string | undefined): boolean {
+  return chosen === 0 && (!field.required || Boolean(text?.trim()))
 }
 /** One field's native value from its form answer; null for an invalid answer (see `ompAnswerForm`). */
 function formFieldValue(method: string, field: Field, answer: FormFieldAnswer): FieldValue | null {
   const chosen = chosenOptions(field, answer.optionIds)
   if (!chosen) return null
-  if (field.text === 'only') return chosen.length ? null : fieldValue(method, field, [], answer.text ?? '')
+  if (field.text === 'only') return textAllowed(field, chosen.length, answer.text) ? fieldValue(method, field, [], answer.text ?? '') : null
   const text = answer.text?.trim() ? answer.text : undefined
   if (!choiceAllowed(field, chosen.length, text)) return null
   return fieldValue(method, field, field.options.filter(option => chosen.includes(option)).map(option => option.value), text)

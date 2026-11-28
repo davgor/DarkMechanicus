@@ -219,14 +219,28 @@ function passingChatStates() {
 }
 
 /**
- * The question-multi state's docked card: the first of two questions, two options checked and both in view, Submit
+ * The question-multi state's docked card: one question (no step counter), two options checked and both in view, Submit
  * enabled and in view, and the transcript at its 96 px minimum or more.
  */
 const QUESTION = {
-  legend: 'Which checks should the worker run before it submits?', progress: 'Question 1 of 2', checkboxes: 4,
+  legend: 'Which checks should the worker run before it submits?', progress: null, checkboxes: 4,
   checked: ['Lint', 'Unit tests'], checkedInView: ['Lint', 'Unit tests'], count: '2 selected', submitEnabled: true,
   submitInView: true, transcriptHeight: 110, transcriptMin: 96
 }
+
+/**
+ * The question-form state's docked card: one glass-strong card holding every question, the defaults checked, one
+ * enabled Submit in view, and the transcript at its 96 px minimum or more. At 1440 everything shows without scrolling;
+ * at 1024 the fields scroll inside the card, the first question and its defaults in view.
+ */
+const FORM_LEGENDS = ['Which databases? (optional)', 'Which region?', 'Anything else? (optional)']
+const FORM = {
+  cards: 1, glassStrong: true, heading: 'Answer 3 questions', legends: FORM_LEGENDS,
+  kinds: ['checkbox', 'radio', 'text'], checked: [['SQLite', 'Postgres'], ['US'], []], count: '3 of 3 answered', submits: 1,
+  submitEnabled: true, legendsInView: FORM_LEGENDS, fieldsScroll: false,
+  checkedInView: ['SQLite', 'Postgres', 'US'], submitInView: true, transcriptHeight: 120, transcriptMin: 96
+}
+const FORM_1024 = { ...FORM, legendsInView: [FORM_LEGENDS[0]], fieldsScroll: true, checkedInView: ['SQLite', 'Postgres'] }
 
 /** The model-picker state: the chip on Opus 5.5 · High before Send, its menu open upward over the host's catalog. */
 const MODEL_PICKER = {
@@ -283,12 +297,22 @@ const AGENT_TABS = {
   aboveChat: true, activeJoined: true, roundedTop: true
 }
 
+/** Passing records for the docked question states: the one multi-select question and the form at both widths. */
+function passingQuestionStates() {
+  return {
+    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
+    'question-form-1024': ready('question-form-1024', { formCard: FORM_1024 }),
+    'question-form-1440': ready('question-form-1440', { formCard: FORM })
+  }
+}
+
 /** A passing record for every state, as a full capture of the preview would report it. */
 function passing() {
   return {
     ...passingRailStates(),
     ...passingChatStates(),
     ...passingDeliveryStates(),
+    ...passingQuestionStates(),
     graph: ready('graph', { planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null }),
     'header-long': ready('header-long', {
       planGraph: true, agentChatRegion: false, railWidth: null, railRightOfStage: null,
@@ -325,7 +349,6 @@ function passing() {
     'agent-role-picker-1024': ready('agent-role-picker-1024', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'agent-role-picker-1440': ready('agent-role-picker-1440', { ...STANDALONE, ...picked(ROLE_CARDS) }),
     'new-chat-picker': ready('new-chat-picker', { ...STANDALONE, ...picked(ROLE_CARDS), newChat: NEW_CHAT }),
-    'question-multi': ready('question-multi', { questionCard: QUESTION, checkedCount: 2 }),
     'epic-agent-tabs-1024': ready('epic-agent-tabs-1024', { agentTabs: AGENT_TABS }),
     'epic-agent-tabs-1440': ready('epic-agent-tabs-1440', { agentTabs: AGENT_TABS }),
     'model-picker-epic': epicModelPickerRecord(),
@@ -367,19 +390,20 @@ describe('capture-agent-chat: arguments and environment', () => {
 })
 
 describe('capture-agent-chat: state list and bounds', () => {
-  it('lists the 53 states once each, in capture order', () => {
+  it('lists the 55 states once each, in capture order', () => {
     expect(STATES).toEqual([
       'graph', 'header-long', 'agent-empty', 'agent-streaming', 'agent-tool', 'agent-approval', 'agent-worker', 'agent-legacy-thread',
       'agent-tree', 'rail-collapsed', 'landing-notification', 'landing-activity', 'chat-rail', 'chat-rail-collapsed', 'agent-todos',
       'agent-todos-collapsed', 'agent-stalled', 'agent-changes', 'agent-approval-named', 'agent-magos-decided', 'agent-needs-you',
       'agent-planners', 'chat-rail-legacy', 'agent-glass-1024', 'agent-glass-1440', 'agent-glass-solid', 'epic-agent-glass-1024',
       'epic-agent-glass-1440', 'agent-composer-1024', 'agent-composer-1440', 'chat-images',
-      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'agent-transcript',
+      'agent-role-picker-1024', 'agent-role-picker-1440', 'epic-agent-picker', 'new-chat-picker', 'question-multi', 'question-form-1024',
+      'question-form-1440', 'agent-transcript',
       'agent-worked-for', 'image-result', 'agent-image-viewer', 'agent-image-evidence', 'mail-card', 'epic-agent-tabs-1024',
       'epic-agent-tabs-1440', 'model-picker', 'model-picker-epic', 'new-chat-model', 'start-run-model', 'lexmechanic-model',
       'settings-notifications', 'delivery-editor', 'delivery-pending', 'delivery-checkpoint'
     ])
-    expect(new Set(STATES).size).toBe(53)
+    expect(new Set(STATES).size).toBe(55)
     expect(Object.isFrozen(STATES)).toBe(true)
   })
 
@@ -400,9 +424,9 @@ describe('capture-agent-chat: state list and bounds', () => {
     expect(viewportOf('agent-transcript', { width: 1920, height: 1080 })).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('declares 15 s per state within a 810 s overall bound: 53 states at 15 s plus 15 s to start', () => {
+  it('declares 15 s per state within a 840 s overall bound: 55 states at 15 s plus 15 s to start', () => {
     expect(STATE_DEADLINE_MS).toBe(15_000)
-    expect(OVERALL_LIMIT_MS).toBe(810_000)
+    expect(OVERALL_LIMIT_MS).toBe(840_000)
     expect(OVERALL_LIMIT_MS).toBe(STATES.length * STATE_DEADLINE_MS + 15_000)
   })
 
@@ -956,12 +980,12 @@ describe('capture-agent-chat: question-multi observations', () => {
   const question = (patch, checkedCount = 2) => validateObservations('question-multi',
     ready('question-multi', { questionCard: { ...QUESTION, ...patch }, checkedCount }))
 
-  it('passes Question 1 of 2 with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
+  it('passes one question with Lint and Unit tests checked, 2 selected and Submit enabled', () => {
     expect(question({})).toEqual([])
   })
 
-  it('fails missing progress, another selection, a wrong count, a disabled Submit and no card', () => {
-    expect(question({ progress: null })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question headed Question 1 of 2/)])
+  it('fails a step counter, another selection, a wrong count, a disabled Submit and no card', () => {
+    expect(question({ progress: 'Question 1 of 2' })).toEqual([expect.stringMatching(/^question-multi: expected a docked multi-select question with its legend and no step counter/)])
     expect(question({ checked: ['Lint'] })).toEqual([expect.stringMatching(/^question-multi: expected Lint and Unit tests checked/)])
     expect(question({ count: '1 selected' })).toHaveLength(1)
     expect(question({ submitEnabled: false })).toEqual([expect.stringMatching(/^question-multi: expected an enabled Submit/)])
@@ -978,6 +1002,43 @@ describe('capture-agent-chat: question-multi observations', () => {
   it('reads the checked count and fails any other', () => {
     expect(question({}, 1)).toEqual(['question-multi: expected two options checked; got 1'])
     expect(question({}, null)).toEqual(['question-multi: expected two options checked; got null'])
+  })
+})
+
+describe('capture-agent-chat: question-form observations', () => {
+  const form = (patch, state = 'question-form-1440') => validateObservations(state,
+    ready(state, { formCard: { ...(state.endsWith('-1024') ? FORM_1024 : FORM), ...patch } }))
+
+  it('passes one card with every question, the defaults checked and one enabled Submit, at both widths', () => {
+    expect(form({})).toEqual([])
+    expect(form({}, 'question-form-1024')).toEqual([])
+  })
+
+  it('fails a second card, plain glass, a missing question, a wrong control and an unchecked default', () => {
+    expect(form({ cards: 2 })).toEqual([expect.stringMatching(/^question-form-1440: expected one docked glass-strong card/)])
+    expect(form({ glassStrong: false })).toHaveLength(1)
+    expect(form({ legends: FORM.legends.slice(0, 2) })).toEqual([expect.stringMatching(/^question-form-1440: expected every question at once/)])
+    expect(form({ kinds: ['checkbox', 'checkbox', 'text'] })).toHaveLength(1)
+    expect(form({ checked: [['SQLite'], ['US'], []] })).toEqual([expect.stringMatching(/^question-form-1440: expected the defaults checked/)])
+  })
+
+  it('fails a second Submit, a disabled one, a short count, Submit out of view and a squeezed transcript', () => {
+    expect(form({ submits: 2, submitEnabled: null })).toEqual([expect.stringMatching(/^question-form-1440: expected one enabled Submit/)])
+    expect(form({ submitEnabled: false })).toHaveLength(1)
+    expect(form({ count: '2 of 3 answered' })).toHaveLength(1)
+    expect(form({ submitInView: false })).toEqual([expect.stringMatching(/^question-form-1440: expected Submit in view/)])
+    expect(form({ transcriptHeight: 42 })).toEqual([expect.stringMatching(/^question-form-1440: expected the transcript keeps at least its declared minimum/)])
+    expect(validateObservations('question-form-1440', ready('question-form-1440'))).toHaveLength(7)
+  })
+
+  it('fails at 1440 a hidden question, a scrolling form or a default out of view; at 1024 a form that neither scrolls nor shows the first defaults', () => {
+    const view = /^question-form-\d+: expected at 1440 every question and checked default in view/
+    expect(form({ legendsInView: FORM.legends.slice(0, 2) })).toEqual([expect.stringMatching(view)])
+    expect(form({ fieldsScroll: true })).toEqual([expect.stringMatching(view)])
+    expect(form({ checkedInView: ['SQLite', 'Postgres'] })).toEqual([expect.stringMatching(view)])
+    expect(form({ fieldsScroll: false }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
+    expect(form({ checkedInView: ['SQLite'] }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
+    expect(form({ legendsInView: [] }, 'question-form-1024')).toEqual([expect.stringMatching(view)])
   })
 })
 

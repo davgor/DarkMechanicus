@@ -329,12 +329,15 @@ function questionOptions(question: JsonObject | undefined): { id: string; label:
   })
 }
 /**
- * One question as today's single prompt; several as one form prompt (`field_<n>`), answered together. More questions
- * or options than the contract carries keep the single prompt, which then refuses every answer: never a partial one.
+ * One question as today's single prompt; several as one form prompt (`field_<n>`), answered together; every question
+ * is required (Claude Code takes no empty answer, a multiSelect one included). More questions or options than the
+ * contract carries keep the single prompt, which then refuses every answer: never a partial one.
  */
 function questionPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, questions: JsonObject[]): PendingPrompt {
   const form = questions.length > 1 && pendingPromptSchema.safeParse({ ...base, kind: 'question', title: `Answer ${questions.length} questions`, options: [], form: {
-    fields: questions.map((question, index) => ({ id: `field_${index}`, title: string(question.question).slice(0, 2_000), multi: question.multiSelect === true, options: questionOptions(question), text: 'other' }))
+    fields: questions.map((question, index) => ({
+      id: `field_${index}`, title: string(question.question).slice(0, 2_000), multi: question.multiSelect === true, options: questionOptions(question), text: 'other', required: true
+    }))
   } })
   if (form && form.success) return form.data
   const question = questions[0]

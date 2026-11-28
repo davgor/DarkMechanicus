@@ -276,7 +276,7 @@ function namedApproval(): AgentChatSnapshot {
   }
 }
 
-/** The first of two questions in one multi-select ask, docked over the conversation. */
+/** One multi-select question that is not a form (a Claude Code single multiSelect question), docked over the conversation. */
 function multiQuestion(): AgentChatSnapshot {
   return {
     ...scenarios.empty.snapshot,
@@ -285,7 +285,7 @@ function multiQuestion(): AgentChatSnapshot {
     pending: {
       id: 'question-multi-1', kind: 'question', title: 'Which checks should the worker run before it submits?',
       detail: 'Choose every check that applies.', threadId: null,
-      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true, progress: { index: 1, total: 2 },
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, multi: true,
       options: [
         { id: 'option_0', label: 'Lint', description: 'ESLint over the changed files' },
         { id: 'option_1', label: 'Typecheck', description: 'Both tsconfig projects' },
@@ -293,6 +293,33 @@ function multiQuestion(): AgentChatSnapshot {
         { id: 'option_3', label: 'Build' },
         { id: 'text', label: 'Other' }
       ]
+    }
+  }
+}
+
+/**
+ * Every question of one ask as one form (the recorded OMP ask): a checkbox group with two defaults, a radio group with
+ * its default and Other, and a free-text field, docked over the conversation.
+ */
+function formQuestion(): AgentChatSnapshot {
+  return {
+    ...scenarios.empty.snapshot,
+    items: conversation,
+    status: 'busy',
+    pending: {
+      id: 'question-form-1', kind: 'question', title: 'Answer 3 questions', detail: '', threadId: null,
+      attributed: false, callsign: null, arbitration: { state: 'off', reason: null }, options: [],
+      form: { fields: [
+        { id: 'databases', title: 'Which databases?', multi: true, text: 'none', required: false, options: [
+          { id: 'option_0', label: 'SQLite', description: 'The local store', preselected: true },
+          { id: 'option_1', label: 'Postgres', description: 'The shared server', preselected: true },
+          { id: 'option_2', label: 'MySQL' }, { id: 'option_3', label: 'DuckDB' }
+        ] },
+        { id: 'region', title: 'Which region?', multi: false, text: 'other', required: true, options: [
+          { id: 'option_0', label: 'EU' }, { id: 'option_1', label: 'US', preselected: true }, { id: 'option_2', label: 'APAC' }
+        ] },
+        { id: 'note', title: 'Anything else?', multi: false, text: 'only', required: false, options: [] }
+      ] }
     }
   }
 }
@@ -595,6 +622,15 @@ const agentStates: Record<string, StateDef> = {
           .find((row) => text(row.querySelector('.agent-prompt-check-label')) === label)?.querySelector('input') ?? null, `the ${label} checkbox`))
       }
       await until(() => text($('.agent-prompt-count')) === '2 selected', '2 selected')
+    }
+  },
+  'question-form': {
+    mount: 'epic',
+    seed: (context) => snapshot(context, formQuestion()),
+    reach: async () => {
+      await openAgentTab()
+      await until(() => $('.agent-prompt-form-card .agent-prompt-form'), 'the docked form of three questions')
+      await until(() => text($('.agent-prompt-form-card .agent-prompt-count')) === '3 of 3 answered', '3 of 3 answered')
     }
   },
   'agent-magos-decided': {
@@ -1001,10 +1037,13 @@ function boxInside(inner: DOMRect, outer: DOMRect): boolean {
   return inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1 && inner.left >= outer.left - 1 && inner.right <= outer.right + 1
 }
 
-/** Which checked options and whether Submit show in the card, and the transcript's height beside it against its minimum. */
+/**
+ * Which checked options and whether Submit show in the card, and the transcript's height beside it against its minimum.
+ * The scrolling list is a form's fields, else a multi question's options.
+ */
 function questionLayout(form: HTMLElement, checkedRows: HTMLElement[]): Record<string, unknown> {
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
-  const list = form.querySelector<HTMLElement>('.agent-prompt-choices')
+  const list = form.querySelector<HTMLElement>('.agent-prompt-fields, .agent-prompt-choices')
   const card = form.closest<HTMLElement>('.agent-prompt')
   const transcript = card?.closest('.agent-chat')?.querySelector<HTMLElement>('.agent-chat-scroll') ?? null
   const viewport = new DOMRect(0, 0, window.innerWidth, window.innerHeight)
@@ -1035,6 +1074,41 @@ function questionObservations(): Record<string, unknown> | null {
     checked: checkedRows.map((row) => text(row.querySelector('.agent-prompt-check-label'))),
     count: text(form.querySelector('.agent-prompt-count')),
     submitEnabled: submit === null ? null : !submit.matches(':disabled'),
+    ...questionLayout(form, checkedRows)
+  }
+}
+
+/**
+ * The docked form prompt: its glass, heading, each fieldset's legend, control kind and checked options, the answered
+ * count, every Submit button and whether it is enabled, which legends show in the scrolling field list and whether it
+ * scrolls, and the same layout as a multi question; null without one.
+ */
+function formObservations(): Record<string, unknown> | null {
+  const form = $('.agent-prompt-form-card .agent-prompt-form')
+  const card = form?.closest<HTMLElement>('.agent-prompt') ?? null
+  if (form === null || card === null) return null
+  const fields = [...form.querySelectorAll<HTMLElement>('fieldset.agent-prompt-field')]
+  const list = form.querySelector<HTMLElement>('.agent-prompt-fields')
+  const viewport = new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+  const legendsInView = list === null ? [] : fields.map((field) => field.querySelector('legend')).filter((legend) => legend !== null
+    && boxInside(legend.getBoundingClientRect(), list.getBoundingClientRect()) && boxInside(legend.getBoundingClientRect(), viewport)).map(text)
+  const checkedRows = [...form.querySelectorAll<HTMLElement>('label.agent-prompt-check')].filter((row) => row.querySelector('input')?.checked === true)
+  const submits = [...card.querySelectorAll<HTMLButtonElement>('button')].filter((button) => text(button) === 'Submit')
+  const kind = (field: HTMLElement): string => field.querySelector('input[type="checkbox"]') ? 'checkbox'
+    : field.querySelector('input[type="radio"]') ? 'radio' : field.querySelector('textarea') ? 'text' : 'none'
+  return {
+    cards: document.querySelectorAll('.agent-prompt[role="alertdialog"]').length,
+    glassStrong: card.classList.contains('glass-strong'),
+    heading: text(card.querySelector('h3')),
+    legends: fields.map((field) => text(field.querySelector('legend'))),
+    kinds: fields.map(kind),
+    checked: fields.map((field) => [...field.querySelectorAll<HTMLInputElement>('input:checked')]
+      .map((input) => text(input.closest('label')?.querySelector('.agent-prompt-check-label') ?? null))),
+    count: text(card.querySelector('.agent-prompt-count')),
+    submits: submits.length,
+    submitEnabled: submits.length === 1 ? !submits[0].matches(':disabled') : null,
+    legendsInView,
+    fieldsScroll: list === null ? null : list.scrollHeight > list.clientHeight,
     ...questionLayout(form, checkedRows)
   }
 }
@@ -1390,6 +1464,7 @@ function observe(state: string, context: Seeded | null): Record<string, unknown>
     cardHeading: text($('.agent-prompt h3')),
     cardArbitration: text($('.agent-prompt .agent-prompt-arbitration')),
     questionCard: questionObservations(),
+    formCard: formObservations(),
     approvalRecord: text($('.chat-approval-card')),
     glass: glassObservations(),
     rolePicker: rolePickerObservations(),
@@ -1513,7 +1588,8 @@ function render(mount: Mount, context: Seeded): JSX.Element {
 
 /** The states the capture also takes at a fixed width, as `<state>-1024` and `<state>-1440`. */
 const SIZED_STATES: Record<string, true> = {
-  'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true
+  'agent-composer': true, 'agent-role-picker': true, 'epic-agent-tabs': true, 'agent-glass': true, 'epic-agent-glass': true,
+  'question-form': true
 }
 
 /** The definition a `?state=` names: a sized state's is its unsized one's. */
