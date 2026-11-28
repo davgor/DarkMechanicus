@@ -134,28 +134,60 @@ async function sendInputEscape(fixture, overlay) {
   return result
 }
 
-/** One kill: overlay + hook + stand-in agent tree + controller, then `trigger(ctx)` starts the kill some way. */
-async function measureKill(name, trigger) {
+/** Launches a fixture for a kill measurement and waits past its re-raises; null (fixture closed) unless it is in front. */
+async function frontFixture(name) {
+  const fixture = await launchFixture(`DM-1042 fixture kill ${name}`)
+  await sleep(3600)
+  const front = windowList(fixture.read().pid).foreground
+  if (front.pid === fixture.read().pid) return { fixture, front }
+  fixture.close()
+  record.kills[name] = { skipped: 'fixture not in front', foreground: front }
+  return null
+}
+
+/**
+ * One kill: fixture in front, then overlay + hook + stand-in agent tree + controller, then `trigger(ctx)` starts the
+ * kill some way. The fixture is in front for the whole measurement, so any stand-in key the hook does not swallow
+ * lands in the fixture, never in the person's window; `inject: false` runs a stand-in tree that sends no input at all
+ * (for kills where the hook itself goes away first).
+ */
+async function measureKill(name, trigger, { inject = true } = {}) {
+  const front = await frontFixture(name)
+  if (!front) return log({ kill: name, skipped: 'fixture not in front' })
+  const { fixture } = front
   const overlay = await startOverlay()
   const hook = await startHook()
-  const tree = startAgentTree(hook.ready.pid, 10)
+  const tree = startAgentTree(hook.ready.pid, { intervalMs: 10, inject })
   await tree.started
   const ctl = controller({ overlay, hook, tree })
   await sleep(1500)
   const treePids = descendants(tree.child.pid)
+  const beforeTrigger = windowList(fixture.read().pid).foreground
+  if (beforeTrigger.pid !== fixture.read().pid) {
+    // End the stand-in before the hook, so not one of its keys can outlive the hook.
+    spawnSync('taskkill.exe', ['/PID', String(tree.child.pid), '/T', '/F'], { windowsHide: true })
+    await ctl.stop()
+    overlay.cleanup()
+    fixture.close()
+    record.kills[name] = { skipped: 'fixture left the front before the trigger', foreground: beforeTrigger }
+    return log({ kill: name, skipped: 'fixture left the front' })
+  }
   const triggeredNs = nowNs()
   await trigger({ ctl, hook, overlay, tree })
   const result = await Promise.race([ctl.killed, sleep(15_000).then(() => ({ timedOut: true }))])
-  result.fromTriggerActionMs = result.overlayClosedNs ? msBetween(triggeredNs, result.overlayClosedNs) : msBetween(triggeredNs, result.overlayExitNs)
-  result.treePids = treePids
-  result.treePidsAliveAfter = treePids.filter(pidAlive)
-  result.overlayWindowsAfter = windowList(overlay.child.pid).windows.length
+  Object.assign(result, {
+    standInInjects: inject, fixtureInFrontAtStart: front.front, foregroundJustBeforeTrigger: beforeTrigger,
+    fromTriggerActionMs: msBetween(triggeredNs, result.overlayClosedNs ?? result.overlayExitNs),
+    treePids, treePidsAliveAfter: treePids.filter(pidAlive), overlayWindowsAfter: windowList(overlay.child.pid).windows.length,
+    fixtureKeysReceived: fixture.read().keys.map((k) => k.key)
+  })
   hook.send('quit')
   await Promise.race([hook.exited, sleep(3000)])
   if (pidAlive(hook.child.pid)) hook.child.kill()
   overlay.cleanup()
+  fixture.close()
   record.kills[name] = result
-  log({ kill: name, reason: result.reason, overlayClosedMs: result.overlayClosedMs, treeEndedMs: result.treeEndedMs, after: result.agentKeysAfterTreeEnded })
+  log({ kill: name, reason: result.reason, overlayClosedMs: result.overlayClosedMs, treeEndedMs: result.treeEndedMs, after: result.agentKeysAfterTreeEnded, fixtureKeys: result.fixtureKeysReceived.length })
 }
 
 function descendants(pid) {
@@ -219,11 +251,26 @@ async function parentExitOwnWatch() {
   }
 }
 
+const KILLS = {
+  triggered: [({ ctl }) => { ctl.kill('simulated-physical-esc', { qpcNs: String(nowNs()) }) }],
+  // The hook dies first here, so nothing could swallow stand-in keys: the stand-in sends none.
+  hookHelperKilled: [({ hook }) => { spawnSync('taskkill.exe', ['/PID', String(hook.child.pid), '/F'], { windowsHide: true }) }, { inject: false }],
+  heartbeatStopped: [({ hook }) => { hook.send('mute') }]
+}
+
+/** `--only <kill>` reruns one kill measurement and writes overlay-probe-<kill>.json. */
+async function only(name) {
+  record.startedAt = new Date().toISOString()
+  await measureKill(name, ...KILLS[name])
+  record.endedAt = new Date().toISOString()
+  writeFileSync(join(OUT, `overlay-probe-${name}.json`), JSON.stringify({ startedAt: record.startedAt, endedAt: record.endedAt, kill: record.kills[name] }, null, 2))
+  rmSync(SCRATCH, { recursive: true, force: true })
+}
+
 async function main() {
+  if (flag('only')) return only(flag('only'))
   for (const mode of ['top', 'maximized', 'fullscreen']) await probeMode(mode)
-  await measureKill('triggered', ({ ctl }) => { ctl.kill('simulated-physical-esc', { qpcNs: String(nowNs()) }) })
-  await measureKill('hookHelperKilled', ({ hook }) => { spawnSync('taskkill.exe', ['/PID', String(hook.child.pid), '/F'], { windowsHide: true }) })
-  await measureKill('heartbeatStopped', ({ hook }) => { hook.send('mute') })
+  for (const [name, args] of Object.entries(KILLS)) await measureKill(name, ...args)
   record.parentExit = {}
   await parentExitJobBound()
   await parentExitOwnWatch()

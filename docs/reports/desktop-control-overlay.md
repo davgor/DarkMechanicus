@@ -26,6 +26,8 @@ proposal. It changes no product code: everything lives under `scripts/spike/desk
 | Observation clock **start** (after the drawn-desktop check passed) | **2026-11-28T18:08:37Z** |
 | Last observation (end of the third hook-endurance run) | 2026-11-28T18:56:39Z |
 | Observation clock **end** | **2026-11-28T18:57:00Z**, so **48 min 23 s** of the 90-minute hard limit |
+| Clock **reopened** after review (rerun of the helper-killed measurement only) | **2026-11-28T19:05:09Z** to **19:07:47Z** (2 min 38 s; drawn-desktop check `ok nonblack=1363` at 19:07:18Z) |
+| Total observation time | **51 min 01 s** of 90 |
 | Host | Windows 11 `10.0.26200`, RDP session 2, one monitor 2560×1600 physical at 150 % (Electron: one display, 1707×1067 DIP, `scaleFactor` 1.5), 16 logical CPUs |
 | Electron | 42.11.18 (the repo's `node_modules/electron`) |
 | omp | the `%LOCALAPPDATA%\omp\omp.exe` DM-1041 used; `/computer status` → `Computer use: enabled · prelude: active · configured: display=all, maxWidth=3840, maxHeight=2400, backgroundFallback=takeover` |
@@ -36,8 +38,25 @@ proposal. It changes no product code: everything lives under `scripts/spike/desk
 Every probe started its own fixture window (the DM-1041 Electron fixture, extended with `--mode`), its own overlay and
 its own hook helper in unique `%TEMP%\dm1042-*` roots, and closed them. Every click and untagged key was sent only after
 a foreground check returned the fixture's own process. The probes' own tagged keys (liveness pings, self-test Escapes,
-the agent stand-in's keys) are swallowed by the hook, so no window ever received them. The hook logs Escape and these
-tagged keys only, never another key of the person's.
+the agent stand-in's keys) are swallowed by the hook **while the hook is alive**; once it is gone they reach whatever
+window has focus. The hook logs Escape and these tagged keys only, never another key of the person's.
+
+**Host-hygiene deviation (found in review).** Two procedures let the injecting agent stand-in (`inject.ps1 -Loop`,
+unassigned VK 0xE8 key-down/up pairs, no character) outlive the hook with no probe fixture in front, so its keys went
+to a window that was not a fixture, most likely one of the person's. None of these keys could be observed: the hook
+that would have seen them was gone.
+
+- `overlay-probe.mjs` "helper killed" step, in each full run at 18:19Z, 18:29Z, 18:31Z, 18:33Z, 18:36Z and 18:41Z:
+  from the helper's death until `taskkill` ended the stand-in (about 80 ms until the parent saw the exit, plus about
+  110 ms to end the tree), at one pair per 10 ms, so roughly 20 pairs per run ([INFERENCE] from the timings).
+- `esc-probe.mjs --self-test` at 18:15Z, 18:31Z, 18:38Z and 18:43Z: it stopped the hook before ending the stand-in,
+  so for up to about 2.5 s (the helper's exit wait plus `taskkill`), at one pair per 50 ms, roughly 50 pairs per run
+  ([INFERENCE]). The 18:14Z attempt crashed and the OS ended hook and stand-in together.
+
+Fixed in the scripts: every `measureKill` now launches a probe fixture, waits past its re-raises, checks it is in
+front at the start and again just before the trigger (and otherwise ends the stand-in before the hook and skips), and
+the helper-killed case runs a stand-in that sends no input at all. `esc-probe.mjs` (self-test and the person's run)
+uses a stand-in that sends no input, and always ends the tree before the hook.
 
 ## Probe 1: the overlay
 
@@ -156,7 +175,7 @@ presses the key.
 | Hook alive 10 min idle (run 3, 18:44:38Z–18:54:38Z) | alive: 2375 heartbeats, largest gap 286 ms; 594/594 pings seen, largest gap 1026 ms; CPU 9 % busy; no kill condition reached |
 | Hook alive 2 min with the CPU saturated (64 tight-loop worker threads, 4 per logical CPU, started and terminated by the probe; 18:54:38Z–18:56:38Z) | alive: CPU **100 %** busy; 477 heartbeats, largest gap 310 ms; 119/119 pings seen, largest gap 1047 ms; no kill condition reached. Runs 1 and 2 (one busy thread per CPU, 39 % busy in run 2) also kept every ping. |
 | Final injected Escape after the load | seen, `injected: true` |
-| Helper killed (`taskkill /F` of the helper) → fail closed | kill reason `hook-exited`; overlay destroyed 6.9 ms after the parent saw the exit (81 ms after taskkill of the helper started); tree ended 111 ms after kill start; 0 agent keys after |
+| Helper killed (`taskkill /F` of the helper) → fail closed. Rerun 19:07:24Z–19:07:35Z (`overlay-probe-hookHelperKilled.json`): probe fixture in front at the start and just before the trigger, stand-in sending **no** input | kill reason `hook-exited`; overlay destroyed 8.1 ms after the parent saw the helper exit (92 ms after `taskkill` of the helper started); tree ended 117 ms after kill start, all 3 pids gone, overlay windows 0; the fixture received no key. Observable: the fail-closed kill and its timing. **Not observable**: injected input after the helper died, because the hook that sees it is the thing killed (the stand-in sends none, so there is nothing to see). The six earlier runs of this step had an injecting stand-in and no fixture in front (deviation above); their "0 agent keys after" was vacuous for the same reason. |
 | Heartbeat stopped (helper told `mute`) → fail closed | kill reason `heartbeat-lost` 1099 ms after the last heartbeat (limit 1000 ms, 100 ms watchdog); overlay destroyed 9.1 ms after detection; tree ended 112 ms after; 0 agent keys after |
 | Helper and overlay exit with their parent: parent is a Node process that spawned them (as DM's main process would) and is terminated | both gone **5.6 ms** after the parent was terminated (both alive just before). Node puts its children in a kill-on-close job object ([INFERENCE] libuv), so Windows ends them with the parent. |
 | … the helper's and overlay's own parent watch alone (spawned by the probe, `-ParentPid`/`--parent` pointing at a separate process that is terminated) | overlay gone **297 ms** after (its 250 ms poll); helper unhooked and printed `exit` with `why: "parent-exited"` **4.6 ms** after, its PowerShell process fully gone 2267 ms after |
@@ -196,17 +215,31 @@ How the two interact:
 
 ## Checkpoint procedure for the person (S5)
 
-Agent pre-check, recorded before the checkpoint: in the code checkout at the merged S5 commit,
-`node scripts/spike/desktop/esc-probe.mjs --self-test` must print `SELF-TEST PASS` and exit 0. On this branch it did
-(see `desktop-control-overlay/esc-probe-self-test.txt`: overlay shown on 1 display, two injected Escapes seen as
-injected, no kill, `electronRunAsNodeInParent: true`, `electronRunAsNodeStripped: true`, exit code 0).
+Agent pre-check, recorded before the checkpoint, in the acceptance worktree at the merged S5 commit (node_modules
+matching the lockfile):
 
-The person's one step, in that checkout on the Windows host, with the desktop in view:
+```text
+cd C:\Users\davgo\dmwork\s5-accept
+node scripts/spike/desktop/esc-probe.mjs --self-test
+```
 
-1. Run `node scripts/spike/desktop/esc-probe.mjs`. A light red border with the note "A Skitarii agent is controlling
-   the desktop — press Esc to stop" appears around every display. Then press **Esc** on the physical keyboard.
-   Expected: the border disappears at once and the terminal prints `PHYSICAL ESC → kill in <ms>` and one JSON line
-   (`reason: "physical-esc"`, the stand-in tree ended, `agentKeysAfterTreeEnded: 0`); exit code 0.
+It must print `SELF-TEST PASS` and exit 0. On this branch it did at 18:43:16Z (see
+`desktop-control-overlay/esc-probe-self-test.txt`: overlay shown on 1 display, two injected Escapes seen as injected,
+no kill, `electronRunAsNodeInParent: true`, `electronRunAsNodeStripped: true`, exit code 0). That run predates the
+fix above (its stand-in still injected); the self-test has not been rerun on the fixed script, so the pre-check is its
+first run.
+
+The person's one step, on the Windows host with the desktop in view:
+
+```text
+cd C:\Users\davgo\dmwork\s5-accept
+node scripts/spike/desktop/esc-probe.mjs
+```
+
+1. A light red border with the note "A Skitarii agent is controlling the desktop — press Esc to stop" appears around
+   every display. Press **Esc** on the physical keyboard. Expected: the border disappears at once and the terminal
+   prints `PHYSICAL ESC → kill in <ms>` and one JSON line (`reason: "physical-esc"`, `taskkillExit: 0`, the stand-in
+   tree ended); exit code 0. The stand-in sends no input, so nothing is typed into the person's windows.
 
 If no Escape arrives within 5 minutes the script removes the border, prints `No Escape within 5 minutes`, and exits 2.
 Any other ending (`KILL (hook-exited)`, `KILL (heartbeat-lost)`, `KILL (ping-lost)`) means the fail-closed path fired
@@ -236,6 +269,7 @@ From the repo root with `node_modules` installed and the desktop drawn:
 node scripts/spike/desktop/esc-probe.mjs --self-test          # agent pre-check, exit 0
 node scripts/spike/desktop/esc-probe.mjs                      # the person's physical-ESC check
 node scripts/spike/desktop/overlay-probe.mjs --out <dir>      # overlay over fixtures, content protection, kill paths
+node scripts/spike/desktop/overlay-probe.mjs --out <dir> --only hookHelperKilled   # one kill measurement only
 node scripts/spike/desktop/omp-esc-probe.mjs --out <dir>      # OMP computer use's Escape and the OMP tree kill
 node scripts/spike/desktop/hook-endurance.mjs --out <file>    # 10 min idle + 2 min CPU load
 npx vitest run scripts/spike/desktop/escDecision.test.mjs
@@ -243,7 +277,9 @@ npx vitest run scripts/spike/desktop/escDecision.test.mjs
 
 ## Evidence
 
-Committed under `docs/reports/desktop-control-overlay/`: `overlay-probe.json`, `omp-esc-probe.json`,
+Committed under `docs/reports/desktop-control-overlay/`: `overlay-probe.json` (18:41Z full run; its
+`kills.hookHelperKilled` entry is the flawed procedure, superseded by `overlay-probe-hookHelperKilled.json`, the
+19:07Z rerun), `omp-esc-probe.json`,
 `omp-esc.rpc.redacted.jsonl` (redacted with DM-1041's `omp-transcript.mjs`; no image payload, no user name),
 `hook-endurance.json` (run 3, the saturating load), `hook-endurance-run1.json` and `hook-endurance-run2.json` (two
 earlier 12-minute runs with one busy thread per CPU; run 2 measured only 39.1 % CPU busy during that load, run 1 used

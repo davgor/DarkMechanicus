@@ -8,9 +8,10 @@
  *                                                         and exits 0 only if neither fired the kill
  *
  * It starts the overlay (repo Electron, ELECTRON_RUN_AS_NODE deleted from its environment), the WH_KEYBOARD_LL hook
- * helper and a stand-in for the computer-use process tree (node → powershell sending tagged keys the hook swallows, so
- * no window receives them). The kill ends that tree with taskkill /T /F and closes every overlay window. `<ms>` is the
- * time from the hook callback that saw the key-down to the overlay reporting its windows destroyed, on one
+ * helper and a stand-in for the computer-use process tree (node → a sleeping powershell). The stand-in sends no input:
+ * here no probe fixture is in front, so a key the hook failed to swallow would reach the person's own window. The tree
+ * is always ended before the hook. The kill ends that tree with taskkill /T /F and closes every overlay window.
+ * `<ms>` is the time from the hook callback that saw the key-down to the overlay reporting its windows destroyed, on one
  * QueryPerformanceCounter clock. Imported by no product code.
  */
 import { spawnSync } from 'node:child_process'
@@ -48,14 +49,14 @@ async function selfTest(ctl, hook, overlay) {
 async function main() {
   const overlay = await startOverlay()
   const hook = await startHook()
-  const tree = startAgentTree(hook.ready.pid, 50)
+  const tree = startAgentTree(hook.ready.pid, { inject: false })
   await tree.started
   const ctl = controller({ overlay, hook, tree })
   print(`Red border shown on ${overlay.shown.windows.length} display(s). Hook helper pid ${hook.ready.pid}, stand-in agent tree pid ${tree.child.pid}.`)
   if (SELF_TEST) {
     const result = await selfTest(ctl, hook, overlay)
-    await ctl.stop()
     spawnSync('taskkill.exe', ['/PID', String(tree.child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+    await ctl.stop()
     overlay.cleanup()
     print(JSON.stringify(result))
     print(result.pass ? 'SELF-TEST PASS: injected ESC seen as injected, no kill.' : 'SELF-TEST FAIL')
@@ -64,14 +65,15 @@ async function main() {
   print('Press Esc on the physical keyboard to stop the agent.')
   const timeout = sleep(WAIT_MS).then(() => null)
   const record = await Promise.race([ctl.killed, timeout])
-  hook.send('quit')
-  overlay.cleanup()
   if (!record) {
-    await ctl.stop()
     spawnSync('taskkill.exe', ['/PID', String(tree.child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+    await ctl.stop()
+    overlay.cleanup()
     print('No Escape within 5 minutes; border removed.')
     process.exit(2)
   }
+  hook.send('quit')
+  overlay.cleanup()
   const ms = record.triggerToOverlayClosedMs ?? record.triggerToOverlayExitMs
   print(record.reason === 'physical-esc' ? `PHYSICAL ESC \u2192 kill in ${ms.toFixed(1)} ms` : `KILL (${record.reason}) \u2192 ${ms.toFixed(1)} ms`)
   print(JSON.stringify({ ...record, injectedEscapesIgnored: ctl.state.ignored.length }))

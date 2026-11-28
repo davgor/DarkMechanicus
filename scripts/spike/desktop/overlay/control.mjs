@@ -91,14 +91,20 @@ export async function startHook({ parentPid = process.pid, pingMs = 1000 } = {})
   return hook
 }
 
-/** The stand-in for a computer-use process tree: node → powershell injecting tagged keys the hook swallows. */
-export function startAgentTree(hookPid, intervalMs = 20) {
+/**
+ * The stand-in for a computer-use process tree: node → powershell. With `inject` it runs `inject.ps1 -Loop`, sending
+ * tagged keys the hook swallows; they reach the foreground window if the hook is gone, so an injecting tree may run
+ * only while the hook is alive and a probe fixture is in front. Without `inject` the powershell child only sleeps.
+ */
+export function startAgentTree(hookPid, { intervalMs = 20, inject = true } = {}) {
+  const child = inject
+    ? `spawn('powershell.exe', ['-NoProfile','-ExecutionPolicy','Bypass','-File',${JSON.stringify(join(DESKTOP, 'inject.ps1'))},'-Loop','-Tag','${hookPid}','-Kind','3','-IntervalMs','${intervalMs}'], { stdio: 'inherit', windowsHide: true })`
+    : `spawn('powershell.exe', ['-NoProfile','-Command','Start-Sleep -Seconds 3600'], { stdio: 'ignore', windowsHide: true }); process.stdout.write('{"looping":false}\\n')`
   const script = `const { spawn } = require('node:child_process');
-spawn('powershell.exe', ['-NoProfile','-ExecutionPolicy','Bypass','-File',${JSON.stringify(join(DESKTOP, 'inject.ps1'))},'-Loop','-Tag','${hookPid}','-Kind','3','-IntervalMs','${intervalMs}'], { stdio: 'inherit', windowsHide: true });
+${child};
 setInterval(() => {}, 1000)`
-  const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
-  const tree = jsonChild(child, 'agent-tree')
-  tree.started = tree.next((line) => line.looping === true, 30_000)
+  const tree = jsonChild(spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }), 'agent-tree')
+  tree.started = tree.next((line) => typeof line.looping === 'boolean', 30_000)
   return tree
 }
 
