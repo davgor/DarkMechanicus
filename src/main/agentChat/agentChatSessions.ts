@@ -805,7 +805,8 @@ class SessionManager {
   }
   private async issue(entry: Entry, agent: AgentView, cwd: string, reach: ReachTarget[] | undefined) {
     const { chat } = entry, { deps } = this
-    const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120) }
+    const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}`.slice(0, 120),
+      ...(chat.cultRunId === undefined ? {} : { cultMember: true }) }
     const identity = { ...mailboxChat(chat), kind: agent.kind }
     const issuing = reach === undefined
       ? deps.issueChatCli(cwd, grant, identity).then(value => ({ cli: value.cli, grantIds: [value.grantId] }))

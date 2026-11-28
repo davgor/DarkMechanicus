@@ -331,3 +331,37 @@ describe('chat grants: the browser pipe (browser.drive)', () => {
     expect(() => state.grants.authorizeBrowser(worker.token)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
   })
 })
+
+describe('chat grants: cult members never get the browser', () => {
+  // Windows cannot remove a folder whose state.sqlite a workspace still holds open.
+  const pools: WorkspacePool[] = []
+  afterEach(async () => { await Promise.all(pools.splice(0).map((pool) => pool.closeAll())) })
+  const browserRig = async (address: () => string | undefined): Promise<Rig> => {
+    const state = await rig(address)
+    pools.push(state.pool)
+    return state
+  }
+
+  it.each([
+    ['acolyte', { role: 'worker', allowSave: false, label: 'Acolyte · cult', cultMember: true }],
+    ['Magos', { role: 'orchestrator', allowSave: false, runSave: false, label: 'Magos · cult', cultMember: true }]
+  ] as const)('never gives a cult %s the browser: no pipe, and its live grant is refused while naming still works', async (_member, grant) => {
+    const state = await browserRig(() => 'browser-pipe')
+    const issued = await state.grants.issueChatCli(repo, grant)
+    const token = issued.cli.env['DM_SESSION_TOKEN'] ?? ''
+    expect(issued.cli.env).not.toHaveProperty('DM_BROWSER_PIPE')
+    await state.grants.bindChatGrant(issued.grantId, { folder: repo, chatId: 'chat-cult', generation: 'g1' })
+    expect(state.grants.authorizeNaming(token)).toMatchObject({ chatId: 'chat-cult' })
+    expect(() => state.grants.authorizeBrowser(token)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+  })
+
+  it('gives an ordinary worker chat the pipe and browser authority beside a cult acolyte of the same role', async () => {
+    const state = await browserRig(() => 'browser-pipe')
+    const worker = await state.grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'worker chat' })
+    const acolyte = await state.grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'Acolyte · cult', cultMember: true })
+    expect(worker.cli.env['DM_BROWSER_PIPE']).toBe('browser-pipe')
+    expect(acolyte.cli.env).not.toHaveProperty('DM_BROWSER_PIPE')
+    await state.grants.bindChatGrant(worker.grantId, { folder: repo, chatId: 'chat-w', generation: 'g1' })
+    expect(state.grants.authorizeBrowser(worker.cli.env['DM_SESSION_TOKEN'] ?? '')).toMatchObject({ chatId: 'chat-w' })
+  })
+})

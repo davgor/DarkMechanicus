@@ -284,6 +284,8 @@ interface GrantOptions {
   label: string
   /** False for a cult Magos: it saves only with Allow save, never through the run-ownership exception (DM-738). */
   runSave?: boolean
+  /** True for a cult run's Magos or acolyte: a hidden terminal with no Browser panel, so its grant never drives the browser. */
+  cultMember?: boolean
 }
 
 /**
@@ -1180,7 +1182,8 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
   const files = await step(writeStartFiles(context, repairCheckout))
   await step(recheckFolder(context))
   const grant = {
-    role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title), ...(chat.cultRole === 'magos' ? { runSave: false } : {})
+    role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title), ...(chat.cultRole === 'magos' ? { runSave: false } : {}),
+    ...(chat.cultRunId === undefined ? {} : { cultMember: true })
   }
   const revokeAll = (grantIds: readonly string[]): void => {
     for (const grantId of grantIds) {

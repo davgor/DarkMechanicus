@@ -43,8 +43,16 @@ interface ChatGrantsDeps {
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
-/** `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true. */
-interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean }
+/**
+ * `runSave: false` (a cult Magos) keeps the grant out of the run-ownership Save exception; absent means true.
+ * `cultMember` marks a cult run's Magos or acolyte: a hidden terminal chat with no Browser panel the person could
+ * watch, approve sites in or Stop from, so its grant never gets the browser pipe or browser authority.
+ */
+interface GrantOptions { role: ChatRole; allowSave: boolean; label: string; runSave?: boolean; cultMember?: boolean }
+/** Whether a grant's chat may drive its in-app browser: its role holds `browser.drive` and it is no cult member. */
+function drivesBrowser(grant: GrantOptions): boolean {
+  return grant.cultMember !== true && grantedCapabilities(grant.role, grant.allowSave).includes('browser.drive')
+}
 /** The trusted chat a grant is issued for: its stored identity and title, and its connected agent's kind. */
 export type GrantChat = MailboxChat & { kind: string }
 function reachedMailbox(owner: string | null, chat?: GrantChat): GrantChat | undefined {
@@ -95,7 +103,7 @@ interface HeldGrant {
   lifetime: AbortController
   /** Whether it was bound to a mailbox, whose binding its revoke closes. */
   mailbox: boolean
-  /** Whether its role holds `browser.drive`: only such a grant's chat gets the browser pipe. */
+  /** Whether its chat may drive the browser (`drivesBrowser`): only such a grant's chat gets the browser pipe. */
   browser: boolean
   runId?: string
   cardId?: string
@@ -134,21 +142,20 @@ class ChatGrantRegistry implements ChatGrants {
     const workspace = this.deps.workspaceFor(folder)
     const runSave = grant.runSave === false ? { runSave: false } : {}
     const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes, ...runSave })
-    const browser = grantedCapabilities(grant.role, grant.allowSave).includes('browser.drive')
-    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox, browser })
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox, browser: drivesBrowser(grant) })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }
   /**
-   * The invocation with `token` as its grant, the naming transport's address and, for a role holding `browser.drive`,
-   * the browser pipe's; nothing else of any of them is inherited.
+   * The invocation with `token` as its grant, the naming transport's address and, for a grant that drives the browser
+   * (`drivesBrowser`), the browser pipe's; nothing else of any of them is inherited.
    */
-  private withGrant(launch: DarkMechanicusCli, token: string, role: ChatRole): DarkMechanicusCli {
+  private withGrant(launch: DarkMechanicusCli, token: string, grant: GrantOptions): DarkMechanicusCli {
     const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: token }
     delete env['DM_DESKTOP_PIPE']
     delete env['DM_BROWSER_PIPE']
     const address = this.deps.desktopAddress?.()
     if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
-    const browser = grantedCapabilities(role, false).includes('browser.drive') ? this.deps.browserAddress?.() : undefined
+    const browser = drivesBrowser(grant) ? this.deps.browserAddress?.() : undefined
     if (browser !== undefined) env['DM_BROWSER_PIPE'] = browser
     return { ...launch, env }
   }
@@ -169,7 +176,7 @@ class ChatGrantRegistry implements ChatGrants {
         throw error
       }
     }
-    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token, grant.role), grantId: issued.grantId, endpointId }
+    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token, grant), grantId: issued.grantId, endpointId }
   }
   /**
    * The environment's `DM_SESSION_TOKEN` is the first folder's token, as every chat terminal carries one; the CLI is
@@ -195,7 +202,7 @@ class ChatGrantRegistry implements ChatGrants {
       await Promise.all(issued.map(({ grantId }) => this.revokeChatGrant(grantId)))
       throw error
     }
-    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? '', grant.role), grantIds: issued.map(({ grantId }) => grantId) }
+    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? '', grant), grantIds: issued.map(({ grantId }) => grantId) }
   }
   private async bindReachedMailbox(folder: string, held: { workspace: ProjectWorkspace; grantId: string }, owner: string | null, chat?: GrantChat): Promise<void> {
     if (chat === undefined) return

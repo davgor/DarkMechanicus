@@ -20,7 +20,9 @@ proven on the Windows host first ([`agent-browser.md`](../reports/agent-browser.
   `browser_type`, `browser_press`, `browser_read` and `browser_screenshot`, as `dm call` / `dm_call` and as MCP tools.
   Each needs `browser.drive`, which only the orchestrator and worker roles hold and the desktop never does. Main
   executes them over `webContents.debugger` with a fixed set of CDP commands (the report's GO list) on the chat's
-  own browser pipe (`DM_BROWSER_PIPE`), never the naming pipe.
+  own browser pipe (`DM_BROWSER_PIPE`), never the naming pipe. Cult members (a cult run's Magos and acolytes) never
+  get the browser, whatever their role: they are hidden terminal chats with no Browser panel for the person to watch,
+  approve sites in or Stop from, so their grants get no pipe and `authorizeBrowser` refuses them.
 - **The person decides every new site.** An origin that is neither on the folder's **Always allow** list nor allowed
   once for this tab never loads: the chat gets one site card (**Allow once**, **Always allow**, **Deny**) and the
   agent gets `origin_blocked`. The person can **Stop agent**, **Take control** and **Hand back** at any time.
