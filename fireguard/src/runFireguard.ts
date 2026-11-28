@@ -4,8 +4,9 @@ import { runMutationGate } from './gates/mutationGate.js';
 import { computeGrade } from './grade.js';
 import { resolveGitScope } from './gitScope.js';
 import { buildRelatedTests, type RelatedTests } from './importGraph.js';
-import { partition, shardRunCount } from './sharding.js';
+import { shardRunCount } from './partition.js';
 import type {
+  AstGateResult,
   DiffEntry,
   FireguardConfig,
   FireguardReport,
@@ -57,8 +58,9 @@ async function runMutationStage(
   scope: GitScope,
   lanes: Lanes
 ): Promise<MutationGateResult> {
+  // A shard reads every changed module: it runs its round-robin share of all their mutants.
   const modules = await Promise.all(
-    (deps.shard ? partition(scope.changedModules, deps.shard) : scope.changedModules).map(async (path) => ({
+    scope.changedModules.map(async (path) => ({
       path,
       source: await lanes.source.readFile(path),
     }))
@@ -70,6 +72,7 @@ async function runMutationStage(
     relatedTestsFor: createRelatedTestsLookup(lanes, scope),
     changedLines: await deps.getChangedLines?.(scope.changedModules),
     appliers: lanes.appliers,
+    shard: deps.shard,
   });
 }
 
@@ -140,27 +143,33 @@ function untestedReport(
   };
 }
 
-async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
-  const entries = await deps.getDiffEntries();
-  const scope = resolveGitScope({ config: deps.config, entries });
-
-  const scopePayload = {
-    baseRef: deps.config.baseRef,
-    gradedTestFiles: scope.gradedTestFiles,
-    changedModules: scope.changedModules,
-  };
-  if (scope.gradedTestFiles.length === 0) return untestedReport(scope, scopePayload, deps.revision);
-
-  const gates: FireguardReport['gates'] = {};
-
+/** The diff's scope and, when it has graded tests, the AST gate over them as committed. */
+export async function scopeAndAst(
+  deps: Pick<RunFireguardDeps, 'config' | 'getDiffEntries' | 'readFile'>
+): Promise<{ scope: GitScope; ast?: AstGateResult }> {
+  const scope = resolveGitScope({ config: deps.config, entries: await deps.getDiffEntries() });
+  if (scope.gradedTestFiles.length === 0) return { scope };
   const files = await Promise.all(
     scope.gradedTestFiles.map(async (path) => ({
       path,
       source: await deps.readFile(path),
     }))
   );
-  gates.ast = runAstGate({ config: deps.config, files });
-  if (!gates.ast.pass) {
+  return { scope, ast: runAstGate({ config: deps.config, files }) };
+}
+
+async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
+  const { scope, ast } = await scopeAndAst(deps);
+
+  const scopePayload = {
+    baseRef: deps.config.baseRef,
+    gradedTestFiles: scope.gradedTestFiles,
+    changedModules: scope.changedModules,
+  };
+  if (!ast) return untestedReport(scope, scopePayload, deps.revision);
+
+  const gates: FireguardReport['gates'] = { ast };
+  if (!ast.pass) {
     return {
       revision: deps.revision,
       grade: computeGrade(gates),
