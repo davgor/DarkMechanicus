@@ -1,6 +1,6 @@
 /** DM-949: the held target transition's refusals, cancellations and index alignment, driven through recovery on real repositories. */
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VerifiedLearningManifest } from '../../shared/domain/kanban'
@@ -347,26 +347,50 @@ function rebind(f: Fixture): string {
   return original
 }
 
+/**
+ * Rebinds a checkout the plan names through a link while the target's transaction is held. Windows refuses to rename
+ * a folder a running process holds, and the held transaction holds the repository's own folder, so the repository
+ * itself never moves: the link (a junction on Windows) is repointed at a copy of it, which holds the same objects,
+ * refs and prepared ref but neither the held lock files nor this integration's identity, as a clone would.
+ */
+function repointLink(link: string, repoRoot: string): string {
+  const elsewhere = scratchDir('dm-learning-rebound-')
+  cleanups.push(elsewhere.cleanup)
+  const copy = join(elsewhere.path, 'copy')
+  cpSync(repoRoot, copy, { recursive: true, filter: (source) => !source.endsWith('.lock') && !source.endsWith('.identity') })
+  unlinkSync(link)
+  symlinkSync(copy, link, 'junction')
+  return copy
+}
+
 const preparedRefs = (cwd: string): string => gitIn(cwd, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/darkmechanicus').trim()
 
 describe('learning transition: a checkout path rebound while held (DM-983)', () => {
-  it('refuses the next held write once the path is rebound after the first, and leaves the copy unmoved', async () => {
+  it('refuses the next held write once the path is rebound after the first, and leaves both repositories unmoved', async () => {
     const f = await fixture(true)
     put(f.repo.root, 'GUARDRAILS.md', 'never guess\n')
     f.repo.git('add', '--', 'GUARDRAILS.md')
     rmSync(join(f.repo.root, 'GUARDRAILS.md'))
+    const links = scratchDir('dm-learning-link-')
+    cleanups.push(links.cleanup)
+    const link = join(links.path, 'checkout')
+    symlinkSync(f.repo.root, link, 'junction')
+    const plan = { ...f.plan, targets: f.plan.targets.map((target) => ({ ...target, checkout: link })) }
+    let copy = ''
     const writes: string[] = []
     const d = intercepting((request) => {
       if (request.kind !== 'write' || isTransaction(request)) return null
       writes.push(request.args.join(' '))
-      return writes.length === 1 ? runner.run(request).then((result) => (rebind(f), result)) : null
+      return writes.length === 1 ? runner.run(request).then((result) => ((copy = repointLink(link, f.repo.root)), result)) : null
     })
-    const error = await refused(recover(d, f))
+    const error = await refused(recover(d, { ...f, plan }))
     expect(error.code).toBe('foreign_repository')
-    expect(error.message).toContain('its Git folder does not hold the identity this integration was prepared with')
+    expect(error.message).toContain(`${link} is no longer the prepared the root repository: its Git folder is `)
     expect(writes).toEqual(['update-index -z --index-info'])
-    expect(gitIn(f.repo.root, 'rev-parse', 'sprint').trim()).toBe(f.base)
-    expect(existsSync(join(f.repo.root, 'GUARDRAILS.md'))).toBe(false)
+    for (const repository of [f.repo.root, copy]) {
+      expect(gitIn(repository, 'rev-parse', 'sprint').trim()).toBe(f.base)
+      expect(existsSync(join(repository, 'GUARDRAILS.md'))).toBe(false)
+    }
   })
 
   it('refuses to clean up a prepared ref once the path was rebound after the move, deleting nothing in the copy', async () => {
