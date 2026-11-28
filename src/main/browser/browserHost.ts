@@ -53,6 +53,7 @@ type HardenableSession = Parameters<typeof hardenBrowserSession>[0]
 
 /** The parts of a view's `WebContents` the host uses; Electron's `WebContents` satisfies it. */
 export type HostContents = HardenableContents & {
+  readonly id: number
   readonly session: HardenableSession
   loadURL(url: string): Promise<void>
   getURL(): string
@@ -131,8 +132,17 @@ export interface BrowserHost {
   /** Whether the chat's agent tab is the shown view and lies on the visible window (screenshots need it). */
   isShown(ref: BrowserChatRef): boolean
   state(ref: BrowserChatRef): BrowserState
+  /** The origin the chat's agent tab asks for, if any; a Sign-in tab's prompt is never reported. */
+  agentPendingOrigin(ref: BrowserChatRef): string | null
+  /**
+   * Whether an agent tab may load `url` as a frame: the folder's always list, read fresh, plus that tab's once set.
+   * Contents that are no agent tab (the Sign-in tab) keep the session's own rules.
+   */
+  frameAllowed(webContentsId: number | undefined, url: string): Promise<boolean>
   /** Pushes the chat's state again (after an ownership or settings change). */
   refresh(ref: BrowserChatRef): void
+  /** The window holding the views closed: every view is closed, and recreated lazily in the next window. */
+  closeViews(): void
   disposeChat(ref: BrowserChatRef): void
   dispose(): void
 }
@@ -316,6 +326,29 @@ class Host implements BrowserHost {
 
   state(ref: BrowserChatRef): BrowserState {
     return this.stateOf(this.chats.get(ref.chatId) ?? { ref, agent: null, signIn: null, pending: null })
+  }
+
+  agentPendingOrigin(ref: BrowserChatRef): string | null {
+    const pending = this.chats.get(ref.chatId)?.pending
+    return pending?.tab === 'agent' ? pending.origin : null
+  }
+
+  async frameAllowed(webContentsId: number | undefined, url: string): Promise<boolean> {
+    const chat = [...this.chats.values()].find((each) => each.agent !== null && each.agent.view.webContents.id === webContentsId)
+    const tab = chat?.agent
+    if (chat === undefined || tab == null) return true
+    const always = await this.readSites(chat.ref.folder)
+    return !tab.closed && decideNavigation(normalizeTarget(url, this.deps.appUrl), { always, once: tab.once }) === 'allow'
+  }
+
+  closeViews(): void {
+    for (const chat of this.chats.values()) {
+      for (const tab of [chat.agent, chat.signIn]) if (tab !== null) closeTab(tab, this.deps)
+      chat.agent = null
+      chat.signIn = null
+      chat.pending = null
+      this.push(chat)
+    }
   }
 
   refresh(ref: BrowserChatRef): void {
@@ -517,13 +550,17 @@ export function createBrowserHardener(options: {
   appUrl: string | null
   log: (line: string) => void
   lookup?: (host: string) => Promise<readonly { address: string }[]>
+  /** The host's `frameAllowed`: an agent tab's frames go through its origin decision (red-team R19-3). */
+  frameAllowed: BrowserHost['frameAllowed']
 }): Harden {
   const lookup = options.lookup ?? ((host: string) => dns.lookup(host, { all: true }))
   const hardened = new WeakSet<object>()
   return (contents, hooks) => {
     const session = contents.session
     if (!hardened.has(session)) {
-      hardenBrowserSession(session, { lookup, log: options.log })
+      hardenBrowserSession(session, {
+        lookup, log: options.log, frameAllowed: (details) => options.frameAllowed(details.webContentsId, details.url)
+      })
       hardened.add(session)
     }
     hardenBrowserContents(contents, { appUrl: options.appUrl, ...hooks })

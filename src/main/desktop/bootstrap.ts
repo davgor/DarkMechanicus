@@ -24,7 +24,8 @@ import {
   shell,
   type IpcMain,
   type OpenDialogOptions,
-  type WebContents
+  type WebContents,
+  WebContentsView
 } from 'electron'
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
@@ -125,6 +126,10 @@ import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { createChatImages, type ChatImages } from '../agentChat/chatImages'
 import { createChatImageLookup, registerChatImageProtocol } from '../agentChat/chatImageProtocol'
+import { BROWSER_CHANNELS } from '../../shared/browser/browserApi'
+import { startBrowser, type BrowserWiring } from '../browser/browserWiring'
+import { ticketKeyOfAttempt } from '../magos/arbiterContext'
+import { resolveAppUrl } from './navigation'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
@@ -460,17 +465,42 @@ interface ChatQuitOptions {
   /** The chat terminals and GUI chat processes together (`wireAgentChats`). */
   owners: Pick<ChatProcesses['quit'], 'busy' | 'dispose'>
   logins: ChatProcesses['logins']
+  /** The agent browser: its pipe and every view close with the chats. */
+  browser: Pick<BrowserWiring, 'dispose'>
 }
-function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuitOptions): ChatProcesses['quit'] {
+function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins, browser }: ChatQuitOptions): ChatProcesses['quit'] {
   return {
     busy: () => owners.busy() || logins.busy(),
     dispose: async () => {
       await Promise.all([
-        grants.dispose(), yoloRuntime.dispose(), owners.dispose(), logins.dispose(),
+        grants.dispose(), yoloRuntime.dispose(), owners.dispose(), logins.dispose(), browser.dispose(),
         ready.catch(() => {}).then(() => pipe()?.close())
       ])
     }
   }
+}
+
+/**
+ * The agent browser (`browserWiring.ts`) over the main window found at each use, and its pipe, which the chats' live
+ * grants authorize; the chat store and the grants are created after it, so they are reached lazily.
+ */
+function createChatBrowser(
+  { folders, workspaces, activity, chatImages }: Pick<ChatProcessOptions, 'folders' | 'workspaces' | 'activity' | 'chatImages'>,
+  late: { store: () => ChatStore; grants: () => ChatGrants }
+): BrowserWiring {
+  return startBrowser<WebContentsView>({
+    root: join(app.getPath('userData'), 'browser'),
+    appUrl: resolveAppUrl(process.env['ELECTRON_RENDERER_URL'], join(__dirname, '../renderer/index.html')),
+    windows: () => BrowserWindow.getAllWindows(),
+    createView: (webPreferences) => new WebContentsView({ webPreferences }),
+    authorize: (token) => late.grants().authorizeBrowser(token),
+    images: chatImages,
+    chatFor: (ref) => late.store().getChat({ folder: ref.folder, id: ref.chatId }),
+    bindings: activity,
+    ticketKeyOfAttempt: (folder, attemptId) => ticketKeyOfAttempt(desktopWorkspace(folders, workspaces, folder), attemptId),
+    push: (state) => sendToWindows(BrowserWindow.getAllWindows(), BROWSER_CHANNELS.event, state),
+    log: (line) => logger.warn(line)
+  })
 }
 
 /**
@@ -482,8 +512,9 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, owners, logins }: ChatQuit
  */
 function createChatProcesses({ folders, agents, workspaces, activity, settings, notify, sourceCheckouts, assertForgeSetupLaunch, chatImages }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
+  const browser = createChatBrowser({ folders, workspaces, activity, chatImages }, { store: () => store, grants: () => grants })
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
-  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages })
+  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats'), images: chatImages, browser: browser.host })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
   const push = createChatPush(() => BrowserWindow.getAllWindows())
   let namingPipe: ControlPipe | null = null
@@ -496,11 +527,10 @@ function createChatProcesses({ folders, agents, workspaces, activity, settings, 
     minutes: CHAT_GRANT_MINUTES,
     desktopAddress: () => namingPipe?.address,
     desktopReady: () => namingReady,
+    browserAddress: () => browser.address(),
     desktopFence: yoloRuntime.fence,
     yoloReady: () => yoloRuntime.ready,
-    log: (line) => {
-      logger.warn(line)
-    }
+    log: (line) => logger.warn(line)
   })
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
@@ -524,7 +554,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, settings, 
   }).then(pipe => { namingPipe = pipe })
   // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
-  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins })
+  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, owners, logins, browser })
   const chats = endingAgentChats(records, terminals, owners.agentChats)
   const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, agentChats: owners.agentChats, logins, mail, grants, deliveries, contextDelivery, resumeChat,

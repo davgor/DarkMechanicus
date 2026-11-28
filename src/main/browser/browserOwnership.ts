@@ -107,7 +107,8 @@ export function createBrowserOwnership(): BrowserOwnership {
   }
 }
 
-interface OwnerLabelChat {
+/** The chat record fields the badge reads. */
+export interface OwnerLabelChat {
   role: ChatRole
   runId?: string
   title: string
