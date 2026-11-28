@@ -70,12 +70,12 @@ const scenarios: Record<string, ChatItem[]> = {
   todo: [textItem('Done')], todo_clear: [textItem('Done')],
   todo_fail: [{ ...toolItem('call_T1_todofail', 'todo', { phases: [] }, 'Invalid phases'), status: 'failed' }, textItem('Done')],
   question: [
-    { kind: 'approval_request', id: 'omp:approval:ui_T1_question', at, requestId: 'ui_T1_question', category: 'other', tool: 'ask', summary: 'Which database?' },
+    { kind: 'approval_request', id: 'omp:approval:ui_T1_question', at, requestId: 'ui_T1_question', category: 'other', tool: 'ask', summary: 'Which database?', question: true },
     { kind: 'approval_decision', id: 'omp:decision:ui_T1_question', at, requestId: 'ui_T1_question', decision: 'allow_once', decidedBy: 'person' },
     textItem('SQLite')
   ],
   question_multi: [
-    { kind: 'approval_request', id: 'omp:approval:ui_T1_question_multi', at, requestId: 'ui_T1_question_multi', category: 'other', tool: 'ask', summary: 'Answer 2 questions' },
+    { kind: 'approval_request', id: 'omp:approval:ui_T1_question_multi', at, requestId: 'ui_T1_question_multi', category: 'other', tool: 'ask', summary: 'Answer 2 questions', question: true },
     { kind: 'approval_decision', id: 'omp:decision:ui_T1_question_multi', at, requestId: 'ui_T1_question_multi', decision: 'allow_once', decidedBy: 'person' },
     textItem('answers: [{"id":"q_T1_databases","selectedOptions":["SQLite","Postgres"]},{"id":"q_T1_region","selectedOptions":["EU"]}]')
   ],

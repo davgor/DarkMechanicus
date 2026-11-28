@@ -114,10 +114,12 @@ interface RowProps {
   threads: TreeRow['threads']
   /** Where the images on messages and tool calls load from; without it (terminal transcripts) none are shown. */
   imageSrc: ChatImageSrc | undefined
+  /** The live chat's pending prompt: its request still waits for the person rather than went unanswered. */
+  pendingId: string | null
 }
 
 /** One transcript entry, read-only. */
-function EntryRow({ entry, answer, folder, agentName, imageSrc }: RowProps): JSX.Element | null {
+function EntryRow({ entry, answer, folder, agentName, imageSrc, pendingId }: RowProps): JSX.Element | null {
   switch (entry.kind) {
     case 'user_message':
       return (
@@ -140,7 +142,7 @@ function EntryRow({ entry, answer, folder, agentName, imageSrc }: RowProps): JSX
     case 'approval_request':
       return (
         <li className="chat-approval">
-          <ApprovalRecord request={entry} answer={answer} folder={folder} />
+          <ApprovalRecord request={entry} answer={answer} folder={folder} waiting={answer === null && entry.requestId === pendingId} />
         </li>
       )
     default: {
@@ -177,6 +179,8 @@ interface ChatTranscriptProps {
   imageSrc?: ChatImageSrc
   /** A live chat's status: given, each ended turn's work folds into one `Worked for …` row; a stored or thread transcript leaves it out. */
   status?: AgentChatSnapshot['status'] | null
+  /** A live chat's pending prompt id: its record reads as waiting, not as unanswered. */
+  pendingId?: string | null
 }
 
 const NO_MAIL: readonly MailLine[] = []
@@ -201,7 +205,7 @@ function placeMail(entries: readonly TranscriptLine[], rows: readonly TreeRow[])
 }
 
 /** The stored conversation, in the order it happened. */
-export function ChatTranscript({ agentName, folder, entries, imageSrc, status }: ChatTranscriptProps): JSX.Element {
+export function ChatTranscript({ agentName, folder, entries, imageSrc, status, pendingId = null }: ChatTranscriptProps): JSX.Element {
   const items = useMemo(() => entries.filter((entry): entry is TranscriptEntry => entry.kind !== 'mail'), [entries])
   const rows = useMemo(() => transcriptTree(items), [items])
   const placedMail = useMemo(() => placeMail(entries, rows), [entries, rows])
@@ -209,7 +213,7 @@ export function ChatTranscript({ agentName, folder, entries, imageSrc, status }:
   const before = (row: TreeRow): JSX.Element[] => cards(row.entry.id)
   const renderRow = (row: TreeRow): JSX.Element => (
     <TranscriptRow key={row.entry.id} entry={row.entry} answer={row.answer} threads={row.threads} folder={folder} agentName={agentName}
-      imageSrc={imageSrc} />
+      imageSrc={imageSrc} pendingId={pendingId} />
   )
   return (
     <div className="chat-transcript" role="log" aria-label="Transcript" tabIndex={0}>

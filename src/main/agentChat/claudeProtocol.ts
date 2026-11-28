@@ -363,7 +363,7 @@ function recordPrompt(context: Reduction, prompt: PendingPrompt): void {
   const name = string(prompt.tool?.name)
   item(context.events, { kind: 'approval_request', id: `approval:${prompt.id}`, at: context.at, ...scope(prompt.threadId), requestId: prompt.id,
     category: name === 'Bash' ? 'command' : ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name) ? 'file_edit' : 'other',
-    tool: name, summary: prompt.title, input: prompt.tool?.input })
+    tool: name, summary: prompt.title, input: prompt.tool?.input, ...(prompt.kind === 'question' ? { question: true } : {}) })
 }
 function approvalPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, suggestions: JsonObject[]): PendingPrompt {
   return { ...base, kind: 'approval', options: [{ id: 'allow_once', label: 'Allow once' },

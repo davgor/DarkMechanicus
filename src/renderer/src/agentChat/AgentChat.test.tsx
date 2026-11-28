@@ -460,3 +460,28 @@ describe('Agents toggle and rail chevron', () => {
     expect(screen.getByRole('button', { name: 'Collapse Chat agents' }).getAttribute('aria-expanded')).toBe('true')
   })
 })
+
+it('keeps one record of a form question: waiting beside its card, then Answered with the summary after the one Submit', async () => {
+  const { emit } = await mount()
+  const at = '2026-11-27T00:00:00.000Z'
+  const form = { fields: [{ id: 'databases', title: 'Which databases?', multi: true, text: 'none' as const, required: false, options: [{ id: 'option_0', label: 'SQLite', preselected: true }] }] }
+  emit([
+    { ...ref, type: 'status', status: 'busy' },
+    { ...ref, type: 'item', item: { kind: 'approval_request', id: 'omp:approval:ui_ask', at, requestId: 'ui_ask', category: 'other', tool: 'select', summary: 'Answer 1 questions', question: true } },
+    { ...ref, type: 'pending', prompt: { id: 'ui_ask', kind: 'question', title: 'Answer 1 questions', detail: '', threadId: null, callsign: null,
+      attributed: true, arbitration: { state: 'off', reason: null }, options: [], form } }
+  ])
+  const record = () => screen.getByRole('article', { name: 'Question: Answer 1 questions' })
+  expect(within(record()).getByText('Waiting for your answer')).toBeTruthy()
+  expect(screen.queryByText('Not answered')).toBe(null)
+  expect(screen.queryByText('Use select')).toBe(null)
+  emit([
+    { ...ref, type: 'item', item: { kind: 'approval_decision', id: 'omp:decision:ui_ask', at, requestId: 'ui_ask', decision: 'allow_once', decidedBy: 'person' } },
+    { ...ref, type: 'item', item: { kind: 'user_message', id: 'omp:answer:ui_ask', at, text: 'Which databases?: SQLite' } },
+    { ...ref, type: 'pending', prompt: null }
+  ])
+  expect(within(record()).getByText('Answered')).toBeTruthy()
+  expect(screen.getAllByRole('article').filter((card) => card.getAttribute('aria-label')?.startsWith('Question'))).toHaveLength(1)
+  expect(screen.queryByText('Not answered')).toBe(null)
+  expect(screen.getByText('Which databases?: SQLite')).toBeTruthy()
+})
