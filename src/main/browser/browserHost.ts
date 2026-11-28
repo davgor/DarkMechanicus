@@ -103,9 +103,19 @@ interface BrowserHostDeps {
   /** Whether the in-app browser is turned on. */
   enabled(): boolean
   push(state: BrowserState): void
+  /** The chat's pending origin prompt was raised (or replaced) or is gone; a throwing listener is logged, never thrown. */
+  onSitePrompt?(event: SitePromptEvent): void
   log(line: string): void
   now?: () => number
 }
+
+/**
+ * A change of a chat's one pending origin prompt: `site` when one is raised (a new prompt replaces any older one),
+ * `site_cleared` once none is pending (decided, its tab closed, every view closed, or the chat gone).
+ */
+export type SitePromptEvent =
+  | { kind: 'site'; folder: string | null; chatId: string; promptId: string; origin: string; requestedBy: Requester }
+  | { kind: 'site_cleared'; folder: string | null; chatId: string }
 
 /** A chat's agent tab as agent APIs see it; the Sign-in tab is never one. */
 export interface AgentTab {
@@ -281,7 +291,7 @@ class Host implements BrowserHost {
     const chat = this.chats.get(ref.chatId)
     const pending = chat?.pending
     if (chat === undefined || pending == null || pending.id !== promptId) return { ok: false, code: 'stale_prompt' }
-    chat.pending = null
+    this.setPending(chat, null)
     this.push(chat)
     if (decision === 'deny') return { ok: true }
     if (decision === 'always') this.always.set(chat.ref.folder, await this.deps.sites.add(chat.ref.folder, pending.origin))
@@ -307,7 +317,7 @@ class Host implements BrowserHost {
     if (chat?.signIn == null) return
     closeTab(chat.signIn, this.deps)
     chat.signIn = null
-    if (chat.pending?.tab === 'signIn') chat.pending = null
+    if (chat.pending?.tab === 'signIn') this.setPending(chat, null)
     this.place()
     this.push(chat)
   }
@@ -346,7 +356,7 @@ class Host implements BrowserHost {
       for (const tab of [chat.agent, chat.signIn]) if (tab !== null) closeTab(tab, this.deps)
       chat.agent = null
       chat.signIn = null
-      chat.pending = null
+      this.setPending(chat, null)
       this.push(chat)
     }
   }
@@ -360,6 +370,7 @@ class Host implements BrowserHost {
     this.deps.ownership.forget(ref.chatId)
     if (chat === undefined) return
     this.chats.delete(ref.chatId)
+    this.setPending(chat, null)
     for (const tab of [chat.agent, chat.signIn]) if (tab !== null) closeTab(tab, this.deps)
     if (this.placement?.chatId === ref.chatId) this.placement = null
   }
@@ -438,8 +449,23 @@ class Host implements BrowserHost {
       tab.lastPageAsk = at
     }
     if (current !== null) this.deps.log(`browser prompt for ${current.origin} superseded; denied`)
-    chat.pending = { ...ask, id: randomUUID(), tab: tab.kind }
+    this.setPending(chat, { ...ask, id: randomUUID(), tab: tab.kind })
     this.push(chat)
+  }
+
+  /** Sets the chat's pending prompt and tells `onSitePrompt` when it changed. */
+  private setPending(chat: ChatBrowser, pending: PendingOrigin | null): void {
+    if (chat.pending === pending) return
+    chat.pending = pending
+    const { folder, chatId } = chat.ref
+    const event: SitePromptEvent = pending === null
+      ? { kind: 'site_cleared', folder, chatId }
+      : { kind: 'site', folder, chatId, promptId: pending.id, origin: pending.origin, requestedBy: pending.requestedBy }
+    try {
+      this.deps.onSitePrompt?.(event)
+    } catch {
+      this.deps.log('browser site prompt listener failed')
+    }
   }
 
   private load(chat: ChatBrowser, tab: Tab, url: string): Promise<void> {

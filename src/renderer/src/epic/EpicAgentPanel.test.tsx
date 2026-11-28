@@ -655,6 +655,19 @@ describe('EpicAgentPanel: needs you header and pushes', () => {
   })
 })
 
+describe('EpicAgentPanel: a pending browser site (DM-897 c3)', () => {
+  it('dots the chat row for a pending browser site and counts it as needs you', async () => {
+    const { backend, rail } = await railWith([])
+    const site: AttentionItem = {
+      chatId: 'chat_orch', promptId: 'site-1', kind: 'site', threadId: null, callsign: null, arbitration: 'off', title: 'https://docs.example', shown: true
+    }
+    act(() => backend.agentChat.emit({ folder: FOLDER, chatId: 'chat_orch', type: 'attention', items: [site] }))
+    const magos = within(rail).getByRole('treeitem', { name: 'Magos' })
+    expect(within(magos).getAllByRole('button', { name: 'Magos needs you' })).toHaveLength(1)
+    expect(header(rail)).toMatch(/^1 needs you/)
+  })
+})
+
 describe('EpicAgentPanel: one push subscription per GUI chat', () => {
   const planners = Array.from({ length: 9 }, (_, index) => chatRecord({
     id: `chat_plan_${index + 1}`, folder: FOLDER, role: 'planner', epicId: 'ep_1', surface: 'gui', title: 'Planner',

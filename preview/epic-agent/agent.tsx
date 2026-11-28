@@ -646,7 +646,8 @@ const agentStates: Record<string, StateDef> = {
   'agent-needs-you': {
     mount: 'epic',
     // The planner chat is not watched (no transcript, so no subagent rows): its subagent's prompt badges its own row.
-    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing.
+    // The Magos's main-thread prompt is queued behind the shown head, so it waits on no one yet and badges nothing;
+    // its pending browser site (DM-897) is always shown and badges the Magos's own row.
     seed: (context) => {
       snapshot(context, treeSnapshot())
       context.chats.push(PLANNER)
@@ -654,7 +655,8 @@ const agentStates: Record<string, StateDef> = {
         ok: true, data: [
           attention('th-look', 'off', 'Run the glob?'), attention('th-review', 'escalated', 'Read src/lint.ts?'),
           { ...attention('th-plan-look', 'off', 'Read the plan?'), chatId: PLANNER.id, callsign: null },
-          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false }
+          { ...attention('th-look', 'off', 'Run the build?'), promptId: 'p-queued', threadId: null, callsign: null, shown: false },
+          { ...attention('th-look', 'off', 'https://docs.example'), kind: 'site', promptId: 'site-1', threadId: null, callsign: null }
         ]
       }
     },
@@ -664,6 +666,7 @@ const agentStates: Record<string, StateDef> = {
       await until(() => buttonNamed('Lexmechanic needs you'), 'the unwatched planner’s needs-you dot')
       await clickWhenPresent(() => buttonNamed('Collapse Acolyte:DM-2'), 'Collapse Acolyte:DM-2')
       await until(() => buttonNamed('Acolyte:DM-2 needs you'), 'the collapsed parent’s dot')
+      await until(() => buttonNamed('Magos needs you'), 'the Magos’s browser site dot')
     }
   },
   // Ten GUI chats: the run's Magos and nine planners, each named apart, with the second planner selected.

@@ -7,7 +7,7 @@ import { z } from 'zod'
 import type { CommandResult } from './api'
 
 /** The events that can raise an OS notification. */
-export const NOTIFICATION_EVENTS = ['approval_needed', 'question', 'checkpoint_ready', 'run_failed', 'run_stalled'] as const
+export const NOTIFICATION_EVENTS = ['approval_needed', 'question', 'checkpoint_ready', 'run_failed', 'run_stalled', 'browser_site'] as const
 
 type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number]
 
@@ -29,7 +29,8 @@ export const notificationSettingsSchema = z.strictObject({
     question: z.boolean(),
     checkpoint_ready: z.boolean(),
     run_failed: z.boolean(),
-    run_stalled: z.boolean()
+    run_stalled: z.boolean(),
+    browser_site: z.boolean()
   }) satisfies z.ZodType<Record<NotificationEvent, boolean>>,
   sound: z.boolean(),
   whenFocused: z.enum(['skip', 'notify']),
@@ -41,7 +42,7 @@ export type NotificationSettings = z.infer<typeof notificationSettingsSchema>
 /** Every event on, with sound, skipped while the app is focused; the Magos arbiter on with nothing always asked. */
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   version: 1,
-  events: { approval_needed: true, question: true, checkpoint_ready: true, run_failed: true, run_stalled: true },
+  events: { approval_needed: true, question: true, checkpoint_ready: true, run_failed: true, run_stalled: true, browser_site: true },
   sound: true,
   whenFocused: 'skip',
   arbitration: { enabled: true, alwaysAsk: [], autoHandleNotes: '' }

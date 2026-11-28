@@ -6,8 +6,9 @@
  * the ticket and Standards context of each run's folder. Quit waits for both owners and cancels every arbiter,
  * deleting a chat stops its GUI process before its terminal and record go, untracking a folder or removing an agent
  * stops both owners' processes, and the one native confirmation that may stop a live terminal is built here over an
- * injected dialog. Free of Electron runtime imports so it is unit tested; `bootstrap.ts` only passes the real
- * factories, settings, workspaces and Electron's dialog in.
+ * injected dialog. Browser tool approvals are registered never-arbitrated, and each chat's pending browser origin
+ * prompt becomes a `browser_site` notification and a needs-you item. Free of Electron runtime imports so it is unit
+ * tested; `bootstrap.ts` only passes the real factories, settings, workspaces and Electron's dialog in.
  */
 import type { MessageBoxOptions } from 'electron'
 import { readdirSync, rmSync } from 'node:fs'
@@ -18,7 +19,9 @@ import { formatCallsign, rootCallsignOf } from '../../shared/agents/callsign'
 import type { AgentId } from '../../shared/desktop/api'
 import type { ActivityBindings } from '../agents/activityBindings'
 import type { ChatRef } from '../agents/chatStore'
+import type { SitePromptEvent } from '../browser/browserHost'
 import { readArbiterContext, ticketKeyOfAttempt, type ArbiterReads } from '../magos/arbiterContext'
+import { registerNeverArbitrate, type ArbitrationInput } from '../magos/arbitrationRules'
 import type { NotificationEvent } from '../notify/notifier'
 import { endingTerminals, type TerminalSessions } from '../terminals/terminalSessions'
 import type { AgentChatSessions, AgentChatSessionsDeps } from './agentChatSessions'
@@ -61,6 +64,11 @@ interface AgentChatWiringOptions<T extends TerminalOwners> {
 export interface AgentChatWiring<T extends TerminalOwners> {
   terminals: T
   agentChats: AgentChatSessions
+  /**
+   * A chat's pending browser origin prompt changed (`BrowserHost.onSitePrompt`): one an agent or page raised notifies
+   * `browser_site` (the person's own never does), and every change reaches the chat's needs-you items (`AgentChatSessions.siteChanged`).
+   */
+  sitePrompt(event: SitePromptEvent): void
   /** Quit is held while either owner has work under way. */
   busy(): boolean
   /**
@@ -104,9 +112,31 @@ function arbitration(arbiter: ArbiterWiring, onAttention: (event: AttentionEvent
   })
 }
 
+/** MCP browser tools (`browser_*`, bare or `mcp__darkmechanicus__`-prefixed). */
+const MCP_BROWSER_TOOL = /^(mcp__darkmechanicus__)?browser_/
+/** Quotes and escape characters a shell drops (POSIX `"` `'` `\`, PowerShell `` ` ``, cmd `^`), removed before matching. */
+const SHELL_QUOTING = /["'`\\^]/g
+/** `dm call [--] browser_*` and its camelCase alias (`browserNavigate`, which the CLI's `resolveCommand` accepts). */
+const CLI_BROWSER_CALL = /\bcall\s+(?:--\s+)?browser(?:_|[A-Z])/
+
+/**
+ * A browser tool approval: the Magos never decides it, so it always reaches the person (R19-1). Claude calls the browser
+ * as `Bash … dm call browser_*`; the command is matched with shell quoting and escapes stripped, so `"browser_click"`,
+ * `browser\_click` or `brow""ser_click` still match. A false positive only sends a prompt to the person. Residual: a
+ * command name the shell builds at run time (`dm call $X`, command substitution) is not recognised here.
+ */
+function browserToolApproval({ prompt }: ArbitrationInput): boolean {
+  const tool = prompt.tool
+  if (tool === undefined) return false
+  if (MCP_BROWSER_TOOL.test(tool.name)) return true
+  return tool.name === 'Bash' && CLI_BROWSER_CALL.test(String(tool.input['command'] ?? '').replace(SHELL_QUOTING, ''))
+}
+
 export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, agentChatsFactory, push, arbiter, attention }: AgentChatWiringOptions<T>): AgentChatWiring<T> {
   sweepArbiterRoot(arbiter.arbiterRoot)
+  const unregisterBrowser = registerNeverArbitrate(browserToolApproval)
   const onAttention = notifiedAttention(attention)
+  const notifySite = notifiedSite(attention)
   const magos = arbitration(arbiter, onAttention)
   let agentChats: AgentChatSessions | undefined
   // The terminals exist before the GUI manager: until it does, nothing runs in the GUI.
@@ -131,8 +161,14 @@ export function wireAgentChats<T extends TerminalOwners>({ terminalsFactory, age
   return {
     terminals,
     agentChats: gui,
+    sitePrompt: event => {
+      // The person's own ask, raised from the panel they are looking at, never notifies; its needs-you item stays.
+      if (event.kind === 'site' && event.requestedBy !== 'person') notifySite(event)
+      gui.siteChanged(event)
+    },
     busy: () => terminals.busy() || gui.busy(),
     dispose: async () => {
+      unregisterBrowser()
       await Promise.all([terminals.dispose(), gui.dispose(), magos.dispose()])
     }
   }
@@ -184,6 +220,21 @@ function notifiedAttention(deps: AgentChatAttention): (event: AttentionEvent) =>
   return event => {
     try {
       deps.notify(translate(event))
+    } catch (error) {
+      try { deps.onError(error) } catch { /* Logging never changes an outcome. */ }
+    }
+  }
+}
+
+/** A raised origin prompt becomes a `browser_site` notification naming the chat and the origin, landing on the chat. */
+function notifiedSite(deps: AgentChatAttention): (event: Extract<SitePromptEvent, { kind: 'site' }>) => void {
+  return event => {
+    try {
+      const ref = { folder: event.folder, id: event.chatId }
+      deps.notify({
+        kind: 'browser_site', key: `site:${event.promptId}`, title: `${chatName(deps.chat(ref))} wants a site`, body: event.origin,
+        target: { kind: 'chat', folder: event.folder, chatId: event.chatId }
+      })
     } catch (error) {
       try { deps.onError(error) } catch { /* Logging never changes an outcome. */ }
     }
