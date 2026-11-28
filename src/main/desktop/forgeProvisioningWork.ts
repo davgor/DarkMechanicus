@@ -358,7 +358,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const world = claimDirectory(join(parent, intent.request.world.name), intent, 'git')
     await this.initializeGit(intent, world, remote.url)
     const manifest = join(world.path, 'forge-world.json')
-    if (!lstatSync(manifest, { throwIfNoEntry: false })) createForge(world.path, intent.account.login)
+    if (!lstatSync(manifest, { throwIfNoEntry: false })) createForge(world.path, intent.account.login, this.deps.onRenameRetry)
     if (readForgeRecipebook(world.path) === null) writeForgeRecipebook(world.path, null, bundledForgeRecipes())
     this.deps.registry.track(world.path)
     return world

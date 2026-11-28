@@ -73,8 +73,12 @@ function saveRepairedManifest(root: string, before: string, world: ForgeWorld, o
     writeFileSync(temp, JSON.stringify(world, null, 2) + '\n', { flag: 'wx' })
     replaceForgeFile(temp, file, onRetry)
   } finally {
-    if (existsSync(temp)) unlinkSync(temp)
-    unlinkSync(lock)
+    // A refused delete of the temporary file must not leave the lock behind to refuse every later manifest write.
+    try {
+      if (existsSync(temp)) unlinkSync(temp)
+    } finally {
+      unlinkSync(lock)
+    }
   }
 }
 
