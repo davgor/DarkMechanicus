@@ -9,8 +9,9 @@ const define = {
 /** What every test file runs with, in either group below. */
 const shared = {
   environment: 'node' as const,
-  // No test inherits the desktop app's naming pipe or a grant from the shell that runs it (src/test/hermeticEnv.ts).
-  setupFiles: ['src/test/hermeticEnv.ts'],
+  // No test inherits the desktop app's naming pipe or a grant from the shell that runs it (src/test/hermeticEnv.ts), and
+  // no test file ends with a registered child or handle still holding a scratch folder (src/test/scratchLeaks.ts).
+  setupFiles: ['src/test/hermeticEnv.ts', 'src/test/scratchLeaks.ts'],
   // On Windows, git without Git for Windows' launcher process in front of each call (see src/test/realGit.ts).
   globalSetup: ['src/test/realGit.ts'],
   testTimeout: 15_000,

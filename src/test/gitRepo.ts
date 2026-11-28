@@ -3,6 +3,7 @@ import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:c
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { removeScratch } from './removeScratch'
+import { releaseScratch } from './scratchHandles'
 import { createTempRepo, type TempRepo } from './tempRepo'
 
 export interface GitRepo {
@@ -205,6 +206,17 @@ function openRepo(deps: GitRepoDeps, root: string, start: number, cleanup: () =>
 }
 
 /**
+ * The cleanup of a repository made at a caller's `root`: what is registered inside it is released first
+ * (`releaseScratch`), then the folder is removed, failing if it cannot be.
+ */
+function removeAt(root: string): () => void {
+  return () => {
+    releaseScratch(root)
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+/**
  * A repository whose `main` branch holds one initial commit: in a temporary directory of its own, or at `root`
  * (created here, and removed by `cleanup`), e.g. a child of a folder of repositories. A temporary directory and its
  * `git init` are tried up to three times while the folder is busy; any other failure, and every failure after
@@ -219,7 +231,7 @@ export function createGitRepo(options: { root?: string } & Partial<GitRepoDeps> 
     mkdirSync(root)
     initRepository(deps, root)
   }
-  const repo = openRepo(deps, root, 0, temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true })))
+  const repo = openRepo(deps, root, 0, temp?.cleanup ?? removeAt(root))
   repo.commit('initial commit')
   return repo
 }
@@ -234,7 +246,7 @@ export function copyGitRepo(template: GitRepo, options: { root?: string } = {}):
   const temp = options.root === undefined ? createTempRepo() : null
   const root = options.root ?? temp?.root ?? ''
   cpSync(template.root, root, { recursive: true })
-  return openRepo(DEFAULT_DEPS, root, counters.get(template)?.() ?? 0, temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true })))
+  return openRepo(DEFAULT_DEPS, root, counters.get(template)?.() ?? 0, temp?.cleanup ?? removeAt(root))
 }
 
 /** A repository already on disk at `root`, as `createGitRepo` would give it, whose `commit` has written `files` files. */

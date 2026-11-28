@@ -6,6 +6,7 @@ import { nodeFs } from '../core/repo/nodeFs'
 import type { FsAdapter, GitAdapter, GitHead } from '../core/repo/types'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import type { SessionRole } from '../shared/domain/views'
+import { releaseScratch, trackHandle } from './scratchHandles'
 import { createSequentialIds, createTestClock, type TestClock } from './testContext'
 
 interface FakeGit extends GitAdapter {
@@ -46,9 +47,9 @@ export interface Harness {
   /** Copies tracked records (without local/) into a fresh directory, like a clone; `from` defaults to the harness root. */
   cloneTracked(from?: string): string
   /**
-   * Closes every workspace it opened, releasing each database. A test that opened one on a folder the harness does not
-   * own (a real repository) calls this before that folder is removed: Windows cannot delete a folder holding an open
-   * database file.
+   * Closes every workspace it opened, releasing each database. Removing a scratch folder (`removeScratch`, `cleanup`)
+   * closes the workspaces registered inside it first, so a workspace opened on a real repository is released before
+   * that repository is removed, whichever cleanup runs first: Windows cannot delete a folder holding an open database.
    */
   closeWorkspaces(): void
   cleanup(): void
@@ -131,7 +132,7 @@ export function createHarness(): Harness {
     git: createFakeGit({ branch: 'main', commit: 'a'.repeat(40), detached: false })
   }
   const { root, homeDir, clock, git } = env
-  const workspaces: Workspace[] = []
+  const workspaces: { close(): void }[] = []
   return {
     root,
     homeDir,
@@ -139,8 +140,9 @@ export function createHarness(): Harness {
     git,
     open(role, options = {}) {
       const extra = { ...(options.serverInfo && { serverInfo: options.serverInfo }), ...(options.browserClient && { browserClient: options.browserClient }) }
-      const workspace = openWorkspace({ ...openOptions(env, role, options), ...extra })
-      workspaces.push(workspace)
+      const opened = { ...openOptions(env, role, options), ...extra }
+      const workspace = openWorkspace(opened)
+      workspaces.push(trackHandle(`${role} workspace on ${opened.repoRoot}`, [opened.repoRoot, homeDir], () => workspace.close()))
       return workspace
     },
     cloneTracked(from = root) {
@@ -160,6 +162,7 @@ export function createHarness(): Harness {
     cleanup() {
       this.closeWorkspaces()
       for (const dir of dirs) {
+        releaseScratch(dir)
         rmSync(dir, { recursive: true, force: true })
       }
     }
