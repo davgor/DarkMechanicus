@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { fork, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
@@ -12,6 +12,7 @@ import {
   assertStatus,
   assertToggleLaunches,
   browserToolCalls,
+  canAskToQuit,
   chatLaunches,
   claudeSessionPath,
   consoleText,
@@ -42,6 +43,7 @@ import {
   restartTurn,
   runStep,
   seededAgents,
+  sendToChild,
   sha12,
   siteFile,
   staleRoots,
@@ -120,6 +122,45 @@ describe('waitFor', () => {
     await delay(15)
     controller.abort()
     await expect(waiting).rejects.toThrow()
+  })
+})
+
+describe('sendToChild', () => {
+  it('rejects on a closed IPC channel instead of emitting an unhandled error on the child', async () => {
+    const script = join(temp(), 'exit.cjs')
+    writeFileSync(script, 'process.exit(0)\n')
+    const child = fork(script, [], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
+    const errors = []
+    child.on('error', (error) => errors.push(error))
+    await new Promise((resolveExit) => child.once('exit', resolveExit))
+    expect(child.connected).toBe(false)
+    await expect(sendToChild(child, 'quit')).rejects.toThrow("The app's IPC channel is closed; could not send \"quit\".")
+    await delay(50)
+    expect(errors).toEqual([])
+  })
+
+  it('rejects with the error a connected channel reports, and resolves once a message is sent', async () => {
+    const failed = { connected: true, send: (_message, callback) => callback(new Error('EPIPE')) }
+    await expect(sendToChild(failed, 'quit')).rejects.toThrow('EPIPE')
+    const sent = []
+    const ok = { connected: true, send: (message, callback) => { sent.push(message); callback(null) } }
+    await expect(sendToChild(ok, { type: 'resize', width: 1, height: 1 })).resolves.toBeUndefined()
+    expect(sent).toEqual([{ type: 'resize', width: 1, height: 1 }])
+  })
+})
+
+describe('canAskToQuit', () => {
+  it('asks a connected child the harness has not killed, and never a disconnected or force-killed one', () => {
+    const connected = { connected: true }
+    const disconnected = { connected: false }
+    expect(canAskToQuit(null, null)).toBe(true)
+    expect(canAskToQuit(connected, null, new WeakSet())).toBe(true)
+    expect(canAskToQuit(disconnected, null, new WeakSet())).toBe(false)
+    expect(canAskToQuit(connected, null, new WeakSet([connected]))).toBe(false)
+  })
+
+  it('always asks the packaged app, through its inspector', () => {
+    expect(canAskToQuit({ connected: false }, 'C:\\app\\Dark Mechanicus.exe', new WeakSet())).toBe(true)
   })
 })
 

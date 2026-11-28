@@ -628,6 +628,29 @@ async function launch(session, signal) {
 
 const isRunning = (child) => child !== null && child.exitCode === null && child.signalCode === null
 
+/** The app processes the harness killed itself: they can no longer be asked to quit. */
+const forceKilled = new WeakSet()
+
+/**
+ * Sends `message` to the built app's wrapper over its IPC channel. A closed channel rejects (rather than emitting an
+ * unhandled 'error' on the child, which would end the harness before it writes its verdict), as does a failed send.
+ */
+export function sendToChild(child, message) {
+  if (!child.connected) return Promise.reject(new Error(`The app's IPC channel is closed; could not send ${JSON.stringify(message)}.`))
+  return new Promise((resolveSend, rejectSend) => {
+    child.send(message, (error) => (error ? rejectSend(error) : resolveSend()))
+  })
+}
+
+/**
+ * Whether the harness can still ask the app to quit: always for the packaged app (through its inspector), and for the
+ * built sources only over a connected IPC channel to a child the harness has not force-killed.
+ */
+export function canAskToQuit(child, exe, killed = forceKilled) {
+  if (child === null || exe !== null) return true
+  return child.connected && !killed.has(child)
+}
+
 function assertRunning(session) {
   if (!isRunning(session.child)) throw new Error(`The app exited (code ${session.child.exitCode}) before it was ready.`)
 }
@@ -739,8 +762,7 @@ async function startPackagedMain(session, signal) {
 /** Asks the app to resize its window or to quit: over the wrapper's IPC, or in the packaged app's main. */
 function tellApp(session, message) {
   if (session.exe === null) {
-    session.child.send(message)
-    return Promise.resolve()
+    return sendToChild(session.child, message)
   }
   const command = message === 'quit'
     ? 'app.quit()'
@@ -1443,6 +1465,7 @@ async function epicAgent(session, signal) {
 
 function forceKill(child) {
   if (!isRunning(child)) return
+  forceKilled.add(child)
   if (process.platform === 'win32') {
     spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true })
   } else {
@@ -1469,6 +1492,17 @@ async function quit(session, signal) {
   const { code, signal: killedBy } = await session.exited
   if (code !== 0) throw new Error(`The app exited with code ${code}${killedBy ? ` (${killedBy})` : ''}.`)
   return { exitCode: code }
+}
+
+/** Cleanup for an app that can no longer be asked to quit: kills its process tree and waits for it to exit. */
+async function killAndWait(session) {
+  const { child } = session
+  closeSocket(session)
+  session.main?.socket.close()
+  session.main = null
+  forceKill(child)
+  const { code, signal } = await session.exited
+  return { forceKilled: true, exitCode: code, signal }
 }
 
 async function fakeProcessesExited(session, signal) {
@@ -3817,7 +3851,8 @@ async function runSteps(session, keys, steps) {
   }
   // Whatever stopped before the quit step still ends the app and checks its fakes.
   if (session.child === null || isRunning(session.child)) {
-    steps.push(await runStep('quit (cleanup)', (signal) => quit(session, signal), { onFailure }))
+    const cleanup = canAskToQuit(session.child, session.exe) ? quit : killAndWait
+    steps.push(await runStep('quit (cleanup)', (signal) => cleanup(session, signal), { onFailure }))
     steps.push(await runStep('fake processes exited (cleanup)', (signal) => fakeProcessesExited(session, signal), {
       onFailure: async () => ({ alive: session.fakePids.filter((pid) => isAlive(pid)) })
     }))
@@ -3893,6 +3928,9 @@ async function main(argv) {
   const steps = []
   try {
     await runSteps(session, keys, steps)
+  } catch (error) {
+    // A harness error outside any step still ends in a verdict that names it.
+    steps.push({ name: 'harness', ok: false, ms: 0, detail: { error: messageOf(error) } })
   } finally {
     forceKill(session.child)
     closeSocket(session)
